@@ -8,4 +8,7 @@ setup(
     install_requires=[
         'wrapt',
     ],
+    extras_require={
+        ":python_version<'3.3'": ["chainmap"],
+    }
 )

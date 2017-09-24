@@ -2,6 +2,7 @@
 exclude_lines =
     pragma: no cover
     @abstract
+    pass
     raise AssertionError
     raise NotImplementedError
 
