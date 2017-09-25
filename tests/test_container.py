@@ -1,11 +1,11 @@
 import pytest
 
-from dep.container import ServicesContainer
+from dep.container import Container
 from dep.exceptions import *
 
 
 def test_register():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register()
     class S1:
@@ -18,24 +18,13 @@ def test_register():
 
     assert s1 == container['something']
 
-    s2 = object()
-    container.register(s2)
-
-    assert s2 == container['s2']
-
 
 def test_inject():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register
     class S1:
         pass
-
-    @container.inject(use_name=True)
-    def f1(s1):
-        return s1
-
-    assert isinstance(f1(), S1)
 
     @container.inject
     def f3(x: S1):
@@ -43,7 +32,7 @@ def test_inject():
 
     assert isinstance(f3(), S1)
 
-    @container.inject(use_name=False)
+    @container.inject
     def f4(x: S1, b=1):
         return x
 
@@ -51,7 +40,7 @@ def test_inject():
 
 
 def test_auto_wire():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register(id='s1')
     class S1:
@@ -72,60 +61,32 @@ def test_auto_wire():
         _ = container['s3']
 
 
-def test_no_name(monkeypatch):
-    container = ServicesContainer()
-
-    something = object()
-    container.register(something)
-    assert something == container['something']
-
-    other_thing = object()
-    container.register(service=other_thing)
-    assert other_thing == container['other_thing']
-
-    thing1 = object()
-    thing2 = object()
-    with pytest.raises(ValueError):
-        container.register(thing1);container.register(thing2)
+def test_no_name():
+    container = Container()
 
     @container.register
     class SomeServiceN1:
         pass
 
-    assert isinstance(container['SomeServiceN1'], SomeServiceN1)
-    assert isinstance(container['some_service_n1'], SomeServiceN1)
-
-    def dummy(*args, **kwargs):
-        raise Exception()
-
-    monkeypatch.setattr(container, '_guess_name_from_caller_code', dummy)
-
-    thing3 = object()
-    with pytest.raises(ValueError):
-        container.register(thing3)
+    assert isinstance(container[SomeServiceN1], SomeServiceN1)
 
 
 def test_no_duplicates():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register(id='test')
     class Test:
         pass
 
     with pytest.raises(DuplicateServiceError):
-        container.register(Test)
+        container.register(Test, id='test')
 
     with pytest.raises(DuplicateServiceError):
         container.register(object, id='test')
 
-    with pytest.raises(DuplicateServiceError):
-        class Test:
-            pass
-        container.register(Test)
-
 
 def test_override():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register(id='test')
     class Test:
@@ -139,7 +100,7 @@ def test_override():
 
 
 def test_service_instantiation_error():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register
     class S1:
@@ -151,7 +112,7 @@ def test_service_instantiation_error():
 
 
 def test_service_with_default_values():
-    container = ServicesContainer()
+    container = Container()
 
     @container.register
     class S1:

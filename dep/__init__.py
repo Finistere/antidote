@@ -1,15 +1,15 @@
-from .container import ServicesContainer
+from .container import Container
 import wrapt
 
-_container = ServicesContainer()
+_container = Container()
 
 
 def inject(**inject_kwargs):
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
-        args, kwargs = _container.builder.build(wrapped, args, kwargs,
-                                                **inject_kwargs)
+        args, kwargs = _container._builder.instantiate(wrapped, args, kwargs,
+                                                       **inject_kwargs)
         return wrapped(*args, **kwargs)
 
     return wrapper
