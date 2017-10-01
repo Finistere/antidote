@@ -1,4 +1,4 @@
-from dep import util
+from blood import util
 
 
 def test_to_snake_case():

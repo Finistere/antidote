@@ -1,14 +1,15 @@
 from distutils.core import setup
 
 setup(
-    name='dep',
+    name='blood',
     version='0.1',
-    packages=['dep'],
+    packages=['blood'],
     author='Benjamin Rabier',
     install_requires=[
-        'wrapt',
+        'wrapt'
     ],
     extras_require={
         ":python_version<'3.3'": ["chainmap"],
+        "attrs": ["attrs>=17.1"]
     }
 )
