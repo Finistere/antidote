@@ -1,8 +1,8 @@
-class UndefinedServiceError(LookupError):
+class UnregisteredServiceError(KeyError):
     """ The service could not be found"""
 
 
-class ServiceInstantiationError(RuntimeError):
+class ServiceInstantiationError(TypeError):
     """ The service could not be instantiated """
 
 

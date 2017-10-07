@@ -1,24 +1,33 @@
 import pytest
 
-from blood.container import ServiceContainer
+from blood import Container
 from blood.exceptions import *
 
 
+class Service(object):
+    pass
+
+
+class AnotherService(object):
+    pass
+
+
 def test_register():
-    container = ServiceContainer()
-
-    class Service(object):
-        pass
-
+    container = Container()
     container.register(Service)
     assert isinstance(container[Service], Service)
 
 
-def test_register_factory():
-    container = ServiceContainer()
+def test_cache():
+    container = Container()
+    container.register(Service)
+    x = container[Service]
 
-    class Service(object):
-        pass
+    assert x is container[Service]
+
+
+def test_register_factory():
+    container = Container()
 
     class ServiceFactory(object):
         def __call__(self, *args, **kwargs):
@@ -28,39 +37,19 @@ def test_register_factory():
     assert isinstance(container[Service], Service)
 
 
-def test_register_with_id():
-    container = ServiceContainer()
-
-    class Service(object):
-        pass
-
-    container.register(Service)
-
-    class NewService(object):
-        pass
-
-    # id overrides anything
-    container.register(NewService, id=Service)
-    assert isinstance(container[NewService], NewService)
-    assert isinstance(container[Service], NewService)
-
-
 def test_setitem():
-    container = ServiceContainer()
+    container = Container()
 
     s = object()
     container['service'] = s
 
-    assert s == container['service']
+    assert s is container['service']
 
 
 def test_getitem():
-    container = ServiceContainer()
+    container = Container()
 
-    class Service(object):
-        pass
-
-    with pytest.raises(UndefinedServiceError):
+    with pytest.raises(UnregisteredServiceError):
         _ = container[Service]
 
     container.register(Service)
@@ -76,77 +65,97 @@ def test_getitem():
         _ = container[ServiceWithNonMetDependency]
 
 
+def test_contains():
+    container = Container()
+    container.register(Service)
+
+    assert Service in container
+    assert AnotherService not in container
+
+    container['test'] = object()
+    assert 'test' in container
+
+
+def test_delitem():
+    container = Container()
+    container.register(Service)
+
+    # Cannot delete a registered service
+    del container[Service]
+    assert Service in container
+
+    # But can delete from instantiated / cached services
+    x = container[Service]
+    del container[Service]
+    assert x is not container[Service]
+
+    container['test'] = object()
+    del container['test']
+    assert 'test' not in container
+
+    with pytest.raises(UnregisteredServiceError):
+        del container['test']
+
+
 def test_singleton():
-    container = ServiceContainer()
+    container = Container()
 
     class SingletonService(object):
         pass
 
     container.register(SingletonService, singleton=True)
-    assert isinstance(container[SingletonService], SingletonService)
+    x = container[SingletonService]
+    assert isinstance(x, SingletonService)
+    assert x is container[SingletonService]
 
-
-def test_duplicates():
-    container = ServiceContainer()
-
-    class Service(object):
+    class SingleUsageService(object):
         pass
 
-    container.register(Service, id='service')
+    container.register(SingleUsageService, singleton=False)
+    x = container[SingleUsageService]
+    assert isinstance(x, SingleUsageService)
+    assert x is not container[SingleUsageService]
 
-    class AnotherService(object):
-        pass
+
+def test_duplicate_error():
+    container = Container()
+    container.register(Service)
+
+    with pytest.raises(DuplicateServiceError):
+        container.register(Service)
 
     with pytest.raises(DuplicateServiceError):
         container.register(AnotherService, type=Service)
 
-    container.register(AnotherService, type=Service, force=True)
-    assert isinstance(container[Service], AnotherService)
 
-    with pytest.raises(DuplicateServiceError):
-        container.register(AnotherService, id='service')
+def test_append():
+    container = Container()
+    container.register(Service)
 
-    container.register(AnotherService, id='service', force=True)
-    assert isinstance(container['service'], AnotherService)
+    another_service = AnotherService()
+    y = object()
 
-    class YetAnotherService(object):
-        pass
+    container.append({
+        Service: another_service,
+        'y': y
+    })
 
-    with pytest.raises(DuplicateServiceError):
-        container.register(YetAnotherService, type=Service, id='service')
-
-    container.register(YetAnotherService, type=Service, id='service',
-                       force=True)
-    assert isinstance(container[Service], YetAnotherService)
-    assert isinstance(container['service'], YetAnotherService)
+    assert another_service is not container[Service]
+    assert isinstance(container[Service], Service)
+    assert y is container['y']
 
 
-def test_extend():
-    base_container = ServiceContainer()
-    container1 = ServiceContainer()
-    container2 = ServiceContainer()
+def test_prepend():
+    container = Container()
+    container.register(Service)
 
-    class Service(object):
-        pass
+    another_service = AnotherService()
+    y = object()
 
-    class OtherService(object):
-        pass
+    container.prepend({
+        Service: another_service,
+        'y': y
+    })
 
-    class NewService(Service):
-        pass
-
-    base_container.register(Service)
-    base_container.register(OtherService)
-
-    container1.register(NewService, type=Service)
-    container2.register(NewService, type=Service)
-
-    # extend current container with some defaults
-    container1.extend(base_container)
-    assert isinstance(container1[Service], NewService)
-    assert isinstance(container1[OtherService], OtherService)
-
-    # override any service definition from current container
-    container2.extend(base_container, override=True)
-    assert isinstance(container2[Service], Service)
-    assert isinstance(container2[OtherService], OtherService)
+    assert another_service is container[Service]
+    assert y is container['y']

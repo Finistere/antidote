@@ -1,8 +1,8 @@
-from blood.container import *
+from blood import Builder, Container, ServiceManager
 
 
 def test_builder():
-    container = ServiceContainer()
+    container = Container()
     builder = Builder(container)
 
     class Service(object):

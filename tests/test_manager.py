@@ -1,17 +1,89 @@
 import pytest
 
-from blood.container import ServiceManager
+from blood.manager import ServiceManager
 from blood.exceptions import *
 
 
-def test_register():
+def test_inject_with_mapping():
     manager = ServiceManager()
+    container = manager.container
+
+    class Service(object):
+        pass
+
+    container.register(Service)
+
+    @manager.inject
+    def f(x):
+        return x
+
+    with pytest.raises(TypeError):
+        f()
+
+    @manager.inject(mapping=dict(x=Service))
+    def g(x):
+        return x
+
+    assert container[Service] is g()
+
+    @manager.inject(mapping=dict(x=Service))
+    def h(x, b=1):
+        return x
+
+    assert container[Service] is h()
+
+
+def test_inject_by_name():
+    manager = ServiceManager(inject_by_name=False)
+    container = manager.container
+
+    _service = object()
+    container['service'] = _service
+
+    @manager.inject(inject_by_name=True)
+    def f(service):
+        return service
+
+    assert _service is f()
+
+    @manager.inject
+    def g(service):
+        return service
+
+    with pytest.raises(TypeError):
+        g()
+
+    @manager.inject(inject_by_name=True)
+    def h(service, b=1):
+        return service
+
+    assert _service is h()
+
+    manager.inject_by_name = True
+
+    @manager.inject
+    def u(service):
+        return service
+
+    assert _service is u()
+
+    @manager.inject(inject_by_name=False)
+    def v(service):
+        return service
+
+    with pytest.raises(TypeError):
+        v()
+
+
+def test_register():
+    manager = ServiceManager(auto_wire=True)
+    container = manager.container
 
     @manager.register
     class Service(object):
         pass
 
-    assert isinstance(manager.container[Service], Service)
+    assert isinstance(container[Service], Service)
 
     s = object()
 
@@ -19,110 +91,41 @@ def test_register():
         manager.register(s)
 
     manager.register(s, id='service')
-    assert s == manager.container['service']
+    assert s is container['service']
 
     @manager.register(mapping=dict(service=Service))
     class AnotherService(object):
         def __init__(self, service):
             self.service = service
 
-    assert isinstance(manager.container[AnotherService].service, Service)
+    assert isinstance(container[AnotherService], AnotherService)
+    assert container[Service] is container[AnotherService].service
+    # singleton
+    assert container[AnotherService] is container[AnotherService]
 
+    @manager.register(inject_by_name=True)
+    class YetAnotherService(object):
+        def __init__(self, service):
+            self.service = service
 
-def test_inject():
-    manager = ServiceManager()
+    assert isinstance(container[YetAnotherService], YetAnotherService)
+    assert s is container[YetAnotherService].service
+    # singleton
+    assert container[YetAnotherService] is container[YetAnotherService]
 
-    @manager.register
-    class Service(object):
+    @manager.register(singleton=False)
+    class SingleUsageService(object):
         pass
 
-    @manager.inject(mapping=dict(x=Service))
-    def f3(x):
-        return x
+    assert isinstance(container[SingleUsageService], SingleUsageService)
+    assert container[SingleUsageService] is not container[SingleUsageService]
 
-    assert isinstance(f3(), Service)
-
-    @manager.inject(mapping=dict(x=Service))
-    def f4(x, b=1):
-        return x
-
-    assert isinstance(f4(), Service)
-
-
-def test_auto_wire():
-    manager = ServiceManager()
-
-    @manager.register(id='s1')
-    class Service(object):
-        pass
-
-    @manager.register(id='s2', mapping=dict(s1=Service))
-    class AnotherService(object):
-        def __init__(self, s1):
-            self.s1 = s1
-
-    @manager.register(id='s3', auto_wire=False)
-    class S3(AnotherService):
-        def __init__(self, s2, **kwargs):
-            super(S3, self).__init__(**kwargs)
-            self.s2 = s2
-
-    assert isinstance(manager.container['s2'].s1, Service)
+    @manager.register(auto_wire=False)
+    class BrokenService(object):
+        def __init__(self, service):
+            self.service = service
 
     with pytest.raises(ServiceInstantiationError):
-        _ = manager.container['s3']
+        _ = container[BrokenService]
 
-
-def test_no_duplicates():
-    manager = ServiceManager()
-
-    @manager.register(id='test')
-    class Service(object):
-        pass
-
-    class AnotherService(object):
-        pass
-
-    with pytest.raises(DuplicateServiceError):
-        manager.register(Service)
-
-    with pytest.raises(DuplicateServiceError):
-        manager.register(AnotherService, id='test')
-
-
-def test_override():
-    manager = ServiceManager()
-
-    @manager.register(id='test')
-    class Service(object):
-        pass
-
-    assert isinstance(manager.container['test'], Service)
-
-    service = object()
-    manager.container['test'] = service
-    assert service == manager.container['test']
-
-
-def test_service_instantiation_error():
-    manager = ServiceManager()
-
-    @manager.register
-    class Service(object):
-        def __init__(self, x):
-            pass
-
-    with pytest.raises(ServiceInstantiationError):
-        _ = manager.container[Service]
-
-
-def test_service_with_default_values():
-    manager = ServiceManager()
-
-    @manager.register
-    class Service(object):
-        def __init__(self, x=1):
-            pass
-
-    assert isinstance(manager.container[Service], Service)
 

@@ -2,6 +2,8 @@
 .cache
 .idea
 coverage_html_report
-dep.egg-info
 .coverage
 *.pyc
+blood.egg-info/
+rm_cache.sh
+test.py
