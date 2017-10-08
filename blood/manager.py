@@ -24,12 +24,8 @@ class ServiceManager:
         self.container = container_class()
         self.builder = builder_class(self.container)
 
-    @classmethod
-    def name_to_parameter(cls, name):
-        return name.split('_', 1)
-
     def register(self, service=None, id=None, singleton=True, auto_wire=None,
-                 **inject_kwargs):
+                 mapping=None, inject_by_name=None):
         auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
         if service and not inspect.isclass(service) and not id:
@@ -45,7 +41,8 @@ class ServiceManager:
                         to_wire = auto_wire
                     obj = self.wire(obj,
                                     functions=to_wire,
-                                    **inject_kwargs)
+                                    mapping=mapping,
+                                    inject_by_name=inject_by_name)
                 self.container.register(factory=obj, singleton=singleton)
             else:
                 self.container[id] = obj
@@ -56,7 +53,7 @@ class ServiceManager:
 
     if PY3:
         def provider(self, service=None, returns=None, auto_wire=None,
-                     **inject_kwargs):
+                     mapping=None, inject_by_name=None):
             auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
             def _provider(obj):
@@ -68,15 +65,17 @@ class ServiceManager:
                             to_wire = auto_wire
                         obj = self.wire(obj,
                                         functions=to_wire,
-                                        **inject_kwargs)
+                                        mapping=mapping,
+                                        inject_by_name=inject_by_name)
 
-                    service_id = obj.__call__.__annotations__['return']
+                    service_id = obj.__call__.__annotations__.get('return')
                     obj = obj()
                 else:
                     if auto_wire:
-                        obj = self.inject(obj, **inject_kwargs)
-
-                    service_id = obj.__annotations__['return']
+                        obj = self.inject(obj,
+                                          mapping=mapping,
+                                          inject_by_name=inject_by_name)
+                    service_id = obj.__annotations__.get('return')
 
                 service_id = returns or service_id
 
@@ -85,13 +84,13 @@ class ServiceManager:
                                      "'returns' parameter must be not None.")
 
                 self.container.register(factory=obj, singleton=False,
-                                        type=returns or service_id)
+                                        type=service_id)
                 return obj
 
             return service and _provider(service) or _provider
     else:
         def provider(self, service=None, returns=None, auto_wire=None,
-                     **inject_kwargs):
+                     mapping=None, inject_by_name=None):
             auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
             if returns is None:
@@ -107,10 +106,13 @@ class ServiceManager:
                             to_wire = auto_wire
                         obj = self.wire(obj,
                                         functions=to_wire,
-                                        **inject_kwargs)
+                                        mapping=mapping,
+                                        inject_by_name=inject_by_name)
                     obj = obj()
                 elif auto_wire:
-                    obj = self.inject(obj, **inject_kwargs)
+                    obj = self.inject(obj,
+                                      mapping=mapping,
+                                      inject_by_name=inject_by_name)
 
                 self.container.register(factory=obj, type=returns,
                                         singleton=False)
@@ -155,7 +157,10 @@ class ServiceManager:
                     if isinstance(value, attr.Attribute) \
                             and isinstance(value.default, attr.Factory) \
                             and value.default.factory is attrib_factory:
-                        return self.container[cls.__annotations__[name]]
+                        try:
+                            return self.container[cls.__annotations__[name]]
+                        except (AttributeError, KeyError):
+                            break
 
                 raise ValueError("Either an annotation or the 'service' "
                                  "parameter must be not None.")

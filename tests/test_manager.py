@@ -128,4 +128,143 @@ def test_register():
     with pytest.raises(ServiceInstantiationError):
         _ = container[BrokenService]
 
+    @manager.register(auto_wire=('__init__', 'method'),
+                      mapping=dict(service=Service,
+                                   x=SingleUsageService,
+                                   yet=YetAnotherService))
+    class ComplexWiringService(object):
+        def __init__(self, service):
+            self.service = service
 
+        def method(self, x, yet):
+            return x, yet
+
+    assert isinstance(container[ComplexWiringService], ComplexWiringService)
+    assert container[Service] is container[ComplexWiringService].service
+    output = container[ComplexWiringService].method()
+
+    assert isinstance(output[0], SingleUsageService)
+    assert output[1] is container[YetAnotherService]
+
+
+def test_provider_function():
+    manager = ServiceManager()
+    container = manager.container
+
+    class Service(object):
+        pass
+
+    with pytest.raises(ValueError):
+        @manager.provider
+        def faulty_service_provider():
+            return Service()
+
+    @manager.provider(returns=Service)
+    def service_provider():
+        return Service()
+
+    assert isinstance(container[Service], Service)
+    # is not a singleton
+    assert container[Service] is not container[Service]
+
+    class AnotherService(object):
+        def __init__(self, service):
+            self.service = service
+
+    @manager.provider(mapping=dict(service=Service), returns=AnotherService)
+    def another_service_provider(service):
+        return AnotherService(service)
+
+    assert isinstance(container[AnotherService], AnotherService)
+    # is not a singleton
+    assert container[AnotherService] is not container[AnotherService]
+    assert isinstance(container[AnotherService].service, Service)
+
+    s = object()
+    container['test'] = s
+
+    class YetAnotherService:
+        pass
+
+    @manager.provider(inject_by_name=True, returns=YetAnotherService)
+    def injected_by_name_provider(test):
+        return test
+
+    assert s is container[YetAnotherService]
+
+
+def test_provider_class():
+    manager = ServiceManager()
+    container = manager.container
+
+    class Service(object):
+        pass
+
+    with pytest.raises(ValueError):
+        @manager.provider
+        class FaultyServiceProvider(object):
+            def __call__(self):
+                return Service()
+
+    @manager.provider(returns=Service)
+    class ServiceProvider(object):
+        def __call__(self):
+            return Service()
+
+    assert isinstance(container[Service], Service)
+    # is not a singleton
+    assert container[Service] is not container[Service]
+
+    class AnotherService(object):
+        def __init__(self, service):
+            self.service = service
+
+    @manager.provider(mapping=dict(service=Service), returns=AnotherService)
+    class AnotherServiceProvider(object):
+        def __init__(self, service):
+            self.service = service
+            assert isinstance(service, Service)
+
+        def __call__(self, service):
+            assert self.service is not service
+            return AnotherService(service)
+
+    assert isinstance(container[AnotherService], AnotherService)
+    # is not a singleton
+    assert container[AnotherService] is not container[AnotherService]
+    assert isinstance(container[AnotherService].service, Service)
+
+    container['test'] = object()
+
+    class YetAnotherService(object):
+        pass
+
+    @manager.provider(inject_by_name=True, returns=YetAnotherService)
+    class YetAnotherServiceProvider(object):
+        def __init__(self, test):
+            self.test = test
+
+        def __call__(self, test):
+            assert self.test is test
+            return test
+
+    assert container['test'] is container[YetAnotherService]
+
+    class OtherService(object):
+        pass
+
+    @manager.provider(inject_by_name=True,
+                      mapping=dict(service=Service),
+                      auto_wire=('__init__',),
+                      returns=OtherService)
+    class OtherServiceProvider(object):
+        def __init__(self, test, service):
+            self.test = test
+            self.service = service
+
+        def __call__(self):
+            return self.test, self.service
+
+    output = container[OtherService]
+    assert output[0] is container['test']
+    assert isinstance(output[1], Service)

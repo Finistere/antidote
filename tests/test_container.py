@@ -16,6 +16,20 @@ def test_register():
     container = Container()
     container.register(Service)
     assert isinstance(container[Service], Service)
+    # singleton by default
+    assert container[Service] is container[Service]
+
+
+def test_deregister():
+    container = Container()
+    container.register(Service)
+    container.deregister(Service)
+
+    with pytest.raises(UnregisteredServiceError):
+        _ = container[Service]
+
+    with pytest.raises(UnregisteredServiceError):
+        container.deregister(Service)
 
 
 def test_cache():
