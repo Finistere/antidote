@@ -5,10 +5,6 @@ import wrapt
 from ._compat import PY3
 from .builder import Builder
 from .container import Container
-from .exceptions import *
-
-from itertools import islice
-from collections import OrderedDict
 
 
 class ServiceManager:

@@ -1,7 +1,6 @@
 import pytest
 
 from blood import Container, Builder
-from blood.exceptions import *
 
 
 def test_build():
