@@ -42,6 +42,24 @@ def test_call():
     assert 1 == a and 2 == b
 
 
+def test_prepare():
+    container = Container()
+    builder = Builder(container)
+
+    def f(a, b):
+        return a, b
+
+    # arguments properly passed on
+    a, b = builder.prepare(f, args=(1, 2))()
+    assert 1 == a and 2 == b
+
+    a, b = builder.prepare(f, args=(1,), kwargs=dict(b=2))()
+    assert 1 == a and 2 == b
+
+    a, b = builder.prepare(f, kwargs=dict(a=1, b=2))()
+    assert 1 == a and 2 == b
+
+
 def test_mapping():
     container = Container()
     builder = Builder(container)

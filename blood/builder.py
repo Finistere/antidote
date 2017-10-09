@@ -1,8 +1,12 @@
+import functools
 import inspect
+from collections import OrderedDict
 from itertools import islice
 
 from ._compat import PY3
 from .exceptions import *
+
+_sentinel = object()
 
 
 class Builder:
@@ -19,11 +23,13 @@ class Builder:
         Injects the parameters of __init__() and builds an object of
         class 'cls'.
         """
-        new_args, new_kwargs = self._inject_services(
+        arg_mapping = self.generate_arguments_mapping(
             cls.__init__,
-            skip_self=True,
             inject_by_name=inject_by_name,
-            mapping=mapping or dict(),
+            mapping=mapping
+        )
+        new_args, new_kwargs = self.generate_injected_args_kwargs(
+            dict(islice(arg_mapping.items(), 1, None)),  # skip self
             args=args or tuple(),
             kwargs=kwargs or dict()
         )
@@ -35,61 +41,91 @@ class Builder:
         """
         Injects the missing arguments and calls the function.
         """
-        new_args, new_kwargs = self._inject_services(
-            func,
-            skip_self=False,
-            inject_by_name=inject_by_name,
-            mapping=mapping or dict(),
+        new_args, new_kwargs = self.generate_injected_args_kwargs(
+            self.generate_arguments_mapping(func,
+                                            inject_by_name=inject_by_name,
+                                            mapping=mapping),
             args=args or tuple(),
             kwargs=kwargs or dict()
         )
 
         return func(*new_args, **new_kwargs)
 
-    if PY3:
-        def _inject_services(self, f, skip_self, inject_by_name, mapping, args,
-                             kwargs):
-            len_args = len(args) + (1 if skip_self else 0)
-            signature = inspect.signature(f)
+    def prepare(self, func, inject_by_name=False, mapping=None, args=None,
+                kwargs=None):
+        """
+        Injects the missing arguments and calls the function.
+        """
+        new_args, new_kwargs = self.generate_injected_args_kwargs(
+            self.generate_arguments_mapping(func,
+                                            inject_by_name=inject_by_name,
+                                            mapping=mapping),
+            args=args or tuple(),
+            kwargs=kwargs or dict()
+        )
 
-            kwargs = kwargs.copy()
-            for name, parameter in islice(signature.parameters.items(),
-                                          len_args, None):
+        return functools.partial(func, *new_args, **new_kwargs)
+
+    def generate_injected_args_kwargs(self, arguments_mapping, args, kwargs):
+        """
+        Injects the services into the arguments based on the arguments_mapping.
+        """
+        kwargs = kwargs.copy()
+        for name, service_name in islice(arguments_mapping.items(),
+                                         len(args), None):
+            if name not in kwargs and service_name is not _sentinel:
                 try:
-                    service_name = mapping[name]
+                    kwargs[name] = self._container[service_name]
+                except UnregisteredServiceError:
+                    pass
+
+        return args, kwargs
+
+    if PY3:
+        @classmethod
+        def generate_arguments_mapping(cls, func, inject_by_name,
+                                       mapping=None):
+            """
+            Generate the argument mapping, which can then be cached to
+            diminish the service injection overhead.
+            """
+            mapping = mapping or dict()
+            arguments_mapping = OrderedDict()
+            for name, parameter in inspect.signature(func).parameters.items():
+                try:
+                    arguments_mapping[name] = mapping[name]
                 except KeyError:
-                    service_name = parameter.annotation
-                    if service_name is parameter.empty:
-                        service_name = inject_by_name and name
+                    if parameter.annotation is parameter.empty:
+                        if inject_by_name:
+                            arguments_mapping[name] = name
+                        else:
+                            arguments_mapping[name] = _sentinel
+                    else:
+                        arguments_mapping[name] = parameter.annotation
 
-                if name not in kwargs and service_name:
-                    try:
-                        kwargs[name] = self._container[service_name]
-                    except UnregisteredServiceError:
-                        pass
-
-            bound_arguments = signature.bind_partial(*args, **kwargs)
-
-            return bound_arguments.args, bound_arguments.kwargs
+            return arguments_mapping
     else:
-        def _inject_services(self, f, skip_self, inject_by_name, mapping, args,
-                             kwargs):
-            len_args = len(args) + (1 if skip_self else 0)
+        @classmethod
+        def generate_arguments_mapping(cls, func, inject_by_name,
+                                       mapping=None):
+            """
+            Generate the argument mapping, which can then be cached to
+            diminish the service injection overhead.
+            """
+            mapping = mapping or dict()
+            arguments_mapping = OrderedDict()
             try:
-                arguments = inspect.getargspec(f).args
-            except TypeError:
+                argspec = inspect.getargspec(func)
+            except TypeError:  # builtin methods or object.__init__
                 pass
             else:
-                kwargs = kwargs.copy()
-                for name in islice(arguments, len_args, None):
-                    if name not in kwargs:
-                        try:
-                            kwargs[name] = self._container[mapping[name]]
-                        except (KeyError, UnregisteredServiceError):
-                            if inject_by_name:
-                                try:
-                                    kwargs[name] = self._container[name]
-                                except UnregisteredServiceError:
-                                    pass
+                for name in argspec.args:
+                    try:
+                        arguments_mapping[name] = mapping[name]
+                    except KeyError:
+                        if inject_by_name:
+                            arguments_mapping[name] = name
+                        else:
+                            arguments_mapping[name] = _sentinel
 
-            return args, kwargs
+            return arguments_mapping

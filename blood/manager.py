@@ -5,6 +5,10 @@ import wrapt
 from ._compat import PY3
 from .builder import Builder
 from .container import Container
+from .exceptions import *
+
+from itertools import islice
+from collections import OrderedDict
 
 
 class ServiceManager:
@@ -123,8 +127,7 @@ class ServiceManager:
     def wire(self, cls=None, functions=None, **inject_kwargs):
         def _wire(cls):
             for f in functions:
-                setattr(cls, f,
-                        self.inject(getattr(cls, f), **inject_kwargs))
+                setattr(cls, f, self.inject(getattr(cls, f), **inject_kwargs))
 
             return cls
 
@@ -133,12 +136,20 @@ class ServiceManager:
     def inject(self, func=None, mapping=None, inject_by_name=None):
         if inject_by_name is None:
             inject_by_name = self.inject_by_name
+        mapping = mapping or dict()
+        arg_mapping = []  # cannot use nonlocal because of Python 2.7 ...
+        gen_args_kwargs = self.builder.generate_injected_args_kwargs
 
         @wrapt.decorator
         def _inject(wrapped, instance, args, kwargs):
-            return self.builder.call(wrapped, mapping=mapping,
-                                     kwargs=kwargs, args=args,
-                                     inject_by_name=inject_by_name)
+            if not arg_mapping:
+                arg_mapping.append(self.builder.generate_arguments_mapping(
+                    wrapped, inject_by_name=inject_by_name,
+                    mapping=mapping,
+                ))
+
+            args, kwargs = gen_args_kwargs(arg_mapping[0], args, kwargs)
+            return wrapped(*args, **kwargs)
 
         return func and _inject(func) or _inject
 

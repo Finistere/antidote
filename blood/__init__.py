@@ -6,6 +6,8 @@ from .exceptions import *
 
 manager = ServiceManager()
 
+container = manager.container
+builder = manager.builder
 inject = manager.inject
 provider = manager.provider
 register = manager.register
