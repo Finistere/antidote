@@ -28,10 +28,6 @@ class ServiceManager:
                  mapping=None, inject_by_name=None):
         auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
-        if service and not inspect.isclass(service) and not id:
-            raise ValueError("Parameter 'id' cannot be None when registering"
-                             "an instance as a service.")
-
         def _register(obj):
             if inspect.isclass(obj):
                 if auto_wire:
@@ -45,7 +41,7 @@ class ServiceManager:
                                     inject_by_name=inject_by_name)
                 self.container.register(factory=obj, singleton=singleton)
             else:
-                self.container[id] = obj
+                self.container[id or type(obj)] = obj
 
             return obj
 
@@ -53,7 +49,7 @@ class ServiceManager:
 
     if PY3:
         def provider(self, service=None, returns=None, auto_wire=None,
-                     mapping=None, inject_by_name=None):
+                     singleton=True, mapping=None, inject_by_name=None):
             auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
             def _provider(obj):
@@ -83,14 +79,14 @@ class ServiceManager:
                     raise ValueError("Either a return annotation or the "
                                      "'returns' parameter must be not None.")
 
-                self.container.register(factory=obj, singleton=False,
+                self.container.register(factory=obj, singleton=singleton,
                                         type=service_id)
                 return obj
 
             return service and _provider(service) or _provider
     else:
         def provider(self, service=None, returns=None, auto_wire=None,
-                     mapping=None, inject_by_name=None):
+                     singleton=True, mapping=None, inject_by_name=None):
             auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
             if returns is None:
@@ -115,7 +111,7 @@ class ServiceManager:
                                       inject_by_name=inject_by_name)
 
                 self.container.register(factory=obj, type=returns,
-                                        singleton=False)
+                                        singleton=singleton)
                 return obj
 
             return service and _provider(service) or _provider
@@ -149,30 +145,46 @@ class ServiceManager:
 
         return func and _inject(func) or _inject
 
-    def attrib(self, service=None, **kwargs):
+    def attrib(self, service=None, inject_by_name=None, **kwargs):
+        if inject_by_name is None:
+            inject_by_name = self.inject_by_name
+
         try:
             import attr
         except ImportError:
             raise RuntimeError('attrs package must be installed.')
 
         def attrib_factory(instance):
-            if service is None:
-                cls = instance.__class__
-                for name, value in cls.__dict__.items():
-                    # Dirty way to find the attrib annotation.
-                    # Maybe attr will eventually provide the annotation ?
-                    if isinstance(value, attr.Attribute) \
-                            and isinstance(value.default, attr.Factory) \
-                            and value.default.factory is attrib_factory:
-                        try:
-                            return self.container[cls.__annotations__[name]]
-                        except (AttributeError, KeyError):
-                            break
+            try:
+                service_name = attrib_factory.service_name
+            except AttributeError:
+                if service is None:
+                    cls = instance.__class__
+                    for name, value in cls.__dict__.items():
+                        # Dirty way to find the attrib annotation.
+                        # Maybe attr will eventually provide the annotation ?
+                        if isinstance(value, attr.Attribute) \
+                                and isinstance(value.default, attr.Factory) \
+                                and value.default.factory is attrib_factory:
+                            try:
+                                service_name = cls.__annotations__[name]
+                            except (AttributeError, KeyError):
+                                if inject_by_name:
+                                    service_name = name
+                                    break
+                            else:
+                                break
+                    else:
+                        raise ValueError(
+                            "Either an annotation or the 'service' "
+                            "parameter must be not None."
+                        )
+                else:
+                    service_name = service
 
-                raise ValueError("Either an annotation or the 'service' "
-                                 "parameter must be not None.")
+                attrib_factory.service_name = service_name
 
-            return self.container[service]
+            return self.container[service_name]
 
         return attr.ib(default=attr.Factory(attrib_factory, takes_self=True),
                        **kwargs)

@@ -1,9 +1,9 @@
 from distutils.core import setup
 
 setup(
-    name='blood',
+    name='dependency_manager',
     version='0.1',
-    packages=['blood'],
+    packages=['dependency_manager'],
     author='Benjamin Rabier',
     install_requires=[
         'wrapt'

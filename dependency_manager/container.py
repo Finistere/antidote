@@ -1,3 +1,4 @@
+import threading
 from .exceptions import *
 
 try:
@@ -18,6 +19,7 @@ class Container:
         self._services_cache = {}
         self._services_by_type = dict()
         self.services = ChainMap(self._services_by_type)
+        self._instantiation_lock = threading.RLock()
 
     def __getitem__(self, item):
         """
@@ -31,19 +33,31 @@ class Container:
                 service = self.services[item]
             except KeyError:
                 raise UnregisteredServiceError(item)
-            else:
-                if isinstance(service, Service):
+
+        if isinstance(service, Service):
+            if service.singleton:
+                with self._instantiation_lock:
                     try:
-                        instance = service.factory()
+                        if item not in self._services_cache:
+                            self._services_cache[item] = service.factory()
                     except Exception as e:
                         raise ServiceInstantiationError(repr(e))
-                    else:
-                        if service.singleton:
-                            self._services_cache[item] = instance
-                        return instance
-                else:
-                    self._services_cache[item] = service
-                    return service
+            else:
+                try:
+                    return service.factory()
+                except Exception as e:
+                    raise ServiceInstantiationError(repr(e))
+        elif callable(service):
+            with self._instantiation_lock:
+                if item not in self._services_cache:
+                    try:
+                        self._services_cache[item] = service()
+                    except Exception as e:
+                        raise ServiceInstantiationError(repr(e))
+        else:
+            self._services_cache[item] = service
+
+        return self._services_cache[item]
 
     def __setitem__(self, key, value):
         self._services_cache[key] = value

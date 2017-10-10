@@ -1,4 +1,4 @@
-from blood import ServiceManager
+from dependency_manager import ServiceManager
 
 
 def test_attrs():

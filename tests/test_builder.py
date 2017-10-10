@@ -1,6 +1,6 @@
 import pytest
 
-from blood import Container, Builder
+from dependency_manager import Container, Builder
 
 
 def test_build():

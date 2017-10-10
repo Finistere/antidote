@@ -1,7 +1,7 @@
 import pytest
 
-from blood.manager import ServiceManager
-from blood.exceptions import *
+from dependency_manager.manager import ServiceManager
+from dependency_manager.exceptions import *
 
 
 def test_inject_with_mapping():
@@ -85,10 +85,13 @@ def test_register():
 
     assert isinstance(container[Service], Service)
 
-    s = object()
+    class ExternalService(object):
+        pass
 
-    with pytest.raises(ValueError):
-        manager.register(s)
+    s = ExternalService()
+    manager.register(s)
+
+    assert s is container[ExternalService]
 
     manager.register(s, id='service')
     assert s is container['service']
@@ -164,8 +167,8 @@ def test_provider_function():
         return Service()
 
     assert isinstance(container[Service], Service)
-    # is not a singleton
-    assert container[Service] is not container[Service]
+    # is a singleton
+    assert container[Service] is container[Service]
 
     class AnotherService(object):
         def __init__(self, service):
@@ -176,8 +179,8 @@ def test_provider_function():
         return AnotherService(service)
 
     assert isinstance(container[AnotherService], AnotherService)
-    # is not a singleton
-    assert container[AnotherService] is not container[AnotherService]
+    # is a singleton
+    assert container[AnotherService] is container[AnotherService]
     assert isinstance(container[AnotherService].service, Service)
 
     s = object()
@@ -212,8 +215,8 @@ def test_provider_class():
             return Service()
 
     assert isinstance(container[Service], Service)
-    # is not a singleton
-    assert container[Service] is not container[Service]
+    # is a singleton
+    assert container[Service] is container[Service]
 
     class AnotherService(object):
         def __init__(self, service):
@@ -226,12 +229,12 @@ def test_provider_class():
             assert isinstance(service, Service)
 
         def __call__(self, service):
-            assert self.service is not service
+            assert self.service is service
             return AnotherService(service)
 
     assert isinstance(container[AnotherService], AnotherService)
-    # is not a singleton
-    assert container[AnotherService] is not container[AnotherService]
+    # is a singleton
+    assert container[AnotherService] is container[AnotherService]
     assert isinstance(container[AnotherService].service, Service)
 
     container['test'] = object()

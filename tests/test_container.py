@@ -1,7 +1,7 @@
 import pytest
 
-from blood import Container
-from blood.exceptions import *
+from dependency_manager import Container
+from dependency_manager.exceptions import *
 
 
 class Service(object):
@@ -73,10 +73,29 @@ def test_getitem():
         def __init__(self, dependency):
             pass
 
-    container.register(ServiceWithNonMetDependency)
+    container.register(ServiceWithNonMetDependency, singleton=False)
 
     with pytest.raises(ServiceInstantiationError):
         _ = container[ServiceWithNonMetDependency]
+
+    class SingletonServiceWithNonMetDependency(object):
+        def __init__(self, dependency):
+            pass
+
+    container.register(SingletonServiceWithNonMetDependency, singleton=True)
+
+    with pytest.raises(ServiceInstantiationError):
+        _ = container[SingletonServiceWithNonMetDependency]
+
+    def failing_service_factory():
+        raise Exception()
+
+    container.append({
+        'test': failing_service_factory
+    })
+
+    with pytest.raises(ServiceInstantiationError):
+        _ = container['test']
 
 
 def test_contains():

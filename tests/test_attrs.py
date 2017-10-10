@@ -1,6 +1,6 @@
 import pytest
 
-from blood import ServiceManager
+from dependency_manager import ServiceManager
 
 
 def test_attrs():
@@ -18,13 +18,17 @@ def test_attrs():
     class Service(object):
         pass
 
+    container['parameter'] = object()
+
     @attr.s
     class Test(object):
         service = manager.attrib(Service)
+        parameter = manager.attrib(inject_by_name=True)
 
     test = Test()
 
     assert container[Service] is test.service
+    assert container['parameter'] is test.parameter
 
     @attr.s
     class BrokenTest(object):

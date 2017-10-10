@@ -1,4 +1,4 @@
-from blood import Builder, Container, ServiceManager
+from dependency_manager import Builder, Container, ServiceManager
 
 
 def test_builder():
