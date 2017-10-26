@@ -4,6 +4,7 @@
 coverage_html_report
 .coverage
 *.pyc
-blood.egg-info/
 rm_cache.sh
 test.py
+/dependency_manager.egg-info/
+/docs/_build/
