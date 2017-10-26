@@ -44,7 +44,7 @@ class Database(object):
         """ Initializes the database. """
 
 # Simple way to add some configuration.
-dym.container.append(dict(
+dym.container.extend(dict(
     database_host='host',
     database_user='user',
     database_password='password',
@@ -64,7 +64,7 @@ def database_factory(database_host, database_user, database_password) -> Databas
 
 
 @dym.register
-class DatabaseAdapter(object):
+class DatabaseWrapper(object):
     """
     Your class to manage the database.
     """
@@ -74,7 +74,7 @@ class DatabaseAdapter(object):
     # other methods
     
 @dym.inject
-def f(db: DatabaseAdapter):
+def f(db: DatabaseWrapper):
     """ Do something with your database. """    
 ```
 
@@ -93,7 +93,7 @@ class Database(object):
         """ Initializes the database. """
 
 # Simple way to add some configuration.
-dym.container.append(dict(
+dym.container.extend(dict(
     database_host='host',
     database_user='user',
     database_password='password',
@@ -113,7 +113,7 @@ def database_factory(database_host, database_user, database_password):
 
 
 @dym.register(mapping=dict(db=Database))
-class DatabaseAdapter(object):
+class DatabaseWrapper(object):
     """
     Your class to manage the database.
     """
@@ -122,7 +122,7 @@ class DatabaseAdapter(object):
     
     # other methods
     
-@dym.inject(mapping=dict(db=DatabaseAdapter))
+@dym.inject(mapping=dict(db=DatabaseWrapper))
 def f(db):
     """ Do something with your database. """      
 ```
