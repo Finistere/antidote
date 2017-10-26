@@ -1,21 +1,23 @@
-from .manager import ServiceManager
-from .container import Container, Service
-from .builder import Builder
+from .manager import DependencyManager
+from .container import DependencyContainer, DependencyFactory
+from .injector import DependencyInjector
 from .exceptions import *
 
 
+__version__ = '0.1'
+
 __all__ = [
-    'Container',
-    'Service',
-    'Builder',
-    'ServiceManager',
-    'UnregisteredServiceError',
-    'DuplicateServiceError',
-    'ServiceInstantiationError'
+    'DependencyContainer',
+    'DependencyFactory',
+    'DependencyInjector',
+    'DependencyManager',
+    'UnregisteredDependencyError',
+    'DuplicateDependencyError',
+    'DependencyInstantiationError'
 ]
 
 
-manager = ServiceManager()
+manager = DependencyManager()
 
 container = manager.container
 builder = manager.builder

@@ -33,7 +33,7 @@ will be injected in other services.
 For Python 3.4+, the dependency is straight-forward:
 
 ```python
-import dependency_manager as dependency
+import dependency_manager as dym
 
 
 class Database(object):
@@ -44,14 +44,14 @@ class Database(object):
         """ Initializes the database. """
 
 # Simple way to add some configuration.
-dependency.container.append(dict(
+dym.container.append(dict(
     database_host='host',
     database_user='user',
     database_password='password',
 ))
 
 # Variables names will be used for injection.
-@dependency.provider(inject_by_name=True)
+@dym.provider(use_arg_name=True)
 def database_factory(database_host, database_user, database_password) -> Database:
     """
     Configure your database.
@@ -63,7 +63,7 @@ def database_factory(database_host, database_user, database_password) -> Databas
     )
 
 
-@dependency.register
+@dym.register
 class DatabaseAdapter(object):
     """
     Your class to manage the database.
@@ -73,7 +73,7 @@ class DatabaseAdapter(object):
     
     # other methods
     
-@dependency.inject
+@dym.inject
 def f(db: DatabaseAdapter):
     """ Do something with your database. """    
 ```
@@ -82,7 +82,7 @@ For Python 2, the example is a bit more verbose as you need to compensate for
 the lack of annotations:
 
 ```python
-import dependency_manager as dependency
+import dependency_manager as dym
 
 
 class Database(object):
@@ -93,14 +93,14 @@ class Database(object):
         """ Initializes the database. """
 
 # Simple way to add some configuration.
-dependency.container.append(dict(
+dym.container.append(dict(
     database_host='host',
     database_user='user',
     database_password='password',
 ))
 
 # Variables names will be used for injection.
-@dependency.provider(inject_by_name=True, returns=Database)
+@dym.provider(use_arg_name=True, returns=Database)
 def database_factory(database_host, database_user, database_password):
     """
     Configure your database.
@@ -112,17 +112,24 @@ def database_factory(database_host, database_user, database_password):
     )
 
 
-@dependency.register(mapping=dict(db=Database))
+@dym.register(mapping=dict(db=Database))
 class DatabaseAdapter(object):
     """
     Your class to manage the database.
     """
-    def __init__(self, db: Database):
+    def __init__(self, db):
         self.db = db
     
     # other methods
     
-@dependency.inject(mapping=dict(db=DatabaseAdapter))
-def f(db: DatabaseAdapter):
+@dym.inject(mapping=dict(db=DatabaseAdapter))
+def f(db):
     """ Do something with your database. """      
 ```
+
+
+TODO
+------
+
+- Better support for configuration ?
+- proxies ?

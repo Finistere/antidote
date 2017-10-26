@@ -1,11 +1,11 @@
 import pytest
 
-from dependency_manager.manager import ServiceManager
+from dependency_manager.manager import DependencyManager
 from dependency_manager.exceptions import *
 
 
 def test_inject_with_mapping():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     class Service(object):
@@ -33,14 +33,14 @@ def test_inject_with_mapping():
     assert container[Service] is h()
 
 
-def test_inject_by_name():
-    manager = ServiceManager(inject_by_name=False)
+def test_use_arg_name():
+    manager = DependencyManager(use_arg_name=False)
     container = manager.container
 
     _service = object()
     container['service'] = _service
 
-    @manager.inject(inject_by_name=True)
+    @manager.inject(use_arg_name=True)
     def f(service):
         return service
 
@@ -53,13 +53,13 @@ def test_inject_by_name():
     with pytest.raises(TypeError):
         g()
 
-    @manager.inject(inject_by_name=True)
+    @manager.inject(use_arg_name=True)
     def h(service, b=1):
         return service
 
     assert _service is h()
 
-    manager.inject_by_name = True
+    manager.use_arg_name = True
 
     @manager.inject
     def u(service):
@@ -67,7 +67,7 @@ def test_inject_by_name():
 
     assert _service is u()
 
-    @manager.inject(inject_by_name=False)
+    @manager.inject(use_arg_name=False)
     def v(service):
         return service
 
@@ -76,7 +76,7 @@ def test_inject_by_name():
 
 
 def test_register():
-    manager = ServiceManager(auto_wire=True)
+    manager = DependencyManager(auto_wire=True)
     container = manager.container
 
     @manager.register
@@ -106,7 +106,7 @@ def test_register():
     # singleton
     assert container[AnotherService] is container[AnotherService]
 
-    @manager.register(inject_by_name=True)
+    @manager.register(use_arg_name=True)
     class YetAnotherService(object):
         def __init__(self, service):
             self.service = service
@@ -128,7 +128,7 @@ def test_register():
         def __init__(self, service):
             self.service = service
 
-    with pytest.raises(ServiceInstantiationError):
+    with pytest.raises(DependencyInstantiationError):
         _ = container[BrokenService]
 
     @manager.register(auto_wire=('__init__', 'method'),
@@ -151,7 +151,7 @@ def test_register():
 
 
 def test_provider_function():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     class Service(object):
@@ -189,7 +189,7 @@ def test_provider_function():
     class YetAnotherService:
         pass
 
-    @manager.provider(inject_by_name=True, returns=YetAnotherService)
+    @manager.provider(use_arg_name=True, returns=YetAnotherService)
     def injected_by_name_provider(test):
         return test
 
@@ -197,7 +197,7 @@ def test_provider_function():
 
 
 def test_provider_class():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     class Service(object):
@@ -242,7 +242,7 @@ def test_provider_class():
     class YetAnotherService(object):
         pass
 
-    @manager.provider(inject_by_name=True, returns=YetAnotherService)
+    @manager.provider(use_arg_name=True, returns=YetAnotherService)
     class YetAnotherServiceProvider(object):
         def __init__(self, test):
             self.test = test
@@ -256,7 +256,7 @@ def test_provider_class():
     class OtherService(object):
         pass
 
-    @manager.provider(inject_by_name=True,
+    @manager.provider(use_arg_name=True,
                       mapping=dict(service=Service),
                       auto_wire=('__init__',),
                       returns=OtherService)

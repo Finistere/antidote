@@ -1,10 +1,10 @@
 import pytest
 
-from dependency_manager import ServiceManager
+from dependency_manager import DependencyManager
 
 
 def test_attrs():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     try:
@@ -23,7 +23,7 @@ def test_attrs():
     @attr.s
     class Test(object):
         service = manager.attrib(Service)
-        parameter = manager.attrib(inject_by_name=True)
+        parameter = manager.attrib(use_arg_name=True)
 
     test = Test()
 

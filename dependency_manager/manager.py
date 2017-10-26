@@ -3,29 +3,29 @@ import inspect
 import wrapt
 
 from ._compat import PY3
-from .builder import Builder
-from .container import Container
+from .injector import DependencyInjector
+from .container import DependencyContainer
 
 
-class ServiceManager:
+class DependencyManager:
     """
     Provides utility functions/decorators to manage the container.
     """
     auto_wire = True
-    inject_by_name = False
+    use_arg_name = False
 
-    def __init__(self, auto_wire=None, inject_by_name=None,
-                 container_class=Container, builder_class=Builder):
+    def __init__(self, auto_wire=None, use_arg_name=None,
+                 container_class=DependencyContainer, builder_class=DependencyInjector):
         if auto_wire is not None:
             self.auto_wire = auto_wire
-        if inject_by_name is not None:
-            self.inject_by_name = inject_by_name
+        if use_arg_name is not None:
+            self.use_arg_name = use_arg_name
 
         self.container = container_class()
         self.builder = builder_class(self.container)
 
     def register(self, service=None, id=None, singleton=True, auto_wire=None,
-                 mapping=None, inject_by_name=None):
+                 mapping=None, use_arg_name=None):
         auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
         def _register(obj):
@@ -38,7 +38,7 @@ class ServiceManager:
                     obj = self.wire(obj,
                                     functions=to_wire,
                                     mapping=mapping,
-                                    inject_by_name=inject_by_name)
+                                    use_arg_name=use_arg_name)
                 self.container.register(factory=obj, singleton=singleton)
             else:
                 self.container[id or type(obj)] = obj
@@ -49,7 +49,7 @@ class ServiceManager:
 
     if PY3:
         def provider(self, service=None, returns=None, auto_wire=None,
-                     singleton=True, mapping=None, inject_by_name=None):
+                     singleton=True, mapping=None, use_arg_name=None):
             auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
             def _provider(obj):
@@ -62,7 +62,7 @@ class ServiceManager:
                         obj = self.wire(obj,
                                         functions=to_wire,
                                         mapping=mapping,
-                                        inject_by_name=inject_by_name)
+                                        use_arg_name=use_arg_name)
 
                     service_id = obj.__call__.__annotations__.get('return')
                     obj = obj()
@@ -70,7 +70,7 @@ class ServiceManager:
                     if auto_wire:
                         obj = self.inject(obj,
                                           mapping=mapping,
-                                          inject_by_name=inject_by_name)
+                                          use_arg_name=use_arg_name)
                     service_id = obj.__annotations__.get('return')
 
                 service_id = returns or service_id
@@ -86,7 +86,7 @@ class ServiceManager:
             return service and _provider(service) or _provider
     else:
         def provider(self, service=None, returns=None, auto_wire=None,
-                     singleton=True, mapping=None, inject_by_name=None):
+                     singleton=True, mapping=None, use_arg_name=None):
             auto_wire = self.auto_wire if auto_wire is None else auto_wire
 
             if returns is None:
@@ -103,12 +103,12 @@ class ServiceManager:
                         obj = self.wire(obj,
                                         functions=to_wire,
                                         mapping=mapping,
-                                        inject_by_name=inject_by_name)
+                                        use_arg_name=use_arg_name)
                     obj = obj()
                 elif auto_wire:
                     obj = self.inject(obj,
                                       mapping=mapping,
-                                      inject_by_name=inject_by_name)
+                                      use_arg_name=use_arg_name)
 
                 self.container.register(factory=obj, type=returns,
                                         singleton=singleton)
@@ -125,9 +125,9 @@ class ServiceManager:
 
         return cls and _wire(cls) or _wire
 
-    def inject(self, func=None, mapping=None, inject_by_name=None):
-        if inject_by_name is None:
-            inject_by_name = self.inject_by_name
+    def inject(self, func=None, mapping=None, use_arg_name=None):
+        if use_arg_name is None:
+            use_arg_name = self.use_arg_name
         mapping = mapping or dict()
         arg_mapping = []  # cannot use nonlocal because of Python 2.7 ...
         gen_args_kwargs = self.builder.generate_injected_args_kwargs
@@ -136,7 +136,7 @@ class ServiceManager:
         def _inject(wrapped, instance, args, kwargs):
             if not arg_mapping:
                 arg_mapping.append(self.builder.generate_arguments_mapping(
-                    wrapped, inject_by_name=inject_by_name,
+                    wrapped, use_arg_name=use_arg_name,
                     mapping=mapping,
                 ))
 
@@ -145,9 +145,9 @@ class ServiceManager:
 
         return func and _inject(func) or _inject
 
-    def attrib(self, service=None, inject_by_name=None, **kwargs):
-        if inject_by_name is None:
-            inject_by_name = self.inject_by_name
+    def attrib(self, service=None, use_arg_name=None, **kwargs):
+        if use_arg_name is None:
+            use_arg_name = self.use_arg_name
 
         try:
             import attr
@@ -169,7 +169,7 @@ class ServiceManager:
                             try:
                                 service_name = cls.__annotations__[name]
                             except (AttributeError, KeyError):
-                                if inject_by_name:
+                                if use_arg_name:
                                     service_name = name
                                     break
                             else:

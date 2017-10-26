@@ -1,6 +1,6 @@
 import pytest
 
-from dependency_manager import Container
+from dependency_manager import DependencyContainer
 from dependency_manager.exceptions import *
 
 
@@ -13,7 +13,7 @@ class AnotherService(object):
 
 
 def test_register():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
     assert isinstance(container[Service], Service)
     # singleton by default
@@ -21,19 +21,19 @@ def test_register():
 
 
 def test_deregister():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
     container.deregister(Service)
 
-    with pytest.raises(UnregisteredServiceError):
+    with pytest.raises(UnregisteredDependencyError):
         _ = container[Service]
 
-    with pytest.raises(UnregisteredServiceError):
+    with pytest.raises(UnregisteredDependencyError):
         container.deregister(Service)
 
 
 def test_cache():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
     x = container[Service]
 
@@ -41,7 +41,7 @@ def test_cache():
 
 
 def test_register_factory():
-    container = Container()
+    container = DependencyContainer()
 
     class ServiceFactory(object):
         def __call__(self, *args, **kwargs):
@@ -52,7 +52,7 @@ def test_register_factory():
 
 
 def test_setitem():
-    container = Container()
+    container = DependencyContainer()
 
     s = object()
     container['service'] = s
@@ -61,9 +61,9 @@ def test_setitem():
 
 
 def test_getitem():
-    container = Container()
+    container = DependencyContainer()
 
-    with pytest.raises(UnregisteredServiceError):
+    with pytest.raises(UnregisteredDependencyError):
         _ = container[Service]
 
     container.register(Service)
@@ -75,7 +75,7 @@ def test_getitem():
 
     container.register(ServiceWithNonMetDependency, singleton=False)
 
-    with pytest.raises(ServiceInstantiationError):
+    with pytest.raises(DependencyInstantiationError):
         _ = container[ServiceWithNonMetDependency]
 
     class SingletonServiceWithNonMetDependency(object):
@@ -84,22 +84,22 @@ def test_getitem():
 
     container.register(SingletonServiceWithNonMetDependency, singleton=True)
 
-    with pytest.raises(ServiceInstantiationError):
+    with pytest.raises(DependencyInstantiationError):
         _ = container[SingletonServiceWithNonMetDependency]
 
     def failing_service_factory():
         raise Exception()
 
-    container.append({
+    container.extend({
         'test': failing_service_factory
     })
 
-    with pytest.raises(ServiceInstantiationError):
+    with pytest.raises(DependencyInstantiationError):
         _ = container['test']
 
 
 def test_contains():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
 
     assert Service in container
@@ -110,7 +110,7 @@ def test_contains():
 
 
 def test_delitem():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
 
     # Cannot delete a registered service
@@ -126,12 +126,12 @@ def test_delitem():
     del container['test']
     assert 'test' not in container
 
-    with pytest.raises(UnregisteredServiceError):
+    with pytest.raises(UnregisteredDependencyError):
         del container['test']
 
 
 def test_singleton():
-    container = Container()
+    container = DependencyContainer()
 
     class SingletonService(object):
         pass
@@ -151,24 +151,24 @@ def test_singleton():
 
 
 def test_duplicate_error():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
 
-    with pytest.raises(DuplicateServiceError):
+    with pytest.raises(DuplicateDependencyError):
         container.register(Service)
 
-    with pytest.raises(DuplicateServiceError):
+    with pytest.raises(DuplicateDependencyError):
         container.register(AnotherService, type=Service)
 
 
 def test_append():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
 
     another_service = AnotherService()
     y = object()
 
-    container.append({
+    container.extend({
         Service: another_service,
         'y': y
     })
@@ -179,13 +179,13 @@ def test_append():
 
 
 def test_prepend():
-    container = Container()
+    container = DependencyContainer()
     container.register(Service)
 
     another_service = AnotherService()
     y = object()
 
-    container.prepend({
+    container.override({
         Service: another_service,
         'y': y
     })

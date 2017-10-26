@@ -1,9 +1,9 @@
-from dependency_manager import Builder, Container, ServiceManager
+from dependency_manager import DependencyInjector, DependencyContainer, DependencyManager
 
 
 def test_builder():
-    container = Container()
-    builder = Builder(container)
+    container = DependencyContainer()
+    builder = DependencyInjector(container)
 
     class Service(object):
         pass
@@ -25,7 +25,7 @@ def test_builder():
 
 
 def test_inject():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     class Service(object):
@@ -41,7 +41,7 @@ def test_inject():
 
 
 def test_register():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     @manager.register
@@ -60,7 +60,7 @@ def test_register():
 
 
 def test_provider_function():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     @manager.register
@@ -80,7 +80,7 @@ def test_provider_function():
 
 
 def test_provider_class():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     @manager.register

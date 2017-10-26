@@ -1,10 +1,10 @@
-class UnregisteredServiceError(KeyError):
+class UnregisteredDependencyError(KeyError):
     """ The service could not be found"""
 
 
-class ServiceInstantiationError(TypeError):
+class DependencyInstantiationError(TypeError):
     """ The service could not be instantiated """
 
 
-class DuplicateServiceError(ValueError):
+class DuplicateDependencyError(ValueError):
     """ A service already exists with the same name """

@@ -1,8 +1,8 @@
-from dependency_manager import ServiceManager
+from dependency_manager import DependencyManager
 
 
 def test_attrs():
-    manager = ServiceManager()
+    manager = DependencyManager()
     container = manager.container
 
     try:

@@ -1,11 +1,11 @@
 import pytest
 
-from dependency_manager import Container, Builder
+from dependency_manager import DependencyContainer, DependencyInjector
 
 
 def test_build():
-    container = Container()
-    builder = Builder(container)
+    container = DependencyContainer()
+    builder = DependencyInjector(container)
 
     class Obj(object):
         def __init__(self, a, b):
@@ -24,8 +24,8 @@ def test_build():
 
 
 def test_call():
-    container = Container()
-    builder = Builder(container)
+    container = DependencyContainer()
+    builder = DependencyInjector(container)
 
     def f(a, b):
         return a, b
@@ -42,8 +42,8 @@ def test_call():
 
 
 def test_prepare():
-    container = Container()
-    builder = Builder(container)
+    container = DependencyContainer()
+    builder = DependencyInjector(container)
 
     def f(a, b):
         return a, b
@@ -60,8 +60,8 @@ def test_prepare():
 
 
 def test_mapping():
-    container = Container()
-    builder = Builder(container)
+    container = DependencyContainer()
+    builder = DependencyInjector(container)
 
     class Service(object):
         pass
@@ -103,9 +103,9 @@ def test_mapping():
         builder.build(AnotherObj, mapping=dict(service=UnknownService))
 
 
-def test_inject_by_name():
-    container = Container()
-    builder = Builder(container)
+def test_use_arg_name():
+    container = DependencyContainer()
+    builder = DependencyInjector(container)
 
     container['test'] = object()
 
@@ -113,14 +113,14 @@ def test_inject_by_name():
         return test
 
     # test is inject by name
-    assert container['test'] == builder.call(f, inject_by_name=True)
+    assert container['test'] == builder.call(f, use_arg_name=True)
 
     class Obj(object):
         def __init__(self, test):
             self.test = test
 
     # test is inject by name
-    obj = builder.build(Obj, inject_by_name=True)
+    obj = builder.build(Obj, use_arg_name=True)
     assert container['test'] == obj.test
 
 
