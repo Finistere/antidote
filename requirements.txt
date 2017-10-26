@@ -1,0 +1,6 @@
+attrs
+coverage
+pytest
+sphinx
+tox
+wrapt
