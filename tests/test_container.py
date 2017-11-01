@@ -47,7 +47,7 @@ def test_register_factory():
         def __call__(self, *args, **kwargs):
             return Service()
 
-    container.register(ServiceFactory(), type=Service)
+    container.register(ServiceFactory(), id=Service)
     assert isinstance(container[Service], Service)
 
 
@@ -158,7 +158,7 @@ def test_duplicate_error():
         container.register(Service)
 
     with pytest.raises(DuplicateDependencyError):
-        container.register(AnotherService, type=Service)
+        container.register(AnotherService, id=Service)
 
 
 def test_append():

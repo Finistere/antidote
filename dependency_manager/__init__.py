@@ -20,7 +20,7 @@ __all__ = [
 manager = DependencyManager()
 
 container = manager.container
-builder = manager.builder
+builder = manager.injector
 inject = manager.inject
 provider = manager.provider
 register = manager.register

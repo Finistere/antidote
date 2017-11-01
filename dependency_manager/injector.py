@@ -29,7 +29,7 @@ class DependencyInjector:
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
             mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency name. Overrides annotations.
+                to their respective dependency id. Overrides annotations.
                 Defaults to None.
             args (iterable, optional): Positional arguments which override any
                 injection. Defaults to None.
@@ -66,7 +66,7 @@ class DependencyInjector:
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
             mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency name. Overrides annotations.
+                to their respective dependency id. Overrides annotations.
                 Defaults to None.
             args (iterable, optional): Positional arguments which override any
                 injection. Defaults to None.
@@ -101,7 +101,7 @@ class DependencyInjector:
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
             mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency name. Overrides annotations.
+                to their respective dependency id. Overrides annotations.
                 Defaults to None.
             args (iterable, optional): Positional arguments which override any
                 injection. Defaults to None.
@@ -162,12 +162,12 @@ class DependencyInjector:
                     should be used to search for a dependency when no mapping,
                     nor annotation is found. Defaults to False.
                 mapping (dict, optional): Custom mapping of the arguments name
-                    to their respective dependency name. Overrides annotations.
+                    to their respective dependency id. Overrides annotations.
                     Defaults to None.
 
             Returns:
                 OrderedDict: Mapping of the arguments name to their matching
-                    dependency name if one was found. If not _sentinel is used
+                    dependency id if one was found. If not _sentinel is used
                     instead.
 
             """
@@ -202,12 +202,12 @@ class DependencyInjector:
                     should be used to search for a dependency when no mapping,
                     nor annotation is found. Defaults to False.
                 mapping (dict, optional): Custom mapping of the arguments name
-                    to their respective dependency name. Overrides annotations.
+                    to their respective dependency id. Overrides annotations.
                     Defaults to None.
 
             Returns:
                 OrderedDict: Mapping of the arguments name to their matching
-                    dependency name if one was found. If not _sentinel is used
+                    dependency id if one was found. If not _sentinel is used
                     instead.
 
             """

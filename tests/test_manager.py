@@ -162,7 +162,7 @@ def test_provider_function():
         def faulty_service_provider():
             return Service()
 
-    @manager.provider(returns=Service)
+    @manager.provider(id=Service)
     def service_provider():
         return Service()
 
@@ -174,7 +174,7 @@ def test_provider_function():
         def __init__(self, service):
             self.service = service
 
-    @manager.provider(mapping=dict(service=Service), returns=AnotherService)
+    @manager.provider(mapping=dict(service=Service), id=AnotherService)
     def another_service_provider(service):
         return AnotherService(service)
 
@@ -189,7 +189,7 @@ def test_provider_function():
     class YetAnotherService:
         pass
 
-    @manager.provider(use_arg_name=True, returns=YetAnotherService)
+    @manager.provider(use_arg_name=True, id=YetAnotherService)
     def injected_by_name_provider(test):
         return test
 
@@ -209,7 +209,7 @@ def test_provider_class():
             def __call__(self):
                 return Service()
 
-    @manager.provider(returns=Service)
+    @manager.provider(id=Service)
     class ServiceProvider(object):
         def __call__(self):
             return Service()
@@ -222,7 +222,7 @@ def test_provider_class():
         def __init__(self, service):
             self.service = service
 
-    @manager.provider(mapping=dict(service=Service), returns=AnotherService)
+    @manager.provider(mapping=dict(service=Service), id=AnotherService)
     class AnotherServiceProvider(object):
         def __init__(self, service):
             self.service = service
@@ -242,7 +242,7 @@ def test_provider_class():
     class YetAnotherService(object):
         pass
 
-    @manager.provider(use_arg_name=True, returns=YetAnotherService)
+    @manager.provider(use_arg_name=True, id=YetAnotherService)
     class YetAnotherServiceProvider(object):
         def __init__(self, test):
             self.test = test
@@ -259,7 +259,7 @@ def test_provider_class():
     @manager.provider(use_arg_name=True,
                       mapping=dict(service=Service),
                       auto_wire=('__init__',),
-                      returns=OtherService)
+                      id=OtherService)
     class OtherServiceProvider(object):
         def __init__(self, test, service):
             self.test = test

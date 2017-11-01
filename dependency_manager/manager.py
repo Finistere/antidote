@@ -8,157 +8,266 @@ from .container import DependencyContainer
 
 
 class DependencyManager:
-    """
-    Provides utility functions/decorators to manage the container.
+    """Provides utility functions/decorators to manage dependencies.
+
+    Except for attirb(). All functions can either be used as decorators or
+    functions to directly modify an object.
+
+    If one wishes to use a custom container and/or injector for further
+    customization, those only need to implement the following methods:
+    - container: __getitem__(), __setitem__(), register()
+    - injector: generate_arguments_mapping(), generate_injected_args_kwargs()
     """
     auto_wire = True
     use_arg_name = False
 
     def __init__(self, auto_wire=None, use_arg_name=None,
-                 container_class=DependencyContainer, builder_class=DependencyInjector):
+                 container=DependencyContainer,
+                 injector=DependencyInjector):
+        self.container = (
+            container() if isinstance(container, type) else container
+        )
+        self.injector = (
+            injector(self.container)
+            if isinstance(injector, type) else
+            injector
+        )
+
         if auto_wire is not None:
             self.auto_wire = auto_wire
+
         if use_arg_name is not None:
             self.use_arg_name = use_arg_name
 
-        self.container = container_class()
-        self.builder = builder_class(self.container)
+    def register(self, dependency=None, id=None, singleton=True,
+                 auto_wire=None, mapping=None, use_arg_name=None):
+        """Register a dependency by its type or specified id.
 
-    def register(self, service=None, id=None, singleton=True, auto_wire=None,
-                 mapping=None, use_arg_name=None):
-        auto_wire = self.auto_wire if auto_wire is None else auto_wire
+        Args:
+            dependency (object): Object to register as a dependency.
+            id (hashable object, optional): Id of the dependency. Defaults to
+                the type of the dependency.
+            singleton (bool, optional): A singleton will be only be
+                instantiated once. Otherwise the dependency will instantiated
+                anew every time. Defaults to True.
+            auto_wire (bool or tuple of strings, optional): Injects
+                automatically the dependencies of the methods specified, or
+                only of __init__() if True. Default to False.
+            mapping (dict, optional): Custom mapping of the arguments name
+                to their respective dependency id. Overrides annotations.
+                Defaults to None.
+            use_arg_name (bool, optional): Whether the arguments name
+                should be used to search for a dependency when no mapping,
+                nor annotation is found. Defaults to False.
 
-        def _register(obj):
-            if inspect.isclass(obj):
+        Returns:
+            object: The dependency.
+
+        """
+        if auto_wire is None:
+            auto_wire = self.auto_wire
+
+        def register_dependency(dependency):
+            if inspect.isclass(dependency):
                 if auto_wire:
-                    if auto_wire is True:
-                        to_wire = ('__init__',)
-                    else:
-                        to_wire = auto_wire
-                    obj = self.wire(obj,
-                                    functions=to_wire,
-                                    mapping=mapping,
-                                    use_arg_name=use_arg_name)
-                self.container.register(factory=obj, singleton=singleton)
-            else:
-                self.container[id or type(obj)] = obj
-
-            return obj
-
-        return service and _register(service) or _register
-
-    if PY3:
-        def provider(self, service=None, returns=None, auto_wire=None,
-                     singleton=True, mapping=None, use_arg_name=None):
-            auto_wire = self.auto_wire if auto_wire is None else auto_wire
-
-            def _provider(obj):
-                if inspect.isclass(obj):
-                    if auto_wire:
-                        if auto_wire is True:
-                            to_wire = ('__call__', '__init__')
-                        else:
-                            to_wire = auto_wire
-                        obj = self.wire(obj,
-                                        functions=to_wire,
-                                        mapping=mapping,
-                                        use_arg_name=use_arg_name)
-
-                    service_id = obj.__call__.__annotations__.get('return')
-                    obj = obj()
-                else:
-                    if auto_wire:
-                        obj = self.inject(obj,
-                                          mapping=mapping,
-                                          use_arg_name=use_arg_name)
-                    service_id = obj.__annotations__.get('return')
-
-                service_id = returns or service_id
-
-                if not service_id:
-                    raise ValueError("Either a return annotation or the "
-                                     "'returns' parameter must be not None.")
-
-                self.container.register(factory=obj, singleton=singleton,
-                                        type=service_id)
-                return obj
-
-            return service and _provider(service) or _provider
-    else:
-        def provider(self, service=None, returns=None, auto_wire=None,
-                     singleton=True, mapping=None, use_arg_name=None):
-            auto_wire = self.auto_wire if auto_wire is None else auto_wire
-
-            if returns is None:
-                raise ValueError("Either a return annotation or the "
-                                 "'returns' parameter must be not None.")
-
-            def _provider(obj):
-                if inspect.isclass(obj):
-                    if auto_wire:
-                        if auto_wire is True:
-                            to_wire = ('__call__', '__init__')
-                        else:
-                            to_wire = auto_wire
-                        obj = self.wire(obj,
-                                        functions=to_wire,
-                                        mapping=mapping,
-                                        use_arg_name=use_arg_name)
-                    obj = obj()
-                elif auto_wire:
-                    obj = self.inject(obj,
-                                      mapping=mapping,
-                                      use_arg_name=use_arg_name)
-
-                self.container.register(factory=obj, type=returns,
+                    dependency = self.wire(
+                        dependency,
+                        methods=(
+                            ('__init__',) if auto_wire is True else auto_wire
+                        ),
+                        mapping=mapping,
+                        use_arg_name=use_arg_name
+                    )
+                self.container.register(factory=dependency,
                                         singleton=singleton)
-                return obj
+            else:
+                self.container[id or type(dependency)] = dependency
 
-            return service and _provider(service) or _provider
+            return dependency
 
-    def wire(self, cls=None, functions=None, **inject_kwargs):
-        def _wire(cls):
-            for f in functions:
-                setattr(cls, f, self.inject(getattr(cls, f), **inject_kwargs))
+        return (
+            dependency and register_dependency(dependency)
+            or register_dependency
+        )
+
+    def provider(self, dependency_provider=None, id=None, auto_wire=None,
+                 singleton=True, mapping=None, use_arg_name=None):
+        """Register a dependency provider, a factory to build the dependency.
+
+        Args:
+            dependency_provider (callable): Callable which builds the
+                dependency.
+            id (hashable object, optional): Id of the dependency. Defaults to
+                the dependency_provider.
+            singleton (bool, optional): If True the dependency_provider is
+                called only once. Otherwise it is called anew every time.
+                Defaults to True.
+            auto_wire (bool or tuple of strings, optional): Injects
+                automatically the dependencies of the methods specified, or
+                only of __init__() and __call__() if True. If True and the
+                provider is a function, its arguments will be injected.
+                Defaults to False.
+            mapping (dict, optional): Custom mapping of the arguments name
+                to their respective dependency id. Overrides annotations.
+                Defaults to None.
+            use_arg_name (bool, optional): Whether the arguments name
+                should be used to search for a dependency when no mapping,
+                nor annotation is found. Defaults to False.
+
+        Returns:
+            object: The dependency_provider
+
+        """
+        if auto_wire is None:
+            auto_wire = self.auto_wire
+
+        if id is None and not PY3:
+            raise ValueError("Either a return annotation or the "
+                             "'id' parameter must be not None.")
+
+        def register_provider(provider):
+            # TODO: `_id` should be replaced with `nonlocal id` once
+            # Python 2 support drops.
+            _id = None
+            if inspect.isclass(provider):
+                if auto_wire:
+                    provider = self.wire(
+                        provider,
+                        methods=(
+                            ('__call__', '__init__')
+                            if auto_wire is True else
+                            auto_wire
+                        ),
+                        mapping=mapping,
+                        use_arg_name=use_arg_name
+                    )
+                if PY3:
+                    _id = provider.__call__.__annotations__.get('return')
+                provider = provider()
+            else:
+                if auto_wire:
+                    provider = self.inject(provider,
+                                           mapping=mapping,
+                                           use_arg_name=use_arg_name)
+                if PY3:
+                    _id = provider.__annotations__.get('return')
+
+            _id = id or _id
+
+            if not _id:
+                raise ValueError("Either a return annotation or the "
+                                 "'id' parameter must be not None.")
+
+            self.container.register(factory=provider, singleton=singleton,
+                                    id=_id)
+            return provider
+
+        return (
+            dependency_provider and register_provider(dependency_provider)
+            or register_provider
+        )
+
+    def wire(self, cls=None, methods=None, **inject_kwargs):
+        """Wire a class by injecting the dependencies in all specified methods.
+
+        Args:
+            cls (type): class to wire.
+            methods (tuple of strings, optional): Name of the methods for which
+                dependencies should be injected. Defaults to all defined
+                methods.
+            **inject_kwargs: Keyword arguments passed on to inject.
+
+        Returns:
+            type: Wired class.
+
+        """
+        def wire_methods(cls):
+            # TODO: use nonlocal once Python 2.7 support drops.
+            _methods = methods
+            if not _methods:
+                _methods = inspect.getmembers(
+                    cls,
+                    # Retrieve static methods, class methods, methods.
+                    predicate=lambda f: (inspect.isfunction(f)
+                                         or inspect.ismethod(f))
+                )
+
+            for method in _methods:
+                setattr(cls,
+                        method,
+                        self.inject(getattr(cls, method), **inject_kwargs))
 
             return cls
 
-        return cls and _wire(cls) or _wire
+        return cls and wire_methods(cls) or wire_methods
 
     def inject(self, func=None, mapping=None, use_arg_name=None):
+        """Inject the dependency into the function.
+
+        Args:
+            func (callable): Callable for which the argument should be
+                injected.
+            use_arg_name (bool, optional): Whether the arguments name
+                should be used to search for a dependency when no mapping,
+                nor annotation is found. Defaults to False.
+            mapping (dict, optional): Custom mapping of the arguments name
+                to their respective dependency id. Overrides annotations.
+                Defaults to None.
+
+        Returns:
+            callable: The injected function.
+
+        """
         if use_arg_name is None:
             use_arg_name = self.use_arg_name
-        mapping = mapping or dict()
-        arg_mapping = []  # cannot use nonlocal because of Python 2.7 ...
-        gen_args_kwargs = self.builder.generate_injected_args_kwargs
+
+        gen_args_kwargs = self.injector.generate_injected_args_kwargs
 
         @wrapt.decorator
-        def _inject(wrapped, instance, args, kwargs):
-            if not arg_mapping:
-                arg_mapping.append(self.builder.generate_arguments_mapping(
-                    wrapped, use_arg_name=use_arg_name,
+        def fast_inject(wrapped, instance, args, kwargs):
+            try:
+                arg_mapping = fast_inject.arg_mapping
+            except AttributeError:
+                arg_mapping = self.injector.generate_arguments_mapping(
+                    wrapped,
+                    use_arg_name=use_arg_name,
                     mapping=mapping,
-                ))
+                )
+                fast_inject.arg_mapping = arg_mapping
 
-            args, kwargs = gen_args_kwargs(arg_mapping[0], args, kwargs)
+            args, kwargs = gen_args_kwargs(arg_mapping, args, kwargs)
             return wrapped(*args, **kwargs)
 
-        return func and _inject(func) or _inject
+        return func and fast_inject(func) or fast_inject
 
-    def attrib(self, service=None, use_arg_name=None, **kwargs):
-        if use_arg_name is None:
-            use_arg_name = self.use_arg_name
+    def attrib(self, id=None, use_arg_name=None, **attr_kwargs):
+        """Injects a dependency with attributes defined with attrs package.
 
+        Args:
+            id (hashable object, optional): Id of the dependency to inject.
+                Defaults to the annotation or attribute name if use_arg_name.
+            use_arg_name (bool, optional): If True, use the attribute name to
+                identify the dependency. Defaults to False.
+            **attr_kwargs: Keyword arguments passed on to attr.ib()
+
+        Returns:
+            object: attr.Attribute with a attr.Factory.
+
+        """
         try:
             import attr
         except ImportError:
             raise RuntimeError('attrs package must be installed.')
 
+        if use_arg_name is None:
+            use_arg_name = self.use_arg_name
+
         def attrib_factory(instance):
             try:
-                service_name = attrib_factory.service_name
+                _id = attrib_factory.dependency_id
             except AttributeError:
-                if service is None:
+                _id = id
+                if _id is None:
                     cls = instance.__class__
                     for name, value in cls.__dict__.items():
                         # Dirty way to find the attrib annotation.
@@ -167,24 +276,23 @@ class DependencyManager:
                                 and isinstance(value.default, attr.Factory) \
                                 and value.default.factory is attrib_factory:
                             try:
-                                service_name = cls.__annotations__[name]
+                                _id = cls.__annotations__[name]
                             except (AttributeError, KeyError):
                                 if use_arg_name:
-                                    service_name = name
+                                    _id = name
                                     break
                             else:
                                 break
                     else:
                         raise ValueError(
-                            "Either an annotation or the 'service' "
-                            "parameter must be not None."
+                            "No dependency could be detected. Please specify "
+                            "the parameter `id` or `use_arg_name=True`. "
+                            "Annotations may also be used."
                         )
-                else:
-                    service_name = service
 
-                attrib_factory.service_name = service_name
+                attrib_factory.dependency_id = _id
 
-            return self.container[service_name]
+            return self.container[_id]
 
         return attr.ib(default=attr.Factory(attrib_factory, takes_self=True),
-                       **kwargs)
+                       **attr_kwargs)

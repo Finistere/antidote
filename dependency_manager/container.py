@@ -12,8 +12,8 @@ class DependencyContainer:
     Container of dependencies. Dependencies are either factories which must be
     registered or any user-given data.
 
-    A dependency can be retrieved through its name. The type of the dependency
-    is used as its name when registering a factory.
+    A dependency can be retrieved through its id. The factory of the
+    dependency itself is used as its id if none is provided.
 
     The container uses a cache to instantiate lazily dependencies, deleting and
     setting dependencies only affects the cache, not the registered nor
@@ -22,24 +22,24 @@ class DependencyContainer:
     """
     def __init__(self):
         self._cache = {}
-        self._dependency_factories_by_type = dict()
+        self._registered_factories = dict()
         # Elements in _factories must be either the dependencies themselves or
         # their factory.
-        self._factories = ChainMap(self._dependency_factories_by_type)
+        self._factories = ChainMap(self._registered_factories)
         self._instantiation_lock = threading.RLock()
 
-    def __getitem__(self, name):
+    def __getitem__(self, id):
         """
         Retrieves the service from the instantiated services. If no service
         matches, the container tries to find one which can be instantiated.
         """
         try:
-            return self._cache[name]
+            return self._cache[id]
         except KeyError:
             try:
-                factory = self._factories[name]
+                factory = self._factories[id]
             except KeyError:
-                raise UnregisteredDependencyError(name)
+                raise UnregisteredDependencyError(id)
 
         try:
             try:
@@ -50,61 +50,61 @@ class DependencyContainer:
 
             if callable(factory):
                 with self._instantiation_lock:
-                    if name not in self._cache:
-                        self._cache[name] = factory()
+                    if id not in self._cache:
+                        self._cache[id] = factory()
             else:
-                self._cache[name] = factory
+                self._cache[id] = factory
 
         except Exception as e:
             raise DependencyInstantiationError(repr(e))
 
-        return self._cache[name]
+        return self._cache[id]
 
-    def __setitem__(self, name, dependency):
-        self._cache[name] = dependency
+    def __setitem__(self, id, dependency):
+        self._cache[id] = dependency
 
-    def __delitem__(self, name):
+    def __delitem__(self, id):
         try:
-            del self._cache[name]
+            del self._cache[id]
         except KeyError:
-            if name not in self._factories:
-                raise UnregisteredDependencyError(name)
+            if id not in self._factories:
+                raise UnregisteredDependencyError(id)
 
-    def __contains__(self, name):
-        return name in self._cache or name in self._factories
+    def __contains__(self, id):
+        return id in self._cache or id in self._factories
 
-    def register(self, factory, type=None, singleton=True):
+    def register(self, factory, id=None, singleton=True):
         """Register a dependency factory by the type of the dependency.
 
         Args:
             factory (callable): Callable to be used to instantiate the
                 dependency.
-            type (type, optional): Type of the dependency, by which it is
+            id (object, optional): Type of the dependency, by which it is
                 identified. Defaults to the type of the factory.
             singleton (bool, optional): A singleton will be only be
                 instantiated once. Otherwise the dependency will instantiated
                 anew every time.
         """
-        type = type or factory
+        id = id or factory
         dependency_factory = DependencyFactory(factory=factory,
                                                singleton=singleton)
 
-        if type in self._dependency_factories_by_type:
-            raise DuplicateDependencyError(type)
+        if id in self._registered_factories:
+            raise DuplicateDependencyError(id)
 
-        self._dependency_factories_by_type[type] = dependency_factory
+        self._registered_factories[id] = dependency_factory
 
-    def deregister(self, type):
+    def deregister(self, id):
         """Deregister a dependency factory by the type of the dependency.
 
         Args:
-            type (type, optional): Type of the dependency.
+            id (object, optional): Type of the dependency.
 
         """
         try:
-            del self._dependency_factories_by_type[type]
+            del self._registered_factories[id]
         except KeyError:
-            raise UnregisteredDependencyError(type)
+            raise UnregisteredDependencyError(id)
 
     def extend(self, dependencies):
         """Extend the container with a dictionary of default dependencies.
