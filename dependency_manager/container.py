@@ -20,6 +20,7 @@ class DependencyContainer:
     user-added dependencies. However, checking whether a dependency is defined
     will search in the cache, the registered and user-added dependencies.
     """
+
     def __init__(self):
         self._cache = {}
         self._registered_factories = dict()
@@ -30,8 +31,9 @@ class DependencyContainer:
 
     def __getitem__(self, id):
         """
-        Retrieves the service from the instantiated services. If no service
-        matches, the container tries to find one which can be instantiated.
+        Retrieves the dependency from the cached dependencies. If none matches,
+        the container tries to find a matching factory or a matching value in
+        the added dependencies.
         """
         try:
             return self._cache[id]
@@ -61,9 +63,16 @@ class DependencyContainer:
         return self._cache[id]
 
     def __setitem__(self, id, dependency):
+        """
+        Set a dependency in the cache.
+        """
         self._cache[id] = dependency
 
     def __delitem__(self, id):
+        """
+        Remove dependency from the cache. Beware that this will not remove
+        registered dependencies or user-added dependencies.
+        """
         try:
             del self._cache[id]
         except KeyError:
@@ -71,6 +80,10 @@ class DependencyContainer:
                 raise UnregisteredDependencyError(id)
 
     def __contains__(self, id):
+        """
+        Check whether the dependency is in the cache, the registered
+        dependencies, or user-added dependencies.
+        """
         return id in self._cache or id in self._factories
 
     def register(self, factory, id=None, singleton=True):

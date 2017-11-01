@@ -10,20 +10,43 @@ from .container import DependencyContainer
 class DependencyManager:
     """Provides utility functions/decorators to manage dependencies.
 
-    Except for attirb(). All functions can either be used as decorators or
-    functions to directly modify an object.
+    Except for :py:meth:`attrib()` all functions can either be used as
+    decorators or functions to directly modify an object.
 
-    If one wishes to use a custom container and/or injector for further
-    customization, those only need to implement the following methods:
-    - container: __getitem__(), __setitem__(), register()
-    - injector: generate_arguments_mapping(), generate_injected_args_kwargs()
+    Custom instances or classes can be used as :py:attr:`container` and
+    :py:attr:`injector`.
+
     """
+
     auto_wire = True
+    """ 
+    Default value for :code:`auto_wire` argument for methods such as
+    :py:meth:`register()` or :py:meth:`provider()` 
+    """
+
     use_arg_name = False
+    """ 
+    Default value for :code:`use_arg_name` argument for methods such as
+    :py:meth:`inject()` or :py:meth:`register()` 
+    """
 
     def __init__(self, auto_wire=None, use_arg_name=None,
                  container=DependencyContainer,
                  injector=DependencyInjector):
+        """Initialize the DependencyManager.
+
+        Args:
+            auto_wire (bool, optional): Default value for :code:`auto_wire`
+                argument. Defaults to True.
+            use_arg_name (bool, optional): Default value for
+                :code:`use_arg_name` argument. Defaults to False.
+            container (type or object, optional): Either an instance or the
+                class of the container to use. Defaults to
+                :py:class:`.DependencyContainer`.
+            injector (type or object, optional): Either an instance or the
+                class of the injector to use. Defaults to
+                :py:class:`.DependencyInjector`.
+        """
         self.container = (
             container() if isinstance(container, type) else container
         )
@@ -39,6 +62,48 @@ class DependencyManager:
         if use_arg_name is not None:
             self.use_arg_name = use_arg_name
 
+    def inject(self, func=None, mapping=None, use_arg_name=None):
+        """Inject the dependency into the function.
+
+        Args:
+            func (callable): Callable for which the argument should be
+                injected.
+            use_arg_name (bool, optional): Whether the arguments name
+                should be used to search for a dependency when no mapping,
+                nor annotation is found. Defaults to False.
+            mapping (dict, optional): Custom mapping of the arguments name
+                to their respective dependency id. Overrides annotations.
+                Defaults to None.
+
+        Returns:
+            callable: The injected function.
+
+        """
+        if use_arg_name is None:
+            use_arg_name = self.use_arg_name
+
+        gen_args_kwargs = self.injector.generate_injected_args_kwargs
+
+        @wrapt.decorator
+        def fast_inject(wrapped, instance, args, kwargs):
+            try:
+                arg_mapping = fast_inject.arg_mapping
+            except AttributeError:
+                arg_mapping = self.injector.generate_arguments_mapping(
+                    func=wrapped,
+                    use_arg_name=use_arg_name,
+                    mapping=mapping,
+                )
+                fast_inject.arg_mapping = arg_mapping
+
+            args, kwargs = gen_args_kwargs(instance=instance,
+                                           args=args,
+                                           kwargs=kwargs,
+                                           arguments_mapping=arg_mapping)
+            return wrapped(*args, **kwargs)
+
+        return func and fast_inject(func) or fast_inject
+
     def register(self, dependency=None, id=None, singleton=True,
                  auto_wire=None, mapping=None, use_arg_name=None):
         """Register a dependency by its type or specified id.
@@ -52,7 +117,7 @@ class DependencyManager:
                 anew every time. Defaults to True.
             auto_wire (bool or tuple of strings, optional): Injects
                 automatically the dependencies of the methods specified, or
-                only of __init__() if True. Default to False.
+                only of :code:`__init__()` if True. Default to True.
             mapping (dict, optional): Custom mapping of the arguments name
                 to their respective dependency id. Overrides annotations.
                 Defaults to None.
@@ -104,9 +169,9 @@ class DependencyManager:
                 Defaults to True.
             auto_wire (bool or tuple of strings, optional): Injects
                 automatically the dependencies of the methods specified, or
-                only of __init__() and __call__() if True. If True and the
-                provider is a function, its arguments will be injected.
-                Defaults to False.
+                only of :code:`__init__()` and :code:`__call__()`
+                if True. If True and the provider is a function, its arguments
+                will be injected. Defaults to True.
             mapping (dict, optional): Custom mapping of the arguments name
                 to their respective dependency id. Overrides annotations.
                 Defaults to None.
@@ -175,7 +240,7 @@ class DependencyManager:
             methods (tuple of strings, optional): Name of the methods for which
                 dependencies should be injected. Defaults to all defined
                 methods.
-            **inject_kwargs: Keyword arguments passed on to inject.
+            **inject_kwargs: Keyword arguments passed on to :py:meth:`inject`.
 
         Returns:
             type: Wired class.
@@ -200,45 +265,6 @@ class DependencyManager:
             return cls
 
         return cls and wire_methods(cls) or wire_methods
-
-    def inject(self, func=None, mapping=None, use_arg_name=None):
-        """Inject the dependency into the function.
-
-        Args:
-            func (callable): Callable for which the argument should be
-                injected.
-            use_arg_name (bool, optional): Whether the arguments name
-                should be used to search for a dependency when no mapping,
-                nor annotation is found. Defaults to False.
-            mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency id. Overrides annotations.
-                Defaults to None.
-
-        Returns:
-            callable: The injected function.
-
-        """
-        if use_arg_name is None:
-            use_arg_name = self.use_arg_name
-
-        gen_args_kwargs = self.injector.generate_injected_args_kwargs
-
-        @wrapt.decorator
-        def fast_inject(wrapped, instance, args, kwargs):
-            try:
-                arg_mapping = fast_inject.arg_mapping
-            except AttributeError:
-                arg_mapping = self.injector.generate_arguments_mapping(
-                    wrapped,
-                    use_arg_name=use_arg_name,
-                    mapping=mapping,
-                )
-                fast_inject.arg_mapping = arg_mapping
-
-            args, kwargs = gen_args_kwargs(arg_mapping, args, kwargs)
-            return wrapped(*args, **kwargs)
-
-        return func and fast_inject(func) or fast_inject
 
     def attrib(self, id=None, use_arg_name=None, **attr_kwargs):
         """Injects a dependency with attributes defined with attrs package.

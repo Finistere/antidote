@@ -14,14 +14,23 @@ class DependencyInjector:
     Injects the dependencies from a container before building an object or
     calling a function.
     """
+
     def __init__(self, container):
+        """Initialize the DependencyInjector.
+
+        Args:
+            container: Object with :code:`__getitem__()` defined to retrieve
+                the dependencies. :py:exc:`.UnregisteredDependencyError` should
+                be raised whenever a dependency could not be found.
+
+        """
         self._container = container
 
     def build(self, cls, use_arg_name=False, mapping=None, args=None,
               kwargs=None):
         """
-        Instantiate an object with the dependencies of its class' __init__
-        function injected.
+        Instantiate an object with the dependencies of its class'
+        :code:`__init__()` function injected.
 
         Args:
             cls (class): Class used.
@@ -122,57 +131,65 @@ class DependencyInjector:
 
         return functools.partial(func, *new_args, **new_kwargs)
 
-    def generate_injected_args_kwargs(self, arguments_mapping, args, kwargs):
+    def generate_injected_args_kwargs(self, instance, args, kwargs,
+                                      arguments_mapping):
         """
         Injects the services into the arguments based on the arguments_mapping.
 
         Args:
-            arguments_mapping (OrderedDict): Mapping of the arguments to their
-                dependency. If there is none, _sentinel must be used.
             args (iterable): Positional arguments which override any injection.
             kwargs (dict): Keyword arguments which override any injection.
+            arguments_mapping (:py:obj:`OrderedDict`): Mapping of the arguments
+                to their dependency. If there is none, _sentinel must be used.
 
         Returns:
             tuple: New Positional arguments and Keyword arguments.
 
         """
         kwargs = kwargs.copy()
-        for name, service_name in islice(arguments_mapping.items(),
-                                         len(args), None):
-            if service_name is not _sentinel and name not in kwargs:
+        for arg_name, dependency_id in islice(arguments_mapping.items(),
+                                              len(args), None):
+            if dependency_id is not _sentinel and arg_name not in kwargs:
                 try:
-                    kwargs[name] = self._container[service_name]
+                    kwargs[arg_name] = self._container[dependency_id]
                 except UnregisteredDependencyError:
                     pass
 
         return args, kwargs
 
+    def generate_arguments_mapping(self, func, use_arg_name=False,
+                                   mapping=None):
+        """
+        Generate the argument mapping, which can then be cached to
+        diminish the service injection overhead.
+
+        Args:
+            func (callable): Callable for which the argument mapping will
+                be generated.
+            use_arg_name (bool, optional): Whether the arguments name
+                should be used to search for a dependency when no mapping,
+                nor annotation is found. Defaults to False.
+            mapping (dict, optional): Custom mapping of the arguments name
+                to their respective dependency id. Overrides annotations.
+                Defaults to None.
+
+        Returns:
+            :py:obj:`OrderedDict`: Mapping of the arguments name to their
+            matching dependency id if one was found. If not _sentinel is
+            used instead.
+
+        """
+        mapping = mapping or dict()
+
+        arguments_mapping = self._generate_arguments_mapping(func,
+                                                             use_arg_name,
+                                                             mapping)
+
+        return arguments_mapping
+
     if PY3:
         @classmethod
-        def generate_arguments_mapping(cls, func, use_arg_name=False,
-                                       mapping=None):
-            """
-            Generate the argument mapping, which can then be cached to
-            diminish the service injection overhead.
-
-            Args:
-                func (callable): Callable for which the argument mapping will
-                    be generated.
-                use_arg_name (bool, optional): Whether the arguments name
-                    should be used to search for a dependency when no mapping,
-                    nor annotation is found. Defaults to False.
-                mapping (dict, optional): Custom mapping of the arguments name
-                    to their respective dependency id. Overrides annotations.
-                    Defaults to None.
-
-            Returns:
-                OrderedDict: Mapping of the arguments name to their matching
-                    dependency id if one was found. If not _sentinel is used
-                    instead.
-
-            """
-            mapping = mapping or dict()
-
+        def _generate_arguments_mapping(cls, func, use_arg_name, mapping):
             arguments_mapping = OrderedDict()
             for name, parameter in inspect.signature(func).parameters.items():
                 try:
@@ -189,30 +206,7 @@ class DependencyInjector:
             return arguments_mapping
     else:
         @classmethod
-        def generate_arguments_mapping(cls, func, use_arg_name=False,
-                                       mapping=None):
-            """
-            Generate the argument mapping, which can then be cached to
-            diminish the service injection overhead.
-
-            Args:
-                func (callable): Callable for which the argument mapping will
-                    be generated.
-                use_arg_name (bool, optional): Whether the arguments name
-                    should be used to search for a dependency when no mapping,
-                    nor annotation is found. Defaults to False.
-                mapping (dict, optional): Custom mapping of the arguments name
-                    to their respective dependency id. Overrides annotations.
-                    Defaults to None.
-
-            Returns:
-                OrderedDict: Mapping of the arguments name to their matching
-                    dependency id if one was found. If not _sentinel is used
-                    instead.
-
-            """
-            mapping = mapping or dict()
-
+        def _generate_arguments_mapping(cls, func, use_arg_name, mapping):
             arguments_mapping = OrderedDict()
             try:
                 argspec = inspect.getargspec(func)
