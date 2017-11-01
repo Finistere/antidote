@@ -2,5 +2,6 @@ attrs
 coverage
 pytest
 sphinx
+sphinx_rtd_theme
 tox
 wrapt
