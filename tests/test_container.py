@@ -25,10 +25,10 @@ def test_deregister():
     container.register(Service)
     container.deregister(Service)
 
-    with pytest.raises(UnregisteredDependencyError):
+    with pytest.raises(DependencyNotFoundError):
         _ = container[Service]
 
-    with pytest.raises(UnregisteredDependencyError):
+    with pytest.raises(DependencyNotFoundError):
         container.deregister(Service)
 
 
@@ -63,7 +63,7 @@ def test_setitem():
 def test_getitem():
     container = DependencyContainer()
 
-    with pytest.raises(UnregisteredDependencyError):
+    with pytest.raises(DependencyNotFoundError):
         _ = container[Service]
 
     container.register(Service)
@@ -126,7 +126,7 @@ def test_delitem():
     del container['test']
     assert 'test' not in container
 
-    with pytest.raises(UnregisteredDependencyError):
+    with pytest.raises(DependencyNotFoundError):
         del container['test']
 
 

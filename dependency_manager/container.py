@@ -7,7 +7,7 @@ except ImportError:
     from chainmap import ChainMap
 
 
-class DependencyContainer:
+class DependencyContainer(object):
     """
     Container of dependencies. Dependencies are either factories which must be
     registered or any user-given data.
@@ -41,7 +41,7 @@ class DependencyContainer:
             try:
                 factory = self._factories[id]
             except KeyError:
-                raise UnregisteredDependencyError(id)
+                raise DependencyNotFoundError(id)
 
         try:
             try:
@@ -77,7 +77,7 @@ class DependencyContainer:
             del self._cache[id]
         except KeyError:
             if id not in self._factories:
-                raise UnregisteredDependencyError(id)
+                raise DependencyNotFoundError(id)
 
     def __contains__(self, id):
         """
@@ -117,7 +117,7 @@ class DependencyContainer:
         try:
             del self._registered_factories[id]
         except KeyError:
-            raise UnregisteredDependencyError(id)
+            raise DependencyNotFoundError(id)
 
     def extend(self, dependencies):
         """Extend the container with a dictionary of default dependencies.

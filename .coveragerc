@@ -1,9 +1,2 @@
-[report]
-exclude_lines =
-    pragma: no cover
-    @abstract
-    raise AssertionError
-    raise NotImplementedError
-
 [html]
 directory = coverage_html_report

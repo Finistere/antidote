@@ -1,4 +1,4 @@
-class UnregisteredDependencyError(KeyError):
+class DependencyNotFoundError(KeyError):
     """ The dependency could not be found"""
 
 

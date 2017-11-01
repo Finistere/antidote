@@ -11,7 +11,7 @@ __all__ = [
     'DependencyFactory',
     'DependencyInjector',
     'DependencyManager',
-    'UnregisteredDependencyError',
+    'DependencyNotFoundError',
     'DuplicateDependencyError',
     'DependencyInstantiationError'
 ]

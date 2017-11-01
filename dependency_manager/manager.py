@@ -7,7 +7,7 @@ from .injector import DependencyInjector
 from .container import DependencyContainer
 
 
-class DependencyManager:
+class DependencyManager(object):
     """Provides utility functions/decorators to manage dependencies.
 
     Except for :py:meth:`attrib()` all functions can either be used as
@@ -82,27 +82,10 @@ class DependencyManager:
         if use_arg_name is None:
             use_arg_name = self.use_arg_name
 
-        gen_args_kwargs = self.injector.generate_injected_args_kwargs
+        _inject = self.injector.inject(use_arg_name=use_arg_name,
+                                       mapping=mapping)
 
-        @wrapt.decorator
-        def fast_inject(wrapped, instance, args, kwargs):
-            try:
-                arg_mapping = fast_inject.arg_mapping
-            except AttributeError:
-                arg_mapping = self.injector.generate_arguments_mapping(
-                    func=wrapped,
-                    use_arg_name=use_arg_name,
-                    mapping=mapping,
-                )
-                fast_inject.arg_mapping = arg_mapping
-
-            args, kwargs = gen_args_kwargs(instance=instance,
-                                           args=args,
-                                           kwargs=kwargs,
-                                           arguments_mapping=arg_mapping)
-            return wrapped(*args, **kwargs)
-
-        return func and fast_inject(func) or fast_inject
+        return func and _inject(func) or _inject
 
     def register(self, dependency=None, id=None, singleton=True,
                  auto_wire=None, mapping=None, use_arg_name=None):

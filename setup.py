@@ -6,10 +6,11 @@ setup(
     packages=['dependency_manager'],
     author='Benjamin Rabier',
     install_requires=[
-        'wrapt'
+        'wrapt',
+        'future'
     ],
     extras_require={
-        ":python_version<'3.3'": ["chainmap"],
+        ":python_version<'3'": ["chainmap"],
         "attrs": ["attrs>=17.1"]
     }
 )
