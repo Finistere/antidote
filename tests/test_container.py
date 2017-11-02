@@ -111,7 +111,7 @@ def test_contains():
     assert Service in container
     assert AnotherService not in container
 
-    container.register(object(), hook=lambda id: 'test' in id)
+    container.register(object, hook=lambda id: 'test' in id)
     assert 'test87954' in container
 
     container['test'] = object()
