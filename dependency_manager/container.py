@@ -23,11 +23,15 @@ class DependencyContainer(object):
 
     def __init__(self):
         self._cache = {}
-        self._registered_factories = dict()
+        self._instantiation_lock = threading.RLock()
+        self._factories_registered_by_id = dict()
+        self._factories_registered_by_hook = HookDict()
         # Elements in _factories must be either the dependencies themselves or
         # their factory.
-        self._factories = ChainMap(self._registered_factories)
-        self._instantiation_lock = threading.RLock()
+        self._factories = ChainMap(
+            self._factories_registered_by_id,
+            self._factories_registered_by_hook
+        )
 
     def __getitem__(self, id):
         """
@@ -86,38 +90,41 @@ class DependencyContainer(object):
         """
         return id in self._cache or id in self._factories
 
-    def register(self, factory, id=None, singleton=True):
+    def register(self, factory, id=None, hook=None, singleton=True):
         """Register a dependency factory by the type of the dependency.
+
+        The dependency can either be registered with an id (the type of the
+        dependency if not specified) or a hook.
 
         Args:
             factory (callable): Callable to be used to instantiate the
                 dependency.
-            id (object, optional): Type of the dependency, by which it is
+            id (object, optional): Id of the dependency, by which it is
                 identified. Defaults to the type of the factory.
+            hook (callable, optional): Function which determines if a given id
+                matches the factory. Defaults to None.
             singleton (bool, optional): A singleton will be only be
                 instantiated once. Otherwise the dependency will instantiated
                 anew every time.
         """
-        id = id or factory
+        if not callable(factory):
+            raise ValueError("The `factory` must be callable.")
+
         dependency_factory = DependencyFactory(factory=factory,
                                                singleton=singleton)
 
-        if id in self._registered_factories:
-            raise DuplicateDependencyError(id)
+        if hook:
+            if not callable(hook):
+                raise ValueError("`hook` must be callable.")
 
-        self._registered_factories[id] = dependency_factory
+            self._factories_registered_by_hook[hook] = dependency_factory
+        else:
+            id = id or factory
 
-    def deregister(self, id):
-        """Deregister a dependency factory by the type of the dependency.
+            if id in self._factories_registered_by_id:
+                raise DuplicateDependencyError(id)
 
-        Args:
-            id (object, optional): Type of the dependency.
-
-        """
-        try:
-            del self._registered_factories[id]
-        except KeyError:
-            raise DependencyNotFoundError(id)
+            self._factories_registered_by_id[id] = dependency_factory
 
     def extend(self, dependencies):
         """Extend the container with a dictionary of default dependencies.
@@ -139,6 +146,29 @@ class DependencyContainer(object):
 
         """
         self._factories.maps = [dependencies] + self._factories.maps
+
+
+class HookDict(object):
+    def __init__(self):
+        self._hook_value = []
+
+    def __setitem__(self, hook, value):
+        self._hook_value.append((hook, value))
+
+    def __getitem__(self, item):
+        for hook, value in self._hook_value:
+            if hook(item):
+                return value
+
+        raise KeyError(item)
+
+    def __contains__(self, item):
+        try:
+            self[item]
+        except KeyError:
+            return False
+        else:
+            return True
 
 
 class DependencyFactory:

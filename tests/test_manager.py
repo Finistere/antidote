@@ -33,6 +33,51 @@ def test_inject_with_mapping():
     assert container[Service] is h()
 
 
+def test_wire():
+    manager = DependencyManager()
+    container = manager.container
+
+    class Service(object):
+        pass
+
+    class AnotherService(object):
+        pass
+
+    container.register(Service)
+    container.register(AnotherService)
+
+    @manager.wire(mapping=dict(service=Service,
+                               another_service=AnotherService))
+    class Something(object):
+        def f(self, service):
+            return service
+
+        def g(self, another_service):
+            return another_service
+
+        def h(self, service, another_service):
+            return service, another_service
+
+        def u(self):
+            pass
+
+        def v(self, nothing):
+            return nothing
+
+    something = Something()
+    assert container[Service] is something.f()
+    assert container[AnotherService] is something.g()
+
+    s1, s2 = something.h()
+    assert container[Service] is s1
+    assert container[AnotherService] is s2
+
+    something.u()
+
+    with pytest.raises(TypeError):
+        something.v()
+
+
 def test_use_arg_name():
     manager = DependencyManager(use_arg_name=False)
     container = manager.container
@@ -150,7 +195,7 @@ def test_register():
     assert output[1] is container[YetAnotherService]
 
 
-def test_provider_function():
+def test_factory_function():
     manager = DependencyManager()
     container = manager.container
 
@@ -158,11 +203,11 @@ def test_provider_function():
         pass
 
     with pytest.raises(ValueError):
-        @manager.provider
+        @manager.factory
         def faulty_service_provider():
             return Service()
 
-    @manager.provider(id=Service)
+    @manager.factory(id=Service)
     def service_provider():
         return Service()
 
@@ -174,7 +219,7 @@ def test_provider_function():
         def __init__(self, service):
             self.service = service
 
-    @manager.provider(mapping=dict(service=Service), id=AnotherService)
+    @manager.factory(mapping=dict(service=Service), id=AnotherService)
     def another_service_provider(service):
         return AnotherService(service)
 
@@ -189,14 +234,14 @@ def test_provider_function():
     class YetAnotherService:
         pass
 
-    @manager.provider(use_arg_name=True, id=YetAnotherService)
+    @manager.factory(use_arg_name=True, id=YetAnotherService)
     def injected_by_name_provider(test):
         return test
 
     assert s is container[YetAnotherService]
 
 
-def test_provider_class():
+def test_factory_class():
     manager = DependencyManager()
     container = manager.container
 
@@ -204,12 +249,12 @@ def test_provider_class():
         pass
 
     with pytest.raises(ValueError):
-        @manager.provider
+        @manager.factory
         class FaultyServiceProvider(object):
             def __call__(self):
                 return Service()
 
-    @manager.provider(id=Service)
+    @manager.factory(id=Service)
     class ServiceProvider(object):
         def __call__(self):
             return Service()
@@ -222,7 +267,7 @@ def test_provider_class():
         def __init__(self, service):
             self.service = service
 
-    @manager.provider(mapping=dict(service=Service), id=AnotherService)
+    @manager.factory(mapping=dict(service=Service), id=AnotherService)
     class AnotherServiceProvider(object):
         def __init__(self, service):
             self.service = service
@@ -242,7 +287,7 @@ def test_provider_class():
     class YetAnotherService(object):
         pass
 
-    @manager.provider(use_arg_name=True, id=YetAnotherService)
+    @manager.factory(use_arg_name=True, id=YetAnotherService)
     class YetAnotherServiceProvider(object):
         def __init__(self, test):
             self.test = test
@@ -256,10 +301,10 @@ def test_provider_class():
     class OtherService(object):
         pass
 
-    @manager.provider(use_arg_name=True,
-                      mapping=dict(service=Service),
-                      auto_wire=('__init__',),
-                      id=OtherService)
+    @manager.factory(use_arg_name=True,
+                     mapping=dict(service=Service),
+                     auto_wire=('__init__',),
+                     id=OtherService)
     class OtherServiceProvider(object):
         def __init__(self, test, service):
             self.test = test

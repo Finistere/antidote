@@ -1,7 +1,5 @@
 import inspect
 
-import wrapt
-
 from ._compat import PY3
 from .injector import DependencyInjector
 from .container import DependencyContainer
@@ -87,7 +85,7 @@ class DependencyManager(object):
 
         return func and _inject(func) or _inject
 
-    def register(self, dependency=None, id=None, singleton=True,
+    def register(self, dependency=None, id=None, hook=None, singleton=True,
                  auto_wire=None, mapping=None, use_arg_name=None):
         """Register a dependency by its type or specified id.
 
@@ -95,6 +93,8 @@ class DependencyManager(object):
             dependency (object): Object to register as a dependency.
             id (hashable object, optional): Id of the dependency. Defaults to
                 the type of the dependency.
+            hook (callable, optional): Function which determines if a given id
+                matches the factory. Defaults to None.
             singleton (bool, optional): A singleton will be only be
                 instantiated once. Otherwise the dependency will instantiated
                 anew every time. Defaults to True.
@@ -116,17 +116,18 @@ class DependencyManager(object):
             auto_wire = self.auto_wire
 
         def register_dependency(dependency):
-            if inspect.isclass(dependency):
-                if auto_wire:
-                    dependency = self.wire(
-                        dependency,
-                        methods=(
-                            ('__init__',) if auto_wire is True else auto_wire
-                        ),
-                        mapping=mapping,
-                        use_arg_name=use_arg_name
-                    )
-                self.container.register(factory=dependency,
+            if inspect.isclass(dependency) and auto_wire:
+                dependency = self.wire(
+                    dependency,
+                    methods=(
+                        ('__init__',) if auto_wire is True else auto_wire
+                    ),
+                    mapping=mapping,
+                    use_arg_name=use_arg_name
+                )
+
+            if callable(dependency):
+                self.container.register(factory=dependency, id=id, hook=hook,
                                         singleton=singleton)
             else:
                 self.container[id or type(dependency)] = dependency
@@ -138,15 +139,18 @@ class DependencyManager(object):
             or register_dependency
         )
 
-    def provider(self, dependency_provider=None, id=None, auto_wire=None,
-                 singleton=True, mapping=None, use_arg_name=None):
+    def factory(self, dependency_factory=None, id=None, hook=None,
+                auto_wire=None, singleton=True, mapping=None,
+                use_arg_name=None):
         """Register a dependency provider, a factory to build the dependency.
 
         Args:
-            dependency_provider (callable): Callable which builds the
+            dependency_factory (callable): Callable which builds the
                 dependency.
             id (hashable object, optional): Id of the dependency. Defaults to
                 the dependency_provider.
+            hook (callable, optional): Function which determines if a given id
+                matches the factory. Defaults to None.
             singleton (bool, optional): If True the dependency_provider is
                 called only once. Otherwise it is called anew every time.
                 Defaults to True.
@@ -169,18 +173,18 @@ class DependencyManager(object):
         if auto_wire is None:
             auto_wire = self.auto_wire
 
-        if id is None and not PY3:
+        if id is None and hook is None and not PY3:
             raise ValueError("Either a return annotation or the "
                              "'id' parameter must be not None.")
 
-        def register_provider(provider):
+        def register_factory(factory):
             # TODO: `_id` should be replaced with `nonlocal id` once
             # Python 2 support drops.
             _id = None
-            if inspect.isclass(provider):
+            if inspect.isclass(factory):
                 if auto_wire:
-                    provider = self.wire(
-                        provider,
+                    factory = self.wire(
+                        factory,
                         methods=(
                             ('__call__', '__init__')
                             if auto_wire is True else
@@ -190,29 +194,29 @@ class DependencyManager(object):
                         use_arg_name=use_arg_name
                     )
                 if PY3:
-                    _id = provider.__call__.__annotations__.get('return')
-                provider = provider()
+                    _id = factory.__call__.__annotations__.get('return')
+                factory = factory()
             else:
                 if auto_wire:
-                    provider = self.inject(provider,
-                                           mapping=mapping,
-                                           use_arg_name=use_arg_name)
+                    factory = self.inject(factory,
+                                          mapping=mapping,
+                                          use_arg_name=use_arg_name)
                 if PY3:
-                    _id = provider.__annotations__.get('return')
+                    _id = factory.__annotations__.get('return')
 
             _id = id or _id
 
-            if not _id:
-                raise ValueError("Either a return annotation or the "
-                                 "'id' parameter must be not None.")
+            if not _id and not hook:
+                raise ValueError("Either a return annotation or `id` or `hook`"
+                                 "parameter must be not None.")
 
-            self.container.register(factory=provider, singleton=singleton,
-                                    id=_id)
-            return provider
+            self.container.register(factory=factory, singleton=singleton,
+                                    id=_id, hook=hook)
+            return factory
 
         return (
-            dependency_provider and register_provider(dependency_provider)
-            or register_provider
+            dependency_factory and register_factory(dependency_factory)
+            or register_factory
         )
 
     def wire(self, cls=None, methods=None, **inject_kwargs):
@@ -233,11 +237,14 @@ class DependencyManager(object):
             # TODO: use nonlocal once Python 2.7 support drops.
             _methods = methods
             if not _methods:
-                _methods = inspect.getmembers(
-                    cls,
-                    # Retrieve static methods, class methods, methods.
-                    predicate=lambda f: (inspect.isfunction(f)
-                                         or inspect.ismethod(f))
+                _methods = (
+                    name
+                    for name, _ in inspect.getmembers(
+                        cls,
+                        # Retrieve static methods, class methods, methods.
+                        predicate=lambda f: (inspect.isfunction(f)
+                                             or inspect.ismethod(f))
+                    )
                 )
 
             for method in _methods:

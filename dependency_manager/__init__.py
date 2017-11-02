@@ -22,7 +22,7 @@ manager = DependencyManager()
 container = manager.container
 builder = manager.injector
 inject = manager.inject
-provider = manager.provider
+factory = manager.factory
 register = manager.register
 wire = manager.wire
 

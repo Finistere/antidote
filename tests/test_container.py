@@ -20,18 +20,6 @@ def test_register():
     assert container[Service] is container[Service]
 
 
-def test_deregister():
-    container = DependencyContainer()
-    container.register(Service)
-    container.deregister(Service)
-
-    with pytest.raises(DependencyNotFoundError):
-        _ = container[Service]
-
-    with pytest.raises(DependencyNotFoundError):
-        container.deregister(Service)
-
-
 def test_cache():
     container = DependencyContainer()
     container.register(Service)
@@ -40,7 +28,7 @@ def test_cache():
     assert x is container[Service]
 
 
-def test_register_factory():
+def test_register_factory_id():
     container = DependencyContainer()
 
     class ServiceFactory(object):
@@ -49,6 +37,24 @@ def test_register_factory():
 
     container.register(ServiceFactory(), id=Service)
     assert isinstance(container[Service], Service)
+
+
+def test_register_factory_hook():
+    container = DependencyContainer()
+
+    class ServiceFactory(object):
+        def __call__(self, *args, **kwargs):
+            return Service()
+
+    container.register(ServiceFactory(), hook=lambda id: 'test' in id)
+    assert isinstance(container['test_1'], Service)
+    assert isinstance(container['789_testdf'], Service)
+
+
+def test_register_with_non_callable_hook():
+    container = DependencyContainer()
+    with pytest.raises(ValueError):
+        container.register(object(), hook=5)
 
 
 def test_setitem():
@@ -104,6 +110,9 @@ def test_contains():
 
     assert Service in container
     assert AnotherService not in container
+
+    container.register(object(), hook=lambda id: 'test' in id)
+    assert 'test87954' in container
 
     container['test'] = object()
     assert 'test' in container
@@ -161,7 +170,7 @@ def test_duplicate_error():
         container.register(AnotherService, id=Service)
 
 
-def test_append():
+def test_extend():
     container = DependencyContainer()
     container.register(Service)
 
@@ -178,7 +187,7 @@ def test_append():
     assert y is container['y']
 
 
-def test_prepend():
+def test_override():
     container = DependencyContainer()
     container.register(Service)
 

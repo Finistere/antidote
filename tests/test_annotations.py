@@ -48,7 +48,7 @@ def test_provider_function():
         def __init__(self, service):
             self.service = service
 
-    @manager.provider
+    @manager.factory
     def provider(service: Service) -> AnotherService:
         return AnotherService(service)
 
@@ -68,7 +68,7 @@ def test_provider_class():
         def __init__(self, service):
             self.service = service
 
-    @manager.provider
+    @manager.factory
     class Provider(object):
         def __call__(self, service: Service) -> AnotherService:
             return AnotherService(service)
