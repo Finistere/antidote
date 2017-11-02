@@ -172,10 +172,10 @@ def test_duplicate_error():
     container = DependencyContainer()
     container.register(Service)
 
-    with pytest.raises(DuplicateDependencyError):
+    with pytest.raises(DependencyDuplicateError):
         container.register(Service)
 
-    with pytest.raises(DuplicateDependencyError):
+    with pytest.raises(DependencyDuplicateError):
         container.register(AnotherService, id=Service)
 
 

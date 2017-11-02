@@ -6,5 +6,5 @@ class DependencyInstantiationError(TypeError):
     """ The dependency could not be instantiated """
 
 
-class DuplicateDependencyError(ValueError):
+class DependencyDuplicateError(ValueError):
     """ A dependency already exists with the same id """

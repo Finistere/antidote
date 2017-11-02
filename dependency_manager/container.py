@@ -122,7 +122,7 @@ class DependencyContainer(object):
             id = id or factory
 
             if id in self._factories_registered_by_id:
-                raise DuplicateDependencyError(id)
+                raise DependencyDuplicateError(id)
 
             self._factories_registered_by_id[id] = dependency_factory
 

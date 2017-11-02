@@ -12,7 +12,7 @@ __all__ = [
     'DependencyInjector',
     'DependencyManager',
     'DependencyNotFoundError',
-    'DuplicateDependencyError',
+    'DependencyDuplicateError',
     'DependencyInstantiationError'
 ]
 
