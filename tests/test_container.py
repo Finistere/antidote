@@ -20,6 +20,15 @@ def test_register():
     assert container[Service] is container[Service]
 
 
+def test_register_not_callable_error():
+    container = DependencyContainer()
+    with pytest.raises(ValueError):
+        container.register(1)
+
+    with pytest.raises(ValueError):
+        container.register(object, hook=1)
+
+
 def test_cache():
     container = DependencyContainer()
     container.register(Service)
