@@ -27,7 +27,6 @@ will be injected in other services.
 For Python 3.4+, the dependency management is straight-forward:
 
 .. testcode::
-    .. code-block:: python
 
     import dependency_manager as dym
 
@@ -77,8 +76,7 @@ For Python 3.4+, the dependency management is straight-forward:
 For Python 2, the example is a bit more verbose as you need to compensate for 
 the lack of annotations:
 
-.. testcode::
-    .. code-block:: python
+.. code-block:: python
 
     import dependency_manager as dym
 
