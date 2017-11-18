@@ -20,10 +20,10 @@ __all__ = [
 manager = DependencyManager()
 
 container = manager.container
-builder = manager.injector
+injector = manager.injector
 inject = manager.inject
 factory = manager.factory
-register = manager.register
+service = manager.service
 wire = manager.wire
 
 try:

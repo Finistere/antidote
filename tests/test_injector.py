@@ -1,6 +1,7 @@
 import pytest
 
-from dependency_manager import DependencyContainer, DependencyInjector
+from dependency_manager import DependencyContainer, DependencyInjector, \
+    DependencyNotFoundError
 
 
 def test_prepare():
@@ -56,8 +57,13 @@ def test_mapping():
     class UnknownService(object):
         pass
 
-    # with faulty mapping, raises the same as with no arguments
+    # faulty mapping
     inject = injector.inject(mapping=dict(service=UnknownService))
+    with pytest.raises(TypeError):
+        inject(f)()
+
+    # with no mapping, raises the same as with no arguments
+    inject = injector.inject()
     with pytest.raises(TypeError):
         inject(f)()
 

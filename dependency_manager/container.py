@@ -48,18 +48,15 @@ class DependencyContainer(object):
                 raise DependencyNotFoundError(id)
 
         try:
-            try:
-                if not factory.singleton:
-                    return factory()
-            except AttributeError:
-                pass
+            if not getattr(factory, 'singleton', True):
+                return factory()
 
-            if callable(factory):
-                with self._instantiation_lock:
-                    if id not in self._cache:
+            with self._instantiation_lock:
+                if id not in self._cache:
+                    if getattr(factory, 'takes_id', False):
+                        self._cache[id] = factory(id)
+                    else:
                         self._cache[id] = factory()
-            else:
-                self._cache[id] = factory
 
         except Exception as e:
             raise DependencyInstantiationError(repr(e))
@@ -90,6 +87,12 @@ class DependencyContainer(object):
         """
         return id in self._cache or id in self._factories
 
+    def update(self, dependencies):
+        """
+        Update the cached dependencies.
+        """
+        self._cache.update(dependencies)
+
     def register(self, factory, id=None, hook=None, singleton=True):
         """Register a dependency factory by the type of the dependency.
 
@@ -111,7 +114,8 @@ class DependencyContainer(object):
             raise ValueError("The `factory` must be callable.")
 
         dependency_factory = DependencyFactory(factory=factory,
-                                               singleton=singleton)
+                                               singleton=singleton,
+                                               takes_id=hook is not None)
 
         if hook:
             if not callable(hook):
@@ -126,26 +130,28 @@ class DependencyContainer(object):
 
             self._factories_registered_by_id[id] = dependency_factory
 
-    def extend(self, dependencies):
+    def extend(self, dependency_factories):
         """Extend the container with a dictionary of default dependencies.
 
         The additional dependencies definitions are only used if it could not
         be found in the current container.
 
         Args:
-            dependencies (dict): Dictionary of dependencies or their factory.
+            dependency_factories (dict): Dictionary of factories providing
+                the dependency associated with their key.
 
         """
-        self._factories.maps.append(dependencies)
+        self._factories.maps.append(dependency_factories)
 
-    def override(self, dependencies):
+    def override(self, dependency_factories):
         """Override any existing definition of dependencies.
 
         Args:
-            dependencies (dict): Dictionary of dependencies or their factory.
+            dependency_factories (dict): Dictionary of factories providing
+                the dependency associated with their key.
 
         """
-        self._factories.maps = [dependencies] + self._factories.maps
+        self._factories.maps = [dependency_factories] + self._factories.maps
 
 
 class HookDict(object):
@@ -172,11 +178,12 @@ class HookDict(object):
 
 
 class DependencyFactory:
-    __slots__ = ('factory', 'singleton')
+    __slots__ = ('factory', 'singleton', 'takes_id')
 
-    def __init__(self, factory, singleton):
+    def __init__(self, factory, singleton, takes_id):
         self.factory = factory
         self.singleton = singleton
+        self.takes_id = takes_id
 
-    def __call__(self):
-        return self.factory()
+    def __call__(self, *args, **kwargs):
+        return self.factory(*args, **kwargs)

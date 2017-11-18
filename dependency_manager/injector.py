@@ -8,7 +8,7 @@ import wrapt
 from ._compat import PY3
 from .exceptions import *
 
-_sentinel = object()
+_EMPTY_DEPENDENCY = object()
 
 
 class DependencyInjector(object):
@@ -39,27 +39,28 @@ class DependencyInjector(object):
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
 
-        Returns:
+        Returns:6
             callable: The injected function.
 
         """
-        gen_args_kwargs = self._generate_injected_args_kwargs
+
+        mapping = mapping or dict()
+        gen_args_kwargs = self._generate_args_kwargs
+        # Using nonlocal would be better for Python 3.
+        arg_mapping_container = [None]
 
         @wrapt.decorator
-        def fast_inject(wrapped, instance, args, kwargs):
-            try:
-                arg_mapping = fast_inject.arg_mapping
-            except AttributeError:
-                arg_mapping = self._generate_arguments_mapping(
+        def fast_inject(wrapped, _, args, kwargs):
+            if arg_mapping_container[0] is None:
+                arg_mapping_container[0] = self._generate_arguments_mapping(
                     func=wrapped,
                     use_arg_name=use_arg_name,
-                    mapping=mapping,
+                    mapping=mapping
                 )
-                fast_inject.arg_mapping = arg_mapping
 
             args, kwargs = gen_args_kwargs(args=args,
                                            kwargs=kwargs,
-                                           arguments_mapping=arg_mapping)
+                                           mapping=arg_mapping_container[0])
             return wrapped(*args, **kwargs)
 
         return fast_inject
@@ -89,40 +90,26 @@ class DependencyInjector(object):
             callable: Partial function with its dependencies injected.
 
         """
-        new_args, new_kwargs = self._generate_injected_args_kwargs(
+        new_args, new_kwargs = self._generate_args_kwargs(
             args=args or tuple(),
             kwargs=kwargs or dict(),
-            arguments_mapping=self._generate_arguments_mapping(
+            mapping=self._generate_arguments_mapping(
                 func=func,
-                use_arg_name=use_arg_name,
-                mapping=mapping
-            ),
+                mapping=mapping or dict(),
+                use_arg_name=use_arg_name
+            )
         )
 
         return functools.partial(func, *new_args, **new_kwargs)
 
-    def _generate_injected_args_kwargs(self, args, kwargs, arguments_mapping):
-        """
-        Injects the dependencies into the arguments based on the
-        arguments_mapping and the arguments passed on by the :py:mod:`wrapt`
-        decorator.
-
-        Args:
-            args (iterable): Positional arguments which override any injection.
-            kwargs (dict): Keyword arguments which override any injection.
-            arguments_mapping (:py:obj:`OrderedDict`): Mapping of the arguments
-                to their dependency. If there is none, _sentinel must be used.
-
-        Returns:
-            tuple: New Positional arguments and Keyword arguments.
-
-        """
+    def _generate_args_kwargs(self, args, kwargs, mapping):
         kwargs = kwargs.copy()
         container = self._container
 
-        for arg_name, dependency_id in islice(arguments_mapping.items(),
-                                              len(args), None):
-            if dependency_id is not _sentinel and arg_name not in kwargs:
+        for arg_name, dependency_id in islice(mapping.items(), len(args),
+                                              None):
+            if dependency_id is not _EMPTY_DEPENDENCY \
+                    and arg_name not in kwargs:
                 try:
                     kwargs[arg_name] = container[dependency_id]
                 except DependencyNotFoundError:
@@ -130,61 +117,37 @@ class DependencyInjector(object):
 
         return args, kwargs
 
+    def _generate_arguments_mapping(self, func, use_arg_name, mapping):
+        arguments_name = self._get_arguments_name(func=func)
+        arguments_mapping = OrderedDict(zip(
+            arguments_name,
+            [_EMPTY_DEPENDENCY] * len(arguments_name)
+        ))
+
+        arguments_mapping.update(getattr(func, '__annotations__', {}))
+        arguments_mapping.pop('return', None)
+
+        for arg_name, dependency_id in mapping.items():
+            if arg_name in arguments_mapping:
+                arguments_mapping[arg_name] = dependency_id
+
+        for arg_name, dependency_id in arguments_mapping.items():
+            if dependency_id is _EMPTY_DEPENDENCY \
+                    or dependency_id not in self._container:
+                arguments_mapping[arg_name] = (arg_name
+                                               if use_arg_name else
+                                               _EMPTY_DEPENDENCY)
+
+        return arguments_mapping
+
     if PY3:
-        def _generate_arguments_mapping(self, func, use_arg_name, mapping):
-            """
-            Generate the argument mapping, which can then be cached to
-            diminish the service injection overhead.
-
-            Args:
-                func (callable): Callable for which the argument mapping will
-                    be generated.
-                use_arg_name (bool, optional): Whether the arguments name
-                    should be used to search for a dependency when no mapping,
-                    nor annotation is found. Defaults to False.
-                mapping (dict, optional): Custom mapping of the arguments name
-                    to their respective dependency id. Overrides annotations.
-                    Defaults to None.
-
-            Returns:
-                OrderedDict: Mapping of the arguments name to their matching
-                    dependency id if one was found. If not _sentinel is used
-                    instead.
-            """
-            mapping = mapping or dict()
-            arguments_mapping = OrderedDict()
-
-            for name, parameter in inspect.signature(func).parameters.items():
-                dependency_id = _sentinel
-                try:
-                    dependency_id = mapping[name]
-                except KeyError:
-                    if parameter.annotation is not parameter.empty:
-                        dependency_id = parameter.annotation
-                    elif use_arg_name:
-                        dependency_id = name
-
-                arguments_mapping[name] = dependency_id
-
-            return arguments_mapping
+        @classmethod
+        def _get_arguments_name(cls, func):
+            return tuple(inspect.signature(func).parameters.keys())
     else:
-        def _generate_arguments_mapping(self, func, use_arg_name, mapping):
-            mapping = mapping or dict()
-            arguments_mapping = OrderedDict()
-
+        @classmethod
+        def _get_arguments_name(cls, func):
             try:
-                argspec = inspect.getargspec(func)
+                return tuple(inspect.getargspec(func).args)
             except TypeError:  # builtin methods or object.__init__
-                return arguments_mapping
-
-            for name in argspec.args:
-                dependency_id = _sentinel
-                try:
-                    dependency_id = mapping[name]
-                except KeyError:
-                    if use_arg_name:
-                        dependency_id = name
-
-                arguments_mapping[name] = dependency_id
-
-            return arguments_mapping
+                return tuple()

@@ -85,23 +85,19 @@ class DependencyManager(object):
 
         return func and _inject(func) or _inject
 
-    def register(self, dependency=None, id=None, hook=None, singleton=True,
-                 auto_wire=None, mapping=None, use_arg_name=None):
+    def service(self, cls=None, singleton=True, auto_wire=None, mapping=None,
+                use_arg_name=None):
         """Register a dependency by its type or specified id.
 
         Args:
-            dependency (object): Object to register as a dependency.
-            id (hashable object, optional): Id of the dependency. Defaults to
-                the type of the dependency.
-            hook (callable, optional): Function which determines if a given id
-                matches the factory. Defaults to None.
+            cls (object): Object to register as a dependency.
             singleton (bool, optional): A singleton will be only be
                 instantiated once. Otherwise the dependency will instantiated
                 anew every time. Defaults to True.
             auto_wire (bool or tuple of strings, optional): Injects
                 automatically the dependencies of the methods specified, or
                 only of :code:`__init__()` if True. Default to True.
-            mapping (dict, optional): Custom mapping of the arguments name
+            mapping (dict, optional): Custom mapping of the argument s name
                 to their respective dependency id. Overrides annotations.
                 Defaults to None.
             use_arg_name (bool, optional): Whether the arguments name
@@ -115,10 +111,14 @@ class DependencyManager(object):
         if auto_wire is None:
             auto_wire = self.auto_wire
 
-        def register_dependency(dependency):
-            if inspect.isclass(dependency) and auto_wire:
-                dependency = self.wire(
-                    dependency,
+        def register_service(cls):
+            if not inspect.isclass(cls):
+                raise ValueError("Expecting a class, found a "
+                                 "{}".format(type(cls)))
+
+            if auto_wire:
+                cls = self.wire(
+                    cls,
                     methods=(
                         ('__init__',) if auto_wire is True else auto_wire
                     ),
@@ -126,17 +126,13 @@ class DependencyManager(object):
                     use_arg_name=use_arg_name
                 )
 
-            if callable(dependency):
-                self.container.register(factory=dependency, id=id, hook=hook,
-                                        singleton=singleton)
-            else:
-                self.container[id or type(dependency)] = dependency
+            self.container.register(factory=cls, singleton=singleton)
 
-            return dependency
+            return cls
 
         return (
-            dependency and register_dependency(dependency)
-            or register_dependency
+            cls and register_service(cls)
+            or register_service
         )
 
     def factory(self, dependency_factory=None, id=None, hook=None,
@@ -182,6 +178,9 @@ class DependencyManager(object):
             # Python 2 support drops.
             _id = None
             if inspect.isclass(factory):
+                if not hasattr(factory, '__call__'):
+                    raise ValueError('Factory class needs to be callable.')
+
                 if auto_wire:
                     factory = self.wire(
                         factory,
@@ -197,6 +196,9 @@ class DependencyManager(object):
                     _id = factory.__call__.__annotations__.get('return')
                 factory = factory()
             else:
+                if not callable(factory):
+                    raise ValueError('factory parameter needs to be callable.')
+
                 if auto_wire:
                     factory = self.inject(factory,
                                           mapping=mapping,

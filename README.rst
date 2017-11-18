@@ -18,15 +18,15 @@ from type annotations. Key features are:
   for injection as a dictionary.
 
 
-Overview
-========
+Quick Start
+===========
 
 A simple example with a external database for which you have an adapter which
 will be injected in other services.
 
 For Python 3.4+, the dependency management is straight-forward:
 
-.. testcode::
+.. code-block:: python
 
     import dependency_manager as dym
 
@@ -45,7 +45,7 @@ For Python 3.4+, the dependency management is straight-forward:
     ))
 
     # Variables names will be used for injection.
-    @dym.provider(use_arg_name=True)
+    @dym.factory(use_arg_name=True)
     def database_factory(database_host, database_user, database_password) -> Database:
         """
         Configure your database.
@@ -57,7 +57,7 @@ For Python 3.4+, the dependency management is straight-forward:
         )
 
 
-    @dym.register
+    @dym.service
     class DatabaseWrapper(object):
         """
         Your class to manage the database.
@@ -96,7 +96,7 @@ the lack of annotations:
     ))
 
     # Variables names will be used for injection.
-    @dym.provider(use_arg_name=True, id=Database)
+    @dym.factory(use_arg_name=True, id=Database)
     def database_factory(database_host, database_user, database_password):
         """
         Configure your database.
@@ -108,7 +108,7 @@ the lack of annotations:
         )
 
 
-    @dym.register(mapping=dict(db=Database))
+    @dym.service(mapping=dict(db=Database))
     class DatabaseWrapper(object):
         """
         Your class to manage the database.

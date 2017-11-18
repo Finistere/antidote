@@ -124,24 +124,13 @@ def test_register():
     manager = DependencyManager(auto_wire=True)
     container = manager.container
 
-    @manager.register
+    @manager.service
     class Service(object):
         pass
 
     assert isinstance(container[Service], Service)
 
-    class ExternalService(object):
-        pass
-
-    s = ExternalService()
-    manager.register(s)
-
-    assert s is container[ExternalService]
-
-    manager.register(s, id='service')
-    assert s is container['service']
-
-    @manager.register(mapping=dict(service=Service))
+    @manager.service(mapping=dict(service=Service))
     class AnotherService(object):
         def __init__(self, service):
             self.service = service
@@ -151,24 +140,26 @@ def test_register():
     # singleton
     assert container[AnotherService] is container[AnotherService]
 
-    @manager.register(use_arg_name=True)
+    container['service'] = object()
+
+    @manager.service(use_arg_name=True)
     class YetAnotherService(object):
         def __init__(self, service):
             self.service = service
 
     assert isinstance(container[YetAnotherService], YetAnotherService)
-    assert s is container[YetAnotherService].service
+    assert container['service'] is container[YetAnotherService].service
     # singleton
     assert container[YetAnotherService] is container[YetAnotherService]
 
-    @manager.register(singleton=False)
+    @manager.service(singleton=False)
     class SingleUsageService(object):
         pass
 
     assert isinstance(container[SingleUsageService], SingleUsageService)
     assert container[SingleUsageService] is not container[SingleUsageService]
 
-    @manager.register(auto_wire=False)
+    @manager.service(auto_wire=False)
     class BrokenService(object):
         def __init__(self, service):
             self.service = service
@@ -176,8 +167,8 @@ def test_register():
     with pytest.raises(DependencyInstantiationError):
         _ = container[BrokenService]
 
-    @manager.register(auto_wire=('__init__', 'method'),
-                      mapping=dict(service=Service,
+    @manager.service(auto_wire=('__init__', 'method'),
+                     mapping=dict(service=Service,
                                    x=SingleUsageService,
                                    yet=YetAnotherService))
     class ComplexWiringService(object):
@@ -193,6 +184,19 @@ def test_register():
 
     assert isinstance(output[0], SingleUsageService)
     assert output[1] is container[YetAnotherService]
+
+
+def test_register_non_class():
+    manager = DependencyManager()
+
+    with pytest.raises(ValueError):
+        manager.service(object())
+
+    def f():
+        pass
+
+    with pytest.raises(ValueError):
+        manager.service(f)
 
 
 def test_factory_function():

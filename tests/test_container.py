@@ -179,34 +179,43 @@ def test_duplicate_error():
         container.register(AnotherService, id=Service)
 
 
-def test_extend():
+def test_update():
     container = DependencyContainer()
     container.register(Service)
 
     another_service = AnotherService()
     y = object()
 
-    container.extend({
-        Service: another_service,
-        'y': y
-    })
-
-    assert another_service is not container[Service]
-    assert isinstance(container[Service], Service)
-    assert y is container['y']
-
-
-def test_override():
-    container = DependencyContainer()
-    container.register(Service)
-
-    another_service = AnotherService()
-    y = object()
-
-    container.override({
+    container.update({
         Service: another_service,
         'y': y
     })
 
     assert another_service is container[Service]
     assert y is container['y']
+
+
+def test_extend():
+    container = DependencyContainer()
+    container.register(Service)
+
+    container.extend({
+        Service: AnotherService,
+        'y': AnotherService
+    })
+
+    assert isinstance(container[Service], Service)
+    assert isinstance(container['y'], AnotherService)
+
+
+def test_override():
+    container = DependencyContainer()
+    container.register(Service)
+
+    container.override({
+        Service: AnotherService,
+        'y': AnotherService
+    })
+
+    assert isinstance(container[Service], AnotherService)
+    assert isinstance(container['y'], AnotherService)
