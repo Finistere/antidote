@@ -8,3 +8,4 @@ rm_cache.sh
 test.py
 /dependency_manager.egg-info/
 /doc/_build/
+/.ipynb_checkpoints/
