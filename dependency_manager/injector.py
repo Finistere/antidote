@@ -1,6 +1,5 @@
 import functools
 import inspect
-from collections import OrderedDict
 from itertools import islice
 
 import wrapt
@@ -43,10 +42,8 @@ class DependencyInjector(object):
             callable: The injected function.
 
         """
-
-        mapping = mapping or dict()
-        gen_args_kwargs = self._generate_args_kwargs
-        # Using nonlocal would be better for Python 3.
+        generate_args_kwargs = self._generate_args_kwargs
+        # Using nonlocal would be ideal.
         non_local_container = [None]
 
         @wrapt.decorator
@@ -55,10 +52,10 @@ class DependencyInjector(object):
                 non_local_container[0] = self._generate_injection_blueprint(
                     func=wrapped,
                     use_arg_name=use_arg_name,
-                    mapping=mapping
+                    mapping=mapping or dict()
                 )
 
-            args, kwargs = gen_args_kwargs(
+            args, kwargs = generate_args_kwargs(
                 args=args,
                 kwargs=kwargs,
                 injection_blueprint=non_local_container[0]
@@ -121,7 +118,8 @@ class DependencyInjector(object):
 
         return args, kwargs
 
-    def _generate_injection_blueprint(self, func, use_arg_name, mapping):
+    @classmethod
+    def _generate_injection_blueprint(cls, func, use_arg_name, mapping):
         argument_mapping = getattr(func, '__annotations__', {}).copy()
         try:
             del argument_mapping['return']
@@ -138,12 +136,12 @@ class DependencyInjector(object):
                 ),
                 has_default,
             )
-            for name, has_default in self._get_arguments(func=func)
+            for name, has_default in cls._get_arguments_specification(func)
         )
 
     if PY3:
         @classmethod
-        def _get_arguments(cls, func):
+        def _get_arguments_specification(cls, func):
             arguments = []
             for name, parameter in inspect.signature(func).parameters.items():
                 arguments.append((name,
@@ -152,7 +150,7 @@ class DependencyInjector(object):
             return arguments
     else:
         @classmethod
-        def _get_arguments(cls, func):
+        def _get_arguments_specification(cls, func):
             try:
                 argspec = inspect.getargspec(func)
             except TypeError:  # builtin methods or object.__init__
