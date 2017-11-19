@@ -4,6 +4,42 @@ from dependency_manager.manager import DependencyManager
 from dependency_manager.exceptions import *
 
 
+def test_inject_static():
+    manager = DependencyManager()
+    container = manager.container
+
+    class Service(object):
+        pass
+
+    container.register(Service)
+
+    @manager.inject(static=True)
+    def f(x):
+        return x
+
+    with pytest.raises(TypeError):
+        f()
+
+    @manager.inject(mapping=dict(x=Service), static=True)
+    def g(x):
+        return x
+
+    assert container[Service] is g()
+
+    # arguments are bound, so one should not be able to pass injected
+    # argument.
+    with pytest.raises(TypeError):
+        g(1)
+
+    container['service'] = container[Service]
+
+    @manager.inject(use_arg_name=True, static=True)
+    def h(service, b=1):
+        return service
+
+    assert container[Service] is h()
+
+
 def test_inject_with_mapping():
     manager = DependencyManager()
     container = manager.container
@@ -243,6 +279,14 @@ def test_factory_function():
         return test
 
     assert s is container[YetAnotherService]
+
+    with pytest.raises(ValueError):
+        manager.factory(1)
+
+    with pytest.raises(ValueError):
+        @manager.factory
+        class Test:
+            pass
 
 
 def test_factory_class():

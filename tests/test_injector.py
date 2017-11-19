@@ -6,19 +6,19 @@ from dependency_manager import DependencyContainer, DependencyInjector, \
 
 def test_prepare():
     container = DependencyContainer()
-    builder = DependencyInjector(container)
+    injector = DependencyInjector(container)
 
     def f(a, b):
         return a, b
 
     # arguments properly passed on
-    a, b = builder.prepare(f, args=(1, 2))()
+    a, b = injector.prepare(f, args=(1, 2))()
     assert 1 == a and 2 == b
 
-    a, b = builder.prepare(f, args=(1,), kwargs=dict(b=2))()
+    a, b = injector.prepare(f, args=(1,), kwargs=dict(b=2))()
     assert 1 == a and 2 == b
 
-    a, b = builder.prepare(f, kwargs=dict(a=1, b=2))()
+    a, b = injector.prepare(f, kwargs=dict(a=1, b=2))()
     assert 1 == a and 2 == b
 
 
@@ -59,7 +59,7 @@ def test_mapping():
 
     # faulty mapping
     inject = injector.inject(mapping=dict(service=UnknownService))
-    with pytest.raises(TypeError):
+    with pytest.raises(DependencyNotFoundError):
         inject(f)()
 
     # with no mapping, raises the same as with no arguments
@@ -80,3 +80,21 @@ def test_use_arg_name():
     # test is inject by name
     inject = injector.inject(use_arg_name=True)
     assert container['test'] == inject(f)()
+
+
+def test_defaults():
+    container = DependencyContainer()
+    injector = DependencyInjector(container)
+
+    container['service'] = object()
+
+    def f(service, optional_service=None):
+        return service, optional_service
+
+    # test is inject by name
+    inject = injector.inject(use_arg_name=True)
+
+    assert (container['service'], None) == inject(f)()
+
+    container['optional_service'] = object()
+    assert (container['service'], container['optional_service']) == inject(f)()

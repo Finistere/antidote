@@ -60,7 +60,7 @@ class DependencyManager(object):
         if use_arg_name is not None:
             self.use_arg_name = use_arg_name
 
-    def inject(self, func=None, mapping=None, use_arg_name=None):
+    def inject(self, func=None, mapping=None, use_arg_name=None, static=False):
         """Inject the dependency into the function.
 
         Args:
@@ -72,6 +72,9 @@ class DependencyManager(object):
             mapping (dict, optional): Custom mapping of the arguments name
                 to their respective dependency id. Overrides annotations.
                 Defaults to None.
+            static (bool, optional): bind arguments with functools.partial
+                directly to avoid service retrieval overhead. Defaults to
+                False.
 
         Returns:
             callable: The injected function.
@@ -80,8 +83,13 @@ class DependencyManager(object):
         if use_arg_name is None:
             use_arg_name = self.use_arg_name
 
-        _inject = self.injector.inject(use_arg_name=use_arg_name,
-                                       mapping=mapping)
+        if static:
+            def _inject(f):
+                return self.injector.prepare(func=f, mapping=mapping,
+                                             use_arg_name=use_arg_name)
+        else:
+            _inject = self.injector.inject(mapping=mapping,
+                                           use_arg_name=use_arg_name)
 
         return func and _inject(func) or _inject
 
@@ -178,9 +186,6 @@ class DependencyManager(object):
             # Python 2 support drops.
             _id = None
             if inspect.isclass(factory):
-                if not hasattr(factory, '__call__'):
-                    raise ValueError('Factory class needs to be callable.')
-
                 if auto_wire:
                     factory = self.wire(
                         factory,
@@ -192,9 +197,14 @@ class DependencyManager(object):
                         mapping=mapping,
                         use_arg_name=use_arg_name
                     )
+
+                factory = factory()
+
+                if not hasattr(factory, '__call__'):
+                    raise ValueError('Factory class needs to be callable.')
+
                 if PY3:
                     _id = factory.__call__.__annotations__.get('return')
-                factory = factory()
             else:
                 if not callable(factory):
                     raise ValueError('factory parameter needs to be callable.')

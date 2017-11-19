@@ -47,20 +47,22 @@ class DependencyInjector(object):
         mapping = mapping or dict()
         gen_args_kwargs = self._generate_args_kwargs
         # Using nonlocal would be better for Python 3.
-        arg_mapping_container = [None]
+        non_local_container = [None]
 
         @wrapt.decorator
         def fast_inject(wrapped, _, args, kwargs):
-            if arg_mapping_container[0] is None:
-                arg_mapping_container[0] = self._generate_arguments_mapping(
+            if non_local_container[0] is None:
+                non_local_container[0] = self._generate_injection_blueprint(
                     func=wrapped,
                     use_arg_name=use_arg_name,
                     mapping=mapping
                 )
 
-            args, kwargs = gen_args_kwargs(args=args,
-                                           kwargs=kwargs,
-                                           mapping=arg_mapping_container[0])
+            args, kwargs = gen_args_kwargs(
+                args=args,
+                kwargs=kwargs,
+                injection_blueprint=non_local_container[0]
+            )
             return wrapped(*args, **kwargs)
 
         return fast_inject
@@ -90,10 +92,11 @@ class DependencyInjector(object):
             callable: Partial function with its dependencies injected.
 
         """
+
         new_args, new_kwargs = self._generate_args_kwargs(
             args=args or tuple(),
             kwargs=kwargs or dict(),
-            mapping=self._generate_arguments_mapping(
+            injection_blueprint=self._generate_injection_blueprint(
                 func=func,
                 mapping=mapping or dict(),
                 use_arg_name=use_arg_name
@@ -102,52 +105,69 @@ class DependencyInjector(object):
 
         return functools.partial(func, *new_args, **new_kwargs)
 
-    def _generate_args_kwargs(self, args, kwargs, mapping):
+    def _generate_args_kwargs(self, args, kwargs, injection_blueprint):
         kwargs = kwargs.copy()
         container = self._container
 
-        for arg_name, dependency_id in islice(mapping.items(), len(args),
-                                              None):
+        for arg_name, dependency_id, has_default \
+                in islice(injection_blueprint, len(args), None):
             if dependency_id is not _EMPTY_DEPENDENCY \
                     and arg_name not in kwargs:
                 try:
                     kwargs[arg_name] = container[dependency_id]
                 except DependencyNotFoundError:
-                    pass
+                    if has_default is False:
+                        raise
 
         return args, kwargs
 
-    def _generate_arguments_mapping(self, func, use_arg_name, mapping):
-        arguments_name = self._get_arguments_name(func=func)
-        arguments_mapping = OrderedDict(zip(
-            arguments_name,
-            [_EMPTY_DEPENDENCY] * len(arguments_name)
-        ))
+    def _generate_injection_blueprint(self, func, use_arg_name, mapping):
+        argument_mapping = getattr(func, '__annotations__', {}).copy()
+        try:
+            del argument_mapping['return']
+        except KeyError:
+            pass
+        argument_mapping.update(mapping)
 
-        arguments_mapping.update(getattr(func, '__annotations__', {}))
-        arguments_mapping.pop('return', None)
-
-        for arg_name, dependency_id in mapping.items():
-            if arg_name in arguments_mapping:
-                arguments_mapping[arg_name] = dependency_id
-
-        for arg_name, dependency_id in arguments_mapping.items():
-            if dependency_id is _EMPTY_DEPENDENCY \
-                    or dependency_id not in self._container:
-                arguments_mapping[arg_name] = (arg_name
-                                               if use_arg_name else
-                                               _EMPTY_DEPENDENCY)
-
-        return arguments_mapping
+        return tuple(
+            (
+                name,
+                argument_mapping.get(
+                    name,
+                    name if use_arg_name else _EMPTY_DEPENDENCY
+                ),
+                has_default,
+            )
+            for name, has_default in self._get_arguments(func=func)
+        )
 
     if PY3:
         @classmethod
-        def _get_arguments_name(cls, func):
-            return tuple(inspect.signature(func).parameters.keys())
+        def _get_arguments(cls, func):
+            arguments = []
+            for name, parameter in inspect.signature(func).parameters.items():
+                arguments.append((name,
+                                  parameter.default is not parameter.empty))
+
+            return arguments
     else:
         @classmethod
-        def _get_arguments_name(cls, func):
+        def _get_arguments(cls, func):
             try:
-                return tuple(inspect.getargspec(func).args)
+                argspec = inspect.getargspec(func)
             except TypeError:  # builtin methods or object.__init__
                 return tuple()
+            else:
+                arguments = []
+                first_default = len(argspec.args) - len(argspec.defaults or [])
+
+                if inspect.ismethod(func):
+                    args = argspec.args[1:]
+                    first_default -= 1
+                else:
+                    args = argspec.args
+
+                for i, name in enumerate(args):
+                    arguments.append((name, first_default <= i))
+
+                return arguments
