@@ -7,7 +7,7 @@ python:
   - "3.6"
 env:
   global:
-    - TOXENV=py{27,34,35,36}-{no_attrs,attrs}
+    - TOXENV="py{27,34,35,36}-{no_attrs,attrs}"
   matrix:
     - ATTRS="true"
     - ATTRS="false"
