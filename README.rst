@@ -1,5 +1,8 @@
 .. image:: https://travis-ci.org/Finistere/dependency_manager.svg?branch=master
-    :target: https://travis-ci.org/Finistere/dependency_manager
+  :target: https://travis-ci.org/Finistere/dependency_manager
+
+.. image:: https://codecov.io/gh/Finistere/dependency_manager/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/Finistere/dependency_manager
 
 ******************
 Dependency Manager

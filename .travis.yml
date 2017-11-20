@@ -6,9 +6,11 @@ python:
   - "3.5"
   - "3.6"
 env:
+  global:
+    - COVERAGE_FILE=".coverage"
   matrix:
-    - ATTRS="true"
-    - ATTRS="false"
+    - ATTRS=true
+    - ATTRS=false
 install: pip install tox-travis codecov
 script: tox
 after_success: codecov
