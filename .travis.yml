@@ -1,0 +1,15 @@
+language: python
+python:
+  - "3.6"
+env:
+  - TOXENV=py26
+  - TOXENV=py26-attrs
+  - TOXENV=py34
+  - TOXENV=py34-attrs
+  - TOXENV=py35
+  - TOXENV=py35-attrs
+  - TOXENV=py36
+  - TOXENV=py36-attrs
+install:
+  - pip install tox
+script: tox
