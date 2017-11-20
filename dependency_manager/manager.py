@@ -297,17 +297,16 @@ class DependencyManager(object):
                 _id = id
                 if _id is None:
                     cls = instance.__class__
-                    for name, value in cls.__dict__.items():
+                    for attribute in attr.fields(cls):
                         # Dirty way to find the attrib annotation.
                         # Maybe attr will eventually provide the annotation ?
-                        if isinstance(value, attr.Attribute) \
-                                and isinstance(value.default, attr.Factory) \
-                                and value.default.factory is attrib_factory:
+                        if isinstance(attribute.default, attr.Factory) \
+                                and attribute.default.factory is attrib_factory:
                             try:
-                                _id = cls.__annotations__[name]
+                                _id = cls.__annotations__[attribute.name]
                             except (AttributeError, KeyError):
                                 if use_arg_name:
-                                    _id = name
+                                    _id = attribute.name
                                     break
                             else:
                                 break
