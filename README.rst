@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/Finistere/dependency_manager.svg?branch=master
+    :target: https://travis-ci.org/Finistere/dependency_manager
+
 ******************
 Dependency Manager
 ******************
