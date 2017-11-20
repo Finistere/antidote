@@ -6,8 +6,11 @@ python:
   - "3.5"
   - "3.6"
 env:
-  - ATTRS="1"
-  - ATTRS="0"
+  global:
+    - TOXENV=py{27,34,35,36}-{no_attrs,attrs}
+  matrix:
+    - ATTRS="true"
+    - ATTRS="false"
 install: pip install tox-travis codecov
 script: tox
 after_success: codecov
