@@ -2,8 +2,8 @@ language: python
 python:
   - "3.6"
 env:
-  - TOXENV=py26
-  - TOXENV=py26-attrs
+  - TOXENV=py27
+  - TOXENV=py27-attrs
   - TOXENV=py34
   - TOXENV=py34-attrs
   - TOXENV=py35
