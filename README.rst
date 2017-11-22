@@ -4,6 +4,10 @@
 .. image:: https://codecov.io/gh/Finistere/dependency_manager/branch/master/graph/badge.svg
   :target: https://codecov.io/gh/Finistere/dependency_manager
 
+.. image:: https://readthedocs.org/projects/dependency-manager/badge/?version=latest
+  :target: http://dependency-manager.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation Status
+
 ******************
 Dependency Manager
 ******************
