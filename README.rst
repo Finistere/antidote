@@ -13,14 +13,14 @@ Dependency Manager
 ******************
 
 *Dependency Manager* is dependency injection module for Python 2.7 and 3.4+. It
-was designed to work with simple decorators which infer all the configuration 
-from type annotations. Key features are:
+is designed to work with simple decorators and annotations. The goal is to
+recognize dependencies and inject them automatically. Key features are:
 
 - Dependencies bound through type annotations and optionally from variable 
   names and/or mapping.
 - Simple decorators to handle pretty much everything.
-- Standard dependency injection features: singleton, factories (provider), 
-  auto-wiring
+- Standard dependency injection features: singleton, factories, auto-wiring
+  (automatically injecting dependencies of defined services, etc.)
 - Python 2.7 support (without annotations, obviously :))
 - Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
   (>= v17.1).
@@ -48,13 +48,15 @@ For Python 3.4+, the dependency management is straight-forward:
             """ Initializes the database. """
 
     # Simple way to add some configuration.
+    # Any object implementing __getitem__ works
     dym.container.extend(dict(
         database_host='host',
         database_user='user',
         database_password='password',
     ))
 
-    # Variables names will be used for injection.
+    # Declare a factory which should be called to instantiate Database
+    # Variables names should be used here for injection.
     @dym.factory(use_arg_name=True)
     def database_factory(database_host, database_user, database_password) -> Database:
         """
@@ -66,7 +68,7 @@ For Python 3.4+, the dependency management is straight-forward:
             password=database_password
         )
 
-
+    # Declare DatabaseWrapper as a dependency to be injected
     @dym.service
     class DatabaseWrapper(object):
         """
@@ -99,13 +101,16 @@ the lack of annotations:
             """ Initializes the database. """
 
     # Simple way to add some configuration.
+    # Any object implementing __getitem__ works
     dym.container.extend(dict(
         database_host='host',
         database_user='user',
         database_password='password',
     ))
 
-    # Variables names will be used for injection.
+    # Declare a factory which should be called to instantiate Database
+    # Variables names should be used here for injection.
+    # PY2: The id of the returned service needs to be specified
     @dym.factory(use_arg_name=True, id=Database)
     def database_factory(database_host, database_user, database_password):
         """
@@ -117,7 +122,8 @@ the lack of annotations:
             password=database_password
         )
 
-
+    # Declare DatabaseWrapper as a dependency to be injected
+    # PY2: A class-wide argument -> dependency mapping is specified,
     @dym.service(mapping=dict(db=Database))
     class DatabaseWrapper(object):
         """
@@ -129,14 +135,60 @@ the lack of annotations:
         def __init__(self, db):
             self.db = db
 
-
+    # PY2: An argument -> dependency mapping is specified
     @dym.inject(mapping=dict(db=DatabaseWrapper))
     def f(db):
         """ Do something with your database. """
 
 
+
+Why ?
+=====
+
+Dependency injection is, IMHO, a fundamental tool when working on projects. As
+it grows the more necessary it becomes to decouple your code by defining
+clearly in only one place how an object or a function should be called with
+which dependencies.
+
+So while searching for a dependency injection library, I had three requirements
+in mind:
+
+- Use of annotations compatible with type checker such as
+  `mypy <https://github.com/python/mypy>`_ to inject dependencies. But other
+  ways should exist, as configuration parameters cannot be injected this way
+  for example.
+- IMHO, the strict minimum of a dependency injection library: services,
+  factories, and something to inject those in any callable which injects their
+  dependencies.
+- The library should be easy to integrate in existing code, be it in Python 2
+  (it's not gone, yet) or 3. Ideally one should be able to use injected classes
+  or functions like any other. Usage should be transparent, which leads to
+  easier integration and adoption.
+
+However, I did not found a suitable library and was actually surprised to see
+that dependency injection was not commonly used in Python. So I created this
+project to answer those requirements.
+
+
+Related Projects
+================
+
+Different projects exist for dependency injection which did not satisfied my
+requirements:
+
+- `Dependency Injector <https://github.com/ets-labs/python-dependency-injector>`_:
+  Does not use annotations, thus IMHO the code is too boilerplate.
+- `Siringa <https://github.com/h2non/siringa>`_: Does not integrate well with
+  `mypy <https://github.com/python/mypy>`_ with its need for :code:`'!'` to
+  specify dependencies to be injected.
+- `PyCDI <https://github.com/ettoreleandrotognoli/python-cdi>`_: Need to use
+  :code:`call()` to execute a function.
+- `Injector <https://github.com/alecthomas/injector>`_: Need to retrieve a
+  service with the :code:`Injector`.
+
+
 TODO
 ====
 
-- Better support for configuration ?
+- Better support for configuration (ConfigParser typically)
 - proxies ?
