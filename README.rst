@@ -56,7 +56,7 @@ For Python 3.4+, the dependency management is straight-forward:
     ))
 
     # Declare a factory which should be called to instantiate Database
-    # Variables names should be used here for injection.
+    # Variables names are used here for injection.
     @dym.factory(use_arg_name=True)
     def database_factory(database_host, database_user, database_password) -> Database:
         """
@@ -109,8 +109,8 @@ the lack of annotations:
     ))
 
     # Declare a factory which should be called to instantiate Database
-    # Variables names should be used here for injection.
-    # PY2: The id of the returned service needs to be specified
+    # Variables names are used here for injection.
+    # PY2: The id of the returned service is specified
     @dym.factory(use_arg_name=True, id=Database)
     def database_factory(database_host, database_user, database_password):
         """

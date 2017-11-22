@@ -19,7 +19,7 @@ class DependencyManager(object):
     auto_wire = True
     """ 
     Default value for :code:`auto_wire` argument for methods such as
-    :py:meth:`register()` or :py:meth:`provider()` 
+    :py:meth:`register()` or :py:meth:`factory()`
     """
 
     use_arg_name = False
