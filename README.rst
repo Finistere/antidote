@@ -141,6 +141,12 @@ the lack of annotations:
         """ Do something with your database. """
 
 
+Documentation
+=============
+
+The documentation is available at
+`<https://dependency-manager.readthedocs.io/>`_.
+
 
 Why ?
 =====
