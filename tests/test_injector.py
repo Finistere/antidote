@@ -4,7 +4,7 @@ from dependency_manager import DependencyContainer, DependencyInjector, \
     DependencyNotFoundError
 
 
-def test_prepare():
+def test_bind():
     container = DependencyContainer()
     injector = DependencyInjector(container)
 
@@ -12,13 +12,31 @@ def test_prepare():
         return a, b
 
     # arguments properly passed on
-    a, b = injector.prepare(f, args=(1, 2))()
+    a, b = injector.bind(f, args=(1, 2))()
     assert 1 == a and 2 == b
 
-    a, b = injector.prepare(f, args=(1,), kwargs=dict(b=2))()
+    a, b = injector.bind(f, args=(1,), kwargs=dict(b=2))()
     assert 1 == a and 2 == b
 
-    a, b = injector.prepare(f, kwargs=dict(a=1, b=2))()
+    a, b = injector.bind(f, kwargs=dict(a=1, b=2))()
+    assert 1 == a and 2 == b
+
+
+def test_call():
+    container = DependencyContainer()
+    injector = DependencyInjector(container)
+
+    def f(a, b):
+        return a, b
+
+    # arguments properly passed on
+    a, b = injector.call(f, args=(1, 2))
+    assert 1 == a and 2 == b
+
+    a, b = injector.call(f, args=(1,), kwargs=dict(b=2))
+    assert 1 == a and 2 == b
+
+    a, b = injector.call(f, kwargs=dict(a=1, b=2))
     assert 1 == a and 2 == b
 
 
