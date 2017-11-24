@@ -197,4 +197,5 @@ TODO
 ====
 
 - Better support for configuration (ConfigParser typically)
+- tags
 - proxies ?

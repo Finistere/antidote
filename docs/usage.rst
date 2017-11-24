@@ -2,125 +2,6 @@ Usage
 =====
 
 
-Quick Start
------------
-
-
-A simple example with a external database for which you have an adapter which
-will be injected in other services.
-
-For Python 3.4+, the dependency management is straight-forward:
-
-.. testcode::
-    .. code-block:: python
-
-    import dependency_manager as dym
-
-    class Database:
-        """
-        Class from an external library.
-        """
-        def __init__(self, *args, **kwargs):
-            """ Initializes the database. """
-
-    # Simple way to add some configuration.
-    dym.container.update(dict(
-        database_host='host',
-        database_user='user',
-        database_password='password',
-    ))
-
-    # Variables names will be used for injection.
-    @dym.factory(use_arg_name=True)
-    def database_factory(database_host, database_user, database_password) -> Database:
-        """
-        Configures the database.
-        """
-        return Database(
-            host=database_host,
-            user=database_user,
-            password=database_password
-        )
-
-
-    @dym.service
-    class MyDatabase:
-        """
-        A class to wrap the database.
-        """
-
-        # Dependencies of __init__() are injected by default when registering
-        # a dependency.
-        def __init__(self, db: Database):
-            self.db = db
-
-
-    @dym.inject
-    def f(db: MyDatabase):
-        """ Does some stuff. """
-
-    # Call your function without worrying about the dependencies.
-    f()
-
-
-Examples in the documentation are written for Python 3 with annotations.
-However those can be easily adapted for Python 2. To compensate for the lack
-of annotations, the :code:`mapping` parameter should be used to define the
-dependencies. Thus the previous example looks like:
-
-.. testcode::
-    .. code-block:: python
-
-    import dependency_manager as dym
-
-
-    class Database(object):
-        """
-        Class from an external library.
-        """
-        def __init__(self, *args, **kwargs):
-            """ Initializes the database. """
-
-    # Simple way to add some configuration.
-    dym.container.update(dict(
-        database_host='host',
-        database_user='user',
-        database_password='password',
-    ))
-
-    # Variables names will be used for injection.
-    @dym.factory(use_arg_name=True, id=Database)
-    def database_factory(database_host, database_user, database_password):
-        """
-        Configures the database.
-        """
-        return Database(
-            host=database_host,
-            user=database_user,
-            password=database_password
-        )
-
-
-    @dym.service(mapping=dict(db=Database))
-    class MyDatabase(object):
-        """
-        A class to wrap the database.
-        """
-
-        # Dependencies of __init__() are injected by default when registering
-        # a dependency.
-        def __init__(self, db):
-            self.db = db
-
-
-    @dym.inject(mapping=dict(db=MyDatabase))
-    def f(db):
-        """ Does some stuff. """
-
-    # Call your function without worrying about the dependencies.
-    f()
-
-
 Container
 ---------
 
@@ -202,6 +83,12 @@ retrieval as the arguments name will be used as dependency ids.
     .. code-block:: python
 
     import dependency_manager as dym
+
+    dym.container.update(dict(
+        database_host='host',
+        database_user='user',
+        database_password='password',
+    ))
 
     class Database:
         def __init__(self, *args, **kwargs):
@@ -382,7 +269,7 @@ Dependency mapping of the arguments to their respective dependency is done at
 the first execution to limit the injection overhead. However, the retrieval
 of those is done at each execution, which allows dependencies to be changed.
 
-If execution speed matters, one can use :code:`static=True` to inject the
+If execution speed matters, one can use :code:`bind=True` to inject the
 dependencies at import time. A :py:func:`functools.partial` is then used to
 bind the arguments.
 
@@ -392,12 +279,12 @@ bind the arguments.
     import dependency_manager as dym
     # from database_vendor import Database
 
-    @dym.inject(static=True)
+    @dym.inject(bind=True)
     def get_users(db: Database):
         # do some stuff
         pass
 
-    @dym.inject(use_arg_name=True, static=True)
+    @dym.inject(use_arg_name=True, bind=True)
     def new_db(database_host, database_user, database_password):
         pass
 
