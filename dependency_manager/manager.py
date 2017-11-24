@@ -18,14 +18,20 @@ class DependencyManager(object):
 
     auto_wire = True
     """ 
-    Default value for :code:`auto_wire` argument for methods such as
+    Default value for :code:`auto_wire` argument in methods such as
     :py:meth:`register()` or :py:meth:`factory()`
     """
 
     use_arg_name = False
     """ 
-    Default value for :code:`use_arg_name` argument for methods such as
+    Default value for :code:`use_arg_name` argument in methods such as
     :py:meth:`inject()` or :py:meth:`register()` 
+    """
+
+    mapping = None
+    """
+    Default mapping for :code:`mapping` argument in methods such as
+    :py:meth:`inject()` or :py:meth:`register()`.
     """
 
     def __init__(self, auto_wire=None, use_arg_name=None,
@@ -60,7 +66,7 @@ class DependencyManager(object):
         if use_arg_name is not None:
             self.use_arg_name = use_arg_name
 
-    def inject(self, func=None, mapping=None, use_arg_name=None, static=False):
+    def inject(self, func=None, mapping=None, use_arg_name=None, bind=False):
         """Inject the dependency into the function.
 
         Args:
@@ -72,7 +78,7 @@ class DependencyManager(object):
             mapping (dict, optional): Custom mapping of the arguments name
                 to their respective dependency id. Overrides annotations.
                 Defaults to None.
-            static (bool, optional): bind arguments with functools.partial
+            bind (bool, optional): bind arguments with functools.partial
                 directly to avoid service retrieval overhead. Defaults to
                 False.
 
@@ -83,10 +89,17 @@ class DependencyManager(object):
         if use_arg_name is None:
             use_arg_name = self.use_arg_name
 
-        if static:
+        if self.mapping:
+            m = self.mapping.copy()
+            if mapping:
+                m.update(mapping)
+
+            mapping = m
+
+        if bind:
             def _inject(f):
-                return self.injector.prepare(func=f, mapping=mapping,
-                                             use_arg_name=use_arg_name)
+                return self.injector.bind(func=f, mapping=mapping,
+                                          use_arg_name=use_arg_name)
         else:
             _inject = self.injector.inject(mapping=mapping,
                                            use_arg_name=use_arg_name)

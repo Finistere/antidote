@@ -13,14 +13,14 @@ def test_inject_static():
 
     container.register(Service)
 
-    @manager.inject(static=True)
+    @manager.inject(bind=True)
     def f(x):
         return x
 
     with pytest.raises(TypeError):
         f()
 
-    @manager.inject(mapping=dict(x=Service), static=True)
+    @manager.inject(mapping=dict(x=Service), bind=True)
     def g(x):
         return x
 
@@ -33,7 +33,7 @@ def test_inject_static():
 
     container['service'] = container[Service]
 
-    @manager.inject(use_arg_name=True, static=True)
+    @manager.inject(use_arg_name=True, bind=True)
     def h(service, b=1):
         return service
 
@@ -48,6 +48,11 @@ def test_inject_with_mapping():
         pass
 
     container.register(Service)
+
+    class AnotherService(object):
+        pass
+
+    container.register(AnotherService)
 
     @manager.inject
     def f(x):
@@ -67,6 +72,21 @@ def test_inject_with_mapping():
         return x
 
     assert container[Service] is h()
+
+    manager.mapping = dict(x=Service, y=Service)
+
+    @manager.inject
+    def u(x):
+        return x
+
+    assert container[Service] is u()
+
+    @manager.inject(mapping=dict(y=AnotherService))
+    def v(x, y):
+        return x, y
+
+    assert container[Service] is v()[0]
+    assert container[AnotherService] is v()[1]
 
 
 def test_wire():
