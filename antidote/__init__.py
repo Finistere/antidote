@@ -21,4 +21,4 @@ __all__ = [
 ]
 
 
-dym = DependencyManager()
+antidote = DependencyManager()

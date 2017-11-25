@@ -1,7 +1,7 @@
 import pytest
 
-from dependency_manager.manager import DependencyManager
-from dependency_manager import DependencyInstantiationError
+from antidote.manager import DependencyManager
+from antidote import DependencyInstantiationError
 
 
 def test_inject_static():

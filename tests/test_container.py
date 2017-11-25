@@ -1,6 +1,6 @@
 import pytest
 
-from dependency_manager.container import *
+from antidote.container import *
 
 
 class Service(object):

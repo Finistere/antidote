@@ -1,9 +1,9 @@
 from distutils.core import setup
 
 setup(
-    name='dependency_manager',
+    name='antidote',
     version='0.1',
-    packages=['dependency_manager'],
+    packages=['antidote'],
     author='Benjamin Rabier',
     install_requires=[
         'wrapt',

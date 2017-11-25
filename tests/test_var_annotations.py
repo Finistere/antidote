@@ -1,4 +1,4 @@
-from dependency_manager import DependencyManager
+from antidote import DependencyManager
 
 
 def test_attrs():

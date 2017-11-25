@@ -11,26 +11,26 @@ instantiates them lazily.
 .. testsetup:: container
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
     class Database:
         def __init__(self, *args, **kwargs):
             pass
 
-    dym.container.register(Database)
+    antidote.container.register(Database)
 
 
 .. testcode:: container
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
 
     # Services can be retrieved with their dependency_id (usually their type)
-    database = dym.container[Database]
+    database = antidote.container[Database]
 
     # Dependencies can also be defined directly
-    dym.container['database'] = Database()
+    antidote.container['database'] = Database()
 
 
 Extending
@@ -43,9 +43,9 @@ if no dependency registered could be found.
 .. testcode:: container
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
-    dym.container.extend(dict(
+    antidote.container.extend(dict(
         database_host='host',
         database_user='user',
         database_password='password',
@@ -66,15 +66,15 @@ or using :py:meth:`~.DependencyContainer.override`.
 .. testcode:: container
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
-    old_database = dym.container[Database]
+    old_database = antidote.container[Database]
 
-    dym.container[Database] = Database()
+    antidote.container[Database] = Database()
 
-    assert old_database is not dym.container[Database]
+    assert old_database is not antidote.container[Database]
 
-    dym.container.override({Database: Database()})
+    antidote.container.override({Database: Database()})
 
 
 Registration
@@ -97,14 +97,14 @@ their definition:
 .. testcode::
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
-    @dym.service
+    @antidote.service
     class MyService:
         """ Custom service code """
 
     # Retrieving your service
-    my_service = dym.container[MyService]
+    my_service = antidote.container[MyService]
 
 .. note::
 
@@ -129,11 +129,11 @@ lead to erroneous injections.
 .. testcode:: register_external_database
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
 
     # Register the class directly, it will be instantiated when necessary.
-    dym.service(Database, auto_wire=False)
+    antidote.service(Database, auto_wire=False)
 
 
 
@@ -152,9 +152,9 @@ retrieval as the arguments name will be used as dependency ids.
 .. testsetup:: user_external_database
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
-    dym.container.update(dict(
+    antidote.container.update(dict(
         database_host='host',
         database_user='user',
         database_password='password',
@@ -164,7 +164,7 @@ retrieval as the arguments name will be used as dependency ids.
         def __init__(self, *args, **kwargs):
             pass
 
-    @dym.service
+    @antidote.service
     class Request:
         def getSession(self):
             pass
@@ -175,11 +175,11 @@ retrieval as the arguments name will be used as dependency ids.
 .. testcode:: user_external_database
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
 
     # Variables names will be used for injection.
-    @dym.factory(use_arg_name=True)
+    @antidote.factory(use_arg_name=True)
     def database_factory(database_host, database_user, database_password) -> Database:
         return Database(
             host=database_host,
@@ -199,12 +199,12 @@ requested dependencies.
 .. testcode:: user_external_database
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
     # from web_framework import Request
     # from models import User
 
-    @dym.factory
+    @antidote.factory
     class UserFactory:
         def __init__(self, database: Database):
             self.database = database
@@ -218,7 +218,7 @@ requested dependencies.
 
             return self.current_user
 
-    user = dym.container[User]
+    user = antidote.container[User]
 
 .. _usage-register-auto-wiring-label:
 
@@ -238,11 +238,11 @@ could so look like:
 .. testcode:: user_external_database
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
     # from web_framework import Request
 
-    @dym.wire(methods=('__init__', 'getUser'))
+    @antidote.wire(methods=('__init__', 'getUser'))
     class UserManager:
         def __init__(self, db: Database):
             pass
@@ -268,7 +268,7 @@ service retrieval with a :code:`hook`.
 .. testcode::
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
     class Service:
         pass
@@ -276,11 +276,11 @@ service retrieval with a :code:`hook`.
     class SubService(Service):
         pass
 
-    @dym.factory(hook=lambda id: issubclass(id, Service))
+    @antidote.factory(hook=lambda id: issubclass(id, Service))
     def service_factory(service_id) -> Service:
         return service_id()
 
-    sub_service = dym.container[SubService]
+    sub_service = antidote.container[SubService]
 
 Injection
 ---------
@@ -302,14 +302,14 @@ only raised when the argument has not default.
 .. testsetup:: injection
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
-    @dym.service
+    @antidote.service
     class Database:
         def __init__(self, *args, **kwargs):
             pass
 
-    dym.container.update(dict(
+    antidote.container.update(dict(
         database_host='host',
         database_user='user',
         database_password='password',
@@ -318,17 +318,17 @@ only raised when the argument has not default.
 .. testcode:: injection
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
 
-    @dym.inject
+    @antidote.inject
     def get_users(db: Database):
         # do some stuff
         pass
 
     get_users()
 
-    @dym.inject(use_arg_name=True)
+    @antidote.inject(use_arg_name=True)
     def new_db(database_host, database_user, database_password):
         pass
 
@@ -347,15 +347,15 @@ bind the arguments.
 .. testcode:: injection
     .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
     # from database_vendor import Database
 
-    @dym.inject(bind=True)
+    @antidote.inject(bind=True)
     def get_users(db: Database):
         # do some stuff
         pass
 
-    @dym.inject(use_arg_name=True, bind=True)
+    @antidote.inject(use_arg_name=True, bind=True)
     def new_db(database_host, database_user, database_password):
         pass
 

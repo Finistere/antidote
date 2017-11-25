@@ -6,7 +6,7 @@ coverage_html_report
 *.pyc
 rm_cache.sh
 test.py
-/dependency_manager.egg-info/
+/antidote.egg-info/
 /docs/_build/
 /.ipynb_checkpoints/
 /test.ipynb

@@ -1,18 +1,18 @@
-.. image:: https://travis-ci.org/Finistere/dependency_manager.svg?branch=master
-  :target: https://travis-ci.org/Finistere/dependency_manager
+.. image:: https://travis-ci.org/Finistere/antidote.svg?branch=master
+  :target: https://travis-ci.org/Finistere/antidote
 
-.. image:: https://codecov.io/gh/Finistere/dependency_manager/branch/master/graph/badge.svg
-  :target: https://codecov.io/gh/Finistere/dependency_manager
+.. image:: https://codecov.io/gh/Finistere/antidote/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/Finistere/antidote
 
-.. image:: https://readthedocs.org/projects/dependency-manager/badge/?version=latest
-  :target: http://dependency-manager.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
+  :target: http://antidote.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
-******************
-Dependency Manager
-******************
+********
+Antidote
+********
 
-*Dependency Manager* is dependency injection module for Python 2.7 and 3.4+. It
+*Antidote* is dependency injection module for Python 2.7 and 3.4+. It
 is designed to work with simple decorators and annotations. The goal is to
 recognize dependencies and inject them automatically.
 
@@ -41,7 +41,7 @@ For Python 3.4+, the dependency management is straight-forward:
 
 .. code-block:: python
 
-    from dependency_manager import dym, dpy
+    from antidote import antidote, dpy
 
     class Database(object):
         """
@@ -52,7 +52,7 @@ For Python 3.4+, the dependency management is straight-forward:
 
     # Simple way to add some configuration.
     # Any object implementing __getitem__ works
-    dym.container.extend(dict(
+    antidote.container.extend(dict(
         database_host='host',
         database_user='user',
         database_password='password',
@@ -60,7 +60,7 @@ For Python 3.4+, the dependency management is straight-forward:
 
     # Declare a factory which should be called to instantiate Database
     # Variables names are used here for injection.
-    @dym.factory(use_arg_name=True)
+    @antidote.factory(use_arg_name=True)
     def database_factory(database_host, database_user, database_password) -> Database:
         """
         Configure your database.
@@ -72,7 +72,7 @@ For Python 3.4+, the dependency management is straight-forward:
         )
 
     # Declare DatabaseWrapper as a dependency to be injected
-    @dym.service
+    @antidote.service
     class DatabaseWrapper(object):
         """
         Your class to manage the database.
@@ -84,7 +84,7 @@ For Python 3.4+, the dependency management is straight-forward:
             self.db = db
 
 
-    @dym.inject
+    @antidote.inject
     def f(db: DatabaseWrapper):
         """ Do something with your database. """
 
@@ -93,7 +93,7 @@ the lack of annotations:
 
 .. code-block:: python
 
-    from dependency_manager import dym
+    from antidote import antidote
 
 
     class Database(object):
@@ -105,7 +105,7 @@ the lack of annotations:
 
     # Simple way to add some configuration.
     # Any object implementing __getitem__ works
-    dym.container.extend(dict(
+    antidote.container.extend(dict(
         database_host='host',
         database_user='user',
         database_password='password',
@@ -114,7 +114,7 @@ the lack of annotations:
     # Declare a factory which should be called to instantiate Database
     # Variables names are used here for injection.
     # PY2: The id of the returned service is specified
-    @dym.factory(use_arg_name=True, id=Database)
+    @antidote.factory(use_arg_name=True, id=Database)
     def database_factory(database_host, database_user, database_password):
         """
         Configure your database.
@@ -127,7 +127,7 @@ the lack of annotations:
 
     # Declare DatabaseWrapper as a dependency to be injected
     # PY2: A class-wide argument -> dependency mapping is specified,
-    @dym.service(mapping=dict(db=Database))
+    @antidote.service(mapping=dict(db=Database))
     class DatabaseWrapper(object):
         """
         Your class to manage the database.
@@ -139,7 +139,7 @@ the lack of annotations:
             self.db = db
 
     # PY2: An argument -> dependency mapping is specified
-    @dym.inject(mapping=dict(db=DatabaseWrapper))
+    @antidote.inject(mapping=dict(db=DatabaseWrapper))
     def f(db):
         """ Do something with your database. """
 
@@ -148,7 +148,7 @@ Documentation
 =============
 
 The documentation is available at
-`<https://dependency-manager.readthedocs.io/>`_.
+`<https://antidote.readthedocs.io/>`_.
 
 
 Why ?

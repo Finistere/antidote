@@ -1,7 +1,7 @@
 Module
 ======
 
-:py:mod:`dependency_manager` is mainly composed of 3 services:
+:py:mod:`antidote` is mainly composed of 3 services:
 
 - :py:class:`.DependencyContainer`: The container stores the services and
   instantiate them when necessary.
@@ -13,7 +13,7 @@ Module
 Container
 ---------
 
-.. automodule:: dependency_manager.container
+.. automodule:: antidote.container
     :members:
     :member-order: bysource
     :special-members:
@@ -22,7 +22,7 @@ Container
 Injector
 --------
 
-.. automodule:: dependency_manager.injector
+.. automodule:: antidote.injector
     :members:
     :member-order: bysource
     :special-members:
@@ -31,7 +31,7 @@ Injector
 Manager
 -------
 
-.. automodule:: dependency_manager.manager
+.. automodule:: antidote.manager
     :members:
     :member-order: bysource
     :special-members:
@@ -40,5 +40,5 @@ Manager
 Exceptions
 ----------
 
-.. automodule:: dependency_manager.exceptions
+.. automodule:: antidote.exceptions
     :members:

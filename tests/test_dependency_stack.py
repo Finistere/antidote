@@ -1,6 +1,6 @@
 import pytest
 
-from dependency_manager.container import DependencyStack, DependencyCycleError
+from antidote.container import DependencyStack, DependencyCycleError
 
 
 class Service(object):
@@ -20,7 +20,7 @@ stack = [DependencyStack, 'test', Service, 1, Service]
 )
 def test_repr(_str, obj):
     assert "tests.test_dependency_stack.Service" in _str(obj)
-    assert "dependency_manager.container.DependencyStack" in _str(obj)
+    assert "antidote.container.DependencyStack" in _str(obj)
     assert "'test'" in _str(obj)
     assert " 1 " in _str(obj)
 

@@ -1,6 +1,6 @@
 import pytest
 
-from dependency_manager import DependencyContainer, DependencyInjector, \
+from antidote import DependencyContainer, DependencyInjector, \
     DependencyNotFoundError
 
 
