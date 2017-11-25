@@ -41,7 +41,7 @@ For Python 3.4+, the dependency management is straight-forward:
 
 .. code-block:: python
 
-    from antidote import antidote, dpy
+    from antidote import antidote
 
     class Database(object):
         """
