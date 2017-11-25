@@ -72,7 +72,7 @@ For Python 3.4+, the dependency management is straight-forward:
         )
 
     # Declare DatabaseWrapper as a dependency to be injected
-    @antidote.service
+    @antidote.register
     class DatabaseWrapper(object):
         """
         Your class to manage the database.
@@ -127,7 +127,7 @@ the lack of annotations:
 
     # Declare DatabaseWrapper as a dependency to be injected
     # PY2: A class-wide argument -> dependency mapping is specified,
-    @antidote.service(mapping=dict(db=Database))
+    @antidote.register(mapping=dict(db=Database))
     class DatabaseWrapper(object):
         """
         Your class to manage the database.

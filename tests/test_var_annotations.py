@@ -10,7 +10,7 @@ def test_attrs():
     except ImportError:
         return
 
-    @manager.service
+    @manager.register
     class Service(object):
         pass
 

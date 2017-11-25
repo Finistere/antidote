@@ -83,7 +83,7 @@ Registration
 
 Dependencies can be registered either through the
 :py:meth:`~.DependencyManager.factory` or the
-:py:meth:`~.DependencyManager.service` decorators.
+:py:meth:`~.DependencyManager.register` decorators.
 :ref:`usage-register-auto-wiring-label` is enabled by default to automatically
 inject the dependencies of a newly registered one.
 
@@ -91,15 +91,15 @@ inject the dependencies of a newly registered one.
 Services
 ^^^^^^^^
 
-:py:meth:`~.DependencyManager.service` can declare classes as services at
-their definition:
+:py:meth:`~.DependencyManager.register` declares a class as a services at
+its definition:
 
 .. testcode::
     .. code-block:: python
 
     from antidote import antidote
 
-    @antidote.service
+    @antidote.register
     class MyService:
         """ Custom service code """
 
@@ -133,7 +133,7 @@ lead to erroneous injections.
     # from database_vendor import Database
 
     # Register the class directly, it will be instantiated when necessary.
-    antidote.service(Database, auto_wire=False)
+    antidote.register(Database, auto_wire=False)
 
 
 
@@ -164,7 +164,7 @@ retrieval as the arguments name will be used as dependency ids.
         def __init__(self, *args, **kwargs):
             pass
 
-    @antidote.service
+    @antidote.register
     class Request:
         def getSession(self):
             pass
@@ -227,7 +227,7 @@ Auto-wiring
 
 When registering a service or a factory, its dependencies are automatically
 injected. The wiring is done by the :py:class:`.DependencyManager`, hence the
-option :code:`auto_wire`. By default :py:meth:`~.DependencyManager.service`
+option :code:`auto_wire`. By default :py:meth:`~.DependencyManager.register`
 wires :code:`__init__()`. :py:meth:`~.DependencyManager.factory` also wires
 :code:`__call__()` which can be used to inject non-singleton dependencies.
 
@@ -304,7 +304,7 @@ only raised when the argument has not default.
 
     from antidote import antidote
 
-    @antidote.service
+    @antidote.register
     class Database:
         def __init__(self, *args, **kwargs):
             pass

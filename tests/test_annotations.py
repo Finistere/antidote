@@ -21,13 +21,13 @@ def test_register():
     manager = DependencyManager()
     container = manager.container
 
-    @manager.service
+    @manager.register
     class Service(object):
         pass
 
     assert isinstance(container[Service], Service)
 
-    @manager.service
+    @manager.register
     class AnotherService(object):
         def __init__(self, service: Service):
             self.service = service
@@ -40,7 +40,7 @@ def test_provider_function():
     manager = DependencyManager()
     container = manager.container
 
-    @manager.service
+    @manager.register
     class Service(object):
         pass
 
@@ -60,7 +60,7 @@ def test_provider_class():
     manager = DependencyManager()
     container = manager.container
 
-    @manager.service
+    @manager.register
     class Service(object):
         pass
 

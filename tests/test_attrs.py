@@ -14,7 +14,7 @@ def test_attrs():
             manager.attrib()
         return
 
-    @manager.service
+    @manager.register
     class Service(object):
         pass
 

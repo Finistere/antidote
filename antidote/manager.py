@@ -106,8 +106,8 @@ class DependencyManager(object):
 
         return func and _inject(func) or _inject
 
-    def service(self, cls=None, singleton=True, auto_wire=None, mapping=None,
-                use_arg_name=None):
+    def register(self, cls=None, singleton=True, auto_wire=None, mapping=None,
+                 use_arg_name=None):
         """Register a dependency by its type or specified id.
 
         Args:
