@@ -1,10 +1,27 @@
 import threading
-from .exceptions import *
+import inspect
+from collections import deque
+from contextlib import contextmanager
+
+
+from .exception import DependencyError
 
 try:
     from collections import ChainMap
 except ImportError:
     from chainmap import ChainMap
+
+
+class DependencyNotFoundError(KeyError, DependencyError):
+    """ The dependency could not be found"""
+
+
+class DependencyInstantiationError(TypeError, DependencyError):
+    """ The dependency could not be instantiated """
+
+
+class DependencyDuplicateError(ValueError, DependencyError):
+    """ A dependency already exists with the same id """
 
 
 class DependencyContainer(object):
@@ -24,6 +41,7 @@ class DependencyContainer(object):
     def __init__(self):
         self._cache = {}
         self._instantiation_lock = threading.RLock()
+        self._instantiation_stack = DependencyStack()
         self._factories_registered_by_id = dict()
         self._factories_registered_by_hook = HookDict()
         # Elements in _factories must be either the dependencies themselves or
@@ -48,15 +66,19 @@ class DependencyContainer(object):
                 raise DependencyNotFoundError(id)
 
         try:
-            if not getattr(factory, 'singleton', True):
-                return factory()
+            with self._instantiation_stack.instantiating(id):
+                if not getattr(factory, 'singleton', True):
+                    return factory()
 
-            with self._instantiation_lock:
-                if id not in self._cache:
-                    if getattr(factory, 'takes_id', False):
-                        self._cache[id] = factory(id)
-                    else:
-                        self._cache[id] = factory()
+                with self._instantiation_lock:
+                    if id not in self._cache:
+                        if getattr(factory, 'takes_id', False):
+                            self._cache[id] = factory(id)
+                        else:
+                            self._cache[id] = factory()
+
+        except DependencyError:
+            raise
 
         except Exception as e:
             raise DependencyInstantiationError(repr(e))
@@ -177,7 +199,7 @@ class HookDict(object):
             return True
 
 
-class DependencyFactory:
+class DependencyFactory(object):
     __slots__ = ('factory', 'singleton', 'takes_id')
 
     def __init__(self, factory, singleton, takes_id):
@@ -187,3 +209,60 @@ class DependencyFactory:
 
     def __call__(self, *args, **kwargs):
         return self.factory(*args, **kwargs)
+
+
+class DependencyStack(object):
+    def __init__(self, stack=None):
+        self._stack = deque(stack or [])
+        self._dependencies = set(self._stack)
+
+    def __repr__(self):
+        return "{}({})".format(
+            type(self).__name__,
+            self.format_stack()
+        )
+
+    __str__ = __repr__
+
+    def __iter__(self):
+        return iter(self._stack)
+
+    def format_stack(self, sep=' => '):
+        return sep.join(map(self._format_dependency_id, self._stack))
+
+    @classmethod
+    def _format_dependency_id(cls, id):
+        if inspect.isclass(id):
+            return "{}.{}".format(id.__module__, id.__name__)
+
+        return repr(id)
+
+    @contextmanager
+    def instantiating(self, id):
+        if id in self._dependencies:
+            stack = self._stack
+            stack.append(id)
+            self._clear()
+            raise DependencyCycleError(type(self)(stack))
+
+        self._stack.append(id)
+        self._dependencies.add(id)
+        yield
+        self._dependencies.remove(self._stack.pop())
+
+    def _clear(self):
+        self._stack = deque()
+        self._dependencies = set()
+
+
+class DependencyCycleError(RuntimeError, DependencyError):
+    """ Error raised when a dependency cycle is found """
+
+    def __init__(self, dependency_stack):
+        self.dependency_stack = dependency_stack
+        super(DependencyCycleError, self).__init__()
+
+    def __str__(self):
+        return " A dependency cycle is found: {}".format(
+            self.dependency_stack.format_stack()
+        )

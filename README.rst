@@ -14,7 +14,10 @@ Dependency Manager
 
 *Dependency Manager* is dependency injection module for Python 2.7 and 3.4+. It
 is designed to work with simple decorators and annotations. The goal is to
-recognize dependencies and inject them automatically. Key features are:
+recognize dependencies and inject them automatically.
+
+Features Highlight
+==================
 
 - Dependencies bound through type annotations and optionally from variable 
   names and/or mapping.
@@ -38,7 +41,7 @@ For Python 3.4+, the dependency management is straight-forward:
 
 .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym, dpy
 
     class Database(object):
         """
@@ -90,7 +93,7 @@ the lack of annotations:
 
 .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
 
 
     class Database(object):
@@ -197,5 +200,11 @@ TODO
 ====
 
 - Better support for configuration (ConfigParser typically)
-- tags
+- tags to filter services and retrieve a list of them.
 - proxies ?
+
+
+License
+=======
+
+MIT

@@ -5,8 +5,77 @@ Usage
 Container
 ---------
 
-All dependencies are stored in the :py:class:`.DependencyContainer` which
-instantiate them lazily.
+All dependencies are stored in the :py:class:`~.DependencyContainer` which
+instantiates them lazily.
+
+.. testsetup:: container
+    .. code-block:: python
+
+    from dependency_manager import dym
+
+    class Database:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    dym.container.register(Database)
+
+
+.. testcode:: container
+    .. code-block:: python
+
+    from dependency_manager import dym
+    # from database_vendor import Database
+
+    # Services can be retrieved with their dependency_id (usually their type)
+    database = dym.container[Database]
+
+    # Dependencies can also be defined directly
+    dym.container['database'] = Database()
+
+
+Extending
+^^^^^^^^^
+
+The :py:class:`~.DependencyContainer` can be easily extended with additional
+dependencies through :py:meth:`~.DependencyContainer.extend`. Those are used
+if no dependency registered could be found.
+
+.. testcode:: container
+    .. code-block:: python
+
+    from dependency_manager import dym
+
+    dym.container.extend(dict(
+        database_host='host',
+        database_user='user',
+        database_password='password',
+    ))
+
+.. note::
+
+    The container does not need to be extended by a dictionary, any object with
+    :code:`__getitem__()` defined can be used.
+
+
+Override
+^^^^^^^^
+
+Dependencies previously defined can be overridden either by setting it directly
+or using :py:meth:`~.DependencyContainer.override`.
+
+.. testcode:: container
+    .. code-block:: python
+
+    from dependency_manager import dym
+
+    old_database = dym.container[Database]
+
+    dym.container[Database] = Database()
+
+    assert old_database is not dym.container[Database]
+
+    dym.container.override({Database: Database()})
+
 
 Registration
 ------------
@@ -28,7 +97,7 @@ their definition:
 .. testcode::
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
 
     @dym.service
     class MyService:
@@ -56,10 +125,11 @@ lead to erroneous injections.
         def __init__(self, *args, **kwargs):
             pass
 
+
 .. testcode:: register_external_database
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
     # from database_vendor import Database
 
     # Register the class directly, it will be instantiated when necessary.
@@ -82,7 +152,7 @@ retrieval as the arguments name will be used as dependency ids.
 .. testsetup:: user_external_database
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
 
     dym.container.update(dict(
         database_host='host',
@@ -105,7 +175,7 @@ retrieval as the arguments name will be used as dependency ids.
 .. testcode:: user_external_database
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
     # from database_vendor import Database
 
     # Variables names will be used for injection.
@@ -129,7 +199,7 @@ requested dependencies.
 .. testcode:: user_external_database
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
     # from database_vendor import Database
     # from web_framework import Request
     # from models import User
@@ -168,7 +238,7 @@ could so look like:
 .. testcode:: user_external_database
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
     # from database_vendor import Database
     # from web_framework import Request
 
@@ -198,7 +268,7 @@ service retrieval with a :code:`hook`.
 .. testcode::
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
 
     class Service:
         pass
@@ -228,10 +298,11 @@ Dependencies are used like default arguments: if the function is called with
 all its arguments nothing is injected. A :py:exc:`DependencyNotFoundError` is
 only raised when the argument has not default.
 
+
 .. testsetup:: injection
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
 
     @dym.service
     class Database:
@@ -247,7 +318,7 @@ only raised when the argument has not default.
 .. testcode:: injection
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
     # from database_vendor import Database
 
     @dym.inject
@@ -276,7 +347,7 @@ bind the arguments.
 .. testcode:: injection
     .. code-block:: python
 
-    import dependency_manager as dym
+    from dependency_manager import dym
     # from database_vendor import Database
 
     @dym.inject(bind=True)

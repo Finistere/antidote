@@ -1,7 +1,9 @@
 from .manager import DependencyManager
-from .container import DependencyContainer, DependencyFactory
+from .container import DependencyContainer, DependencyFactory, \
+    DependencyNotFoundError, DependencyCycleError, DependencyDuplicateError, \
+    DependencyInstantiationError
 from .injector import DependencyInjector
-from .exceptions import *
+from .exception import DependencyError
 
 
 __version__ = '0.1'
@@ -11,24 +13,12 @@ __all__ = [
     'DependencyFactory',
     'DependencyInjector',
     'DependencyManager',
+    'DependencyError',
     'DependencyNotFoundError',
     'DependencyDuplicateError',
+    'DependencyCycleError',
     'DependencyInstantiationError'
 ]
 
 
-manager = DependencyManager()
-
-container = manager.container
-injector = manager.injector
-inject = manager.inject
-factory = manager.factory
-service = manager.service
-wire = manager.wire
-
-try:
-    import attr
-except ImportError:
-    pass
-else:
-    attrib = manager.attrib
+dym = DependencyManager()

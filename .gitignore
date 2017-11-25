@@ -9,3 +9,4 @@ test.py
 /dependency_manager.egg-info/
 /docs/_build/
 /.ipynb_checkpoints/
+/test.ipynb

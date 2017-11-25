@@ -1,15 +1,21 @@
 import pytest
 
-from dependency_manager import DependencyContainer
-from dependency_manager.exceptions import *
+from dependency_manager.container import *
 
 
 class Service(object):
-    pass
+    def __init__(self, *args):
+        pass
 
 
 class AnotherService(object):
-    pass
+    def __init__(self, *args):
+        pass
+
+
+class YetAnotherService(object):
+    def __init__(self, *args):
+        pass
 
 
 def test_register():
@@ -177,6 +183,32 @@ def test_duplicate_error():
 
     with pytest.raises(DependencyDuplicateError):
         container.register(AnotherService, id=Service)
+
+
+def test_cycle_error():
+    container = DependencyContainer()
+
+    def service_factory():
+        return Service(container[AnotherService])
+
+    def another_service_factory():
+        return AnotherService(container[YetAnotherService])
+
+    def yet_another_service_factory():
+        return YetAnotherService(container[Service])
+
+    container.register(service_factory, id=Service)
+    container.register(another_service_factory, id=AnotherService)
+    container.register(yet_another_service_factory, id=YetAnotherService)
+
+    with pytest.raises(DependencyCycleError):
+        container[Service]
+
+    with pytest.raises(DependencyCycleError):
+        container[AnotherService]
+
+    with pytest.raises(DependencyCycleError):
+        container[YetAnotherService]
 
 
 def test_update():

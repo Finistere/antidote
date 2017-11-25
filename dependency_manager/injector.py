@@ -5,7 +5,7 @@ from itertools import islice
 import wrapt
 
 from ._compat import PY3
-from .exceptions import *
+from .container import DependencyNotFoundError
 
 _EMPTY_DEPENDENCY = object()
 
