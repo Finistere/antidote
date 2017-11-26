@@ -3,10 +3,12 @@
 .idea
 coverage_html_report
 .coverage
+MANIFEST
 *.pyc
 rm_cache.sh
-test.py
 /antidote.egg-info/
 /docs/_build/
 /.ipynb_checkpoints/
 /test.ipynb
+/build/
+/dist/

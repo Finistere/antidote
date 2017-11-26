@@ -163,7 +163,7 @@ class DependencyInjector(object):
         kwargs = kwargs.copy()
         container = self._container
 
-        for arg_name, dependency_id, has_default \
+        for arg_name, has_default, dependency_id \
                 in islice(injection_blueprint, len(args), None):
             if dependency_id is not _EMPTY_DEPENDENCY \
                     and arg_name not in kwargs:
@@ -197,11 +197,11 @@ class DependencyInjector(object):
         return tuple(
             (
                 name,
+                has_default,
                 argument_mapping.get(
                     name,
                     name if use_arg_name else _EMPTY_DEPENDENCY
                 ),
-                has_default,
             )
             for name, has_default in cls._get_arguments_specification(func)
         )
