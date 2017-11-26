@@ -19,21 +19,23 @@ Antidote
 
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/latest/?badge=latest
-  :alt: Documentation Status
 
+*Antidote* is a dependency injection micro framework for Python 2.7 and 3.4+.
+It provides simple decorators to declare services and to inject those
+automatically based on arguments annotation and/or name.
 
-*Antidote* is dependency injection module for Python 2.7 and 3.4+. It
-is designed to work with simple decorators and annotations. The goal is to
-recognize dependencies and inject them automatically.
 
 Features Highlight
 ==================
 
 - Dependencies bound through type annotations and optionally from variable 
   names and/or mapping.
-- Simple decorators to handle pretty much everything.
+- Integrates transparently with any code, one only need to add decorators.
 - Standard dependency injection features: singleton, factories, auto-wiring
   (automatically injecting dependencies of defined services, etc.)
+- Dependency cycle detection.
+- Thread-safe and limited performance impact (see
+  `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
 - Python 2.7 support (without annotations, obviously :))
 - Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
   (>= v17.1).
@@ -159,7 +161,8 @@ Documentation
 
 The documentation is available at
 `<https://antidote.readthedocs.io/>`_.
-
+Injection benchmark is available at
+`injection benchmarks <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
 
 Why ?
 =====
