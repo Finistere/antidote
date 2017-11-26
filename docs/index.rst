@@ -14,4 +14,4 @@
     :caption: Table of Content
 
     usage
-    module
+    api

@@ -1,12 +1,15 @@
 from .manager import DependencyManager
-from .container import DependencyContainer, DependencyFactory, \
-    DependencyNotFoundError, DependencyCycleError, DependencyDuplicateError, \
+from .container import (
+    DependencyContainer, DependencyFactory,
+    DependencyNotFoundError, DependencyCycleError, DependencyDuplicateError,
     DependencyInstantiationError
+)
 from .injector import DependencyInjector
-from .exception import DependencyError
+from .exceptions import DependencyError
 
-
-__version__ = '0.1'
+from .__version__ import (
+    __title__, __description__, __url__, __version__, __author__, __license__
+)
 
 __all__ = [
     'DependencyContainer',
@@ -19,6 +22,5 @@ __all__ = [
     'DependencyCycleError',
     'DependencyInstantiationError'
 ]
-
 
 antidote = DependencyManager()

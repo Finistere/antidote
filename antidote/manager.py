@@ -1,8 +1,8 @@
 import inspect
 
 from ._compat import PY3
-from .injector import DependencyInjector
 from .container import DependencyContainer
+from .injector import DependencyInjector
 
 
 class DependencyManager(object):

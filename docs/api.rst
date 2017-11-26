@@ -1,5 +1,5 @@
-Module
-======
+API Reference
+=============
 
 :py:mod:`antidote` is mainly composed of 3 services:
 
@@ -13,16 +13,17 @@ Module
 Container
 ---------
 
-.. automodule:: antidote.container
+.. autoclass:: antidote.container.DependencyContainer
     :members:
     :member-order: bysource
     :special-members:
     :exclude-members: __dict__,__weakref__
 
+
 Injector
 --------
 
-.. automodule:: antidote.injector
+.. autoclass:: antidote.injector.DependencyInjector
     :members:
     :member-order: bysource
     :special-members:
@@ -31,7 +32,7 @@ Injector
 Manager
 -------
 
-.. automodule:: antidote.manager
+.. autoclass:: antidote.manager.DependencyManager
     :members:
     :member-order: bysource
     :special-members:
@@ -42,3 +43,4 @@ Exceptions
 
 .. automodule:: antidote.exceptions
     :members:
+    :member-order: bysource

@@ -7,22 +7,14 @@ class Service(object):
     pass
 
 
-stack = [DependencyStack, 'test', Service, 1, Service]
+def test_format_stack():
+    ds = DependencyStack([DependencyStack, 'test', Service, 1, Service])
+    assert "tests.test_dependency_stack.Service" in ds.format_stack()
+    assert "antidote.container.DependencyStack" in ds.format_stack()
+    assert "'test'" in ds.format_stack()
+    assert " 1 " in ds.format_stack()
 
-
-@pytest.mark.parametrize(
-    '_str,obj',
-    [
-        (str, DependencyStack(stack)),
-        (repr, DependencyStack(stack)),
-        (str, DependencyCycleError(DependencyStack(stack))),
-    ]
-)
-def test_repr(_str, obj):
-    assert "tests.test_dependency_stack.Service" in _str(obj)
-    assert "antidote.container.DependencyStack" in _str(obj)
-    assert "'test'" in _str(obj)
-    assert " 1 " in _str(obj)
+    assert ds.format_stack() in repr(ds)
 
 
 def test_instantiating():

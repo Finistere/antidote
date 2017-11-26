@@ -1,3 +1,16 @@
+********
+Antidote
+********
+
+.. image:: https://img.shields.io/pypi/v/antidote.svg
+  :target: https://pypi.python.org/pypi/antidote
+
+.. image:: https://img.shields.io/pypi/l/antidote.svg
+  :target: https://pypi.python.org/pypi/antidote
+
+.. image:: https://img.shields.io/pypi/pyversions/antidote.svg
+  :target: https://pypi.python.org/pypi/antidote
+
 .. image:: https://travis-ci.org/Finistere/antidote.svg?branch=master
   :target: https://travis-ci.org/Finistere/antidote
 
@@ -8,9 +21,6 @@
   :target: http://antidote.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
-********
-Antidote
-********
 
 *Antidote* is dependency injection module for Python 2.7 and 3.4+. It
 is designed to work with simple decorators and annotations. The goal is to
@@ -202,9 +212,3 @@ TODO
 - Better support for configuration (ConfigParser typically)
 - tags to filter services and retrieve a list of them.
 - proxies ?
-
-
-License
-=======
-
-MIT

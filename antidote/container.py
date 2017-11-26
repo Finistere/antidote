@@ -1,27 +1,14 @@
-import threading
 import inspect
+import threading
 from collections import deque
 from contextlib import contextmanager
 
-
-from .exception import DependencyError
+from .exceptions import *
 
 try:
     from collections import ChainMap
 except ImportError:
     from chainmap import ChainMap
-
-
-class DependencyNotFoundError(KeyError, DependencyError):
-    """ The dependency could not be found"""
-
-
-class DependencyInstantiationError(TypeError, DependencyError):
-    """ The dependency could not be instantiated """
-
-
-class DependencyDuplicateError(ValueError, DependencyError):
-    """ A dependency already exists with the same id """
 
 
 class DependencyContainer(object):
@@ -66,16 +53,19 @@ class DependencyContainer(object):
                 raise DependencyNotFoundError(id)
 
         try:
-            with self._instantiation_stack.instantiating(id):
+            # Acquire lock before anything else. So cycle detection and
+            # instantiation (of singletons) do not have to worry about
+            # thread-safety.
+            with self._instantiation_lock, \
+                 self._instantiation_stack.instantiating(id):
                 if not getattr(factory, 'singleton', True):
                     return factory()
 
-                with self._instantiation_lock:
-                    if id not in self._cache:
-                        if getattr(factory, 'takes_id', False):
-                            self._cache[id] = factory(id)
-                        else:
-                            self._cache[id] = factory()
+                if id not in self._cache:
+                    if getattr(factory, 'takes_id', False):
+                        self._cache[id] = factory(id)
+                    else:
+                        self._cache[id] = factory()
 
         except DependencyError:
             raise
@@ -176,7 +166,26 @@ class DependencyContainer(object):
         self._factories.maps = [dependency_factories] + self._factories.maps
 
 
+class DependencyFactory(object):
+    __slots__ = ('factory', 'singleton', 'takes_id')
+
+    def __init__(self, factory, singleton, takes_id):
+        self.factory = factory
+        self.singleton = singleton
+        self.takes_id = takes_id
+
+    def __call__(self, *args, **kwargs):
+        return self.factory(*args, **kwargs)
+
+
 class HookDict(object):
+    """
+    Emulates a dictionary with hooks (callable) instead of keys.
+
+    Used in DependencyContainer to provide factories the possibility to define
+    with a function, the hook, if a given dependency_id can be instantiated.
+    """
+
     def __init__(self):
         self._hook_value = []
 
@@ -199,19 +208,16 @@ class HookDict(object):
             return True
 
 
-class DependencyFactory(object):
-    __slots__ = ('factory', 'singleton', 'takes_id')
-
-    def __init__(self, factory, singleton, takes_id):
-        self.factory = factory
-        self.singleton = singleton
-        self.takes_id = takes_id
-
-    def __call__(self, *args, **kwargs):
-        return self.factory(*args, **kwargs)
-
-
 class DependencyStack(object):
+    """
+    Stores the stack of dependency instantiation to detect and prevent cycles
+    by raising DependencyCycleError.
+
+    Used in DependencyContainer.
+
+    This class is not thread-safe by itself.
+    """
+
     def __init__(self, stack=None):
         self._stack = deque(stack or [])
         self._dependencies = set(self._stack)
@@ -240,10 +246,10 @@ class DependencyStack(object):
     @contextmanager
     def instantiating(self, id):
         if id in self._dependencies:
-            stack = self._stack
-            stack.append(id)
+            self._stack.append(id)
+            message = self.format_stack()
             self._clear()
-            raise DependencyCycleError(type(self)(stack))
+            raise DependencyCycleError(message)
 
         self._stack.append(id)
         self._dependencies.add(id)
@@ -253,16 +259,3 @@ class DependencyStack(object):
     def _clear(self):
         self._stack = deque()
         self._dependencies = set()
-
-
-class DependencyCycleError(RuntimeError, DependencyError):
-    """ Error raised when a dependency cycle is found """
-
-    def __init__(self, dependency_stack):
-        self.dependency_stack = dependency_stack
-        super(DependencyCycleError, self).__init__()
-
-    def __str__(self):
-        return " A dependency cycle is found: {}".format(
-            self.dependency_stack.format_stack()
-        )
