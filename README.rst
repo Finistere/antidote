@@ -125,7 +125,7 @@ With type hints, it is straight-forward:
         db_password='password'
     )))
 
-For Python 2, the example is a bit more verbose as you need to compensate for 
+For Python 2, the example is a bit more verbose as you need to compensate for
 the lack of annotations:
 
 .. code-block:: python
@@ -312,6 +312,7 @@ be implemented.
 - tags to filter services and retrieve a list of them.
 - type hints in Antidote's source code.
 - find a way to test absence of attrs with pytest as it now depends on it.
+- use pipenv
 - use python 2 type hints (?)
 - way to restrict services availability, either through tags, different
   containers or injectors, etc... (?)
