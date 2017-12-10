@@ -1,7 +1,8 @@
 import functools
 import inspect
+import typing
 from itertools import islice
-from typing import get_type_hints
+
 import wrapt
 
 from ._compat import PY3
@@ -192,7 +193,12 @@ class DependencyInjector(object):
             for argument in arguments of func
         ]
         """
-        argument_mapping = get_type_hints(func) or dict()
+        try:
+            argument_mapping = typing.get_type_hints(func) or dict()
+        except TypeError:
+            # Python 3.5.3 does not handle properly method wrappers
+            argument_mapping = dict()
+
         try:
             del argument_mapping['return']
         except KeyError:

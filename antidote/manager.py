@@ -260,7 +260,6 @@ class DependencyManager(object):
                                              or inspect.ismethod(f))
                     )
                 )
-                print(_methods)
 
             for method in _methods:
                 setattr(_cls,

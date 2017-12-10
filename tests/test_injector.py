@@ -124,3 +124,18 @@ def test_defaults():
 
     container['optional_service'] = object()
     assert (container['service'], container['optional_service']) == inject(f)()
+
+
+def test_method_wrapper_type_hints_error(monkeypatch):
+    container = DependencyContainer()
+    injector = DependencyInjector(container)
+
+    def raises(*args, **kwargs):
+        raise TypeError()
+
+    monkeypatch.setattr('typing.get_type_hints', raises)
+
+    def f():
+        pass
+
+    injector.inject(f)()
