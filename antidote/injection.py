@@ -1,7 +1,7 @@
 import functools
 import inspect
 from itertools import islice
-
+from typing import get_type_hints
 import wrapt
 
 from ._compat import PY3
@@ -27,14 +27,16 @@ class DependencyInjector(object):
         """
         self._container = container
 
-    def inject(self, mapping=None, use_arg_name=False):
+    def inject(self, func=None, mapping=None, use_names=False):
         """Inject the dependency into the function.
 
         Args:
+            func (callable): Callable for which the argument should be
+                injected.
             mapping (dict, optional): Custom mapping of the arguments name
                 to their respective dependency id. Overrides annotations.
                 Defaults to None.
-            use_arg_name (bool, optional): Whether the arguments name
+            use_names (bool, optional): Whether the arguments name
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
 
@@ -47,11 +49,11 @@ class DependencyInjector(object):
         non_local_container = [None]
 
         @wrapt.decorator
-        def fast_inject(wrapped, _, args, kwargs):
+        def _inject(wrapped, _, args, kwargs):
             if non_local_container[0] is None:
                 non_local_container[0] = self._generate_injection_blueprint(
                     func=wrapped,
-                    use_arg_name=use_arg_name,
+                    use_names=use_names,
                     mapping=mapping or dict()
                 )
 
@@ -62,9 +64,9 @@ class DependencyInjector(object):
             )
             return wrapped(*args, **kwargs)
 
-        return fast_inject
+        return func and _inject(func) or _inject
 
-    def bind(self, func, use_arg_name=False, mapping=None, args=None,
+    def bind(self, func=None, use_names=False, mapping=None, args=None,
              kwargs=None):
         """
         Creates a partial function with the injected arguments.
@@ -74,7 +76,7 @@ class DependencyInjector(object):
         Args:
             func (callable): Callable for which the argument should be
                 injected.
-            use_arg_name (bool, optional): Whether the arguments name
+            use_names (bool, optional): Whether the arguments name
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
             mapping (dict, optional): Custom mapping of the arguments name
@@ -90,17 +92,20 @@ class DependencyInjector(object):
 
         """
 
-        new_args, new_kwargs = self._inject_into_arg_kwargs(
-            func=func,
-            use_arg_name=use_arg_name,
-            mapping=mapping or dict(),
-            args=args or tuple(),
-            kwargs=kwargs or dict()
-        )
+        def _bind(f):
+            new_args, new_kwargs = self._inject_into_arg_kwargs(
+                func=f,
+                use_names=use_names,
+                mapping=mapping or dict(),
+                args=args or tuple(),
+                kwargs=kwargs or dict()
+            )
 
-        return functools.partial(func, *new_args, **new_kwargs)
+            return functools.partial(f, *new_args, **new_kwargs)
 
-    def call(self, func, use_arg_name=False, mapping=None, args=None,
+        return func and _bind(func) or _bind
+
+    def call(self, func, use_names=False, mapping=None, args=None,
              kwargs=None):
         """
         Call a function with specified arguments and keyword arguments.
@@ -109,7 +114,7 @@ class DependencyInjector(object):
         Args:
             func (callable): Callable for which the argument should be
                 injected.
-            use_arg_name (bool, optional): Whether the arguments name
+            use_names (bool, optional): Whether the arguments name
                 should be used to search for a dependency when no mapping,
                 nor annotation is found. Defaults to False.
             mapping (dict, optional): Custom mapping of the arguments name
@@ -127,7 +132,7 @@ class DependencyInjector(object):
 
         new_args, new_kwargs = self._inject_into_arg_kwargs(
             func=func,
-            use_arg_name=use_arg_name,
+            use_names=use_names,
             mapping=mapping or dict(),
             args=args or tuple(),
             kwargs=kwargs or dict()
@@ -135,7 +140,7 @@ class DependencyInjector(object):
 
         return func(*new_args, **new_kwargs)
 
-    def _inject_into_arg_kwargs(self, func, use_arg_name, mapping, args,
+    def _inject_into_arg_kwargs(self, func, use_names, mapping, args,
                                 kwargs):
         """
         Utility function to generate the injection blueprint and the new
@@ -147,7 +152,7 @@ class DependencyInjector(object):
             injection_blueprint=self._generate_injection_blueprint(
                 func=func,
                 mapping=mapping or dict(),
-                use_arg_name=use_arg_name
+                use_names=use_names
             )
         )
 
@@ -176,7 +181,7 @@ class DependencyInjector(object):
         return args, kwargs
 
     @classmethod
-    def _generate_injection_blueprint(cls, func, use_arg_name, mapping):
+    def _generate_injection_blueprint(cls, func, use_names, mapping):
         """
         Generate a blueprint for injection, so the injection itself can be done
         as fast as possible.
@@ -187,12 +192,20 @@ class DependencyInjector(object):
             for argument in arguments of func
         ]
         """
-        argument_mapping = getattr(func, '__annotations__', {}).copy()
+        argument_mapping = get_type_hints(func) or dict()
         try:
             del argument_mapping['return']
         except KeyError:
             pass
         argument_mapping.update(mapping)
+
+        arg_spec = cls._get_arguments_specification(func)
+
+        use_names = set(
+            map(lambda e: e[0], arg_spec)
+            if use_names is True else
+            use_names or []
+        )
 
         return tuple(
             (
@@ -200,10 +213,10 @@ class DependencyInjector(object):
                 has_default,
                 argument_mapping.get(
                     name,
-                    name if use_arg_name else _EMPTY_DEPENDENCY
+                    name if name in use_names else _EMPTY_DEPENDENCY
                 ),
             )
-            for name, has_default in cls._get_arguments_specification(func)
+            for name, has_default in arg_spec
         )
 
     if PY3:

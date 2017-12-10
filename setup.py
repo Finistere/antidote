@@ -8,38 +8,51 @@ from setuptools import setup
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-# 'setup.py publish' shortcut.
-if sys.argv[-1] == 'publish':
-    shutil.rmtree(os.path.join(here, 'dist'))
-    os.system('python setup.py sdist bdist_wheel')
-    os.system('twine upload dist/*')
-    sys.exit()
-
 about = {}
 with open(os.path.join(here, 'antidote', '__version__.py'), 'r') as f:
     exec(f.read(), about)
+
+# 'setup.py publish' shortcut.
+if sys.argv[-1] == 'publish':
+    print("Removing previous builds...")
+    shutil.rmtree(os.path.join(here, 'dist'))
+
+    print("Building distribution...")
+    os.system('python setup.py sdist bdist_wheel')
+
+    print("Uploading the package to PyPi with Twine...")
+    os.system('twine upload dist/*')
+
+    print("Pushing git tags")
+    os.system('git tag v{0}'.format(about['__version__']))
+    os.system('git push --tags')
+
+    print("Done !")
+    sys.exit()
+
 
 with open('README.rst', 'r') as f:
     readme = f.read()
 
 setup(
-    name=about['__title__'],
+    name='antidote',
     version=about['__version__'],
-    description=about['__description__'],
+    description='Transparent dependency injection.',
     long_description=readme,
-    author=about['__author__'],
-    url=about['__url__'],
+    author='Benjamin Rabier',
+    url='https://github.com/Finistere/antidote',
     packages=['antidote'],
     package_data={'': ['LICENSE']},
     include_package_data=True,
     install_requires=[
-        'wrapt'
+        'wrapt',
+        'future'
     ],
     extras_require={
-        ":python_version<'3'": ["chainmap"],
+        ":python_version<'3.5'": ["typing"],
         "attrs": ["attrs>=17.1"]
     },
-    license=about['__license__'],
+    license='MIT',
     classifiers=(
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

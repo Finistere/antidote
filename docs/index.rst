@@ -9,9 +9,12 @@
 .. include:: ../README.rst
 
 
+Table of Content
+================
+
 .. toctree::
     :maxdepth: 3
-    :caption: Table of Content
 
-    usage
+    quickstart
+    advanced_usage
     api

@@ -3,7 +3,7 @@ import time
 import random
 
 
-from antidote import DependencyContainer
+from antidote import DependencyManager
 
 
 class Service(object):
@@ -16,7 +16,7 @@ class AnotherService(object):
 
 def test_instantiation_safety():
     n_threads = 10
-    container = DependencyContainer()
+    manager = DependencyManager()
 
     class Service(object):
         pass
@@ -32,16 +32,16 @@ def test_instantiation_safety():
         time.sleep(random.random() * .1 + .1)
         return AnotherService()
 
-    container.register(service_factory, id=Service, singleton=True)
-    container.register(another_service_factory, id=AnotherService,
-                       singleton=False)
+    manager.factory(service_factory, dependency_id=Service, singleton=True)
+    manager.factory(another_service_factory, dependency_id=AnotherService,
+                    singleton=False)
 
     singleton_got = []
     non_singleton_got = []
 
     def worker():
-        singleton_got.append(container[Service])
-        non_singleton_got.append(container[AnotherService])
+        singleton_got.append(manager.container[Service])
+        non_singleton_got.append(manager.container[AnotherService])
 
     threads = [
         threading.Thread(target=worker)

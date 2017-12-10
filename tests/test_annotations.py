@@ -8,7 +8,7 @@ def test_inject():
     class Service(object):
         pass
 
-    container.register(Service)
+    manager.register(Service)
 
     @manager.inject
     def f(service: Service):

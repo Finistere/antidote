@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import DependencyManager
+from antidote import DependencyManager, DependencyNotFoundError
 
 
 def test_attrs():
@@ -23,7 +23,7 @@ def test_attrs():
     @attr.s
     class Test(object):
         service = manager.attrib(Service)
-        parameter = manager.attrib(use_arg_name=True)
+        parameter = manager.attrib(use_name=True)
 
     test = Test()
 
@@ -35,4 +35,4 @@ def test_attrs():
         service = manager.attrib()
 
     with pytest.raises(ValueError):
-        _ = BrokenTest()
+        BrokenTest()

@@ -47,8 +47,7 @@ def test_mapping():
     class Service(object):
         pass
 
-    container.register(Service, singleton=True)
-    assert container[Service] is container[Service]
+    container[Service] = Service()
 
     def f(service):
         return service
@@ -86,7 +85,7 @@ def test_mapping():
         inject(f)()
 
 
-def test_use_arg_name():
+def test_use_names():
     container = DependencyContainer()
     injector = DependencyInjector(container)
 
@@ -96,8 +95,17 @@ def test_use_arg_name():
         return test
 
     # test is inject by name
-    inject = injector.inject(use_arg_name=True)
-    assert container['test'] == inject(f)()
+    f = injector.inject(func=f, use_names=True)
+    assert container['test'] == f()
+
+    container['yes'] = 'yes'
+    container['no'] = 'no'
+
+    def g(yes, no=None):
+        return yes, no
+
+    inject = injector.inject(use_names=('yes',))
+    assert (container['yes'], None) == inject(g)()
 
 
 def test_defaults():
@@ -110,7 +118,7 @@ def test_defaults():
         return service, optional_service
 
     # test is inject by name
-    inject = injector.inject(use_arg_name=True)
+    inject = injector.inject(use_names=True)
 
     assert (container['service'], None) == inject(f)()
 

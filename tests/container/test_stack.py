@@ -8,9 +8,10 @@ class Service(object):
 
 
 def test_format_stack():
-    ds = DependencyStack([DependencyStack, 'test', Service, 1, Service])
-    assert "tests.test_dependency_stack.Service" in ds.format_stack()
-    assert "antidote.container.DependencyStack" in ds.format_stack()
+    ds = DependencyStack([Service, 'test', 1, Service])
+    service_info = "{}.{}".format(Service.__module__, Service.__name__)
+
+    assert service_info in ds.format_stack()
     assert "'test'" in ds.format_stack()
     assert " 1 " in ds.format_stack()
 
@@ -34,4 +35,3 @@ def test_instantiating():
                 pass
 
     assert [] == list(ds)
-
