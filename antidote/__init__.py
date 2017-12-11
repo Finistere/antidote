@@ -1,7 +1,11 @@
 from .container import DependencyContainer, Dependency
 from .injection import DependencyInjector
 from .manager import DependencyManager
-from .exceptions import *
+from .exceptions import (
+    DependencyError, DependencyNotFoundError, DependencyNotProvidableError,
+    DependencyDuplicateError, DependencyCycleError,
+    DependencyInstantiationError
+)
 
 from .__version__ import __version__
 

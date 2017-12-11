@@ -10,7 +10,7 @@ class DependencyStack(object):
     Stores the stack of dependency instantiation to detect and prevent cycles
     by raising DependencyCycleError.
 
-    Used in DependencyContainer.
+    Used in the DependencyContainer.
 
     This class is not thread-safe by itself.
     """
@@ -31,6 +31,9 @@ class DependencyStack(object):
         return iter(self._stack)
 
     def format_stack(self, sep=' => '):
+        """
+        Returns a human readable representation of the current stack.
+        """
         return sep.join(map(self._format_dependency_id, self._stack))
 
     @classmethod
@@ -43,6 +46,12 @@ class DependencyStack(object):
 
     @contextmanager
     def instantiating(self, dependency_id):
+        """
+        Context Manager which has to be used when instantiating the
+        dependency to keep track of the dependency path.
+
+        When a cycle is detected, a DependencyCycleError is raised.
+        """
         if dependency_id in self._dependencies:
             self._stack.append(dependency_id)
             message = self.format_stack()

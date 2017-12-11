@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import DependencyManager, DependencyNotFoundError
+from antidote import DependencyManager
 
 
 def test_attrs():

@@ -15,7 +15,8 @@ with open(os.path.join(here, 'antidote', '__version__.py'), 'r') as f:
 # 'setup.py publish' shortcut.
 if sys.argv[-1] == 'publish':
     print("Removing previous builds...")
-    shutil.rmtree(os.path.join(here, 'dist'))
+    if os.path.exists(os.path.join(here, 'dist')):
+        shutil.rmtree(os.path.join(here, 'dist'))
 
     print("Building distribution...")
     os.system('python setup.py sdist bdist_wheel')

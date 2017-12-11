@@ -4,7 +4,10 @@ from collections import OrderedDict
 from future.utils import raise_from
 
 from .stack import DependencyStack
-from ..exceptions import *
+from ..exceptions import (
+    DependencyNotFoundError, DependencyNotProvidableError,
+    DependencyCycleError, DependencyInstantiationError
+)
 
 
 class DependencyContainer(object):
@@ -20,6 +23,7 @@ class DependencyContainer(object):
     user-added dependencies. However, checking whether a dependency is defined
     will search in the cache, the registered and user-added dependencies.
     """
+
     def __init__(self):
         self.providers = OrderedDict()
         self._data = {}
@@ -78,6 +82,14 @@ class DependencyContainer(object):
 
 
 class Dependency(object):
+    """
+    Simple wrapper which has to be used by providers when returning an
+    instance of a dependency.
+
+    This enables the container to know if the returned dependency needs to
+    be cached as a singleton or not.
+    """
+
     def __init__(self, instance, singleton=False):
         self.instance = instance
         self.singleton = singleton

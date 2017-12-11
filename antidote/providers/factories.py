@@ -74,6 +74,9 @@ class DependencyFactories(object):
 
 
 class DependencyFactory(object):
+    """
+    Simple container to store information on how the factory has to be used.
+    """
     __slots__ = ('factory', 'singleton', 'takes_dependency_id')
 
     def __init__(self, factory, singleton, takes_dependency_id):

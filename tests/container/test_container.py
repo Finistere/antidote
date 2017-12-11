@@ -1,7 +1,10 @@
 import pytest
 
 from antidote.container import Dependency, DependencyContainer
-from antidote.exceptions import *
+from antidote.exceptions import (
+    DependencyNotFoundError, DependencyNotProvidableError,
+    DependencyCycleError, DependencyInstantiationError
+)
 
 
 class DummyProvider(object):
