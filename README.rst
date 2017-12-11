@@ -311,7 +311,6 @@ be implemented.
 - Better support for configuration (ConfigParser typically) with a provider.
 - tags to filter services and retrieve a list of them.
 - type hints in Antidote's source code.
-- find a way to test absence of attrs with pytest as it now depends on it.
 - use pipenv
 - use python 2 type hints (?)
 - way to restrict services availability, either through tags, different
