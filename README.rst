@@ -34,14 +34,12 @@ Features Highlight
   and/or mapping.
 - Integrates well with any code, injected functions can be called as usual
   with all their arguments.
-- Standard dependency injection features: singleton, factories, auto-wiring
-  (automatically injecting dependencies of defined services)
-- Dependency cycle detection.
+- Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
+  (>= v17.1).
 - Thread-safe and limited performance impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
 - Python 2.7 support (without type hints, obviously :))
-- Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
-  (>= v17.1).
+- Dependency cycle detection.
 - Other dependencies, such as configuration parameters, can be easily added
   for injection as a dictionary.
 
@@ -84,7 +82,7 @@ With type hints, it is straight-forward:
         db_password='password',
     ))
 
-    # Declare a factory which should be called to instantiate Database
+    # Declare a factory which should be called to instantiate Database.
     # Variables names are used here for injection.
     @antidote.factory(use_names=True)
     def database_factory(db_host, db_user, db_password) -> Database:
@@ -97,7 +95,7 @@ With type hints, it is straight-forward:
             password=db_password
         )
 
-    # Declare DatabaseWrapper as a service to be injected
+    # Declare DatabaseWrapper as a service to be injected.
     @antidote.register
     class DatabaseWrapper(object):
         """
@@ -117,8 +115,8 @@ With type hints, it is straight-forward:
     # Can be called without arguments now.
     f()
 
-    # You can still explicitly pass the arguments for testing
-    # for example.
+    # You can still explicitly pass the arguments to override
+    # injection.
     f(DatabaseWrapper(database_factory(
         db_host='host',
         db_user='user',
@@ -147,10 +145,10 @@ the lack of annotations:
         db_password='password',
     ))
 
-    # Declare a factory which should be called to instantiate Database
+    # Declare a factory which should be called to instantiate Database.
     # Variables names are used here for injection.
-    # PY2: The id of the returned service is specified
-    @antidote.factory(use_names=True, id=Database)
+    # PY2: The id of the returned service is specified.
+    @antidote.factory(use_names=True, dependency_id=Database)
     def database_factory(db_host, db_user, db_password):
         """
         Configure your database.
@@ -161,8 +159,8 @@ the lack of annotations:
             password=db_password
         )
 
-    # Declare DatabaseWrapper as a service to be injected
-    # PY2: A class-wide argument -> dependency mapping is specified,
+    # Declare DatabaseWrapper as a service to be injected.
+    # PY2: A class-wide argument -> dependency mapping is specified.
     @antidote.register(mapping=dict(db=Database))
     class DatabaseWrapper(object):
         """
@@ -174,7 +172,7 @@ the lack of annotations:
         def __init__(self, db):
             self.db = db
 
-    # PY2: An argument -> dependency mapping is specified
+    # PY2: An argument -> dependency mapping is specified.
     @antidote.inject(mapping=dict(db=DatabaseWrapper))
     def f(db):
         """ Do something with your database. """
@@ -271,9 +269,7 @@ How to Contribute
    means 100% coverage.)
 5. Send a pull request.
 
-.. note::
-
-    Be sure to merge the latest from "upstream" before making a pull request!
+*Be sure to merge the latest from "upstream" before making a pull request!*
 
 
 Pull requests **should avoid** to:
@@ -288,10 +284,8 @@ Pull requests **will not** be accepted if:
 - tests do not cover all of code changes.
 
 
-.. note::
-
-    Do not hesitate to send a pull request, even if incomplete, to get early
-    feedback ! :)
+*Do not hesitate to send a pull request, even if incomplete, to get early
+feedback ! :)*
 
 
 Bug Reports / Feature Requests
