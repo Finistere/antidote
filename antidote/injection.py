@@ -1,12 +1,13 @@
-import functools
 import inspect
 import typing
 from itertools import islice
+from typing import Callable, Sequence, Dict, List, Union, Iterable, Tuple
 
+import functools
 import wrapt
 
 from ._compat import PY3
-from .container import DependencyNotFoundError
+from .container import DependencyNotFoundError, DependencyContainer
 
 _EMPTY_DEPENDENCY = object()
 
@@ -18,6 +19,7 @@ class DependencyInjector(object):
     """
 
     def __init__(self, container):
+        # type: (DependencyContainer) -> None
         """Initialize the DependencyInjector.
 
         Args:
@@ -29,6 +31,7 @@ class DependencyInjector(object):
         self._container = container
 
     def inject(self, func=None, mapping=None, use_names=False):
+        # type: (Callable, Dict, Union[bool, Iterable[str]]) -> Callable
         """Inject the dependency into the function.
 
         Args:
@@ -47,7 +50,7 @@ class DependencyInjector(object):
         """
         generate_args_kwargs = self._generate_args_kwargs
         # Using nonlocal would be ideal.
-        non_local_container = [None]
+        non_local_container = [None]  # type: List[Sequence]
 
         @wrapt.decorator
         def _inject(wrapped, _, args, kwargs):
@@ -67,8 +70,14 @@ class DependencyInjector(object):
 
         return func and _inject(func) or _inject
 
-    def bind(self, func=None, use_names=False, mapping=None, args=None,
-             kwargs=None):
+    def bind(self,
+             func=None,  # type: Callable
+             use_names=False,  # type: Union[bool, Iterable[str]]
+             mapping=None,  # type: Dict
+             args=None,  # type: Sequence
+             kwargs=None  # type: Dict
+             ):
+        # type: (...) -> Callable
         """
         Creates a partial function with the injected arguments.
 
@@ -106,8 +115,14 @@ class DependencyInjector(object):
 
         return func and _bind(func) or _bind
 
-    def call(self, func, use_names=False, mapping=None, args=None,
-             kwargs=None):
+    def call(self,
+             func,  # type: Callable
+             use_names=False,  # type: Union[bool, Iterable[str]]
+             mapping=None,  # type: Dict
+             args=None,  # type: Sequence
+             kwargs=None  # type: Dict
+             ):
+        # type: (...) -> Callable
         """
         Call a function with specified arguments and keyword arguments.
         Dependencies are injected if not satisfied.
@@ -141,8 +156,14 @@ class DependencyInjector(object):
 
         return func(*new_args, **new_kwargs)
 
-    def _inject_into_arg_kwargs(self, func, use_names, mapping, args,
-                                kwargs):
+    def _inject_into_arg_kwargs(self,
+                                func,  # type: Callable
+                                use_names,  # type: Union[bool, Iterable[str]]
+                                mapping,  # type: Dict
+                                args,  # type: Sequence
+                                kwargs  # type: Dict
+                                ):
+        # type: (...) -> Tuple[Sequence, Dict]
         """
         Utility function to generate the injection blueprint and the new
         arguments in one step.
@@ -158,6 +179,7 @@ class DependencyInjector(object):
         )
 
     def _generate_args_kwargs(self, args, kwargs, injection_blueprint):
+        # type: (Sequence, Dict, Sequence) -> Tuple[Sequence, Dict]
         """
         Generate the new arguments to be injected by retrieving all
         dependencies defined in the blueprint if it is not set by the passed
@@ -183,6 +205,9 @@ class DependencyInjector(object):
 
     @classmethod
     def _generate_injection_blueprint(cls, func, use_names, mapping):
+        # No type hints yet. Mypy does not handle properly the conversion of
+        # use_names to a set and typing.get_type_hints raises an error as it
+        # lacks typing information.
         """
         Generate a blueprint for injection, so the injection itself can be done
         as fast as possible.
@@ -195,7 +220,7 @@ class DependencyInjector(object):
         """
         try:
             argument_mapping = typing.get_type_hints(func) or dict()
-        except TypeError:
+        except Exception:
             # Python 3.5.3 does not handle properly method wrappers
             argument_mapping = dict()
 
@@ -208,7 +233,7 @@ class DependencyInjector(object):
         arg_spec = cls._get_arguments_specification(func)
 
         use_names = set(
-            map(lambda e: e[0], arg_spec)
+            (e[0] for e in arg_spec)
             if use_names is True else
             use_names or []
         )
@@ -228,6 +253,7 @@ class DependencyInjector(object):
     if PY3:
         @classmethod
         def _get_arguments_specification(cls, func):
+            # type: (Callable) -> Sequence[Tuple[str, bool]]
             """
             Extract the name and if a default is set for each argument.
             """
@@ -240,6 +266,7 @@ class DependencyInjector(object):
     else:
         @classmethod
         def _get_arguments_specification(cls, func):
+            # type: (Callable) -> Sequence[Tuple[str, bool]]
             """
             Extract the name and if a default is set for each argument.
             """

@@ -9,7 +9,7 @@ API Reference
 - :py:class:`.DependencyInjector`: The injector injects the dependencies of a
   function.
 - :py:class:`.DependencyManager`: The manager is composed of a container, an
-  injector and the  :py:class:`~.providers.DependencyFactories` provider.
+  injector and the  :py:class:`~.providers.FactoryProvider` provider.
   It exposes utility decorators and functions.
 
 Manager
@@ -45,7 +45,14 @@ Container
 Providers
 ---------
 
-.. autoclass:: antidote.providers.factories.DependencyFactories
+.. autoclass:: antidote.providers.factories.FactoryProvider
+    :members:
+    :member-order: bysource
+    :special-members:
+    :exclude-members: __dict__,__weakref__
+
+
+.. autoclass:: antidote.providers.parameters.ParameterProvider
     :members:
     :member-order: bysource
     :special-members:

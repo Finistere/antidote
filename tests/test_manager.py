@@ -424,6 +424,11 @@ def test_provider():
     with pytest.raises(ValueError):
         manager.provider(object())
 
+    with pytest.raises(ValueError):
+        @manager.provider
+        class MissingAntidoteProvideMethod(object):
+            pass
+
     with pytest.raises(TypeError):
         @manager.provider(auto_wire=False)
         class MissingDependencyProvider(object):

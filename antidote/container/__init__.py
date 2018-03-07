@@ -1,5 +1,6 @@
 import threading
 from collections import OrderedDict
+from typing import Any, Dict
 
 from future.utils import raise_from
 
@@ -8,6 +9,37 @@ from ..exceptions import (
     DependencyNotFoundError, DependencyNotProvidableError,
     DependencyCycleError, DependencyInstantiationError
 )
+
+
+class Provide(object):
+    __slots__ = ('dependency_id', 'args', 'kwargs')
+
+    def __init__(self, dependency_id, *args, **kwargs):
+        self.dependency_id = dependency_id
+        self.args = args
+        self.kwargs = kwargs
+
+    def __hash__(self):
+        if len(self.args) or len(self.kwargs):
+            return hash((
+                self.dependency_id,
+                self.args,
+                tuple(self.kwargs.items())
+            ))
+
+        return hash(self.dependency_id)
+
+    def __eq__(self, other):
+        if isinstance(other, Provide):
+            return (
+                self.dependency_id == other.dependency_id
+                and self.args == other.args
+                and self.kwargs == other.kwargs
+            )
+        elif not len(self.args) and not len(self.kwargs):
+            return self.dependency_id == other
+
+        return False
 
 
 class DependencyContainer(object):
@@ -30,33 +62,39 @@ class DependencyContainer(object):
         self._instantiation_lock = threading.RLock()
         self._instantiation_stack = DependencyStack()
 
-    def __getitem__(self, dependency_id):
+    def __getitem__(self, item):
         """
         Retrieves the dependency from the cached dependencies. If none matches,
         the container tries to find a matching factory or a matching value in
         the added dependencies.
         """
         try:
-            return self._data[dependency_id]
+            return self._data[item]
         except KeyError:
             pass
 
+        if isinstance(item, Provide):
+            args = (item.dependency_id,) + item.args
+            kwargs = item.kwargs
+        else:
+            args = (item,)
+            kwargs = {}
+
         try:
             with self._instantiation_lock, \
-                    self._instantiation_stack.instantiating(dependency_id):
-                if dependency_id in self._data:
-                    return self._data[dependency_id]
+                    self._instantiation_stack.instantiating(item):
+                if item in self._data:
+                    return self._data[item]
 
                 for provider in self.providers.values():
                     try:
-                        dependency = provider.__antidote_provide__(
-                            dependency_id
-                        )
+                        dependency = provider.__antidote_provide__(*args,
+                                                                   **kwargs)
                     except DependencyNotProvidableError:
                         pass
                     else:
                         if dependency.singleton:
-                            self._data[dependency_id] = dependency.instance
+                            self._data[item] = dependency.instance
 
                         return dependency.instance
 
@@ -64,9 +102,9 @@ class DependencyContainer(object):
             raise
 
         except Exception as e:
-            raise_from(DependencyInstantiationError(dependency_id), e)
+            raise_from(DependencyInstantiationError(item), e)
 
-        raise DependencyNotFoundError(dependency_id)
+        raise DependencyNotFoundError(item)
 
     def __setitem__(self, dependency_id, dependency):
         """
@@ -74,7 +112,11 @@ class DependencyContainer(object):
         """
         self._data[dependency_id] = dependency
 
+    def provide(self, dependency_id, *args, **kwargs):
+        return self[Provide(dependency_id, *args, **kwargs)]
+
     def update(self, dependencies):
+        # type: (Dict) -> None
         """
         Update the cached dependencies.
         """
@@ -90,6 +132,9 @@ class Dependency(object):
     be cached as a singleton or not.
     """
 
+    __slots__ = ('instance', 'singleton')
+
     def __init__(self, instance, singleton=False):
+        # type: (Any, bool) -> None
         self.instance = instance
         self.singleton = singleton

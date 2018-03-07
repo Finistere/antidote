@@ -35,3 +35,14 @@ def test_instantiating():
                 pass
 
     assert [] == list(ds)
+
+    class CustomException(Exception):
+        pass
+
+    try:
+        with ds.instantiating(DependencyStack):
+            raise CustomException()
+    except CustomException:
+        pass
+
+    assert [] == list(ds)

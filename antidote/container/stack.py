@@ -60,8 +60,13 @@ class DependencyStack(object):
 
         self._stack.append(dependency_id)
         self._dependencies.add(dependency_id)
-        yield
-        self._dependencies.remove(self._stack.pop())
+        try:
+            yield
+        except Exception:
+            self._clear()
+            raise
+        else:
+            self._dependencies.remove(self._stack.pop())
 
     def _clear(self):
         self._stack = deque()

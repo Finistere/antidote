@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.container import Dependency, DependencyContainer
+from antidote.container import Dependency, DependencyContainer, Provide
 from antidote.exceptions import (
     DependencyNotFoundError, DependencyNotProvidableError,
     DependencyCycleError, DependencyInstantiationError
@@ -16,7 +16,7 @@ class DummyProvider(object):
     def __setitem__(self, key, value):
         self.data[key] = value
 
-    def __antidote_provide__(self, dependency_id):
+    def __antidote_provide__(self, dependency_id, *args, **kwargs):
         try:
             return Dependency(self.data[dependency_id],
                               singleton=self.singleton)
@@ -33,7 +33,7 @@ class DummyFactoryProvider(object):
     def __setitem__(self, key, value):
         self.data[key] = value
 
-    def __antidote_provide__(self, dependency_id):
+    def __antidote_provide__(self, dependency_id, *args, **kwargs):
         try:
             return Dependency(self.data[dependency_id](),
                               singleton=self.create_singleton)
@@ -96,7 +96,7 @@ def test_extend():
     assert provider is container.providers[DummyProvider]
 
 
-def test_getitem():
+def test_getitem_and_provide():
     container = DependencyContainer()
     container.providers[DummyFactoryProvider] = DummyFactoryProvider({
         Service: lambda: Service(),
@@ -104,17 +104,22 @@ def test_getitem():
     })
     container.providers[DummyProvider] = DummyProvider({'name': 'Antidote'})
 
-    with pytest.raises(KeyError):
-        container[object]
+    for get in (container.__getitem__, container.provide):
+        with pytest.raises(KeyError):
+            get(object)
 
-    with pytest.raises(DependencyNotFoundError):
-        container[object]
+        with pytest.raises(DependencyNotFoundError):
+            get(object)
+
+        with pytest.raises(DependencyInstantiationError):
+            get(ServiceWithNonMetDependency)
 
     assert isinstance(container[Service], Service)
+    assert isinstance(container[Provide(Service)], Service)
+    assert isinstance(container.provide(Service), Service)
     assert 'Antidote' == container['name']
-
-    with pytest.raises(DependencyInstantiationError):
-        container[ServiceWithNonMetDependency]
+    assert 'Antidote' == container[Provide('name')]
+    assert 'Antidote' == container.provide('name')
 
 
 def test_singleton():

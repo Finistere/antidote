@@ -3,7 +3,7 @@ import pytest
 from antidote.exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
-from antidote.providers.factories import DependencyFactories
+from antidote.providers.factories import FactoryProvider
 
 
 class Service(object):
@@ -21,7 +21,7 @@ class AnotherService(object):
 
 
 def test_register():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
     provider.register(Service, Service)
 
     dependency = provider.__antidote_provide__(Service)
@@ -29,7 +29,7 @@ def test_register():
 
 
 def test_register_factory_id():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
     provider.register(Service, lambda: Service())
 
     dependency = provider.__antidote_provide__(Service)
@@ -37,7 +37,7 @@ def test_register_factory_id():
 
 
 def test_singleton():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
     provider.register(Service, Service, singleton=True)
     provider.register(AnotherService, AnotherService, singleton=False)
 
@@ -46,7 +46,7 @@ def test_singleton():
 
 
 def test_register_for_subclasses():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
     provider.register(Service, lambda cls: cls(), build_subclasses=True)
 
     assert isinstance(
@@ -63,21 +63,21 @@ def test_register_for_subclasses():
 
 
 def test_register_not_callable_error():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
 
     with pytest.raises(ValueError):
         provider.register(1, 1)
 
 
 def test_register_id_null():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
 
     with pytest.raises(ValueError):
         provider.register(None, Service)
 
 
 def test_duplicate_error():
-    provider = DependencyFactories()
+    provider = FactoryProvider()
     provider.register(Service, Service)
 
     with pytest.raises(DependencyDuplicateError):

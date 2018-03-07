@@ -1,35 +1,33 @@
+from ..container import Dependency
 from ..exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
-from ..container import Dependency
 
 
-class DependencyFactories(object):
+class FactoryProvider(object):
     def __init__(self, auto_wire=True):
         self.auto_wire = auto_wire
         self._factories = dict()
         self._subclass_factories = dict()
 
-    def __antidote_provide__(self, dependency_id):
-        """
-        Retrieves the dependency from the cached dependencies. If none matches,
-        the container tries to find a matching factory or a matching value in
-        the added dependencies.
-        """
+    def __antidote_provide__(self, dependency_id, *args, **kwargs):
         try:
             factory = self._factories[dependency_id]
         except KeyError:
             for cls in getattr(dependency_id, '__mro__', []):
-                if cls in self._subclass_factories:
+                try:
                     factory = self._subclass_factories[cls]
                     break
+                except KeyError:
+                    pass
             else:
                 raise DependencyNotProvidableError(dependency_id)
 
+        if factory.takes_dependency_id:
+            args = (dependency_id,) + args
+
         return Dependency(
-            factory(dependency_id)
-            if factory.takes_dependency_id else
-            factory(),
+            factory(*args, **kwargs),
             singleton=factory.singleton
         )
 

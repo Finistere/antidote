@@ -115,14 +115,14 @@ Accessing the providers
 Providers are accessible through the dictionary
 :py:attr:`~.DependencyContainer.providers` which contains them by their type.
 For example you can access the
-:py:class:`~.providers.factories.DependencyFactories` which manages all kind
+:py:class:`~.providers.factories.FactoryProvider` which manages all kind
 of factories:
 
 .. doctest:: advanced_usage
 
-    >>> from antidote.providers import DependencyFactories
-    >>> antidote.world.providers[DependencyFactories]
-    <antidote.providers.factories.DependencyFactories object at ...>
+    >>> from antidote.providers import FactoryProvider
+    >>> antidote.world.providers[FactoryProvider]
+    <antidote.providers.factories.FactoryProvider object at ...>
 
 This allows you to create configurable providers, to be adapted across
 projects for example.

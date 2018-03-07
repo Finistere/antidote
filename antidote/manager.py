@@ -1,10 +1,11 @@
 import inspect
-from typing import get_type_hints, Callable
+from typing import get_type_hints, Callable, Any, Iterable, Union, Dict, Type
+
 import weakref
 
 from .container import DependencyContainer
 from .injection import DependencyInjector
-from .providers import DependencyFactories
+from .providers import FactoryProvider, ParameterProvider
 
 
 class DependencyManager(object):
@@ -18,27 +19,33 @@ class DependencyManager(object):
 
     """
 
-    auto_wire = True
+    auto_wire = True  # type: bool
     """
     Default value for :code:`auto_wire` argument in methods such as
     :py:meth:`register()` or :py:meth:`factory()`
     """
 
-    use_names = False
+    use_names = False  # type: bool
     """
     Default value for :code:`use_names` argument in methods such as
     :py:meth:`inject()` or :py:meth:`register()`
     """
 
-    mapping = None
+    mapping = None  # type: Dict
     """
     Default mapping for :code:`mapping` argument in methods such as
     :py:meth:`inject()` or :py:meth:`register()`.
     """
 
-    def __init__(self, auto_wire=None, use_names=None, mapping=None,
+    def __init__(self,
+                 auto_wire=None,  # type: bool
+                 use_names=None,  # type: bool
+                 mapping=None,  # type: Dict
                  container=DependencyContainer,
-                 injector=DependencyInjector):
+                 # type: Type[DependencyContainer]
+                 injector=DependencyInjector  # type: Type[DependencyInjector]
+                 ):
+        # type: (...) -> None
         """Initialize the DependencyManager.
 
         Args:
@@ -70,10 +77,17 @@ class DependencyManager(object):
         )
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
-        self.provider(DependencyFactories)
-        self._factories = self.container.providers[DependencyFactories]
+        self.provider(FactoryProvider, auto_wire=False)
+        self._factories = (
+            self.container.providers[FactoryProvider]
+        )  # type: FactoryProvider
+        self.provider(ParameterProvider, auto_wire=False)
+        self._parameters = (
+            self.container.providers[ParameterProvider]
+        )  # type: ParameterProvider
 
     def inject(self, func=None, mapping=None, use_names=None, bind=False):
+        # type: (Callable, Dict, Union[bool, Iterable[str]], bool) -> Callable
         """Inject the dependency into the function.
 
         Args:
@@ -107,9 +121,14 @@ class DependencyManager(object):
         return self.injector.inject(func=func, mapping=mapping,
                                     use_names=use_names)
 
-    def register(self, cls=None, singleton=True, auto_wire=None, mapping=None,
-                 use_names=None):
-        # type: () -> Callable
+    def register(self,
+                 cls=None,  # type: type
+                 singleton=True,  # type: bool
+                 auto_wire=None,  # type: Union[bool, Iterable[str]]
+                 mapping=None,  # type: Dict
+                 use_names=None  # type: Union[bool, Iterable[str]]
+                 ):
+        # type: (...) -> Callable
         """Register a dependency by its class.
 
         Args:
@@ -157,10 +176,16 @@ class DependencyManager(object):
 
         return cls and register_class(cls) or register_class
 
-    def factory(self, func=None, dependency_id=None, auto_wire=None,
-                singleton=True, mapping=None, use_names=None,
-                build_subclasses=False):
-        # type: () -> Callable
+    def factory(self,
+                func=None,  # type: Callable
+                dependency_id=None,  # type: Any
+                auto_wire=None,  # type: Union[bool, Iterable[str]]
+                singleton=True,  # type: bool
+                mapping=None,  # type: Dict
+                use_names=None,  # type: Union[bool, Iterable[str]]
+                build_subclasses=False  # type: bool
+                ):
+        # type: (...) -> Callable
         """Register a dependency providers, a factory to build the dependency.
 
         Args:
@@ -232,7 +257,7 @@ class DependencyManager(object):
         return func and register_factory(func) or register_factory
 
     def wire(self, cls=None, methods=None, **inject_kwargs):
-        # type: () -> Callable
+        # type: (type, Iterable[str], **Any) -> Callable
         """Wire a class by injecting the dependencies in all specified methods.
 
         Args:
@@ -250,7 +275,7 @@ class DependencyManager(object):
         def wire_methods(_cls):
             # TODO: use nonlocal once Python 2.7 support drops.
             _methods = methods
-            if not _methods:
+            if _methods is None:
                 _methods = (
                     name
                     for name, _ in inspect.getmembers(
@@ -271,7 +296,7 @@ class DependencyManager(object):
         return cls and wire_methods(cls) or wire_methods
 
     def attrib(self, dependency_id=None, use_name=None, **attr_kwargs):
-        # type: () -> Callable
+        # type: (Any, Union[bool, Iterable[str]], **Any) -> Callable
         """Injects a dependency with attributes defined with attrs package.
 
         Args:
@@ -289,17 +314,15 @@ class DependencyManager(object):
         try:
             import attr
         except ImportError:
-            # This is (currently ?) impossible to test as it's a dependency of
-            # pytest...
             raise RuntimeError("attrs package must be installed.")
 
         if use_name is None:
             use_name = self.use_names
 
-        non_local_container = [None]
-
         def factory(instance):
-            if non_local_container[0] is None:
+            try:
+                _id = factory._dependency_id
+            except AttributeError:
                 _id = dependency_id
                 if _id is None:
                     cls = instance.__class__
@@ -325,15 +348,20 @@ class DependencyManager(object):
                             "Annotations may also be used."
                         )
 
-                non_local_container[0] = _id
+                factory._dependency_id = _id
 
-            return self.container[non_local_container[0]]
+            return self.container[_id]
 
         return attr.ib(default=attr.Factory(factory, takes_self=True),
                        **attr_kwargs)
 
-    def provider(self, cls=None, auto_wire=None, mapping=None, use_names=None):
-        # type: () -> Callable
+    def provider(self,
+                 cls=None,  # type: type
+                 auto_wire=None,  # type: Union[bool, Iterable[str]]
+                 mapping=None,  # type: Dict
+                 use_names=None  # type: Union[bool, Iterable[str]]
+                 ):
+        # type: (...) -> Callable
         """Register a providers by its class.
 
         Args:
@@ -356,9 +384,12 @@ class DependencyManager(object):
 
         def register_provider(_cls):
             if not inspect.isclass(_cls):
-                raise ValueError(
-                    "Expecting a class, found a {}".format(type(_cls))
-                )
+                raise ValueError("Expecting a class, "
+                                 "found {}".format(repr(type(_cls))))
+
+            if not hasattr(_cls, '__antidote_provide__'):
+                raise ValueError("Method __antidote_provide__() "
+                                 "must be defined")
 
             if auto_wire:
                 _cls = self.wire(
