@@ -11,13 +11,20 @@ from ..exceptions import (
 )
 
 
-class Provide(object):
+class Compose(object):
     __slots__ = ('dependency_id', 'args', 'kwargs')
 
     def __init__(self, dependency_id, *args, **kwargs):
         self.dependency_id = dependency_id
         self.args = args
         self.kwargs = kwargs
+
+    def __repr__(self):
+        return "Compose({!r}, *{!r}, **{!r})".format(
+            self.dependency_id,
+            self.args,
+            self.kwargs
+        )
 
     def __hash__(self):
         if len(self.args) or len(self.kwargs):
@@ -30,7 +37,7 @@ class Provide(object):
         return hash(self.dependency_id)
 
     def __eq__(self, other):
-        if isinstance(other, Provide):
+        if isinstance(other, Compose):
             return (
                 self.dependency_id == other.dependency_id
                 and self.args == other.args
@@ -73,7 +80,7 @@ class DependencyContainer(object):
         except KeyError:
             pass
 
-        if isinstance(item, Provide):
+        if isinstance(item, Compose):
             args = (item.dependency_id,) + item.args
             kwargs = item.kwargs
         else:
@@ -82,7 +89,7 @@ class DependencyContainer(object):
 
         try:
             with self._instantiation_lock, \
-                    self._instantiation_stack.instantiating(item):
+                 self._instantiation_stack.instantiating(item):
                 if item in self._data:
                     return self._data[item]
 
@@ -113,7 +120,7 @@ class DependencyContainer(object):
         self._data[dependency_id] = dependency
 
     def provide(self, dependency_id, *args, **kwargs):
-        return self[Provide(dependency_id, *args, **kwargs)]
+        return self[Compose(dependency_id, *args, **kwargs)]
 
     def update(self, dependencies):
         # type: (Dict) -> None

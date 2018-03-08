@@ -2,7 +2,9 @@ import inspect
 from typing import get_type_hints, Callable, Any, Iterable, Union, Dict, Type
 
 import weakref
+import wrapt
 
+from ._compat import get_arguments_specification
 from .container import DependencyContainer
 from .injection import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
@@ -68,13 +70,13 @@ class DependencyManager(object):
 
         self.container = (
             container() if isinstance(container, type) else container
-        )
+        )  # type: DependencyContainer
 
         self.injector = (
             injector(self.container)
             if isinstance(injector, type) else
             injector
-        )
+        )  # type: DependencyInjector
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
         self.provider(FactoryProvider, auto_wire=False)
@@ -401,8 +403,48 @@ class DependencyManager(object):
                     use_names=use_names
                 )
 
-            self.container.providers[_cls] = _cls()
+            instance = _cls()
+            instance.__antidote_provide__ = _ignore_arguments_excess(
+                instance.__antidote_provide__
+            )
+
+            self.container.providers[_cls] = instance
 
             return _cls
 
         return cls and register_provider(cls) or register_provider
+
+
+def _ignore_arguments_excess(func):
+    arg_spec, has_var_args, has_var_kwargs = get_arguments_specification(func)
+
+    if has_var_args and has_var_kwargs:
+        return func
+
+    @wrapt.decorator
+    def decorator(wrapper, _, args, kwargs):
+        # Method is supposed to be bound (self is not in the arguments).
+        if len(args) == 1 and not len(kwargs):
+            return wrapper(*args)
+
+        new_kwargs = dict()
+
+        if has_var_kwargs:
+            new_kwargs = kwargs.copy()
+        else:
+            for name, _ in arg_spec:
+                try:
+                    new_kwargs[name] = kwargs[name]
+                except KeyError:
+                    pass
+
+        if has_var_args:
+            new_args = args
+        else:
+            new_args = []
+            for (name, _), arg in zip(arg_spec, args):
+                new_kwargs[name] = arg
+
+        return wrapper(*new_args, **new_kwargs)
+
+    return decorator(func)

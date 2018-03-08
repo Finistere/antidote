@@ -1,4 +1,3 @@
-import inspect
 import typing
 from itertools import islice
 from typing import Callable, Sequence, Dict, List, Union, Iterable, Tuple
@@ -6,7 +5,7 @@ from typing import Callable, Sequence, Dict, List, Union, Iterable, Tuple
 import functools
 import wrapt
 
-from ._compat import PY3
+from ._compat import get_arguments_specification
 from .container import DependencyNotFoundError, DependencyContainer
 
 _EMPTY_DEPENDENCY = object()
@@ -230,7 +229,7 @@ class DependencyInjector(object):
             pass
         argument_mapping.update(mapping)
 
-        arg_spec = cls._get_arguments_specification(func)
+        arg_spec, _, _ = get_arguments_specification(func)
 
         use_names = set(
             (e[0] for e in arg_spec)
@@ -249,42 +248,3 @@ class DependencyInjector(object):
             )
             for name, has_default in arg_spec
         )
-
-    if PY3:
-        @classmethod
-        def _get_arguments_specification(cls, func):
-            # type: (Callable) -> Sequence[Tuple[str, bool]]
-            """
-            Extract the name and if a default is set for each argument.
-            """
-            arguments = []
-            for name, parameter in inspect.signature(func).parameters.items():
-                arguments.append((name,
-                                  parameter.default is not parameter.empty))
-
-            return arguments
-    else:
-        @classmethod
-        def _get_arguments_specification(cls, func):
-            # type: (Callable) -> Sequence[Tuple[str, bool]]
-            """
-            Extract the name and if a default is set for each argument.
-            """
-            try:
-                argspec = inspect.getargspec(func)
-            except TypeError:  # builtin methods or object.__init__
-                return tuple()
-            else:
-                arguments = []
-                first_default = len(argspec.args) - len(argspec.defaults or [])
-
-                if inspect.ismethod(func):
-                    args = argspec.args[1:]
-                    first_default -= 1
-                else:
-                    args = argspec.args
-
-                for i, name in enumerate(args):
-                    arguments.append((name, first_default <= i))
-
-                return arguments
