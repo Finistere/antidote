@@ -1,13 +1,21 @@
 import inspect
-from typing import get_type_hints, Callable, Any, Iterable, Union, Dict, Type
+from typing import Any, Callable, Dict, Iterable, Type, Union, get_type_hints
 
 import weakref
 import wrapt
+from past.builtins import basestring
 
-from ._compat import get_arguments_specification
+from ._compat import PY3, get_arguments_specification
 from .container import DependencyContainer
 from .injection import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
+
+try:
+    from configparser import RawConfigParser, NoOptionError, NoSectionError
+except ImportError:
+    from ConfigParser import RawConfigParser  # type: ignore
+    from ConfigParser import NoOptionError  # type: ignore
+    from ConfigParser import NoSectionError  # type: ignore
 
 
 class DependencyManager(object):
@@ -88,8 +96,13 @@ class DependencyManager(object):
             self.container.providers[ParameterProvider]
         )  # type: ParameterProvider
 
-    def inject(self, func=None, mapping=None, use_names=None, bind=False):
-        # type: (Callable, Dict, Union[bool, Iterable[str]], bool) -> Callable
+    def inject(self,
+               func=None,  # type: Callable
+               mapping=None,  # type: Dict
+               use_names=None,   # type: Union[bool, Iterable[str]]
+               bind=False  # type: bool
+               ):
+        # type: (...) -> Callable
         """Inject the dependency into the function.
 
         Args:
@@ -357,6 +370,38 @@ class DependencyManager(object):
         return attr.ib(default=attr.Factory(factory, takes_self=True),
                        **attr_kwargs)
 
+    def parameters(self,
+                   data,  # type: Union[RawConfigParser, Dict]
+                   parser=None,  # type: Union[Callable, str]
+                   prefix='',  # type: str
+                   sep='.'  # type: str
+                   ):
+        # type: (...) -> Callable
+
+        def register_parser(f):
+            if f == 'split':
+                def f(dependency_id):
+                    if isinstance(dependency_id, basestring) \
+                            and dependency_id.startswith(prefix):
+                        return dependency_id[len(prefix):].split(sep)
+            elif not callable(f):
+                raise ValueError("parser must be callable or be in {'split'}")
+
+            if not PY3 and isinstance(data, RawConfigParser):
+                parameters_ = ConfigParserWrapper(data)
+
+                def f_(dependency_id):
+                    return [f(dependency_id)]
+            else:
+                parameters_ = data
+                f_ = f
+
+            self._parameters.register(f_, parameters_)
+
+            return f
+
+        return parser and register_parser(parser) or register_parser
+
     def provider(self,
                  cls=None,  # type: type
                  auto_wire=None,  # type: Union[bool, Iterable[str]]
@@ -448,3 +493,17 @@ def _ignore_arguments_excess(func):
         return wrapper(*new_args, **new_kwargs)
 
     return decorator(func)
+
+
+class ConfigParserWrapper(object):
+    __slots__ = ('config_parser',)
+
+    def __init__(self, config_parser):
+        self.config_parser = config_parser
+
+    def __getitem__(self, item):
+        try:
+            section, option = item
+            return self.config_parser.get(section, option)
+        except (ValueError, NoSectionError, NoOptionError):
+            raise KeyError(item)

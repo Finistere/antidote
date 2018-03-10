@@ -1,17 +1,17 @@
 import threading
-from collections import OrderedDict
 from typing import Any, Dict
 
+from collections import OrderedDict
 from future.utils import raise_from
 
 from .stack import DependencyStack
 from ..exceptions import (
-    DependencyNotFoundError, DependencyNotProvidableError,
-    DependencyCycleError, DependencyInstantiationError
+    DependencyCycleError, DependencyInstantiationError,
+    DependencyNotFoundError, DependencyNotProvidableError
 )
 
 
-class Compose(object):
+class Prepare(object):
     __slots__ = ('dependency_id', 'args', 'kwargs')
 
     def __init__(self, dependency_id, *args, **kwargs):
@@ -37,7 +37,7 @@ class Compose(object):
         return hash(self.dependency_id)
 
     def __eq__(self, other):
-        if isinstance(other, Compose):
+        if isinstance(other, Prepare):
             return (
                 self.dependency_id == other.dependency_id
                 and self.args == other.args
@@ -80,7 +80,7 @@ class DependencyContainer(object):
         except KeyError:
             pass
 
-        if isinstance(item, Compose):
+        if isinstance(item, Prepare):
             args = (item.dependency_id,) + item.args
             kwargs = item.kwargs
         else:
@@ -89,7 +89,7 @@ class DependencyContainer(object):
 
         try:
             with self._instantiation_lock, \
-                 self._instantiation_stack.instantiating(item):
+                    self._instantiation_stack.instantiating(item):
                 if item in self._data:
                     return self._data[item]
 
@@ -120,7 +120,7 @@ class DependencyContainer(object):
         self._data[dependency_id] = dependency
 
     def provide(self, dependency_id, *args, **kwargs):
-        return self[Compose(dependency_id, *args, **kwargs)]
+        return self[Prepare(dependency_id, *args, **kwargs)]
 
     def update(self, dependencies):
         # type: (Dict) -> None

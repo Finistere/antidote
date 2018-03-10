@@ -53,3 +53,9 @@ def test_register():
 
     with pytest.raises(DependencyNotProvidableError):
         provide('conf:nothing')
+
+    with pytest.raises(DependencyNotProvidableError):
+        provide('conf:simple.yes.nothing')
+
+    with pytest.raises(DependencyNotProvidableError):
+        provide('conf:recursive.test.nothing')

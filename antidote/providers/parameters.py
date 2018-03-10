@@ -9,15 +9,18 @@ class ParameterProvider(object):
     def __init__(self):
         self._parser_parameters = []
 
-    def __antidote_provide__(self, dependency_id, *args, **kwargs):
+    def __antidote_provide__(self, dependency_id, type=None, *args, **kwargs):
         for parser, parameters in self._parser_parameters:
-            key = parser(dependency_id)
-            if key is not None:
+            keys = parser(dependency_id)
+            if keys is not None:
                 try:
-                    param = rgetitem(parameters, key)
-                except KeyError:
+                    param = rgetitem(parameters, keys)
+                except (KeyError, TypeError):
                     pass
                 else:
+                    if type is not None:
+                        param = type(param)
+
                     return Dependency(param, singleton=True)
 
         raise DependencyNotProvidableError(dependency_id)

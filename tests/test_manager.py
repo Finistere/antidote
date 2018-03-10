@@ -1,10 +1,15 @@
 import pytest
 
-from antidote.manager import DependencyManager
 from antidote import DependencyInstantiationError
 from antidote.container import (
-    Dependency, DependencyNotProvidableError, DependencyNotFoundError
+    Dependency, DependencyNotFoundError, DependencyNotProvidableError
 )
+from antidote.manager import DependencyManager
+
+try:
+    from configparser import RawConfigParser
+except ImportError:
+    from ConfigParser import RawConfigParser
 
 
 def test_inject_bind():
@@ -515,3 +520,55 @@ def test_provider_ignore_excess_arguments_3():
     assert (s, (1,), {}) == container.provide(s, 1)
     assert (s, tuple(), {'random': 1}) == container.provide(s, random=1)
     assert (s, (1,), {'random': 1}) == container.provide(s, 1, random=1)
+
+
+def test_parameters():
+    manager = DependencyManager()
+    container = manager.container
+
+    manager.parameters({'param': '1', 'paramb': {'test': 2}},
+                       parser='split', prefix='conf:')
+
+    assert '1' == container['conf:param']
+    assert 1 == container.provide('conf:param', type=int)
+    assert 2 == container['conf:paramb.test']
+
+    manager.parameters({'param_1': {'test': 'test'}}, parser='split', sep='|')
+
+    assert 'test' == container['param_1|test']
+
+    with pytest.raises(ValueError):
+        manager.parameters(object(), parser=object())
+
+    @manager.parameters({'a': {'b': {'c': 99}}})
+    def parser(item):
+        if isinstance(item, str):
+            return list(item)
+
+    assert 99 == container['abc']
+
+    with pytest.raises(DependencyNotFoundError):
+        container[object()]
+
+
+def test_parameters_with_configparser():
+    manager = DependencyManager()
+    container = manager.container
+
+    cfg = RawConfigParser()
+    cfg.add_section('test')
+    cfg.set('test', 'param', '100')
+
+    manager.parameters(cfg, parser='split')
+
+    assert '100' == container['test.param']
+    assert 100 == container.provide('test.param', type=int)
+
+    with pytest.raises(DependencyNotFoundError):
+        container['section.option']
+
+    with pytest.raises(DependencyNotFoundError):
+        container['test.option']
+
+    with pytest.raises(DependencyNotFoundError):
+        container['test.param.test']

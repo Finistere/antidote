@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.container import Dependency, DependencyContainer, Compose
+from antidote.container import Dependency, DependencyContainer, Prepare
 from antidote.exceptions import (
     DependencyNotFoundError, DependencyNotProvidableError,
     DependencyCycleError, DependencyInstantiationError
@@ -115,10 +115,10 @@ def test_getitem_and_provide():
             get(ServiceWithNonMetDependency)
 
     assert isinstance(container[Service], Service)
-    assert isinstance(container[Compose(Service)], Service)
+    assert isinstance(container[Prepare(Service)], Service)
     assert isinstance(container.provide(Service), Service)
     assert 'Antidote' == container['name']
-    assert 'Antidote' == container[Compose('name')]
+    assert 'Antidote' == container[Prepare('name')]
     assert 'Antidote' == container.provide('name')
 
 
