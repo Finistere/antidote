@@ -1,6 +1,8 @@
 import inspect
-from collections import deque
 from contextlib import contextmanager
+from typing import Any, Iterable
+
+from collections import deque
 
 from ..exceptions import DependencyCycleError
 
@@ -16,6 +18,7 @@ class DependencyStack(object):
     """
 
     def __init__(self, stack=None):
+        # type: (Iterable) -> None
         self._stack = deque(stack or [])
         self._dependencies = set(self._stack)
 
@@ -31,6 +34,7 @@ class DependencyStack(object):
         return iter(self._stack)
 
     def format_stack(self, sep=' => '):
+        # type: (str) -> str
         """
         Returns a human readable representation of the current stack.
         """
@@ -38,6 +42,7 @@ class DependencyStack(object):
 
     @classmethod
     def _format_dependency_id(cls, dependency_id):
+        # type: (Any) -> str
         if inspect.isclass(dependency_id):
             return "{}.{}".format(dependency_id.__module__,
                                   dependency_id.__name__)

@@ -1,12 +1,15 @@
 import typing
 from itertools import islice
-from typing import Callable, Sequence, Dict, List, Union, Iterable, Tuple
+from typing import (
+    Callable, Dict, Iterable, List, Mapping, Sequence, Tuple,
+    Union
+)
 
 import functools
 import wrapt
 
 from ._compat import get_arguments_specification
-from .container import DependencyNotFoundError, DependencyContainer
+from .container import DependencyContainer, DependencyNotFoundError
 
 _EMPTY_DEPENDENCY = object()
 
@@ -30,7 +33,7 @@ class DependencyInjector(object):
         self._container = container
 
     def inject(self, func=None, mapping=None, use_names=False):
-        # type: (Callable, Dict, Union[bool, Iterable[str]]) -> Callable
+        # type: (Callable, Mapping, Union[bool, Iterable[str]]) -> Callable
         """Inject the dependency into the function.
 
         Args:
@@ -72,7 +75,7 @@ class DependencyInjector(object):
     def bind(self,
              func=None,  # type: Callable
              use_names=False,  # type: Union[bool, Iterable[str]]
-             mapping=None,  # type: Dict
+             mapping=None,  # type: Mapping
              args=None,  # type: Sequence
              kwargs=None  # type: Dict
              ):
@@ -117,7 +120,7 @@ class DependencyInjector(object):
     def call(self,
              func,  # type: Callable
              use_names=False,  # type: Union[bool, Iterable[str]]
-             mapping=None,  # type: Dict
+             mapping=None,  # type: Mapping
              args=None,  # type: Sequence
              kwargs=None  # type: Dict
              ):
@@ -158,7 +161,7 @@ class DependencyInjector(object):
     def _inject_into_arg_kwargs(self,
                                 func,  # type: Callable
                                 use_names,  # type: Union[bool, Iterable[str]]
-                                mapping,  # type: Dict
+                                mapping,  # type: Mapping
                                 args,  # type: Sequence
                                 kwargs  # type: Dict
                                 ):

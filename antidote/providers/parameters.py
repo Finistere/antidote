@@ -1,5 +1,6 @@
 import functools
 from operator import getitem
+from typing import Callable, Mapping, Iterable, Any
 
 from ..container import Dependency
 from ..exceptions import DependencyNotProvidableError
@@ -26,8 +27,10 @@ class ParameterProvider(object):
         raise DependencyNotProvidableError(dependency_id)
 
     def register(self, parser, parameters):
+        # type: (Callable[..., Iterable], Mapping) -> None
         self._parser_parameters.append((parser, parameters))
 
 
 def rgetitem(obj, items):
+    # type: (Mapping, Iterable) -> Any
     return functools.reduce(getitem, items, obj)

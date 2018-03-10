@@ -1,5 +1,8 @@
 import inspect
-from typing import Any, Callable, Dict, Iterable, Type, Union, get_type_hints
+from typing import (
+    Any, Callable, Dict, Iterable, Mapping, Type, Union,
+    get_type_hints
+)
 
 import weakref
 import wrapt
@@ -50,7 +53,7 @@ class DependencyManager(object):
     def __init__(self,
                  auto_wire=None,  # type: bool
                  use_names=None,  # type: bool
-                 mapping=None,  # type: Dict
+                 mapping=None,  # type: Mapping
                  container=DependencyContainer,
                  # type: Type[DependencyContainer]
                  injector=DependencyInjector  # type: Type[DependencyInjector]
@@ -74,7 +77,8 @@ class DependencyManager(object):
             self.auto_wire = auto_wire
         if use_names is not None:
             self.use_names = use_names
-        self.mapping = mapping or dict()
+        self.mapping = dict()
+        self.mapping.update(mapping or dict())
 
         self.container = (
             container() if isinstance(container, type) else container
@@ -98,7 +102,7 @@ class DependencyManager(object):
 
     def inject(self,
                func=None,  # type: Callable
-               mapping=None,  # type: Dict
+               mapping=None,  # type: Mapping
                use_names=None,   # type: Union[bool, Iterable[str]]
                bind=False  # type: bool
                ):
@@ -140,7 +144,7 @@ class DependencyManager(object):
                  cls=None,  # type: type
                  singleton=True,  # type: bool
                  auto_wire=None,  # type: Union[bool, Iterable[str]]
-                 mapping=None,  # type: Dict
+                 mapping=None,  # type: Mapping
                  use_names=None  # type: Union[bool, Iterable[str]]
                  ):
         # type: (...) -> Callable
@@ -196,7 +200,7 @@ class DependencyManager(object):
                 dependency_id=None,  # type: Any
                 auto_wire=None,  # type: Union[bool, Iterable[str]]
                 singleton=True,  # type: bool
-                mapping=None,  # type: Dict
+                mapping=None,  # type: Mapping
                 use_names=None,  # type: Union[bool, Iterable[str]]
                 build_subclasses=False  # type: bool
                 ):
@@ -405,7 +409,7 @@ class DependencyManager(object):
     def provider(self,
                  cls=None,  # type: type
                  auto_wire=None,  # type: Union[bool, Iterable[str]]
-                 mapping=None,  # type: Dict
+                 mapping=None,  # type: Mapping
                  use_names=None  # type: Union[bool, Iterable[str]]
                  ):
         # type: (...) -> Callable

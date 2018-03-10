@@ -1,3 +1,5 @@
+from typing import Any, Callable, Dict
+
 from ..container import Dependency
 from ..exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
@@ -6,9 +8,10 @@ from ..exceptions import (
 
 class FactoryProvider(object):
     def __init__(self, auto_wire=True):
+        # type: (bool) -> None
         self.auto_wire = auto_wire
-        self._factories = dict()
-        self._subclass_factories = dict()
+        self._factories = dict()  # type: Dict
+        self._subclass_factories = dict()  # type: Dict
 
     def __antidote_provide__(self, dependency_id, *args, **kwargs):
         try:
@@ -33,6 +36,7 @@ class FactoryProvider(object):
 
     def register(self, dependency_id, factory, singleton=True,
                  build_subclasses=False):
+        # type: (Any, Callable, bool, bool) -> None
         """Register a dependency factory by the type of the dependency.
 
         The dependency can either be registered with an id (the type of the
@@ -78,6 +82,7 @@ class DependencyFactory(object):
     __slots__ = ('factory', 'singleton', 'takes_dependency_id')
 
     def __init__(self, factory, singleton, takes_dependency_id):
+        # type: (Callable, bool, bool) -> None
         self.factory = factory
         self.singleton = singleton
         self.takes_dependency_id = takes_dependency_id
