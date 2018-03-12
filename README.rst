@@ -66,7 +66,7 @@ With type hints, it is straight-forward:
 
 .. code-block:: python
 
-    import antidote
+    from antidote import antidote
 
     class Database(object):
         """
@@ -76,7 +76,7 @@ With type hints, it is straight-forward:
             """ Initializes the database. """
 
     # Simple way to add some configuration.
-    antidote.world.update(dict(
+    antidote.container.update(dict(
         db_host='host',
         db_user='user',
         db_password='password',
@@ -128,7 +128,7 @@ the lack of annotations:
 
 .. code-block:: python
 
-    import antidote
+    from antidote import antidote
 
 
     class Database(object):
@@ -139,7 +139,7 @@ the lack of annotations:
             """ Initializes the database. """
 
     # Simple way to add some configuration.
-    antidote.world.update(dict(
+    antidote.container.update(dict(
         db_host='host',
         db_user='user',
         db_password='password',
@@ -302,11 +302,7 @@ TODO
 This actually more of a roadmap of features. Those marked with a "(?)" may not
 be implemented.
 
-- Better support for configuration (ConfigParser typically) with a provider.
 - tags to filter services and retrieve a list of them.
-- type hints in Antidote's source code.
-- use pipenv
-- use python 2 type hints (?)
 - way to restrict services availability, either through tags, different
   containers or injectors, etc... (?)
 - proxies (?)

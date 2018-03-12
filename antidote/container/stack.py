@@ -28,8 +28,6 @@ class DependencyStack(object):
             self.format_stack()
         )
 
-    __str__ = __repr__
-
     def __iter__(self):
         return iter(self._stack)
 

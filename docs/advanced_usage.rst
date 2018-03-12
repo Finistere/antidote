@@ -3,8 +3,8 @@ Advanced Usage
 
 .. testsetup:: advanced_usage
 
-    import antidote
-    antidote.world['name'] = 'Antidote'
+    from antidote import antidote
+    antidote.container['name'] = 'Antidote'
 
 
 .. _advanced_usage_stateful_factory_label:
@@ -37,7 +37,7 @@ remember the current user.
 
 .. testcode:: advanced_usage
 
-    import antidote
+    from antidote import antidote
     # from database_vendor import Database
     # from web_framework import Request
     # from models import User
@@ -65,7 +65,7 @@ remember the current user.
 
             return self.current_user
 
-    user = antidote.world[User]
+    user = antidote.container[User]
 
 This case is similar to what is called a scope in other dependency injection
 framework. The same service may or may not be returned depending on some state.
@@ -96,7 +96,7 @@ provider, you only need to define :code:`__antidote_provide__`:
 
 .. doctest:: advanced_usage
 
-    >> antidote.world['whoami']
+    >> antidote.container['whoami']
     'Antidote'
 
 A dependency has to be returned wrapped in :py:class:
@@ -121,8 +121,8 @@ of factories:
 .. doctest:: advanced_usage
 
     >>> from antidote.providers import FactoryProvider
-    >>> antidote.world.providers[FactoryProvider]
-    <antidote.providers.factories.FactoryProvider object at ...>
+    >>> antidote.container.providers[FactoryProvider]
+    FactoryProvider(...)
 
 This allows you to create configurable providers, to be adapted across
 projects for example.

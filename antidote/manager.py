@@ -10,7 +10,7 @@ from past.builtins import basestring
 
 from ._compat import PY3, get_arguments_specification
 from .container import DependencyContainer
-from .injection import DependencyInjector
+from .injector import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
 
 try:
@@ -55,8 +55,9 @@ class DependencyManager(object):
                  use_names=None,  # type: bool
                  mapping=None,  # type: Mapping
                  container=DependencyContainer,
-                 # type: Type[DependencyContainer]
-                 injector=DependencyInjector  # type: Type[DependencyInjector]
+                 # type: Union[Type[DependencyContainer], DependencyContainer]
+                 injector=DependencyInjector
+                 # type: Union[Type[DependencyInjector], DependencyInjector]
                  ):
         # type: (...) -> None
         """Initialize the DependencyManager.
@@ -99,6 +100,19 @@ class DependencyManager(object):
         self._parameters = (
             self.container.providers[ParameterProvider]
         )  # type: ParameterProvider
+
+    def __repr__(self):
+        return (
+            "{}(auto_wire={!r}, mapping={!r}, use_names={!r}, "
+            "container={!r}, injector={!r})"
+        ).format(
+            type(self).__name__,
+            self.auto_wire,
+            self.mapping,
+            self.use_names,
+            self.container,
+            self.injector
+        )
 
     def inject(self,
                func=None,  # type: Callable
@@ -400,7 +414,7 @@ class DependencyManager(object):
                 parameters_ = data
                 f_ = f
 
-            self._parameters.register(f_, parameters_)
+            self._parameters.register(parameters_, f_)
 
             return f
 

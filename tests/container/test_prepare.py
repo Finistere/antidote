@@ -10,7 +10,7 @@ class Service:
 tests = [
     ('test', (1,), {}),
     (1, tuple(), {'test': 1}),
-    (Service, (1, 'test'), {'second': 'yes', 'another': 'no'}),
+    (Service, (1, 'test'), {'another': 'no'}),
     (Service, tuple(), {})
 ]
 

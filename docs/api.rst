@@ -25,7 +25,7 @@ Manager
 Injector
 --------
 
-.. autoclass:: antidote.injection.DependencyInjector
+.. autoclass:: antidote.injector.DependencyInjector
     :members:
     :member-order: bysource
     :special-members:

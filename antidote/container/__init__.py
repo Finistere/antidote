@@ -11,44 +11,6 @@ from ..exceptions import (
 )
 
 
-class Prepare(object):
-    __slots__ = ('dependency_id', 'args', 'kwargs')
-
-    def __init__(self, dependency_id, *args, **kwargs):
-        self.dependency_id = dependency_id
-        self.args = args
-        self.kwargs = kwargs
-
-    def __repr__(self):
-        return "Compose({!r}, *{!r}, **{!r})".format(
-            self.dependency_id,
-            self.args,
-            self.kwargs
-        )
-
-    def __hash__(self):
-        if len(self.args) or len(self.kwargs):
-            return hash((
-                self.dependency_id,
-                self.args,
-                tuple(self.kwargs.items())
-            ))
-
-        return hash(self.dependency_id)
-
-    def __eq__(self, other):
-        if isinstance(other, Prepare):
-            return (
-                self.dependency_id == other.dependency_id
-                and self.args == other.args
-                and self.kwargs == other.kwargs
-            )
-        elif not len(self.args) and not len(self.kwargs):
-            return self.dependency_id == other
-
-        return False
-
-
 class DependencyContainer(object):
     """
     Container of dependencies. Dependencies are either _factories which must be
@@ -68,6 +30,14 @@ class DependencyContainer(object):
         self._data = {}
         self._instantiation_lock = threading.RLock()
         self._instantiation_stack = DependencyStack()
+
+    def __repr__(self):
+        return "{}(providers=({}), data={!r})".format(
+            type(self).__name__,
+            ", ".join("{!r}={!r}".format(name, p)
+                      for name, p in self.providers.items()),
+            self._data
+        )
 
     def __getitem__(self, item):
         """
@@ -130,6 +100,49 @@ class DependencyContainer(object):
         self._data.update(dependencies)
 
 
+class Prepare(object):
+    """
+    Simple container which can be used to specify a dependency ID with
+    additional arguments for the provider.
+    """
+    __slots__ = ('dependency_id', 'args', 'kwargs')
+
+    def __init__(self, dependency_id, *args, **kwargs):
+        self.dependency_id = dependency_id
+        self.args = args
+        self.kwargs = kwargs
+
+    def __repr__(self):
+        return "{}({!r}, *{!r}, **{!r})".format(
+            type(self).__name__,
+            self.dependency_id,
+            self.args,
+            self.kwargs
+        )
+
+    def __hash__(self):
+        if len(self.args) or len(self.kwargs):
+            return hash((
+                self.dependency_id,
+                self.args,
+                tuple(self.kwargs.items())
+            ))
+
+        return hash(self.dependency_id)
+
+    def __eq__(self, other):
+        if isinstance(other, Prepare):
+            return (
+                self.dependency_id == other.dependency_id
+                and self.args == other.args
+                and self.kwargs == other.kwargs
+            )
+        elif not len(self.args) and not len(self.kwargs):
+            return self.dependency_id == other
+
+        return False
+
+
 class Dependency(object):
     """
     Simple wrapper which has to be used by providers when returning an
@@ -145,3 +158,10 @@ class Dependency(object):
         # type: (Any, bool) -> None
         self.instance = instance
         self.singleton = singleton
+
+    def __repr__(self):
+        return "{}(instance={!r}, singleton={!r})".format(
+            type(self).__name__,
+            self.instance,
+            self.singleton
+        )

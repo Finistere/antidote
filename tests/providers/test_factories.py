@@ -3,7 +3,7 @@ import pytest
 from antidote.exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
-from antidote.providers.factories import FactoryProvider
+from antidote.providers.factories import FactoryProvider, DependencyFactory
 
 
 class Service(object):
@@ -20,12 +20,25 @@ class AnotherService(object):
         pass
 
 
+def test_dependency_factory():
+    o = object()
+
+    def test(*args, **kwargs):
+        return o, args, kwargs
+
+    df = DependencyFactory(test, True, False)
+
+    assert repr(test) in repr(df)
+    assert (o, (1,), {'param': 'none'}) == df(1, param='none')
+
+
 def test_register():
     provider = FactoryProvider()
     provider.register(Service, Service)
 
     dependency = provider.__antidote_provide__(Service)
     assert isinstance(dependency.instance, Service)
+    assert repr(Service) in repr(provider)
 
 
 def test_register_factory_id():

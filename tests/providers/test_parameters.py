@@ -36,7 +36,7 @@ def test_register():
             if dependency_id.startswith('conf:'):
                 return dependency_id[5:].split('.')
 
-    provider.register(conf_parser, conf)
+    provider.register(conf, conf_parser)
 
     def provide(e):
         return provider.__antidote_provide__(e).instance
@@ -59,3 +59,5 @@ def test_register():
 
     with pytest.raises(DependencyNotProvidableError):
         provide('conf:recursive.test.nothing')
+
+    assert repr(conf) in repr(provider)

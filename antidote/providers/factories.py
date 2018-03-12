@@ -7,13 +7,42 @@ from ..exceptions import (
 
 
 class FactoryProvider(object):
+    """
+    Provider used to store factories. When a dependency is requested, it tries
+    to find a matching factory and builds it.
+    """
+
     def __init__(self, auto_wire=True):
         # type: (bool) -> None
         self.auto_wire = auto_wire
         self._factories = dict()  # type: Dict
         self._subclass_factories = dict()  # type: Dict
 
+    def __repr__(self):
+        return (
+            "{}(auto_wire={!r}, factories={!r}, subclass_factories={!r}"
+        ).format(
+            type(self).__name__,
+            self.auto_wire,
+            tuple(self._factories.keys()),
+            tuple(self._subclass_factories.keys())
+        )
+
     def __antidote_provide__(self, dependency_id, *args, **kwargs):
+        # type: (...) -> Dependency
+        """
+        Builds the dependency if a factory associated with the dependency_id
+        can be found.
+
+        Args:
+            dependency_id: ID of the dependency
+            *args: passed on to the factory
+            **kwargs: passed on to the factory
+
+        Returns:
+            Dependency: The build object wrapped with
+                :py:class:`~.container.Dependency`
+        """
         try:
             factory = self._factories[dependency_id]
         except KeyError:
@@ -37,16 +66,13 @@ class FactoryProvider(object):
     def register(self, dependency_id, factory, singleton=True,
                  build_subclasses=False):
         # type: (Any, Callable, bool, bool) -> None
-        """Register a dependency factory by the type of the dependency.
-
-        The dependency can either be registered with an id (the type of the
-        dependency if not specified) or a hook.
+        """
+        Register a factory for a dependency.
 
         Args:
+            dependency_id: ID of the dependency.
             factory (callable): Callable to be used to instantiate the
                 dependency.
-            dependency_id (object, optional): Id of the dependency, by which it
-                is identified. Defaults to the type of the factory.
             singleton (bool, optional): A singleton will be only be
                 instantiated once. Otherwise the dependency will instantiated
                 anew every time.
@@ -86,6 +112,16 @@ class DependencyFactory(object):
         self.factory = factory
         self.singleton = singleton
         self.takes_dependency_id = takes_dependency_id
+
+    def __repr__(self):
+        return (
+            "{}(factory={!r}, singleton={!r}, takes_dependency_id={!r})"
+        ).format(
+            type(self).__name__,
+            self.factory,
+            self.singleton,
+            self.takes_dependency_id
+        )
 
     def __call__(self, *args, **kwargs):
         return self.factory(*args, **kwargs)

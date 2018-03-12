@@ -139,3 +139,10 @@ def test_method_wrapper_type_hints_error(monkeypatch):
         pass
 
     injector.inject(f)()
+
+
+def test_repr():
+    container = DependencyContainer()
+    injector = DependencyInjector(container)
+
+    assert repr(container) in repr(injector)

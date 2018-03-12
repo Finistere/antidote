@@ -32,6 +32,12 @@ class DependencyInjector(object):
         """
         self._container = container
 
+    def __repr__(self):
+        return "{}(container={!r}".format(
+            type(self).__name__,
+            self._container
+        )
+
     def inject(self, func=None, mapping=None, use_names=False):
         # type: (Callable, Mapping, Union[bool, Iterable[str]]) -> Callable
         """Inject the dependency into the function.

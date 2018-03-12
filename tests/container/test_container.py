@@ -61,6 +61,14 @@ class ServiceWithNonMetDependency(object):
         pass
 
 
+def test_dependency_repr():
+    o = object()
+    d = Dependency(o, False)
+
+    assert repr(False) in repr(d)
+    assert repr(o) in repr(d)
+
+
 def test_setitem():
     container = DependencyContainer()
 
@@ -68,6 +76,7 @@ def test_setitem():
     container['service'] = s
 
     assert s is container['service']
+    assert repr(s) in repr(container)
 
 
 def test_update():
@@ -154,3 +163,12 @@ def test_cycle_error():
 
     with pytest.raises(DependencyCycleError):
         container[YetAnotherService]
+
+
+def test_repr():
+    container = DependencyContainer()
+    container.providers[DummyProvider] = DummyProvider({'name': 'Antidote'})
+    container['test'] = 1
+
+    assert 'test' in repr(container)
+    assert repr(container.providers[DummyProvider]) in repr(container)
