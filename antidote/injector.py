@@ -6,9 +6,8 @@ from typing import (
 )
 
 import functools
-import wrapt
 
-from ._compat import get_arguments_specification
+from ._compat import get_arguments_specification, functools_wraps
 from .container import DependencyContainer, DependencyNotFoundError
 
 _EMPTY_DEPENDENCY = object()
@@ -57,24 +56,29 @@ class DependencyInjector(object):
 
         """
         generate_args_kwargs = self._generate_args_kwargs
-        # Using nonlocal would be ideal.
-        non_local_container = [None]  # type: List[Sequence]
 
-        @wrapt.decorator
-        def _inject(wrapped, _, args, kwargs):
-            if non_local_container[0] is None:
-                non_local_container[0] = self._generate_injection_blueprint(
-                    func=wrapped,
-                    use_names=use_names,
-                    mapping=mapping or dict()
+        def _inject(f):
+            # Using nonlocal would be ideal.
+            non_local = [None]  # type: List[Sequence]
+
+            @functools_wraps(f)
+            def wrapper(*args, **kwargs):
+                if non_local[0] is None:
+                    non_local[0] = self._generate_injection_blueprint(
+                        func=f,
+                        use_names=use_names,
+                        mapping=mapping or dict()
+                    )
+
+                args, kwargs = generate_args_kwargs(
+                    args=args,
+                    kwargs=kwargs,
+                    injection_blueprint=non_local[0]
                 )
 
-            args, kwargs = generate_args_kwargs(
-                args=args,
-                kwargs=kwargs,
-                injection_blueprint=non_local_container[0]
-            )
-            return wrapped(*args, **kwargs)
+                return f(*args, **kwargs)
+
+            return wrapper
 
         return func and _inject(func) or _inject
 

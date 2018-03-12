@@ -5,10 +5,9 @@ from typing import (
 )
 
 import weakref
-import wrapt
 from past.builtins import basestring
 
-from ._compat import PY3, get_arguments_specification
+from ._compat import PY3, get_arguments_specification, functools_wraps
 from .container import DependencyContainer
 from .injector import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
@@ -484,11 +483,11 @@ def _ignore_arguments_excess(func):
     if has_var_args and has_var_kwargs:
         return func
 
-    @wrapt.decorator
-    def decorator(wrapper, _, args, kwargs):
+    @functools_wraps(func)
+    def wrapper(*args, **kwargs):
         # Method is supposed to be bound (self is not in the arguments).
         if len(args) == 1 and not len(kwargs):
-            return wrapper(*args)
+            return func(*args)
 
         new_kwargs = dict()
 
@@ -508,9 +507,9 @@ def _ignore_arguments_excess(func):
             for (name, _), arg in zip(arg_spec, args):
                 new_kwargs[name] = arg
 
-        return wrapper(*new_args, **new_kwargs)
+        return func(*new_args, **new_kwargs)
 
-    return decorator(func)
+    return wrapper
 
 
 class ConfigParserWrapper(object):

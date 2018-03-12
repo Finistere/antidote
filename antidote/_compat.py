@@ -1,6 +1,8 @@
 import inspect
 import sys
-from typing import Sequence, Tuple, Any, Callable
+from typing import Any, Callable, Sequence, Tuple
+
+import functools
 
 PY3 = sys.version_info[0] >= 3
 
@@ -56,3 +58,14 @@ else:
                 argspec.varargs is not None,
                 argspec.keywords is not None,
             )
+
+
+def functools_wraps(f):
+    # for Python 2
+    wrapper_assignments = [
+        attr
+        for attr in functools.WRAPPER_ASSIGNMENTS
+        if hasattr(f, attr)
+    ]
+
+    return functools.wraps(f, assigned=wrapper_assignments)
