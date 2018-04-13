@@ -9,7 +9,7 @@ The container
 
 The core component of Antidote is the :py:class:`~.DependencyContainer` which
 contains dependencies by their *dependency id* and behaves like a
-dictionary. The global container is named :py:attr:`~.world`:
+dictionary:
 
 .. doctest:: quickstart
 
@@ -50,6 +50,61 @@ Now you can retrieve it from the :py:class:`~.DependencyContainer`:
     Hi world !
 
 
+Register parameters (config)
+----------------------------
+
+One usually has some configuration in the form of a :py:class:`configparser.ConfigParser`
+or as a nested dictionary. To enable Antidote to retrieve data from those, a
+parser is needed to transform a dependency ID to a key. As keys are usually
+strings, antidote provides a shortcut to define the parser.
+
+
+.. testcode:: quickstart
+
+    config = {
+        'date': {
+            'year': '2017'
+        }
+    }
+
+    antidote.register_parameters(config, getter='rgetitem', prefix='conf:')
+
+.. doctest:: quickstart
+
+    >>> antidote.container['conf:date.year']
+    '2017'
+
+For more complex cases, :py:meth:`~.DependencyManager.register_parameters` also
+accepts custom parsers:
+
+
+.. testcode:: quickstart
+
+    @antidote.register_parameters(config)
+    def parser(params, dependency_id):
+        if dependency_id == 'conf:date.year':
+            return params['date']['year']
+
+        raise LookUpError(dependency_id)
+
+Custom parsers must return a sequence of keys, which are used to recursively
+retrieve the value from the configuration. If the dependency ID is not a valid
+key, :py:obj:`None` can be returned.
+
+
+.. note::
+
+    If you need a parameter to be casted to another type, you have to use
+    :py:class:`~.container.Prepare`:
+
+    .. doctest:: quickstart
+
+            >>> from antidote import Prepare
+            >>> antidote.container[Prepare('conf:date.year', coerce=int)]
+            2017
+
+        For more information on this, check out :ref:`Prepare <passing_parameter_with_prepare>`
+
 Inject a dependency
 -------------------
 
@@ -85,12 +140,15 @@ And you can still call to :py:func:`speak` with its argument:
 
     Dependency mapping of the arguments to their respective dependency is done
     at the first execution to limit the injection overhead. However, the
-    retrieval of those is done at each execution, for non-singleton
-    services.
+    retrieval of those is done at each execution.
 
     If execution speed matters, one can use :code:`bind=True` to inject the
     dependencies at import time. A :py:func:`functools.partial` is then used to
-    bind the arguments.
+    bind the arguments. However, if your function is called thousands of times
+    in a loop, you should avoid injection.
+
+    Check out the `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_
+    for numbers.
 
 
 Inject without annotations
@@ -136,15 +194,27 @@ If you need to restrict it to only some arguments you can simply specify those:
     Born in 2017
 
 As last resort, if neither the name nor type hints can be used, you can
-specify the dependencies explicitly with :code:`mapping`:
+specify the dependencies explicitly with :code:`arg_map`:
 
 .. doctest:: quickstart
 
-    >>> @antidote.inject(mapping={'my_hello_world': HelloWorld})
-    ... def hi(my_hello_world: HelloWorld):
+    >>> @antidote.inject(arg_map={'my_hello_world': HelloWorld})
+    ... def hi(my_hello_world):
     ...     my_hello_world.say_hi()
     ...
     >>> hi()
+    Hi world !
+
+:code:`arg_map` can also be a sequence of dependencies. Those are directly
+mapped to the arguments with their order:
+
+.. doctest:: quickstart
+
+    >>> @antidote.inject(arg_map=(HelloWorld,))
+    ... def hi_v2(my_hello_world):
+    ...     my_hello_world.say_hi()
+    ...
+    >>> hi_v2()
     Hi world !
 
 .. note::
@@ -180,7 +250,7 @@ does it automatically when registering a service:
     'Antidote'
 
 :py:meth:`~.DependencyManager.register` accepts :code:`use_names` and
-:code:`mapping` parameters with the same meaning as those from
+:code:`arg_map` parameters with the same meaning as those from
 :py:meth:`~.DependencyManager.inject`. By default only :code:`__init__()` is
 injected. :py:meth:`~.DependencyManager.factory` also wires :code:`__call__()`
 if applied on a class (to create

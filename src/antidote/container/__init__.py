@@ -1,8 +1,6 @@
 import threading
-from typing import Any, Dict
-
 from collections import OrderedDict
-from future.utils import raise_from
+from typing import Any, Dict
 
 from .stack import DependencyStack
 from ..exceptions import (
@@ -11,7 +9,7 @@ from ..exceptions import (
 )
 
 
-class DependencyContainer(object):
+class DependencyContainer:
     """
     Container of dependencies. Dependencies are either _factories which must be
     registered or any user-given data.
@@ -59,7 +57,7 @@ class DependencyContainer(object):
 
         try:
             with self._instantiation_lock, \
-                    self._instantiation_stack.instantiating(item):
+                     self._instantiation_stack.instantiating(item):
                 if item in self._data:
                     return self._data[item]
 
@@ -79,7 +77,7 @@ class DependencyContainer(object):
             raise
 
         except Exception as e:
-            raise_from(DependencyInstantiationError(item), e)
+            raise DependencyInstantiationError(item) from e
 
         raise DependencyNotFoundError(item)
 
@@ -92,8 +90,7 @@ class DependencyContainer(object):
     def provide(self, dependency_id, *args, **kwargs):
         return self[Prepare(dependency_id, *args, **kwargs)]
 
-    def update(self, dependencies):
-        # type: (Dict) -> None
+    def update(self, dependencies: Dict):
         """
         Update the cached dependencies.
         """
@@ -154,8 +151,7 @@ class Dependency(object):
 
     __slots__ = ('instance', 'singleton')
 
-    def __init__(self, instance, singleton=False):
-        # type: (Any, bool) -> None
+    def __init__(self, instance: Any, singleton: bool = False) -> None:
         self.instance = instance
         self.singleton = singleton
 

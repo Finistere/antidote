@@ -1,7 +1,7 @@
 import threading
 import time
-import random
 
+import random
 
 from antidote import DependencyManager
 

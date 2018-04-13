@@ -17,9 +17,6 @@ Manager
 
 .. autoclass:: antidote.manager.DependencyManager
     :members:
-    :member-order: bysource
-    :special-members:
-    :exclude-members: __dict__,__weakref__
 
 
 Injector
@@ -27,9 +24,6 @@ Injector
 
 .. autoclass:: antidote.injector.DependencyInjector
     :members:
-    :member-order: bysource
-    :special-members:
-    :exclude-members: __dict__,__weakref__
 
 
 Container
@@ -37,9 +31,8 @@ Container
 
 .. autoclass:: antidote.container.DependencyContainer
     :members:
-    :member-order: bysource
     :special-members:
-    :exclude-members: __dict__,__weakref__
+    :exclude-members: __dict__,__weakref__,__init__,__repr__
 
 
 Providers
@@ -47,16 +40,14 @@ Providers
 
 .. autoclass:: antidote.providers.factories.FactoryProvider
     :members:
-    :member-order: bysource
     :special-members:
-    :exclude-members: __dict__,__weakref__
+    :exclude-members: __dict__,__weakref__,__init__,__repr__
 
 
 .. autoclass:: antidote.providers.parameters.ParameterProvider
     :members:
-    :member-order: bysource
     :special-members:
-    :exclude-members: __dict__,__weakref__
+    :exclude-members: __dict__,__weakref__,__init__,__repr__
 
 
 Exceptions
@@ -64,4 +55,3 @@ Exceptions
 
 .. automodule:: antidote.exceptions
     :members:
-    :member-order: bysource

@@ -1,2 +1,10 @@
+[run]
+branch = True
+
 [html]
 directory = coverage_html_report
+
+[paths]
+source =
+    src/
+    .tox/py*/lib/python*/site-packages/

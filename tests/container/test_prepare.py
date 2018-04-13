@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.container import Prepare
+from antidote import Prepare
 
 
 class Service:

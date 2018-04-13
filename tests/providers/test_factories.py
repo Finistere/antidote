@@ -1,9 +1,9 @@
 import pytest
 
-from antidote.exceptions import (
+from antidote import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
-from antidote.providers.factories import FactoryProvider, DependencyFactory
+from antidote.providers.factories import DependencyFactory, FactoryProvider
 
 
 class Service(object):

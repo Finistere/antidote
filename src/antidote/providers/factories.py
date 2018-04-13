@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict
+from typing import Callable, Dict
 
 from ..container import Dependency
 from ..exceptions import (
@@ -6,14 +6,13 @@ from ..exceptions import (
 )
 
 
-class FactoryProvider(object):
+class FactoryProvider:
     """
     Provider used to store factories. When a dependency is requested, it tries
     to find a matching factory and builds it.
     """
 
-    def __init__(self, auto_wire=True):
-        # type: (bool) -> None
+    def __init__(self, auto_wire: bool = True) -> None:
         self.auto_wire = auto_wire
         self._factories = dict()  # type: Dict
         self._subclass_factories = dict()  # type: Dict
@@ -28,8 +27,8 @@ class FactoryProvider(object):
             tuple(self._subclass_factories.keys())
         )
 
-    def __antidote_provide__(self, dependency_id, *args, **kwargs):
-        # type: (...) -> Dependency
+    def __antidote_provide__(self, dependency_id, *args,
+                             **kwargs) -> Dependency:
         """
         Builds the dependency if a factory associated with the dependency_id
         can be found.
@@ -63,22 +62,22 @@ class FactoryProvider(object):
             singleton=factory.singleton
         )
 
-    def register(self, dependency_id, factory, singleton=True,
-                 build_subclasses=False):
-        # type: (Any, Callable, bool, bool) -> None
+    def register(self,
+                 dependency_id,
+                 factory: Callable,
+                 singleton: bool = True,
+                 build_subclasses: bool = False):
         """
         Register a factory for a dependency.
 
         Args:
             dependency_id: ID of the dependency.
-            factory (callable): Callable to be used to instantiate the
-                dependency.
-            singleton (bool, optional): A singleton will be only be
-                instantiated once. Otherwise the dependency will instantiated
-                anew every time.
-            build_subclasses (bool, optional): If True, subclasses will also
-                be build with this factory. If multiple factories are defined,
-                the first in the MRO is used. Defaults to False.
+            factory: Callable to be used to instantiate the dependency.
+            singleton: A singleton will be only be instantiated once. Otherwise
+                the dependency will instantiated anew every time.
+            build_subclasses: If True, subclasses will also be build with this
+                factory. If multiple factories are defined, the first in the
+                MRO is used.
         """
         if not callable(factory):
             raise ValueError("The `factory` must be callable.")
@@ -107,8 +106,11 @@ class DependencyFactory(object):
     """
     __slots__ = ('factory', 'singleton', 'takes_dependency_id')
 
-    def __init__(self, factory, singleton, takes_dependency_id):
-        # type: (Callable, bool, bool) -> None
+    def __init__(self,
+                 factory,
+                 singleton: bool,
+                 takes_dependency_id: bool
+                 ) -> None:
         self.factory = factory
         self.singleton = singleton
         self.takes_dependency_id = takes_dependency_id

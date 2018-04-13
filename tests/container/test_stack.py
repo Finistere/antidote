@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.container import DependencyStack, DependencyCycleError
+from antidote.container import DependencyCycleError, DependencyStack
 
 
 class Service(object):

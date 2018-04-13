@@ -1,7 +1,9 @@
 import pytest
 
-from antidote import DependencyContainer, DependencyInjector, \
+from antidote import (
+    DependencyContainer, DependencyInjector,
     DependencyNotFoundError
+)
 
 
 def test_bind():
@@ -40,7 +42,7 @@ def test_call():
     assert 1 == a and 2 == b
 
 
-def test_mapping():
+def test_map():
     container = DependencyContainer()
     injector = DependencyInjector(container)
 
@@ -52,19 +54,23 @@ def test_mapping():
     def f(service):
         return service
 
-    inject = injector.inject(mapping=dict(service=Service))
+    inject_mapping = injector.inject(arg_map=dict(service=Service))
+    inject_sequence = injector.inject(arg_map=(Service,))
 
     # function called properly
-    assert container[Service] is inject(f)()
+    assert container[Service] is inject_mapping(f)()
+    assert container[Service] is inject_sequence(f)()
 
     # function called properly
-    assert inject(f)(None) is None
+    assert inject_mapping(f)(None) is None
+    assert inject_sequence(f)(None) is None
 
     def g(service, parameter=2):
         return service, parameter
 
     # argument still passed on
-    assert (container[Service], 2) == inject(g)()
+    assert (container[Service], 2) == inject_mapping(g)()
+    assert (container[Service], 2) == inject_sequence(g)()
 
     class Obj(object):
         def __init__(self, service, parameter=2):
@@ -75,14 +81,18 @@ def test_mapping():
         pass
 
     # faulty mapping
-    inject = injector.inject(mapping=dict(service=UnknownService))
+    inject_mapping = injector.inject(arg_map=dict(service=UnknownService))
+    inject_sequence = injector.inject(arg_map=dict(service=UnknownService))
     with pytest.raises(DependencyNotFoundError):
-        inject(f)()
+        inject_mapping(f)()
+
+    with pytest.raises(DependencyNotFoundError):
+        inject_sequence(f)()
 
     # with no mapping, raises the same as with no arguments
-    inject = injector.inject()
+    inject_mapping = injector.inject()
     with pytest.raises(TypeError):
-        inject(f)()
+        inject_mapping(f)()
 
 
 def test_use_names():

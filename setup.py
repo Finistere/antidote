@@ -3,13 +3,13 @@ import sys
 import shutil
 from codecs import open
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 here = os.path.dirname(os.path.abspath(__file__))
 
 about = {}
-with open(os.path.join(here, 'antidote', '__version__.py'), 'r') as f:
+with open(os.path.join(here, 'src', 'antidote', '__version__.py')) as f:
     exec(f.read(), about)
 
 # 'setup.py publish' shortcut.
@@ -42,12 +42,11 @@ setup(
     long_description=readme,
     author='Benjamin Rabier',
     url='https://github.com/Finistere/antidote',
-    packages=['antidote'],
-    package_data={'': ['LICENSE']},
-    include_package_data=True,
-    install_requires=[
-        'future'
-    ],
+    packages=find_packages('src'),
+    package_dir={'': 'src'},
+    # package_data={'': ['LICENSE']},
+    # include_package_data=True,
+    install_requires=[],
     extras_require={
         ":python_version<'3.5'": ["typing"],
         "attrs": ["attrs>=17.1"]
@@ -59,13 +58,12 @@ setup(
         'Natural Language :: English',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
     ),
-    keywords='dependency injection'
+    keywords='dependency injection',
+    zip_safe=False,
 )

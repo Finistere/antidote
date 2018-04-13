@@ -1,13 +1,12 @@
 import inspect
-from contextlib import contextmanager
-from typing import Any, Iterable
-
 from collections import deque
+from contextlib import contextmanager
+from typing import Iterable
 
 from ..exceptions import DependencyCycleError
 
 
-class DependencyStack(object):
+class DependencyStack:
     """
     Stores the stack of dependency instantiation to detect and prevent cycles
     by raising DependencyCycleError.
@@ -17,8 +16,7 @@ class DependencyStack(object):
     This class is not thread-safe by itself.
     """
 
-    def __init__(self, stack=None):
-        # type: (Iterable) -> None
+    def __init__(self, stack: Iterable = None) -> None:
         self._stack = deque(stack or [])
         self._dependencies = set(self._stack)
 
@@ -31,16 +29,14 @@ class DependencyStack(object):
     def __iter__(self):
         return iter(self._stack)
 
-    def format_stack(self, sep=' => '):
-        # type: (str) -> str
+    def format_stack(self, sep: str = ' => ') -> str:
         """
         Returns a human readable representation of the current stack.
         """
         return sep.join(map(self._format_dependency_id, self._stack))
 
     @classmethod
-    def _format_dependency_id(cls, dependency_id):
-        # type: (Any) -> str
+    def _format_dependency_id(cls, dependency_id) -> str:
         if inspect.isclass(dependency_id):
             return "{}.{}".format(dependency_id.__module__,
                                   dependency_id.__name__)

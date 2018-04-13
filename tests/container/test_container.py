@@ -1,9 +1,9 @@
 import pytest
 
-from antidote.container import Dependency, DependencyContainer, Prepare
-from antidote.exceptions import (
-    DependencyNotFoundError, DependencyNotProvidableError,
-    DependencyCycleError, DependencyInstantiationError
+from antidote import Dependency, DependencyContainer, Prepare
+from antidote import (
+    DependencyCycleError, DependencyInstantiationError,
+    DependencyNotFoundError, DependencyNotProvidableError
 )
 
 

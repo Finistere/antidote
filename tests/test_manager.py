@@ -1,15 +1,13 @@
 import pytest
 
 from antidote import DependencyInstantiationError
-from antidote.container import (
+from antidote import (
     Dependency, DependencyNotFoundError, DependencyNotProvidableError
 )
-from antidote.manager import DependencyManager
+from antidote import DependencyManager
+from antidote.utils import rgetitem
 
-try:
-    from configparser import RawConfigParser
-except ImportError:
-    from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 
 
 def test_inject_bind():
@@ -28,7 +26,7 @@ def test_inject_bind():
     with pytest.raises(TypeError):
         f()
 
-    @manager.inject(mapping=dict(x=Service), bind=True)
+    @manager.inject(arg_map=dict(x=Service), bind=True)
     def g(x):
         return x
 
@@ -80,31 +78,51 @@ def test_inject_with_mapping():
     with pytest.raises(TypeError):
         f()
 
-    @manager.inject(mapping=dict(x=Service))
+    @manager.inject(arg_map=dict(x=Service))
     def g(x):
         return x
 
     assert container[Service] is g()
 
-    @manager.inject(mapping=dict(x=Service))
+    @manager.inject(arg_map=(Service,))
+    def g(x):
+        return x
+
+    assert container[Service] is g()
+
+    @manager.inject(arg_map=dict(x=Service))
     def h(x, b=1):
         return x
 
     assert container[Service] is h()
 
-    manager.mapping = dict(x=Service, y=Service)
-
-    @manager.inject
-    def u(x):
+    @manager.inject(arg_map=(Service,))
+    def h(x, b=1):
         return x
 
-    assert container[Service] is u()
+    assert container[Service] is h()
 
-    @manager.inject(mapping=dict(y=AnotherService))
+    manager.arg_map = dict(x=Service, y=AnotherService)
+
+    @manager.inject
+    def u(x, y):
+        return x, y
+
+    assert container[Service] is u()[0]
+    assert container[AnotherService] is u()[1]
+
+    @manager.inject(arg_map=dict(y=Service))
     def v(x, y):
         return x, y
 
     assert container[Service] is v()[0]
+    assert container[Service] is v()[1]
+
+    @manager.inject(arg_map=(AnotherService,))
+    def v(x, y):
+        return x, y
+
+    assert container[AnotherService] is v()[0]
     assert container[AnotherService] is v()[1]
 
 
@@ -121,7 +139,7 @@ def test_wire():
     manager.register(Service)
     manager.register(AnotherService)
 
-    @manager.wire(mapping=dict(service=Service,
+    @manager.wire(arg_map=dict(service=Service,
                                another_service=AnotherService))
     class Something(object):
         def f(self, service):
@@ -200,7 +218,7 @@ def test_register():
 
     assert isinstance(container[Service], Service)
 
-    @manager.register(mapping=dict(service=Service))
+    @manager.register(arg_map=dict(service=Service))
     class AnotherService(object):
         def __init__(self, service):
             self.service = service
@@ -238,7 +256,7 @@ def test_register():
         container[BrokenService]
 
     @manager.register(auto_wire=('__init__', 'method'),
-                      mapping=dict(service=Service,
+                      arg_map=dict(service=Service,
                                    x=SingleUsageService,
                                    yet=YetAnotherService))
     class ComplexWiringService(object):
@@ -293,7 +311,7 @@ def test_factory_function():
         def __init__(self, service):
             self.service = service
 
-    @manager.factory(mapping=dict(service=Service),
+    @manager.factory(arg_map=dict(service=Service),
                      dependency_id=AnotherService)
     def another_service_provider(service):
         return AnotherService(service)
@@ -350,7 +368,7 @@ def test_factory_class():
         def __init__(self, service):
             self.service = service
 
-    @manager.factory(mapping=dict(service=Service),
+    @manager.factory(arg_map=dict(service=Service),
                      dependency_id=AnotherService)
     class AnotherServiceProvider(object):
         def __init__(self, service):
@@ -386,7 +404,7 @@ def test_factory_class():
         pass
 
     @manager.factory(use_names=True,
-                     mapping=dict(service=Service),
+                     arg_map=dict(service=Service),
                      auto_wire=('__init__',),
                      dependency_id=OtherService)
     class OtherServiceProvider(object):
@@ -526,24 +544,28 @@ def test_parameters():
     manager = DependencyManager()
     container = manager.container
 
-    manager.parameters({'param': '1', 'paramb': {'test': 2}},
-                       parser='split', prefix='conf:')
+    manager.register_parameters({'param': '1', 'paramb': {'test': 2}},
+                                getter='rgetitem', prefix='conf:')
 
     assert '1' == container['conf:param']
-    assert 1 == container.provide('conf:param', type=int)
+    assert 1 == container.provide('conf:param', coerce=int)
     assert 2 == container['conf:paramb.test']
 
-    manager.parameters({'param_1': {'test': 'test'}}, parser='split', sep='|')
+    manager.register_parameters({'param_1': {'test': 'test'}},
+                                getter='rgetitem',
+                                sep='|')
 
     assert 'test' == container['param_1|test']
 
     with pytest.raises(ValueError):
-        manager.parameters(object(), parser=object())
+        manager.register_parameters(object(), getter=object())
 
-    @manager.parameters({'a': {'b': {'c': 99}}})
-    def parser(item):
+    @manager.register_parameters({'a': {'b': {'c': 99}}})
+    def parser(obj, item):
         if isinstance(item, str):
-            return list(item)
+            return rgetitem(obj, list(item))
+
+        raise LookupError(item)
 
     assert 99 == container['abc']
 
@@ -559,10 +581,10 @@ def test_parameters_with_configparser():
     cfg.add_section('test')
     cfg.set('test', 'param', '100')
 
-    manager.parameters(cfg, parser='split')
+    manager.register_parameters(cfg, 'rgetitem')
 
     assert '100' == container['test.param']
-    assert 100 == container.provide('test.param', type=int)
+    assert 100 == container.provide('test.param', coerce=int)
 
     with pytest.raises(DependencyNotFoundError):
         container['section.option']

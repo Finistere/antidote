@@ -1,26 +1,22 @@
-import typing
-from itertools import islice
-from typing import (
-    Callable, Dict, Iterable, List, Mapping, Sequence, Tuple,
-    Union
-)
-
 import functools
+import typing
+from collections import Mapping, Sequence
+from itertools import islice
+from typing import Callable, Dict, Iterable, Tuple, Union
 
-from ._compat import get_arguments_specification, functools_wraps
 from .container import DependencyContainer, DependencyNotFoundError
+from .utils import get_arguments_specification
 
 _EMPTY_DEPENDENCY = object()
 
 
-class DependencyInjector(object):
+class DependencyInjector:
     """
     Injects the dependencies from a container before building an object or
     calling a function.
     """
 
-    def __init__(self, container):
-        # type: (DependencyContainer) -> None
+    def __init__(self, container: DependencyContainer) -> None:
         """Initialize the DependencyInjector.
 
         Args:
@@ -37,19 +33,21 @@ class DependencyInjector(object):
             self._container
         )
 
-    def inject(self, func=None, mapping=None, use_names=False):
-        # type: (Callable, Mapping, Union[bool, Iterable[str]]) -> Callable
+    def inject(self,
+               func: Callable = None,
+               arg_map: Union[Mapping, Sequence] = None,
+               use_names: Union[bool, Iterable[str]] = False
+               ) -> Callable:
         """Inject the dependency into the function.
 
         Args:
-            func (callable): Callable for which the argument should be
-                injected.
-            mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency id. Overrides annotations.
-                Defaults to None.
-            use_names (bool, optional): Whether the arguments name
-                should be used to search for a dependency when no mapping,
-                nor annotation is found. Defaults to False.
+            func: Callable for which the argument should be injected.
+            arg_map: Custom mapping of the arguments name to their respective
+                dependency id. A sequence of dependencies can also be
+                specified, arguments will be mapped automatically. Annotations
+                are overriden.
+            use_names: Whether the arguments name should be used to search for
+                a dependency when no mapping, nor annotation is found.
 
         Returns:
             callable: The decorator to be applied.
@@ -58,22 +56,23 @@ class DependencyInjector(object):
         generate_args_kwargs = self._generate_args_kwargs
 
         def _inject(f):
-            # Using nonlocal would be ideal.
-            non_local = [None]  # type: List[Sequence]
+            injection_blueprint = None  # type: Sequence
 
-            @functools_wraps(f)
+            @functools.wraps(f)
             def wrapper(*args, **kwargs):
-                if non_local[0] is None:
-                    non_local[0] = self._generate_injection_blueprint(
+                nonlocal injection_blueprint
+
+                if injection_blueprint is None:
+                    injection_blueprint = self._generate_injection_blueprint(
                         func=f,
                         use_names=use_names,
-                        mapping=mapping or dict()
+                        arg_map=arg_map or dict()
                     )
 
                 args, kwargs = generate_args_kwargs(
                     args=args,
                     kwargs=kwargs,
-                    injection_blueprint=non_local[0]
+                    injection_blueprint=injection_blueprint
                 )
 
                 return f(*args, **kwargs)
@@ -83,31 +82,27 @@ class DependencyInjector(object):
         return func and _inject(func) or _inject
 
     def bind(self,
-             func=None,  # type: Callable
-             use_names=False,  # type: Union[bool, Iterable[str]]
-             mapping=None,  # type: Mapping
-             args=None,  # type: Sequence
-             kwargs=None  # type: Dict
-             ):
-        # type: (...) -> Callable
+             func: Callable = None,
+             arg_map: Union[Mapping, Sequence] = None,
+             use_names: Union[bool, Iterable[str]] = False,
+             args: Sequence = None,
+             kwargs: Dict = None
+             ) -> Callable:
         """
         Creates a partial function with the injected arguments.
 
         It should be used whenever a function is called repeatedly.
 
         Args:
-            func (callable): Callable for which the argument should be
-                injected.
-            use_names (bool, optional): Whether the arguments name
-                should be used to search for a dependency when no mapping,
-                nor annotation is found. Defaults to False.
-            mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency id. Overrides annotations.
-                Defaults to None.
-            args (iterable, optional): Positional arguments which override any
-                injection. Defaults to None.
-            kwargs (dict, optional): Keyword arguments which override any
-                injection. Defaults to None.
+            func: Callable for which the argument should be injected.
+            arg_map: Custom mapping of the arguments name to their respective
+                dependency id. A sequence of dependencies can also be
+                specified, arguments will be mapped automatically. Annotations
+                are overriden.
+            use_names: Whether the arguments name should be used to search for
+                a dependency when no mapping, nor annotation is found.
+            args: Positional arguments which override any injection.
+            kwargs: Keyword arguments which override any injection.
 
         Returns:
             callable: Partial function with its dependencies injected.
@@ -118,7 +113,7 @@ class DependencyInjector(object):
             new_args, new_kwargs = self._inject_into_arg_kwargs(
                 func=f,
                 use_names=use_names,
-                mapping=mapping or dict(),
+                arg_map=arg_map or dict(),
                 args=args or tuple(),
                 kwargs=kwargs or dict()
             )
@@ -128,30 +123,26 @@ class DependencyInjector(object):
         return func and _bind(func) or _bind
 
     def call(self,
-             func,  # type: Callable
-             use_names=False,  # type: Union[bool, Iterable[str]]
-             mapping=None,  # type: Mapping
-             args=None,  # type: Sequence
-             kwargs=None  # type: Dict
-             ):
-        # type: (...) -> Callable
+             func: Callable = None,
+             arg_map: Union[Mapping, Sequence] = None,
+             use_names: Union[bool, Iterable[str]] = False,
+             args: Sequence = None,
+             kwargs: Dict = None
+             ) -> Callable:
         """
         Call a function with specified arguments and keyword arguments.
         Dependencies are injected if not satisfied.
 
         Args:
-            func (callable): Callable for which the argument should be
-                injected.
-            use_names (bool, optional): Whether the arguments name
-                should be used to search for a dependency when no mapping,
-                nor annotation is found. Defaults to False.
-            mapping (dict, optional): Custom mapping of the arguments name
-                to their respective dependency id. Overrides annotations.
-                Defaults to None.
-            args (iterable, optional): Positional arguments which override any
-                injection. Defaults to None.
-            kwargs (dict, optional): Keyword arguments which override any
-                injection. Defaults to None.
+            func: Callable for which the argument should be injected.
+            arg_map: Custom mapping of the arguments name to their respective
+                dependency id. A sequence of dependencies can also be
+                specified, arguments will be mapped automatically. Annotations
+                are overriden.
+            use_names: Whether the arguments name should be used to search for
+                a dependency when no mapping, nor annotation is found.
+            args: Positional arguments which override any injection.
+            kwargs: Keyword arguments which override any injection.
 
         Returns:
             Returns whatever the function returns.
@@ -161,7 +152,7 @@ class DependencyInjector(object):
         new_args, new_kwargs = self._inject_into_arg_kwargs(
             func=func,
             use_names=use_names,
-            mapping=mapping or dict(),
+            arg_map=arg_map or dict(),
             args=args or tuple(),
             kwargs=kwargs or dict()
         )
@@ -169,13 +160,12 @@ class DependencyInjector(object):
         return func(*new_args, **new_kwargs)
 
     def _inject_into_arg_kwargs(self,
-                                func,  # type: Callable
-                                use_names,  # type: Union[bool, Iterable[str]]
-                                mapping,  # type: Mapping
-                                args,  # type: Sequence
-                                kwargs  # type: Dict
-                                ):
-        # type: (...) -> Tuple[Sequence, Dict]
+                                func: Callable = None,
+                                arg_map: Union[Mapping, Sequence] = None,
+                                use_names: Union[bool, Iterable[str]] = False,
+                                args: Sequence = None,
+                                kwargs: Dict = None
+                                ) -> Tuple[Sequence, Dict]:
         """
         Utility function to generate the injection blueprint and the new
         arguments in one step.
@@ -185,13 +175,16 @@ class DependencyInjector(object):
             kwargs=kwargs or dict(),
             injection_blueprint=self._generate_injection_blueprint(
                 func=func,
-                mapping=mapping or dict(),
+                arg_map=arg_map or dict(),
                 use_names=use_names
             )
         )
 
-    def _generate_args_kwargs(self, args, kwargs, injection_blueprint):
-        # type: (Sequence, Dict, Sequence) -> Tuple[Sequence, Dict]
+    def _generate_args_kwargs(self,
+                              args: Sequence,
+                              kwargs: Dict,
+                              injection_blueprint: Sequence
+                              ) -> Tuple[Sequence, Dict]:
         """
         Generate the new arguments to be injected by retrieving all
         dependencies defined in the blueprint if it is not set by the passed
@@ -216,7 +209,7 @@ class DependencyInjector(object):
         return args, kwargs
 
     @classmethod
-    def _generate_injection_blueprint(cls, func, use_names, mapping):
+    def _generate_injection_blueprint(cls, func, use_names, arg_map):
         # No type hints yet. Mypy does not handle properly the conversion of
         # use_names to a set and typing.get_type_hints raises an error as it
         # lacks typing information.
@@ -240,9 +233,14 @@ class DependencyInjector(object):
             del argument_mapping['return']
         except KeyError:
             pass
-        argument_mapping.update(mapping)
 
         arg_spec, _, _ = get_arguments_specification(func)
+
+        if isinstance(arg_map, Mapping):
+            argument_mapping.update(arg_map)
+        elif isinstance(arg_map, Sequence):
+            for (name, _), dependency_id in zip(arg_spec, arg_map):
+                argument_mapping[name] = dependency_id
 
         use_names = set(
             (e[0] for e in arg_spec)

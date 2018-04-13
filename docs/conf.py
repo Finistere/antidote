@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.abspath('_themes'))
 here = os.path.abspath(os.path.dirname(__file__))
 
 about = {}
-with open(os.path.join(here, "..", "antidote", "__version__.py")) as f:
+with open(os.path.join(here, "..", "src", "antidote", "__version__.py")) as f:
     exec(f.read(), about)
 
 # -- General configuration ------------------------------------------------
@@ -46,6 +46,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
+    'sphinx_autodoc_typehints'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

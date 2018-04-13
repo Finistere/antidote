@@ -38,7 +38,6 @@ Features Highlight
   (>= v17.1).
 - Thread-safe and limited performance impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
-- Python 2.7 support (without type hints, obviously :))
 - Dependency cycle detection.
 - Other dependencies, such as configuration parameters, can be easily added
   for injection as a dictionary.
@@ -61,30 +60,37 @@ Quick Start
 
 Let's suppose you have database class from an external library and you wrap it
 with a custom class for easier usage. Antidote can do all the wiring for you.
-
 With type hints, it is straight-forward:
+
 
 .. code-block:: python
 
     from antidote import antidote
 
-    class Database(object):
+
+    class Database:
         """
         Class from an external library.
         """
         def __init__(self, *args, **kwargs):
             """ Initializes the database. """
 
+    config = {
+        'db': {
+            'host': 'host',
+            'user': 'user',
+            'password': 'password',
+        }
+    }
+
     # Simple way to add some configuration.
-    antidote.container.update(dict(
-        db_host='host',
-        db_user='user',
-        db_password='password',
-    ))
+    # Any Mapping or a ConfigParser can be used.
+    antidote.register_parameters(config, getter='rgetitem', prefix='conf:')
 
     # Declare a factory which should be called to instantiate Database.
     # Variables names are used here for injection.
-    @antidote.factory(use_names=True)
+    @antidote.factory(arg_map=('conf:db.host', 'conf:db.user',
+                               'conf:db.password'))
     def database_factory(db_host, db_user, db_password) -> Database:
         """
         Configure your database.
@@ -97,7 +103,7 @@ With type hints, it is straight-forward:
 
     # Declare DatabaseWrapper as a service to be injected.
     @antidote.register
-    class DatabaseWrapper(object):
+    class DatabaseWrapper:
         """
         Your class to manage the database.
         """
@@ -118,76 +124,10 @@ With type hints, it is straight-forward:
     # You can still explicitly pass the arguments to override
     # injection.
     f(DatabaseWrapper(database_factory(
-        db_host='host',
-        db_user='user',
-        db_password='password'
+        db_host=config['db']['host'],
+        db_user=config['db']['user'],
+        db_password=config['db']['password']
     )))
-
-For Python 2, the example is a bit more verbose as you need to compensate for
-the lack of annotations:
-
-.. code-block:: python
-
-    from antidote import antidote
-
-
-    class Database(object):
-        """
-        Class from an external library.
-        """
-        def __init__(self, *args, **kwargs):
-            """ Initializes the database. """
-
-    # Simple way to add some configuration.
-    antidote.container.update(dict(
-        db_host='host',
-        db_user='user',
-        db_password='password',
-    ))
-
-    # Declare a factory which should be called to instantiate Database.
-    # Variables names are used here for injection.
-    # PY2: The id of the returned service is specified.
-    @antidote.factory(use_names=True, dependency_id=Database)
-    def database_factory(db_host, db_user, db_password):
-        """
-        Configure your database.
-        """
-        return Database(
-            host=db_host,
-            user=db_user,
-            password=db_password
-        )
-
-    # Declare DatabaseWrapper as a service to be injected.
-    # PY2: A class-wide argument -> dependency mapping is specified.
-    @antidote.register(mapping=dict(db=Database))
-    class DatabaseWrapper(object):
-        """
-        Your class to manage the database.
-        """
-
-        # Dependencies of __init__() are injected by default when
-        # registering a service.
-        def __init__(self, db):
-            self.db = db
-
-    # PY2: An argument -> dependency mapping is specified.
-    @antidote.inject(mapping=dict(db=DatabaseWrapper))
-    def f(db):
-        """ Do something with your database. """
-
-    # Can be called without arguments now.
-    f()
-
-    # You can still explicitly pass the arguments for testing
-    # for example.
-    f(DatabaseWrapper(database_factory(
-        db_host='host',
-        db_user='user',
-        db_password='password'
-    )))
-
 
 
 Documentation

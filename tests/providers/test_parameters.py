@@ -1,22 +1,8 @@
 import pytest
 
-from antidote.exceptions import DependencyNotProvidableError
-from antidote.providers.parameters import ParameterProvider, rgetitem
-
-
-def test_rgetitem():
-    data = {
-        'data': {
-            'key1': object()
-        },
-        'something': object()
-    }
-
-    assert data['something'] is rgetitem(data, ['something'])
-    assert data['data']['key1'] is rgetitem(data, ['data', 'key1'])
-
-    with pytest.raises(KeyError):
-        rgetitem(data, ['data', 'nothing'])
+from antidote import DependencyNotProvidableError
+from antidote.providers import ParameterProvider
+from antidote.utils import rgetitem
 
 
 def test_register():
@@ -31,10 +17,12 @@ def test_register():
         1: 1
     }
 
-    def conf_parser(dependency_id):
+    def conf_parser(parameters, dependency_id):
         if isinstance(dependency_id, str):
             if dependency_id.startswith('conf:'):
-                return dependency_id[5:].split('.')
+                return rgetitem(parameters, dependency_id[5:].split('.'))
+
+        raise LookupError(dependency_id)
 
     provider.register(conf, conf_parser)
 
