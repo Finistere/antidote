@@ -1,6 +1,4 @@
 import inspect
-from functools import reduce
-from operator import getitem
 from typing import Callable, Sequence, Tuple
 
 ArgSpecAliasType = Tuple[Sequence[Tuple[str, bool]], bool, bool]
@@ -27,10 +25,3 @@ def get_arguments_specification(func: Callable) -> ArgSpecAliasType:
                           parameter.default is not parameter.empty))
 
     return arguments, has_var_positional, has_var_keyword
-
-
-def rgetitem(obj, items):
-    try:
-        return reduce(getitem, items, obj)
-    except (TypeError, KeyError):
-        raise KeyError(items)

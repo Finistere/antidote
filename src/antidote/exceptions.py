@@ -1,22 +1,37 @@
-class DependencyError(Exception):
+class AntidoteError(Exception):
     """ Base class of all errors of antidote. """
 
 
-class DependencyDuplicateError(ValueError, DependencyError):
-    """ A dependency already exists with the same id. """
+class DependencyDuplicateError(ValueError, AntidoteError):
+    """
+    A dependency already exists with the same id.
+    *May* be raised by providers.
+    """
 
 
-class DependencyInstantiationError(TypeError, DependencyError):
-    """ The dependency could not be instantiated. """
+class DependencyInstantiationError(TypeError, AntidoteError):
+    """
+    The dependency could not be instantiated.
+    Raised by the container.
+    """
 
 
-class DependencyCycleError(RuntimeError, DependencyError):
-    """ A dependency cycle is found. """
+class DependencyCycleError(RuntimeError, AntidoteError):
+    """
+    A dependency cycle is found.
+    Raised by the container.
+    """
 
 
-class DependencyNotProvidableError(LookupError, DependencyError):
-    """ The dependency could not be instantiated by a providers. """
+class DependencyNotProvidableError(LookupError, AntidoteError):
+    """
+    The dependency could not be provided.
+    Raised by providers.
+    """
 
 
-class DependencyNotFoundError(KeyError, DependencyError):
-    """ The dependency could not be found in the container. """
+class DependencyNotFoundError(KeyError, AntidoteError):
+    """
+    The dependency could not be found in the container.
+    Raised by the container.
+    """

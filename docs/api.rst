@@ -34,6 +34,9 @@ Container
     :special-members:
     :exclude-members: __dict__,__weakref__,__init__,__repr__
 
+.. autoclass:: antidote.container.Prepare
+    :members:
+
 
 Providers
 ---------

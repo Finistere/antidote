@@ -8,8 +8,8 @@ from ..exceptions import (
 
 class FactoryProvider:
     """
-    Provider used to store factories. When a dependency is requested, it tries
-    to find a matching factory and builds it.
+    Provider managing factories. When a dependency is requested, it tries
+    to find a matching factory and builds it. Subclasses may also be built.
     """
 
     def __init__(self, auto_wire: bool = True) -> None:
@@ -34,13 +34,12 @@ class FactoryProvider:
         can be found.
 
         Args:
-            dependency_id: ID of the dependency
-            *args: passed on to the factory
-            **kwargs: passed on to the factory
+            dependency_id: ID of the dependency.
+            *args: passed on to the factory.
+            **kwargs: passed on to the factory.
 
         Returns:
-            Dependency: The build object wrapped with
-                :py:class:`~.container.Dependency`
+            A :py:class:`~.container.Dependency` wrapping the built dependency.
         """
         try:
             factory = self._factories[dependency_id]
@@ -72,9 +71,9 @@ class FactoryProvider:
 
         Args:
             dependency_id: ID of the dependency.
-            factory: Callable to be used to instantiate the dependency.
-            singleton: A singleton will be only be instantiated once. Otherwise
-                the dependency will instantiated anew every time.
+            factory: Callable used to instantiate the dependency.
+            singleton: Whether the dependency should be mark as singleton or
+                not for the :py:class:`~..container.DependencyContainer`.
             build_subclasses: If True, subclasses will also be build with this
                 factory. If multiple factories are defined, the first in the
                 MRO is used.
@@ -102,6 +101,8 @@ class FactoryProvider:
 
 class DependencyFactory(object):
     """
+    Only used by the FactoryProvider, not part of the public API.
+
     Simple container to store information on how the factory has to be used.
     """
     __slots__ = ('factory', 'singleton', 'takes_dependency_id')

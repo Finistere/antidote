@@ -5,7 +5,7 @@ from antidote import (
     Dependency, DependencyNotFoundError, DependencyNotProvidableError
 )
 from antidote import DependencyManager
-from antidote.utils import rgetitem
+from operator import getitem
 
 from configparser import RawConfigParser
 
@@ -431,7 +431,7 @@ def test_provider():
         def __init__(self, service=None):
             self.service = service
 
-        def __antidote_provide__(self, dependency_id):
+        def __antidote_provide__(self, dependency_id, *ags, **kwargs):
             if dependency_id == 'test':
                 return Dependency(dependency_id)
             else:
@@ -458,86 +458,8 @@ def test_provider():
             def __init__(self, service):
                 self.service = service
 
-            def __antidote_provide__(self, dependency_id):
+            def __antidote_provide__(self, dependency_id, *ags, **kwargs):
                 return Dependency(dependency_id)
-
-
-def test_provider_ignore_excess_arguments():
-    manager = DependencyManager()
-    container = manager.container
-
-    @manager.provider
-    class DummyProvider(object):
-        def __antidote_provide__(self, dependency_id):
-            return Dependency(dependency_id)
-
-    s = object()
-    assert s is container.provide(s, 1, 2)
-    assert s is container.provide(s, random=1)
-    assert s is container.provide(s, 1, another=1)
-
-
-def test_provider_ignore_excess_arguments_2a():
-    manager = DependencyManager()
-    container = manager.container
-
-    @manager.provider
-    class DummyProvider(object):
-        def __antidote_provide__(self, dependency_id, param=None):
-            return Dependency((dependency_id, param))
-
-    s = object()
-    assert (s, 1) == container.provide(s, 1)
-    assert (s, 1) == container.provide(s, 1, 2, 3)
-    assert (s, 1) == container.provide(s, param=1)
-    assert (s, None) == container.provide(s, random=1)
-
-
-def test_provider_ignore_excess_arguments_2b():
-    manager = DependencyManager()
-    container = manager.container
-
-    @manager.provider
-    class DummyProvider(object):
-        def __antidote_provide__(self, dependency_id, param=None, *args):
-            return Dependency((dependency_id, param, args))
-
-    s = object()
-    assert (s, 1, tuple()) == container.provide(s, 1)
-    assert (s, 1, (2,)) == container.provide(s, 1, 2)
-    assert (s, 1, tuple()) == container.provide(s, param=1)
-    assert (s, None, tuple()) == container.provide(s, random=1)
-
-
-def test_provider_ignore_excess_arguments_2c():
-    manager = DependencyManager()
-    container = manager.container
-
-    @manager.provider
-    class DummyProvider(object):
-        def __antidote_provide__(self, dependency_id, param=None, **kwargs):
-            return Dependency((dependency_id, param, kwargs))
-
-    s = object()
-    assert (s, 1, {}) == container.provide(s, 1)
-    assert (s, 1, {}) == container.provide(s, param=1)
-    assert (s, 1, {'test': 2}) == container.provide(s, param=1, test=2)
-    assert (s, None, {'random': 1}) == container.provide(s, random=1)
-
-
-def test_provider_ignore_excess_arguments_3():
-    manager = DependencyManager()
-    container = manager.container
-
-    @manager.provider
-    class DummyProvider(object):
-        def __antidote_provide__(self, dependency_id, *args, **kwargs):
-            return Dependency((dependency_id, args, kwargs))
-
-    s = object()
-    assert (s, (1,), {}) == container.provide(s, 1)
-    assert (s, tuple(), {'random': 1}) == container.provide(s, random=1)
-    assert (s, (1,), {'random': 1}) == container.provide(s, 1, random=1)
 
 
 def test_parameters():
@@ -545,15 +467,15 @@ def test_parameters():
     container = manager.container
 
     manager.register_parameters({'param': '1', 'paramb': {'test': 2}},
-                                getter='rgetitem', prefix='conf:')
+                                getter=getitem, prefix='conf:', split='.')
 
     assert '1' == container['conf:param']
     assert 1 == container.provide('conf:param', coerce=int)
     assert 2 == container['conf:paramb.test']
 
     manager.register_parameters({'param_1': {'test': 'test'}},
-                                getter='rgetitem',
-                                sep='|')
+                                getter=getitem,
+                                split='|')
 
     assert 'test' == container['param_1|test']
 
@@ -562,8 +484,9 @@ def test_parameters():
 
     @manager.register_parameters({'a': {'b': {'c': 99}}})
     def parser(obj, item):
+        from functools import reduce
         if isinstance(item, str):
-            return rgetitem(obj, list(item))
+            return reduce(getitem, list(item), obj)
 
         raise LookupError(item)
 
@@ -581,7 +504,7 @@ def test_parameters_with_configparser():
     cfg.add_section('test')
     cfg.set('test', 'param', '100')
 
-    manager.register_parameters(cfg, 'rgetitem')
+    manager.register_parameters(cfg, getter=getitem, split='.')
 
     assert '100' == container['test.param']
     assert 100 == container.provide('test.param', coerce=int)

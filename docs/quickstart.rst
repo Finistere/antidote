@@ -8,8 +8,8 @@ The container
 -------------
 
 The core component of Antidote is the :py:class:`~.DependencyContainer` which
-contains dependencies by their *dependency id* and behaves like a
-dictionary:
+builds dependencies upon request and caches them if possible. It behaves like
+a dictionary:
 
 .. doctest:: quickstart
 
@@ -49,6 +49,7 @@ Now you can retrieve it from the :py:class:`~.DependencyContainer`:
     >>> my_hello_world.say_hi()
     Hi world !
 
+Note here that the instance is built lazily: it is only built when needed.
 
 Register parameters (config)
 ----------------------------
@@ -61,13 +62,16 @@ strings, antidote provides a shortcut to define the parser.
 
 .. testcode:: quickstart
 
+    from operator import getitem
+
     config = {
         'date': {
             'year': '2017'
         }
     }
 
-    antidote.register_parameters(config, getter='rgetitem', prefix='conf:')
+    antidote.register_parameters(config, getter=getitem, prefix='conf:',
+                                 split='.')
 
 .. doctest:: quickstart
 
@@ -254,7 +258,7 @@ does it automatically when registering a service:
 :py:meth:`~.DependencyManager.inject`. By default only :code:`__init__()` is
 injected. :py:meth:`~.DependencyManager.factory` also wires :code:`__call__()`
 if applied on a class (to create
-:ref:`stateful factories <advanced_usage_stateful_factory_label>`).
+:ref:`stateful factories <advanced_usage:Registering a stateful factory>`).
 
 If you need to wire multiples methods, you only need to specify them:
 

@@ -1,16 +1,20 @@
-import functools
 import inspect
 import weakref
 from collections import Mapping, Sequence
-from typing import Any, Callable, Dict, Iterable, Type, Union, get_type_hints
+from functools import reduce
+from typing import (
+    Any, Callable, Dict, Iterable, Type, TypeVar, Union, get_type_hints
+)
 
 from .container import DependencyContainer
 from .injector import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
-from .utils import get_arguments_specification, rgetitem
+from .utils import get_arguments_specification
 
 ContainerAliasType = Union[Type[DependencyContainer], DependencyContainer]
 InjectorAliasType = Union[Type[DependencyInjector], DependencyInjector]
+
+T = TypeVar('T')
 
 
 class DependencyManager:
@@ -105,21 +109,24 @@ class DependencyManager:
                use_names: Union[bool, Iterable[str]] = None,
                bind: bool = False
                ) -> Callable:
-        """Inject the dependency into the function.
+        """Inject dependencies into the function.
 
         Args:
             func: Callable for which the argument should be injected.
-            use_names: Whether the arguments name should be used to search for
-                a dependency when no mapping, nor annotation is found.
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
-                specified, arguments will be mapped automatically. Annotations
-                are overriden.
-            bind: bind arguments with functools.partial directly to avoid
-                service retrieval overhead.
+                specified, which will be mapped to the arguments through their
+                order. Annotations are overriden.
+            use_names: Whether the arguments name should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments. Annotations are
+                overriden, but not the arg_map.
+            bind: bind arguments with :py:func:`functools.partial` directly to
+                avoid the overhead of retrieving dependencies. This should only
+                be used when necessary, it makes testing a lot more difficult.
 
         Returns:
-            callable: The injected function.
+            The injected function or a decorator.
 
         """
         if use_names is None:
@@ -150,24 +157,27 @@ class DependencyManager:
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
                  use_names: Union[bool, Iterable[str]] = None
-                 ) -> Callable:
+                 ) -> Union[Callable, type]:
         """Register a dependency by its class.
 
         Args:
-            cls: Object to register as a dependency.
-            singleton: A singleton will be only be instantiated once. Otherwise
-                the dependency will instantiated anew every time.
+            cls: Class to register as a dependency. It will be instantiated
+                only when requested.
+            singleton: If True, the class will be instantiated only once,
+                further will receive the same instance.
             auto_wire: Injects automatically the dependencies of the methods
                 specified, or only of :code:`__init__()` if True.
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
-                specified, arguments will be mapped automatically. Annotations
-                are overriden.
-            use_names: Whether the arguments name should be used to search for
-                a dependency when no mapping, nor annotation is found.
+                specified, which will be mapped to the arguments through their
+                order. Annotations are overriden.
+            use_names: Whether the arguments name should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments. Annotations are
+                overriden, but not the arg_map.
 
         Returns:
-            object: The dependency.
+            The class or the class decorator.
 
         """
         if auto_wire is None:
@@ -209,20 +219,24 @@ class DependencyManager:
 
         Args:
             func: Callable which builds the dependency.
-            dependency_id: Id of the dependency. Defaults to the
-                dependency_provider.
+            dependency_id: Id of the dependency. Defaults to the return type of
+                :code:`func` if specified.
             singleton: If True the dependency_provider is called only once.
                 Otherwise it is called anew every time.
-            auto_wire: Injects automatically the dependencies of the methods
-                specified, or only of :code:`__init__()` and :code:`__call__()`
-                if True. If True and the providers is a function, its arguments
-                will be injected.
+            auto_wire: If :code:`func` is a function, its dependencies are
+                injected if True. Should :code:`func` be a class with
+                :py:func:`__call__`, dependencies of :code:`__init__()` and
+                :code:`__call__()` will be injected if True. One may also
+                provide an iterable of method names requiring dependency
+                injection.
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
-                specified, arguments will be mapped automatically. Annotations
-                are overriden.
-            use_names: Whether the arguments name should be used to search for
-                a dependency when no mapping, nor annotation is found.
+                specified, which will be mapped to the arguments through their
+                order. Annotations are overriden.
+            use_names: Whether the arguments name should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments. Annotations are
+                overriden, but not the arg_map.
             build_subclasses: If True, subclasses will also be build with this
                 factory. If multiple factories are defined, the first in the
                 MRO is used.
@@ -276,7 +290,8 @@ class DependencyManager:
     def wire(self,
              cls: type = None,
              methods: Iterable[str] = None,
-             **inject_kwargs) -> Callable:
+             **inject_kwargs
+             ) -> Union[Callable, type]:
         """Wire a class by injecting the dependencies in all specified methods.
 
         Args:
@@ -317,14 +332,14 @@ class DependencyManager:
                dependency_id=None,
                use_name: Union[bool, Iterable[str]] = None,
                **attr_kwargs
-               ) -> Callable:
+               ):
         """Injects a dependency with attributes defined with attrs package.
 
         Args:
             dependency_id: Id of the dependency to inject. Defaults to the
-                annotation or attribute name if use_names.
-            use_name: If True, use the attribute name to identify the
-                dependency.
+                annotation.
+            use_name: If True, use the attribute name as the dependency id
+                overriding any annotations.
             **attr_kwargs: Keyword arguments passed on to attr.ib()
 
         Returns:
@@ -376,22 +391,28 @@ class DependencyManager:
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
                  use_names: Union[bool, Iterable[str]] = None
-                 ):
+                 ) -> Union[Callable, type]:
         """Register a providers by its class.
 
         Args:
-            cls: class to register as a providers.
-            auto_wire: Injects automatically the dependencies of the methods
-                specified, or only of :py:meth:`__init__` if True.
-            arg_map : Custom mapping of the arguments name to their respective
+            cls: class to register as a provider. The class must have a
+                :code:`__antidote_provide()` method accepting as first argument
+                the dependency id. Variable keyword and positional arguments
+                must be accepted as they may be provided.
+            auto_wire: If True, the dependencies of :code:`__init__()` are
+                injected. An iterable of method names which require dependency
+                injection may also be specified.
+            arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
-                specified, arguments will be mapped automatically. Annotations
-                are overriden.
-            use_names: Whether the arguments name should be used to search for
-                a dependency when no mapping, nor annotation is found.
+                specified, which will be mapped to the arguments through their
+                order. Annotations are overriden.
+            use_names: Whether the arguments name should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments. Annotations are
+                overriden, but not the arg_map.
 
         Returns:
-            type: the providers's class.
+            the providers's class or the class decorator.
         """
         if auto_wire is None:
             auto_wire = self.auto_wire
@@ -415,98 +436,64 @@ class DependencyManager:
                     use_names=use_names
                 )
 
-            instance = _cls()
-            instance.__antidote_provide__ = _ignore_arguments_excess(
-                instance.__antidote_provide__
-            )
-
-            self.container.providers[_cls] = instance
+            self.container.providers[_cls] = _cls()
 
             return _cls
 
         return cls and register_provider(cls) or register_provider
 
     def register_parameters(self,
-                            data: Mapping,
-                            getter: Union[Callable, str] = None,
+                            parameters: T,
+                            getter: Union[Callable[[T, Any], Any], str] = None,
                             prefix: str = '',
-                            sep: str = '.'
+                            split: str = ''
                             ) -> Callable:
         """
         Register a mapping of parameters and its associated parser.
 
         Args:
-            data: Mapping containing the parameters
-            getter: Function which parses a dependency ID to an iterable of
-                keys, used to recursively retrieve the parameter from the
-                mapping. If no key can be parsed, :py:obj:`None` should be
-                returned. For simplicity, if :code:`'split'` is specified, a
-                parser is created which splits strings.
-            prefix: If :code:`parser` is :code:`'split'`, only strings with
-                the specified prefix will be taken into account.
-            sep: If :code:`parser` is :code:`'split'`, dependency ids will be
-                split by it.
+            parameters: Object containing the parameters, usually a mapping.
+            getter: Function retrieving the dependency from the parameters, it
+                must accept the parameters as first argument and the dependency
+                id as second.
+            prefix: If specified, only string prefixed with it will be taken
+                into account.
+            split: If specified, only string dependency_id are accepted, which
+                will be split by :code:`split`. The result is used to
+                recursively retrieve the dependency from :code:`parameters`.
+                Beware that :py:exc:`TypeError` will be converted to
+                :py:exc:`LookUpError` and thus be ignored, as the recursion may
+                go too far.
 
         Returns:
 
         """
 
         def register_parser(f):
-            if f == 'rgetitem':
-                def f(obj, dependency_id):
-                    if isinstance(dependency_id, str) \
-                            and dependency_id.startswith(prefix):
-                        return rgetitem(obj,
-                                        dependency_id[len(prefix):].split(sep))
-
-                    raise LookupError(dependency_id)
-
-            elif callable(f):
-                pass
-            else:
+            if not callable(f):
                 raise ValueError("parser must be callable or be 'getitem'")
 
-            self._parameters.register(data, f)
+            if prefix or split:
+                def _getter(params, dependency_id):
+                    if not isinstance(dependency_id, str) \
+                            or not dependency_id.startswith(prefix):
+                        raise LookupError(dependency_id)
+
+                    dependency_id = dependency_id[len(prefix):]
+
+                    if split:
+                        try:
+                            return reduce(f, dependency_id.split(split),
+                                          params)
+                        except TypeError as e:
+                            raise LookupError(dependency_id) from e
+
+                    return f(params, dependency_id)
+            else:
+                _getter = f
+
+            self._parameters.register(parameters, _getter)
 
             return f
 
         return getter and register_parser(getter) or register_parser
-
-
-def _ignore_arguments_excess(func):
-    """
-    Decorate a function to ignore any additional arguments if it has no
-    *args neither **kwargs.
-    """
-    arg_spec, has_var_args, has_var_kwargs = get_arguments_specification(func)
-
-    if has_var_args and has_var_kwargs:
-        return func
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        # Method is supposed to be bound (self is not in the arguments).
-        if len(args) == 1 and not len(kwargs):
-            return func(*args)
-
-        new_kwargs = dict()
-
-        if has_var_kwargs:
-            new_kwargs = kwargs.copy()
-        else:
-            for name, _ in arg_spec:
-                try:
-                    new_kwargs[name] = kwargs[name]
-                except KeyError:
-                    pass
-
-        if has_var_args:
-            new_args = args
-        else:
-            new_args = []
-            for (name, _), arg in zip(arg_spec, args):
-                new_kwargs[name] = arg
-
-        return func(*new_args, **new_kwargs)
-
-    return wrapper

@@ -243,6 +243,7 @@ This actually more of a roadmap of features. Those marked with a "(?)" may not
 be implemented.
 
 - tags to filter services and retrieve a list of them.
+- Add a proper way to test with injector.bind + mocking utility.
 - way to restrict services availability, either through tags, different
   containers or injectors, etc... (?)
 - proxies (?)

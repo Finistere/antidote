@@ -7,44 +7,44 @@ from ..exceptions import (
     DependencyCycleError, DependencyInstantiationError,
     DependencyNotFoundError, DependencyNotProvidableError
 )
+_SENTINEL = object()
 
 
 class DependencyContainer:
     """
-    Container of dependencies. Dependencies are either _factories which must be
-    registered or any user-given data.
+    Container of dependencies which are instantiated lazily by providers.
+    Singleton are cached to ensure they're not rebuilt more than once.
 
-    A dependency can be retrieved through its id. The factory of the
-    dependency itself is used as its id if none is provided.
+    One can specify additional arguments on how to build a dependency, by
+    requiring a :py:class:`~Prepare` or using :py:meth:`~provide`.
 
-    The container uses a cache to instantiate lazily dependencies, deleting and
-    setting dependencies only affects the cache, not the registered nor
-    user-added dependencies. However, checking whether a dependency is defined
-    will search in the cache, the registered and user-added dependencies.
+    Neither :code:`__contains__()` nor :code:`__delitem__()` are implemented as
+    they are error-prone, they would only operate on the cache, not the set of
+    available dependencies.
     """
 
     def __init__(self):
         self.providers = OrderedDict()
-        self._data = {}
+        self._cache = {}
         self._instantiation_lock = threading.RLock()
         self._instantiation_stack = DependencyStack()
 
     def __repr__(self):
-        return "{}(providers=({}), data={!r})".format(
+        return "{}(providers=({}), cache={!r})".format(
             type(self).__name__,
             ", ".join("{!r}={!r}".format(name, p)
                       for name, p in self.providers.items()),
-            self._data
+            self._cache
         )
 
     def __getitem__(self, item):
         """
-        Retrieves the dependency from the cached dependencies. If none matches,
-        the container tries to find a matching factory or a matching value in
-        the added dependencies.
+        Get the specified dependency. :code:`item` is either the dependency_id
+        or a :py:class:`~Prepare` instance in order to provide additional
+        arguments to the providers.
         """
         try:
-            return self._data[item]
+            return self._cache[item]
         except KeyError:
             pass
 
@@ -57,9 +57,9 @@ class DependencyContainer:
 
         try:
             with self._instantiation_lock, \
-                     self._instantiation_stack.instantiating(item):
-                if item in self._data:
-                    return self._data[item]
+                    self._instantiation_stack.instantiating(item):
+                if item in self._cache:
+                    return self._cache[item]
 
                 for provider in self.providers.values():
                     try:
@@ -69,7 +69,7 @@ class DependencyContainer:
                         pass
                     else:
                         if dependency.singleton:
-                            self._data[item] = dependency.instance
+                            self._cache[item] = dependency.instance
 
                         return dependency.instance
 
@@ -81,26 +81,39 @@ class DependencyContainer:
 
         raise DependencyNotFoundError(item)
 
+    def provide(self, dependency_id, *args, **kwargs):
+        """
+        Utility method which creates a :py:class:`~Prepare` and passes it to
+        :py:meth:`~__getitem__`.
+        """
+        return self[Prepare(dependency_id, *args, **kwargs)]
+
     def __setitem__(self, dependency_id, dependency):
         """
         Set a dependency in the cache.
         """
-        self._data[dependency_id] = dependency
-
-    def provide(self, dependency_id, *args, **kwargs):
-        return self[Prepare(dependency_id, *args, **kwargs)]
+        self._cache[dependency_id] = dependency
 
     def update(self, dependencies: Dict):
         """
         Update the cached dependencies.
         """
-        self._data.update(dependencies)
+        self._cache.update(dependencies)
 
 
 class Prepare(object):
     """
     Simple container which can be used to specify a dependency ID with
-    additional arguments for the provider.
+    additional arguments, :code:`args` and :code:`kwargs`, for the provider.
+
+    If no additional arguments are provided it is equivalent to the unwrapped
+    dependency id.
+
+    >>> from antidote import antidote, Prepare
+    >>> antidote.container['name'] = 'Antidote'
+    >>> antidote.container[Prepare('name')]
+    'Antidote'
+
     """
     __slots__ = ('dependency_id', 'args', 'kwargs')
 
@@ -146,7 +159,7 @@ class Dependency(object):
     instance of a dependency.
 
     This enables the container to know if the returned dependency needs to
-    be cached as a singleton or not.
+    be cached or not (singleton).
     """
 
     __slots__ = ('instance', 'singleton')

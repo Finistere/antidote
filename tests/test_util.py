@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.utils import get_arguments_specification, rgetitem
+from antidote.utils import get_arguments_specification
 
 
 def f(a, b, c=1):
@@ -57,22 +57,3 @@ d = Dummy()
 )
 def test_arg_spec(func, expected):
     assert expected == get_arguments_specification(func)
-
-
-def test_rgetitem():
-    data = {
-        'data': {
-            'key1': object()
-        },
-        'something': object(),
-        'another': 'string'
-    }
-
-    assert data['something'] is rgetitem(data, ['something'])
-    assert data['data']['key1'] is rgetitem(data, ['data', 'key1'])
-
-    with pytest.raises(KeyError):
-        rgetitem(data, ['data', 'nothing'])
-
-    with pytest.raises(KeyError):
-        rgetitem(data, ['another', 'random'])

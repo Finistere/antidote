@@ -1,7 +1,7 @@
 from .__version__ import __version__
 from .container import Dependency, DependencyContainer, Prepare
 from .exceptions import (
-    DependencyCycleError, DependencyDuplicateError, DependencyError,
+    DependencyCycleError, DependencyDuplicateError, AntidoteError,
     DependencyInstantiationError, DependencyNotFoundError,
     DependencyNotProvidableError
 )
@@ -13,7 +13,7 @@ __all__ = [
     'DependencyContainer',
     'DependencyInjector',
     'DependencyManager',
-    'DependencyError',
+    'AntidoteError',
     'DependencyNotProvidableError',
     'DependencyNotFoundError',
     'DependencyDuplicateError',

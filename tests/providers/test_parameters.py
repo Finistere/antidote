@@ -2,7 +2,8 @@ import pytest
 
 from antidote import DependencyNotProvidableError
 from antidote.providers import ParameterProvider
-from antidote.utils import rgetitem
+from functools import reduce
+from operator import getitem
 
 
 def test_register():
@@ -17,10 +18,14 @@ def test_register():
         1: 1
     }
 
-    def conf_parser(parameters, dependency_id):
+    def conf_parser(params, dependency_id):
         if isinstance(dependency_id, str):
             if dependency_id.startswith('conf:'):
-                return rgetitem(parameters, dependency_id[5:].split('.'))
+                try:
+                    return reduce(getitem, dependency_id[5:].split('.'),
+                                  params)
+                except TypeError as e:
+                    raise LookupError(dependency_id) from e
 
         raise LookupError(dependency_id)
 

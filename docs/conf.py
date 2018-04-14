@@ -46,8 +46,17 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
-    'sphinx_autodoc_typehints'
+    'sphinx_autodoc_typehints',
+    'sphinx.ext.autosectionlabel',
+    'sphinx.ext.intersphinx'
 ]
+
+# This config value contains the locations and names of other projects
+# that should be linked to in this documentation.
+intersphinx_mapping = {'python': ('https://docs.python.org/3.6', None)}
+
+# Prefix each section label with the name of the document it is in.
+autosectionlabel_prefix_document = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -182,7 +191,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'dependencymanager', 'Antidote Documentation',
+    (master_doc, 'dependency manager', 'Antidote Documentation',
      [author], 1)
 ]
 

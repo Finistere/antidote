@@ -1,22 +1,23 @@
-from typing import Callable
+from typing import Any, Callable, TypeVar
 
 from ..container import Dependency
 from ..exceptions import DependencyNotProvidableError
 
+T = TypeVar('T')
+
 
 class ParameterProvider:
     """
-    Provider used for for parameters and configuration. Dependency ids are
-    converted by parsers to a key for their associated mapping.
+    Provider managing constant parameters like configuration.
     """
 
     def __init__(self):
-        self._parameter_parser_couples = []
+        self._parameter_getter_couples = []
 
     def __repr__(self):
-        return "{}(parameter_parser={!r})".format(
+        return "{}(parameter_getter_couples={!r})".format(
             type(self).__name__,
-            tuple(param for param, _ in self._parameter_parser_couples)
+            tuple(param for param, _ in self._parameter_getter_couples)
         )
 
     def __antidote_provide__(self, dependency_id, coerce: type = None, *args,
@@ -30,10 +31,9 @@ class ParameterProvider:
                 type.
 
         Returns:
-            Dependency: The found parameter wrapped with
-                :py:class:`~.container.Dependency`
+            A :py:class:`~.container.Dependency` wrapping the built dependency.
         """
-        for parameters, getter in self._parameter_parser_couples:
+        for parameters, getter in self._parameter_getter_couples:
             try:
                 param = getter(parameters, dependency_id)
             except LookupError:
@@ -46,15 +46,17 @@ class ParameterProvider:
 
         raise DependencyNotProvidableError(dependency_id)
 
-    def register(self, parameters, getter: Callable):
+    def register(self, parameters: T, getter: Callable[[T, Any], Any]):
         """
         Register parameters with its parser.
 
         Args:
-            getter: Parse a dependency_id to an iterable of keys. The iterable
-                will be used to retrieve the parameter from the associated
-                mapping recursively.
-            parameters: Mapping of parameters.
+            getter: Function used to retrieve a requested dependency from the
+                parameters. It must have similar signature to
+                :py:func:`~operator.getitem` accepting as first argument
+                the object from which to retrieve the data and as second the
+                key.
+            parameters: Object containing the parameters, usually a mapping.
 
         """
-        self._parameter_parser_couples.append((parameters, getter))
+        self._parameter_getter_couples.append((parameters, getter))

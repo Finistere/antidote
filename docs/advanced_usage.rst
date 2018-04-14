@@ -7,15 +7,11 @@ Advanced Usage
     antidote.container['name'] = 'Antidote'
 
 
-.. _passing_parameter_with_prepare:
-
 Customising dependencies
 ------------------------
 
 TODO...
 
-
-.. _advanced_usage_stateful_factory_label:
 
 Registering a stateful factory
 ------------------------------
