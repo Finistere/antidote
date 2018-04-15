@@ -61,26 +61,21 @@ class DependencyInjector:
             argument :code:`func` was supplied.
 
         """
-        generate_args_kwargs = self._generate_args_kwargs
 
         def _inject(f):
-            injection_blueprint = None  # type: InjectionBlueprintType
+            generate_args_kwargs = self._generate_args_kwargs
+            injection_blueprint = self._generate_injection_blueprint(
+                func=f,
+                arg_map=arg_map or dict(),
+                use_names=use_names
+            )
 
             @functools.wraps(f)
             def wrapper(*args, **kwargs):
-                nonlocal injection_blueprint
-
-                if injection_blueprint is None:
-                    injection_blueprint = self._generate_injection_blueprint(
-                        func=f,
-                        use_names=use_names,
-                        arg_map=arg_map or dict()
-                    )
-
                 args, kwargs = generate_args_kwargs(
+                    injection_blueprint=injection_blueprint,
                     args=args,
-                    kwargs=kwargs,
-                    injection_blueprint=injection_blueprint
+                    kwargs=kwargs
                 )
 
                 return f(*args, **kwargs)
@@ -128,8 +123,8 @@ class DependencyInjector:
         def _bind(f):
             new_args, new_kwargs = self._inject_into_arg_kwargs(
                 func=f,
+                arg_map=arg_map,
                 use_names=use_names,
-                arg_map=arg_map or dict(),
                 args=args or tuple(),
                 kwargs=kwargs or dict()
             )
@@ -139,7 +134,7 @@ class DependencyInjector:
         return func and _bind(func) or _bind
 
     def call(self,
-             func: Callable = None,
+             func: Callable,
              arg_map: Union[Mapping, Iterable] = None,
              use_names: Union[bool, Iterable[str]] = False,
              args: Sequence = None,
@@ -172,16 +167,16 @@ class DependencyInjector:
 
         new_args, new_kwargs = self._inject_into_arg_kwargs(
             func=func,
+            arg_map=arg_map,
             use_names=use_names,
-            arg_map=arg_map or dict(),
-            args=args or tuple(),
-            kwargs=kwargs or dict()
+            args=args,
+            kwargs=kwargs
         )
 
         return func(*new_args, **new_kwargs)
 
     def _inject_into_arg_kwargs(self,
-                                func: Callable = None,
+                                func: Callable,
                                 arg_map: Union[Mapping, Iterable] = None,
                                 use_names: Union[bool, Iterable[str]] = False,
                                 args: Sequence = None,
@@ -192,19 +187,19 @@ class DependencyInjector:
         arguments in one step.
         """
         return self._generate_args_kwargs(
-            args=args or tuple(),
-            kwargs=kwargs or dict(),
             injection_blueprint=self._generate_injection_blueprint(
                 func=func,
-                arg_map=arg_map or dict(),
+                arg_map=arg_map,
                 use_names=use_names
-            )
+            ),
+            args=args or tuple(),
+            kwargs=kwargs or dict()
         )
 
     def _generate_args_kwargs(self,
+                              injection_blueprint: InjectionBlueprintType,
                               args: Sequence,
-                              kwargs: Dict,
-                              injection_blueprint: InjectionBlueprintType
+                              kwargs: Dict
                               ) -> Tuple[Sequence, Dict]:
         """
         Generate the new arguments to be used by retrieving the missing

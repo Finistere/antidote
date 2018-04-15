@@ -61,6 +61,11 @@ class ServiceWithNonMetDependency(object):
         pass
 
 
+@pytest.fixture()
+def container():
+    return DependencyContainer()
+
+
 def test_dependency_repr():
     o = object()
     d = Dependency(o, False)
@@ -69,9 +74,7 @@ def test_dependency_repr():
     assert repr(o) in repr(d)
 
 
-def test_setitem():
-    container = DependencyContainer()
-
+def test_setitem(container: DependencyContainer):
     s = object()
     container['service'] = s
 
@@ -79,8 +82,7 @@ def test_setitem():
     assert repr(s) in repr(container)
 
 
-def test_update():
-    container = DependencyContainer()
+def test_update(container: DependencyContainer):
     container[Service] = Service()
 
     another_service = AnotherService()
@@ -95,9 +97,7 @@ def test_update():
     assert x is container['x']
 
 
-def test_extend():
-    container = DependencyContainer()
-
+def test_extend(container: DependencyContainer):
     provider = DummyProvider()
     container.providers[DummyProvider] = provider
 
@@ -105,8 +105,7 @@ def test_extend():
     assert provider is container.providers[DummyProvider]
 
 
-def test_getitem_and_provide():
-    container = DependencyContainer()
+def test_getitem_and_provide(container: DependencyContainer):
     container.providers[DummyFactoryProvider] = DummyFactoryProvider({
         Service: lambda: Service(),
         ServiceWithNonMetDependency: lambda: ServiceWithNonMetDependency(),
@@ -131,8 +130,7 @@ def test_getitem_and_provide():
     assert 'Antidote' == container.provide('name')
 
 
-def test_singleton():
-    container = DependencyContainer()
+def test_singleton(container: DependencyContainer):
     container.providers[DummyFactoryProvider] = DummyFactoryProvider({
         Service: lambda: Service(),
         AnotherService: lambda: AnotherService(),
@@ -147,8 +145,7 @@ def test_singleton():
     assert another_service is not container[AnotherService]
 
 
-def test_cycle_error():
-    container = DependencyContainer()
+def test_cycle_error(container: DependencyContainer):
     container.providers[DummyFactoryProvider] = DummyFactoryProvider({
         Service: lambda: Service(container[AnotherService]),
         AnotherService: lambda: AnotherService(container[YetAnotherService]),
@@ -165,8 +162,7 @@ def test_cycle_error():
         container[YetAnotherService]
 
 
-def test_repr():
-    container = DependencyContainer()
+def test_repr(container: DependencyContainer):
     container.providers[DummyProvider] = DummyProvider({'name': 'Antidote'})
     container['test'] = 1
 

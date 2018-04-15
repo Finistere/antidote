@@ -6,10 +6,14 @@ from antidote import (
 )
 
 
-def test_bind():
+@pytest.fixture()
+def injector():
     container = DependencyContainer()
     injector = DependencyInjector(container)
+    return injector
 
+
+def test_bind(injector: DependencyInjector):
     def f(a, b):
         return a, b
 
@@ -24,10 +28,7 @@ def test_bind():
     assert 1 == a and 2 == b
 
 
-def test_call():
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
-
+def test_call(injector: DependencyInjector):
     def f(a, b):
         return a, b
 
@@ -42,9 +43,8 @@ def test_call():
     assert 1 == a and 2 == b
 
 
-def test_map():
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
+def test_arg_map(injector: DependencyInjector):
+    container = injector._container
 
     class Service(object):
         pass
@@ -95,9 +95,8 @@ def test_map():
         inject_mapping(f)()
 
 
-def test_use_names():
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
+def test_use_names(injector: DependencyInjector):
+    container = injector._container
 
     container['test'] = object()
 
@@ -118,9 +117,8 @@ def test_use_names():
     assert (container['yes'], None) == inject(g)()
 
 
-def test_defaults():
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
+def test_defaults(injector: DependencyInjector):
+    container = injector._container
 
     container['service'] = object()
 
@@ -136,10 +134,8 @@ def test_defaults():
     assert (container['service'], container['optional_service']) == inject(f)()
 
 
-def test_method_wrapper_type_hints_error(monkeypatch):
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
-
+def test_method_wrapper_type_hints_error(monkeypatch,
+                                         injector: DependencyInjector):
     def raises(*args, **kwargs):
         raise TypeError()
 
@@ -151,8 +147,24 @@ def test_method_wrapper_type_hints_error(monkeypatch):
     injector.inject(f)()
 
 
-def test_repr():
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
+def test_repr(injector):
+    assert repr(injector._container) in repr(injector)
 
-    assert repr(container) in repr(injector)
+
+@pytest.mark.parametrize(
+    'method_name',
+    [
+        'bind',
+        'inject',
+        'call'
+    ]
+)
+def test_value_error(method_name, injector: DependencyInjector):
+    def f():
+        pass
+
+    with pytest.raises(ValueError):
+        getattr(injector, method_name)(func=f, use_names=object())
+
+    with pytest.raises(ValueError):
+        getattr(injector, method_name)(func=f, arg_map=object())

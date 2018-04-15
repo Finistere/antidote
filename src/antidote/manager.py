@@ -466,8 +466,10 @@ class DependencyManager:
                 go too far.
 
         Returns:
-
+            getter callable or decorator.
         """
+        if not isinstance(prefix, str) or not isinstance(split, str):
+            raise ValueError("prefix and split arguments must be strings.")
 
         def register_parser(f):
             if not callable(f):

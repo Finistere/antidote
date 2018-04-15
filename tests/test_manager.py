@@ -466,21 +466,34 @@ def test_parameters():
     manager = DependencyManager()
     container = manager.container
 
+    manager.register_parameters({'test1': 'some value'}, getter=getitem)
+    assert 'some value' == container['test1']
+
+    manager.register_parameters({'test2': 'another value'}, getter=getitem,
+                                prefix='conf:')
+    assert 'another value' == container['conf:test2']
+
+    manager.register_parameters({'test3': {'nested': 'yes'}}, getter=getitem,
+                                split='.')
+    assert 'yes' == container['test3.nested']
+
     manager.register_parameters({'param': '1', 'paramb': {'test': 2}},
-                                getter=getitem, prefix='conf:', split='.')
+                                getter=getitem, prefix='params:', split='.')
 
-    assert '1' == container['conf:param']
-    assert 1 == container.provide('conf:param', coerce=int)
-    assert 2 == container['conf:paramb.test']
+    assert '1' == container['params:param']
+    assert 1 == container.provide('params:param', coerce=int)
+    assert 2 == container['params:paramb.test']
 
-    manager.register_parameters({'param_1': {'test': 'test'}},
-                                getter=getitem,
-                                split='|')
+    with pytest.raises(DependencyNotFoundError):
+        container[object()]
 
-    assert 'test' == container['param_1|test']
+    with pytest.raises(DependencyNotFoundError):
+        container['test3.nested.yes']
 
-    with pytest.raises(ValueError):
-        manager.register_parameters(object(), getter=object())
+
+def test_register_parameters_custom_getter():
+    manager = DependencyManager()
+    container = manager.container
 
     @manager.register_parameters({'a': {'b': {'c': 99}}})
     def parser(obj, item):
@@ -492,8 +505,22 @@ def test_parameters():
 
     assert 99 == container['abc']
 
+    # Does not fail with missing dependency
     with pytest.raises(DependencyNotFoundError):
         container[object()]
+
+
+def test_invalid_arguments():
+    manager = DependencyManager()
+
+    with pytest.raises(ValueError):
+        manager.register_parameters(object(), getter=object())
+
+    with pytest.raises(ValueError):
+        manager.register_parameters(object(), prefix=object())
+
+    with pytest.raises(ValueError):
+        manager.register_parameters(object(), split=object())
 
 
 def test_parameters_with_configparser():
