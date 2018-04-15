@@ -16,7 +16,7 @@ class DependencyContainer:
     Singleton are cached to ensure they're not rebuilt more than once.
 
     One can specify additional arguments on how to build a dependency, by
-    requiring a :py:class:`~Prepare` or using :py:meth:`~provide`.
+    requiring a :py:class:`~Dependency` or using :py:meth:`~provide`.
 
     Neither :code:`__contains__()` nor :code:`__delitem__()` are implemented as
     they are error-prone, they would only operate on the cache, not the set of
@@ -40,7 +40,7 @@ class DependencyContainer:
     def __getitem__(self, item):
         """
         Get the specified dependency. :code:`item` is either the dependency_id
-        or a :py:class:`~Prepare` instance in order to provide additional
+        or a :py:class:`~Dependency` instance in order to provide additional
         arguments to the providers.
         """
         try:
@@ -48,7 +48,7 @@ class DependencyContainer:
         except KeyError:
             pass
 
-        if isinstance(item, Prepare):
+        if isinstance(item, Dependency):
             args = (item.dependency_id,) + item.args
             kwargs = item.kwargs
         else:
@@ -83,10 +83,10 @@ class DependencyContainer:
 
     def provide(self, dependency_id, *args, **kwargs):
         """
-        Utility method which creates a :py:class:`~Prepare` and passes it to
+        Utility method which creates a :py:class:`~Dependency` and passes it to
         :py:meth:`~__getitem__`.
         """
-        return self[Prepare(dependency_id, *args, **kwargs)]
+        return self[Dependency(dependency_id, *args, **kwargs)]
 
     def __setitem__(self, dependency_id, dependency):
         """
@@ -101,7 +101,7 @@ class DependencyContainer:
         self._cache.update(dependencies)
 
 
-class Prepare(object):
+class Dependency:
     """
     Simple container which can be used to specify a dependency ID with
     additional arguments, :code:`args` and :code:`kwargs`, for the provider.
@@ -109,9 +109,9 @@ class Prepare(object):
     If no additional arguments are provided it is equivalent to the unwrapped
     dependency id.
 
-    >>> from antidote import antidote, Prepare
+    >>> from antidote import antidote, Dependency
     >>> antidote.container['name'] = 'Antidote'
-    >>> antidote.container[Prepare('name')]
+    >>> antidote.container[Dependency('name')]
     'Antidote'
 
     """
@@ -141,7 +141,7 @@ class Prepare(object):
         return hash(self.dependency_id)
 
     def __eq__(self, other):
-        if isinstance(other, Prepare):
+        if isinstance(other, Dependency):
             return (
                 self.dependency_id == other.dependency_id
                 and self.args == other.args
@@ -153,7 +153,7 @@ class Prepare(object):
         return False
 
 
-class Dependency(object):
+class DependencyInstance:
     """
     Simple wrapper which has to be used by providers when returning an
     instance of a dependency.

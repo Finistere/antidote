@@ -99,15 +99,27 @@ key, :py:obj:`None` can be returned.
 .. note::
 
     If you need a parameter to be casted to another type, you have to use
-    :py:class:`~.container.Prepare`:
+    :py:class:`~.container.Dependency`:
 
     .. doctest:: quickstart
 
-            >>> from antidote import Prepare
-            >>> antidote.container[Prepare('conf:date.year', coerce=int)]
+                >>> from antidote import Dependency
+                >>> antidote.container[Dependency('conf:date.year', coerce=int)]
+                2017
+
+            For more information on this, check out
+
+                >>> from antidote import Dependency
+                >>> antidote.container[Dependency('conf:date.year', coerce=int)]
+                2017
+
+            For more information on this, check out
+
+            >>> from antidote import Dependency
+            >>> antidote.container[Dependency('conf:date.year', coerce=int)]
             2017
 
-        For more information on this, check out :ref:`Prepare <passing_parameter_with_prepare>`
+        For more information on this, check out :ref:`Dependency <passing_parameter_with_prepare>`
 
 Inject a dependency
 -------------------

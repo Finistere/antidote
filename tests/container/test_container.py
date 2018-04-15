@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import Dependency, DependencyContainer, Prepare
+from antidote import DependencyInstance, DependencyContainer, Dependency
 from antidote import (
     DependencyCycleError, DependencyInstantiationError,
     DependencyNotFoundError, DependencyNotProvidableError
@@ -18,8 +18,8 @@ class DummyProvider(object):
 
     def __antidote_provide__(self, dependency_id, *args, **kwargs):
         try:
-            return Dependency(self.data[dependency_id],
-                              singleton=self.singleton)
+            return DependencyInstance(self.data[dependency_id],
+                                      singleton=self.singleton)
         except KeyError:
             raise DependencyNotProvidableError(dependency_id)
 
@@ -35,8 +35,8 @@ class DummyFactoryProvider(object):
 
     def __antidote_provide__(self, dependency_id, *args, **kwargs):
         try:
-            return Dependency(self.data[dependency_id](),
-                              singleton=self.create_singleton)
+            return DependencyInstance(self.data[dependency_id](),
+                                      singleton=self.create_singleton)
         except KeyError:
             raise DependencyNotProvidableError(dependency_id)
 
@@ -68,7 +68,7 @@ def container():
 
 def test_dependency_repr():
     o = object()
-    d = Dependency(o, False)
+    d = DependencyInstance(o, False)
 
     assert repr(False) in repr(d)
     assert repr(o) in repr(d)
@@ -123,10 +123,10 @@ def test_getitem_and_provide(container: DependencyContainer):
             get(ServiceWithNonMetDependency)
 
     assert isinstance(container[Service], Service)
-    assert isinstance(container[Prepare(Service)], Service)
+    assert isinstance(container[Dependency(Service)], Service)
     assert isinstance(container.provide(Service), Service)
     assert 'Antidote' == container['name']
-    assert 'Antidote' == container[Prepare('name')]
+    assert 'Antidote' == container[Dependency('name')]
     assert 'Antidote' == container.provide('name')
 
 

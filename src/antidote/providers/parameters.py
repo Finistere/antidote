@@ -1,6 +1,6 @@
 from typing import Any, Callable, TypeVar
 
-from ..container import Dependency
+from ..container import DependencyInstance
 from ..exceptions import DependencyNotProvidableError
 
 T = TypeVar('T')
@@ -21,7 +21,7 @@ class ParameterProvider:
         )
 
     def __antidote_provide__(self, dependency_id, coerce: type = None, *args,
-                             **kwargs) -> Dependency:
+                             **kwargs) -> DependencyInstance:
         """
         Provide the parameter associated with the dependency_id.
 
@@ -42,7 +42,7 @@ class ParameterProvider:
                 if coerce is not None:
                     param = coerce(param)
 
-                return Dependency(param, singleton=True)
+                return DependencyInstance(param, singleton=True)
 
         raise DependencyNotProvidableError(dependency_id)
 

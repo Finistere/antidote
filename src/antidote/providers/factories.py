@@ -1,6 +1,6 @@
 from typing import Callable, Dict
 
-from ..container import Dependency
+from ..container import DependencyInstance
 from ..exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
@@ -28,7 +28,7 @@ class FactoryProvider:
         )
 
     def __antidote_provide__(self, dependency_id, *args,
-                             **kwargs) -> Dependency:
+                             **kwargs) -> DependencyInstance:
         """
         Builds the dependency if a factory associated with the dependency_id
         can be found.
@@ -56,7 +56,7 @@ class FactoryProvider:
         if factory.takes_dependency_id:
             args = (dependency_id,) + args
 
-        return Dependency(
+        return DependencyInstance(
             factory(*args, **kwargs),
             singleton=factory.singleton
         )

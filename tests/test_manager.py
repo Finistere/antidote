@@ -2,7 +2,7 @@ import pytest
 
 from antidote import DependencyInstantiationError
 from antidote import (
-    Dependency, DependencyNotFoundError, DependencyNotProvidableError
+    DependencyInstance, DependencyNotFoundError, DependencyNotProvidableError
 )
 from antidote import DependencyManager
 from operator import getitem
@@ -433,7 +433,7 @@ def test_provider():
 
         def __antidote_provide__(self, dependency_id, *ags, **kwargs):
             if dependency_id == 'test':
-                return Dependency(dependency_id)
+                return DependencyInstance(dependency_id)
             else:
                 raise DependencyNotProvidableError(dependency_id)
 
@@ -459,7 +459,7 @@ def test_provider():
                 self.service = service
 
             def __antidote_provide__(self, dependency_id, *ags, **kwargs):
-                return Dependency(dependency_id)
+                return DependencyInstance(dependency_id)
 
 
 def test_parameters():

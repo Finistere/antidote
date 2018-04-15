@@ -21,7 +21,7 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/latest/?badge=latest
 
-*Antidote* is a dependency injection micro framework for Python 2.7 and 3.4+.
+*Antidote* is a dependency injection micro framework for Python 3.4+.
 It provides simple decorators to declare services and to inject those
 automatically based on type hints.
 
@@ -39,8 +39,8 @@ Features Highlight
 - Thread-safe and limited performance impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
 - Dependency cycle detection.
-- Other dependencies, such as configuration parameters, can be easily added
-  for injection as a dictionary.
+- Other dependencies, such as configuration parameters, can be easily added.
+- Easily extendable.
 
 
 Installation
@@ -59,13 +59,13 @@ Quick Start
 
 
 Let's suppose you have database class from an external library and you wrap it
-with a custom class for easier usage. Antidote can do all the wiring for you.
-With type hints, it is straight-forward:
+with a custom class for easier usage. Antidote can do all the wiring for you:
 
 
 .. code-block:: python
 
-    from antidote import antidote
+    from antidote import antidote, Dependency as Dy
+    from operator import getitem
 
 
     class Database:
@@ -79,24 +79,27 @@ With type hints, it is straight-forward:
         'db': {
             'host': 'host',
             'user': 'user',
+            'port': '5432',
             'password': 'password',
         }
     }
 
-    # Simple way to add some configuration.
-    # Any Mapping or a ConfigParser can be used.
-    antidote.register_parameters(config, getter='rgetitem', prefix='conf:')
+    # Add configuration parameters.
+    antidote.register_parameters(config, getter=getitem, prefix='conf:',
+                                 split='.')
 
     # Declare a factory which should be called to instantiate Database.
-    # Variables names are used here for injection.
-    @antidote.factory(arg_map=('conf:db.host', 'conf:db.user',
-                               'conf:db.password'))
-    def database_factory(db_host, db_user, db_password) -> Database:
+    # Variables names are used here for injection. A dictionary mapping
+    # arguments name to their dependency could also have been used.
+    @antidote.factory(arg_map=('conf:db.host', Dy('conf:db.port', coerce=int),
+                               'conf:db.user', 'conf:db.password'))
+    def database_factory(db_host, db_port, db_user, db_password) -> Database:
         """
         Configure your database.
         """
         return Database(
             host=db_host,
+            port=db_port,
             user=db_user,
             password=db_password
         )
@@ -125,6 +128,7 @@ With type hints, it is straight-forward:
     # injection.
     f(DatabaseWrapper(database_factory(
         db_host=config['db']['host'],
+        db_port=int(config['db']['port']),
         db_user=config['db']['user'],
         db_password=config['db']['password']
     )))
@@ -141,8 +145,71 @@ Injection benchmark is available at
 `injection benchmarks <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
 
 
-Why Antidote ?
-==============
+Dependency Injection
+====================
+
+Dependency injection is a technique where objects do not instantiate themselves
+their dependencies, it is up to the user or another object to supply them. A
+simple example is presented below: :code:`f()` and :code:`g()` are two functions
+operating on a database, they both require a connection to it. :code:`g()` is
+implemented with dependency injection in mind, while :code:`f()` is not.
+
+.. code-block:: python
+
+    class Database:
+        def __init__(self, host):
+            """ Initializes database """
+
+    def f(host):
+        db = Database(host)
+        # do stuff
+
+    # With dependency injection, it's up to the user/framework to provide the
+    # database.
+    def g(database):
+        # do stuff
+
+
+Using :code:`g()` provides several advantages:
+
+- Single Responsibility Principle: The function does not have to instantiate
+  anything anymore, it only does its job.
+- Open/closed principle: One can change the database for any other one, as long
+  as it keeps the same interface. With :code:`f()` you would need to rewrite
+  the function, as the database may need to be instantiated differently.
+- As you don't have to manage dependencies in you code anymore, it becomes
+  usually easier to create more modular code and readable code.
+- When testing, it can be easier to supply a dummy object which mimics the
+  database than mocking the :code:`Database()` itself. This helps separating
+  what you *need* and what you *have*.
+
+Now you're faced with the problem of injecting and managing your dependencies.
+It is, unsurprisingly, quite easy with Python for simple projects: You have
+a module with your dependencies, be it singletons or factories to instantiate
+them, and you inject them at the start of your applications in your scripts or
+in :code:`__main__()`. While this works really well for small up to
+medium-sized projects with a limited number of dependencies, it doesn't scale
+at all.
+
+- Instantiation is not lazy. Often you do not need all of your dependencies,
+  
+Dependency injection is particularly useful on medium/large projects, as it
+helps decoupling one's code from its dependencies:
+
+.. code-block:: python
+
+    class Database:
+        def __init__(self, host):
+            """ Initializes database """
+
+    def f(host):
+        db = Database(host)
+        # do stuff
+
+    # With dependency injection, it's up to the user/framework to provide the
+    # database.
+    def g(database):
+        # do stuff
 
 
 Dependency injection is, IMHO, a fundamental tool when working on projects.
