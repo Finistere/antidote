@@ -57,9 +57,6 @@ class DependencyContainer:
         except KeyError:
             pass
 
-        if not isinstance(dependency, Dependency):
-            dependency = Dependency(dependency)
-
         try:
             with self._cache_lock, \
                     self._instantiation_stack.instantiating(dependency):
@@ -72,6 +69,8 @@ class DependencyContainer:
                     try:
                         instance = provider.__antidote_provide__(
                             dependency
+                            if isinstance(dependency, Dependency) else
+                            Dependency(dependency)
                         )  # type: Instance
                     except DependencyNotProvidableError:
                         pass
@@ -194,6 +193,7 @@ class Dependency:
 
     def __init__(self, *args, **kwargs):
         self.id = args[0]
+        assert not isinstance(self.id, Dependency)
         self.args = args[1:]
         self.kwargs = kwargs
 
@@ -206,26 +206,37 @@ class Dependency:
         )
 
     def __hash__(self):
-        if len(self.args) or len(self.kwargs):
-            return hash((
-                self.id,
-                self.args,
-                tuple(self.kwargs.items())
-            ))
+        if self.args or self.kwargs:
+            try:
+                # Try most precise hash first
+                return hash((
+                    self.id,
+                    self.args,
+                    tuple(self.kwargs.items())
+                ))
+            except TypeError:
+                # If type error, return the best error-free hash possible
+                return hash((
+                    self.id,
+                    len(self.args),
+                    tuple(self.kwargs.keys())
+                ))
 
         return hash(self.id)
 
     def __eq__(self, other):
-        if isinstance(other, Dependency):
-            return (
-                self.id == other.id
+        return (
+            (
+                not self.kwargs and not self.args
+                and (self.id is other or self.id == other)
+            )
+            or (
+                isinstance(other, Dependency)
+                and (self.id is other.id or self.id == other.id)
                 and self.args == other.args
                 and self.kwargs == other.kwargs
             )
-        elif not len(self.args) and not len(self.kwargs):
-            return self.id == other
-
-        return False
+        )
 
 
 class Instance:
