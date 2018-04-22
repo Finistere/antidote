@@ -1,10 +1,10 @@
 import inspect
 from typing import Callable, Sequence, Tuple
 
-ArgSpecAliasType = Tuple[Sequence[Tuple[str, bool]], bool, bool]
+ArgSpecType = Tuple[Sequence[Tuple[str, bool]], bool, bool]
 
 
-def get_arguments_specification(func: Callable) -> ArgSpecAliasType:
+def get_arguments_specification(func: Callable) -> ArgSpecType:
     """
     Extract the name and if a default is set for each argument.
     """

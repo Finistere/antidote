@@ -1,7 +1,7 @@
 import pytest
 
 from antidote import DependencyNotProvidableError
-from antidote.providers import ParameterProvider
+from antidote.providers.parameters import ParameterProvider, Dependency
 from functools import reduce
 from operator import getitem
 
@@ -32,7 +32,7 @@ def test_register():
     provider.register(conf, conf_parser)
 
     def provide(e):
-        return provider.__antidote_provide__(e).instance
+        return provider.__antidote_provide__(Dependency(e)).item
 
     with pytest.raises(DependencyNotProvidableError):
         provide('service')

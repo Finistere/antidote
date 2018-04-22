@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.utils import get_arguments_specification
+from antidote._utils import get_arguments_specification
 
 
 def f(a, b, c=1):

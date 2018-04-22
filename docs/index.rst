@@ -15,6 +15,6 @@ Table of Content
 .. toctree::
     :maxdepth: 3
 
-    quickstart
+    usage
     advanced_usage
     api

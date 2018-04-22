@@ -6,7 +6,7 @@ from typing import Iterable
 from ..exceptions import DependencyCycleError
 
 
-class DependencyStack:
+class InstantiationStack:
     """
     Stores the stack of dependency instantiation to detect and prevent cycles
     by raising DependencyCycleError.

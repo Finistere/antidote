@@ -1,5 +1,5 @@
 from .__version__ import __version__
-from .container import DependencyInstance, DependencyContainer, Dependency
+from .container import Instance, DependencyContainer, Dependency
 from .exceptions import (
     DependencyCycleError, DependencyDuplicateError, AntidoteError,
     DependencyInstantiationError, DependencyNotFoundError,
@@ -9,7 +9,7 @@ from .injector import DependencyInjector
 from .manager import DependencyManager
 
 __all__ = [
-    'DependencyInstance',
+    'Instance',
     'DependencyContainer',
     'DependencyInjector',
     'DependencyManager',

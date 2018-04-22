@@ -91,10 +91,8 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
     # Declare a factory which should be called to instantiate Database.
     # Variables names are used here for injection. A dictionary mapping
     # arguments name to their dependency could also have been used.
-    @antidote.factory(arg_map=('conf:db.host',
-                               Dy('conf:db.port', coerce=int),
-                               'conf:db.user',
-                               'conf:db.password'))
+    @antidote.factory(arg_map=('conf:db.host', 'conf:db.port',
+                               'conf:db.user', 'conf:db.password'))
     def database_factory(db_host, db_port, db_user,
                          db_password) -> Database:
         """
@@ -102,7 +100,7 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
         """
         return Database(
             host=db_host,
-            port=db_port,
+            port=int(db_port),
             user=db_user,
             password=db_password
         )
@@ -131,7 +129,7 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
     # injection.
     f(DatabaseWrapper(database_factory(
         db_host=config['db']['host'],
-        db_port=int(config['db']['port']),
+        db_port=config['db']['port'],
         db_user=config['db']['user'],
         db_password=config['db']['password']
     )))
@@ -191,8 +189,7 @@ It is, unsurprisingly, quite easy with Python for simple projects: You have
 a module with your dependencies, be it singletons or factories to instantiate
 them, and you inject them at the start of your applications in your scripts or
 in :code:`__main__()`. While this works really well for relatively small-sized
-projects with a limited number of dependencies, it doesn't scale
-at all.
+projects with a limited number of dependencies, it doesn't scale at all.
 
 - Instantiation is not lazy. Often you do not need all of your dependencies and
   instantiating all of them can be costly.
@@ -278,11 +275,15 @@ For any questions, open an issue on Github.
 TODO
 ====
 
+
 This actually more of a roadmap of features. Those marked with a "(?)" may not
 be implemented.
 
 - tags to filter services and retrieve a list of them.
 - Add a proper way to test with injector.bind + mocking utility.
+- Add possibility for a factory to be aware of the injected variable's name
+  annotation. And take it into account for the dependency hash if, and only if,
+  it is specified. (?)
 - way to restrict services availability, either through tags, different
   containers or injectors, etc... (?)
 - proxies (?)

@@ -6,10 +6,10 @@ from typing import (
     Any, Callable, Dict, Iterable, Type, TypeVar, Union, get_type_hints
 )
 
+from ._utils import get_arguments_specification
 from .container import DependencyContainer
 from .injector import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
-from .utils import get_arguments_specification
 
 ContainerAliasType = Union[Type[DependencyContainer], DependencyContainer]
 InjectorAliasType = Union[Type[DependencyInjector], DependencyInjector]
@@ -73,6 +73,7 @@ class DependencyManager:
         self.container = (
             container() if isinstance(container, type) else container
         )  # type: DependencyContainer
+        self.container[DependencyContainer] = weakref.proxy(self.container)
 
         self.injector = (
             injector(self.container)
@@ -102,6 +103,10 @@ class DependencyManager:
             self.container,
             self.injector
         )
+
+    @property
+    def providers(self):
+        return self.container.providers
 
     def inject(self,
                func: Callable = None,
@@ -133,7 +138,6 @@ class DependencyManager:
             use_names = self.use_names
 
         def _inject(f):
-
             _mapping = self.arg_map.copy()
             if isinstance(arg_map, Mapping):
                 _mapping.update(arg_map)

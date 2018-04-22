@@ -168,3 +168,25 @@ def test_value_error(method_name, injector: DependencyInjector):
 
     with pytest.raises(ValueError):
         getattr(injector, method_name)(func=f, arg_map=object())
+
+
+def test_injection_order(injector: DependencyInjector):
+    container = injector._container
+
+    class Service:
+        pass
+
+    A = object()
+    B = Service()
+    C = object()
+    container['A'] = A
+    container[Service] = B
+    container['C'] = C
+
+    def f(A: Service):
+        return A
+
+    assert B is injector.inject(f)()
+    assert A is injector.inject(f, use_names=True)()
+    assert C is injector.inject(f, arg_map=['C'])()
+    assert C is injector.inject(f, use_names=True, arg_map=['C'])()

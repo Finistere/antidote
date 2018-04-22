@@ -51,6 +51,15 @@ extensions = [
     'sphinx.ext.intersphinx'
 ]
 
+
+# Python code that is treated like it were put in a testcleanup directive for
+# every file that is tested, and for every group.
+doctest_global_cleanup = """
+import antidote
+antidote.antidote = antidote.DependencyManager()
+"""
+
+
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
 intersphinx_mapping = {'python': ('https://docs.python.org/3.6', None)}

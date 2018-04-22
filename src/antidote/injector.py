@@ -6,8 +6,8 @@ from typing import (
     Union
 )
 
+from ._utils import get_arguments_specification
 from .container import DependencyContainer, DependencyNotFoundError
-from .utils import get_arguments_specification
 
 _EMPTY_DEPENDENCY = object()
 
@@ -249,25 +249,22 @@ class DependencyInjector:
         from collections import Mapping, Iterable
 
         try:
-            argument_mapping = typing.get_type_hints(func) or dict()
+            annotations = typing.get_type_hints(func) or dict()
         except Exception:
             # Python 3.5.3 does not handle properly method wrappers
-            argument_mapping = dict()
-
-        try:
-            del argument_mapping['return']
-        except KeyError:
-            pass
+            annotations = dict()
 
         arg_spec, _, _ = get_arguments_specification(func)
 
         if arg_map is None:
-            pass
+            arg_to_dependency = {}  # type: Mapping
         elif isinstance(arg_map, Mapping):
-            argument_mapping.update(arg_map)
+            arg_to_dependency = arg_map
         elif isinstance(arg_map, Iterable):
-            for (name, _), dependency_id in zip(arg_spec, arg_map):
-                argument_mapping[name] = dependency_id
+            arg_to_dependency = {
+                name: dependency_id
+                for (name, _), dependency_id in zip(arg_spec, arg_map)
+            }
         else:
             raise ValueError('Only a mapping or a iterable is supported for '
                              'arg_map, not {!r}'.format(arg_map))
@@ -286,9 +283,11 @@ class DependencyInjector:
             (
                 name,
                 has_default,
-                argument_mapping.get(
+                arg_to_dependency.get(
                     name,
-                    name if name in use_names else _EMPTY_DEPENDENCY
+                    name
+                    if name in use_names else
+                    annotations.get(name, _EMPTY_DEPENDENCY)
                 ),
             )
             for name, has_default in arg_spec

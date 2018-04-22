@@ -1,12 +1,14 @@
+import contextlib
 import threading
 from collections import OrderedDict
-from typing import Any, Dict
+from typing import Any, Union, Mapping, Iterable
 
-from .stack import DependencyStack
+from .stack import InstantiationStack
 from ..exceptions import (
     DependencyCycleError, DependencyInstantiationError,
     DependencyNotFoundError, DependencyNotProvidableError
 )
+
 _SENTINEL = object()
 
 
@@ -26,8 +28,15 @@ class DependencyContainer:
     def __init__(self):
         self.providers = OrderedDict()
         self._cache = {}
-        self._instantiation_lock = threading.RLock()
-        self._instantiation_stack = DependencyStack()
+        self._cache_lock = threading.RLock()
+        self._instantiation_stack = InstantiationStack()
+
+    def __str__(self):
+        return "{}(providers=({}))".format(
+            type(self).__name__,
+            ", ".join("{}={}".format(name, p)
+                      for name, p in self.providers.items()),
+        )
 
     def __repr__(self):
         return "{}(providers=({}), cache={!r})".format(
@@ -37,68 +46,134 @@ class DependencyContainer:
             self._cache
         )
 
-    def __getitem__(self, item):
+    def __getitem__(self, dependency):
         """
         Get the specified dependency. :code:`item` is either the dependency_id
         or a :py:class:`~Dependency` instance in order to provide additional
         arguments to the providers.
         """
         try:
-            return self._cache[item]
+            return self._cache[dependency]
         except KeyError:
             pass
 
-        if isinstance(item, Dependency):
-            args = (item.dependency_id,) + item.args
-            kwargs = item.kwargs
-        else:
-            args = (item,)
-            kwargs = {}
+        if not isinstance(dependency, Dependency):
+            dependency = Dependency(dependency)
 
         try:
-            with self._instantiation_lock, \
-                    self._instantiation_stack.instantiating(item):
-                if item in self._cache:
-                    return self._cache[item]
+            with self._cache_lock, \
+                    self._instantiation_stack.instantiating(dependency):
+                try:
+                    return self._cache[dependency]
+                except KeyError:
+                    pass
 
                 for provider in self.providers.values():
                     try:
-                        dependency = provider.__antidote_provide__(*args,
-                                                                   **kwargs)
+                        instance = provider.__antidote_provide__(
+                            dependency
+                        )  # type: Instance
                     except DependencyNotProvidableError:
                         pass
                     else:
-                        if dependency.singleton:
-                            self._cache[item] = dependency.instance
+                        if instance.singleton:
+                            self._cache[dependency] = instance.item
 
-                        return dependency.instance
+                        return instance.item
 
         except DependencyCycleError:
             raise
 
         except Exception as e:
-            raise DependencyInstantiationError(item) from e
+            raise DependencyInstantiationError(dependency) from e
 
-        raise DependencyNotFoundError(item)
+        raise DependencyNotFoundError(dependency)
 
-    def provide(self, dependency_id, *args, **kwargs):
+    def provide(self, *args, **kwargs):
         """
         Utility method which creates a :py:class:`~Dependency` and passes it to
         :py:meth:`~__getitem__`.
         """
-        return self[Dependency(dependency_id, *args, **kwargs)]
+        return self[Dependency(*args, **kwargs)]
 
     def __setitem__(self, dependency_id, dependency):
         """
         Set a dependency in the cache.
         """
-        self._cache[dependency_id] = dependency
+        with self._cache_lock:
+            self._cache[dependency_id] = dependency
 
-    def update(self, dependencies: Dict):
+    def update(self, *args, **kwargs):
         """
         Update the cached dependencies.
         """
-        self._cache.update(dependencies)
+        with self._cache_lock:
+            self._cache.update(*args, **kwargs)
+
+    @contextlib.contextmanager
+    def context(self,
+                dependencies: Union[Mapping, Iterable] = None,
+                include: Iterable = None,
+                exclude: Iterable = None,
+                missing: Iterable = None
+                ):
+        """
+        Creates a context within one can control which of the defined
+        dependencies available or not. Any changes will be discarded at the
+        end.
+
+        Args:
+            dependencies: Dependencies instances used to override existing ones
+                in the new context.
+            include: Iterable of dependency to include. If None
+                everything is accessible.
+            exclude: Iterable of dependency to exclude.
+            missing: Iterable of dependency which should raise a
+                :py:exc:`~.exceptions.DependencyNotFoundError` even if a
+                provider could instantiate them.
+
+        """
+
+        with self._cache_lock:
+            original_cache = self._cache
+
+            if missing:
+                missing = set(missing)
+                exclude = set(exclude) | missing if exclude else missing
+
+                class Cache(dict):
+                    def __missing__(self, key):
+                        if key in missing:
+                            raise DependencyNotFoundError(key)
+
+                        raise KeyError(key)
+
+                self._cache = Cache(original_cache if not include else {})
+
+            elif not include:
+                self._cache = original_cache.copy()
+            else:
+                self._cache = {}
+
+            if include:
+                for dependency in include:
+                    self._cache[dependency] = original_cache[dependency]
+
+            if exclude:
+                for dependency in exclude:
+                    try:
+                        del self._cache[dependency]
+                    except KeyError:
+                        pass
+
+            if dependencies:
+                self._cache.update(dependencies)
+
+        try:
+            yield
+        finally:
+            with self._cache_lock:
+                self._cache = original_cache
 
 
 class Dependency:
@@ -115,17 +190,17 @@ class Dependency:
     'Antidote'
 
     """
-    __slots__ = ('dependency_id', 'args', 'kwargs')
+    __slots__ = ('id', 'args', 'kwargs')
 
-    def __init__(self, dependency_id, *args, **kwargs):
-        self.dependency_id = dependency_id
-        self.args = args
+    def __init__(self, *args, **kwargs):
+        self.id = args[0]
+        self.args = args[1:]
         self.kwargs = kwargs
 
     def __repr__(self):
         return "{}({!r}, *{!r}, **{!r})".format(
             type(self).__name__,
-            self.dependency_id,
+            self.id,
             self.args,
             self.kwargs
         )
@@ -133,27 +208,27 @@ class Dependency:
     def __hash__(self):
         if len(self.args) or len(self.kwargs):
             return hash((
-                self.dependency_id,
+                self.id,
                 self.args,
                 tuple(self.kwargs.items())
             ))
 
-        return hash(self.dependency_id)
+        return hash(self.id)
 
     def __eq__(self, other):
         if isinstance(other, Dependency):
             return (
-                self.dependency_id == other.dependency_id
+                self.id == other.id
                 and self.args == other.args
                 and self.kwargs == other.kwargs
             )
         elif not len(self.args) and not len(self.kwargs):
-            return self.dependency_id == other
+            return self.id == other
 
         return False
 
 
-class DependencyInstance:
+class Instance:
     """
     Simple wrapper which has to be used by providers when returning an
     instance of a dependency.
@@ -162,15 +237,15 @@ class DependencyInstance:
     be cached or not (singleton).
     """
 
-    __slots__ = ('instance', 'singleton')
+    __slots__ = ('item', 'singleton')
 
-    def __init__(self, instance: Any, singleton: bool = False) -> None:
-        self.instance = instance
+    def __init__(self, item: Any, singleton: bool = False) -> None:
+        self.item = item
         self.singleton = singleton
 
     def __repr__(self):
         return "{}(instance={!r}, singleton={!r})".format(
             type(self).__name__,
-            self.instance,
+            self.item,
             self.singleton
         )

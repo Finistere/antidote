@@ -1,6 +1,6 @@
 from typing import Callable, Dict
 
-from ..container import DependencyInstance
+from ..container import Dependency, Instance
 from ..exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
@@ -27,39 +27,35 @@ class FactoryProvider:
             tuple(self._subclass_factories.keys())
         )
 
-    def __antidote_provide__(self, dependency_id, *args,
-                             **kwargs) -> DependencyInstance:
+    def __antidote_provide__(self, dependency: Dependency) -> Instance:
         """
         Builds the dependency if a factory associated with the dependency_id
         can be found.
 
         Args:
-            dependency_id: ID of the dependency.
-            *args: passed on to the factory.
-            **kwargs: passed on to the factory.
+            dependency: dependency to provide.
 
         Returns:
             A :py:class:`~.container.Dependency` wrapping the built dependency.
         """
         try:
-            factory = self._factories[dependency_id]
+            factory = self._factories[dependency.id]
         except KeyError:
-            for cls in getattr(dependency_id, '__mro__', []):
+            for cls in getattr(dependency.id, '__mro__', []):
                 try:
                     factory = self._subclass_factories[cls]
                     break
                 except KeyError:
                     pass
             else:
-                raise DependencyNotProvidableError(dependency_id)
+                raise DependencyNotProvidableError(dependency.id)
 
+        args = dependency.args
         if factory.takes_dependency_id:
-            args = (dependency_id,) + args
+            args = (dependency.id,) + args
 
-        return DependencyInstance(
-            factory(*args, **kwargs),
-            singleton=factory.singleton
-        )
+        return Instance(factory(*args, **dependency.kwargs),
+                        singleton=factory.singleton)
 
     def register(self,
                  dependency_id,
