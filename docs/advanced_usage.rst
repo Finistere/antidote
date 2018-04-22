@@ -328,6 +328,7 @@ following example presents a provider using a time limited cache:
 .. doctest:: provider
 
     >>> def called_counter():
+    ...     """ Counts the number of times it was called. """
     ...     try:
     ...         called_counter.count += 1
     ...     except AttributeError:
