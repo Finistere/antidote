@@ -251,6 +251,9 @@ Pull requests **should avoid** to:
 
 - make it harder to integrate Antidote into existing code.
 - break backwards compatibility.
+- create features difficult to understand for an IDE, such as converting a
+  string *dependency id* to a non singleton object somehow. An user may do
+  this, but antidote shouldn't.
 
 Pull requests **will not** be accepted if:
 

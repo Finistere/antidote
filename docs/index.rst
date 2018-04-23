@@ -16,5 +16,5 @@ Table of Content
     :maxdepth: 3
 
     usage
-    advanced_usage
+    extending
     api

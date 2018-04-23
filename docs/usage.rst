@@ -96,6 +96,8 @@ from the :py:class:`~.DependencyContainer` with it:
 Note here that the instance is built lazily, only when requested. Should it be
 never requested, it won't be instantiated.
 
+
+
 Parameters (configuration)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -131,8 +133,8 @@ string.
 - :code:`split`: The *dependency id* into a list of keys used to recursively
   traverse the configuration object.
 
-Using a factory
-^^^^^^^^^^^^^^^
+Factories
+^^^^^^^^^
 
 With complex services, or ones from libraries, you usually need a factory
 to configure it correctly. Antidote provides the
@@ -190,7 +192,7 @@ Now you can easily use the :py:class:`Database` service anywhere in your code:
 
 .. note::
 
-    :ref:`advanced_usage:Advanced Factories` presents more complex usage of
+    :ref:`usage:Complex Factories` presents more complex usage of
     factories such as instantiating subclasses or being stateful.
 
 Singletons
@@ -229,8 +231,8 @@ Dependencies having often dependencies themselves, thus Antidote injects them
 automatically. That is named "auto-wiring", as dependencies are wired together.
 By default, :py:meth:`~.DependencyManager.register` will apply
 :py:meth:`~.DependencyManager.inject` to the :code:`__init__` method of your
-service. In order to customize how injection, :code:`arg_map` and
-:code:`use_names` which are passed on to :py:meth:`~.DependencyManager.inject`.
+service. In order to customize injection, :code:`arg_map` and :code:`use_names`
+can be used.
 
 .. testcode:: usage
 
@@ -251,7 +253,7 @@ With :py:meth:`~.DependencyManager.factory`,
 .. note::
 
     Auto-wiring offers additional functionalities, presented in
-    :ref:`advanced_usage:Advanced auto-wiring`.
+    :ref:`usage:Custom auto-wiring`.
 
 Inject a dependency
 -------------------
@@ -396,3 +398,179 @@ control which one are accessible. This can be easily done with the
     Traceback (most recent call last):
      ...
     antidote.exceptions.DependencyNotFoundError: param
+
+
+Advanced
+--------
+
+.. testsetup:: advanced_usage
+
+    from antidote import antidote
+    antidote.container['name'] = 'Antidote'
+
+Custom auto-wiring
+^^^^^^^^^^^^^^^^^^
+
+Dependencies having often dependencies themselves, thus Antidote injects them
+automatically. That is named "auto-wiring", as dependencies are wired together.
+By default, :py:meth:`~.DependencyManager.register` will apply
+:py:meth:`~.DependencyManager.inject` to the :code:`__init__` method of your
+service. In order to customize how injection.
+
+.. testcode:: advanced_usage
+
+    @antidote.register(use_names=True)
+    class Service:
+        def __init__(self, name):
+            self.name = name
+
+.. doctest:: advanced_usage
+
+    >>> service = antidote.container[Service]
+    >>> service.name
+    'Antidote'
+
+:py:meth:`~.DependencyManager.register` accepts :code:`use_names` and
+:code:`arg_map` parameters with the same meaning as those from
+:py:meth:`~.DependencyManager.inject`. By default only :code:`__init__()` is
+injected. :py:meth:`~.DependencyManager.factory` also wires :code:`__call__()`
+if applied on a class (see :ref:`usage:Using a class as a factory`).
+
+If you need to wire multiples methods, you only need to specify them:
+
+.. testcode:: advanced_usage
+
+    @antidote.register(use_names=True, auto_wire=('__init__', 'get'))
+    class Service:
+        def __init__(self, name):
+            self.name = name
+
+        def get(self, name):
+            return name
+
+.. doctest:: advanced_usage
+
+    >>> service = antidote.container[Service]
+    >>> service.get()
+    'Antidote'
+
+Auto-wiring can also be deactivated if necessary:
+
+.. testcode:: advanced_usage
+
+    @antidote.register(auto_wire=False)
+    class BrokenService:
+        def __init__(self, name):
+            self.name = name
+
+.. doctest:: advanced_usage
+
+    >>> service = antidote.container[BrokenService]
+    Traceback (most recent call last):
+        ...
+    antidote.exceptions.DependencyInstantiationError: <class 'BrokenService'>
+
+
+Complex Factories
+^^^^^^^^^^^^^^^^^
+
+Subclasses Instantiation
+""""""""""""""""""""""""
+
+A factory handling subclasses is a common pattern, thus it is made easy to do
+so by using the parameter :code:`build_subclasses`:
+
+.. testcode:: advanced_usage
+
+    class Service:
+        def __init__(self, name):
+            self.name = name
+
+    class SubService(Service):
+        pass
+
+    @antidote.factory(build_subclasses=True, use_names=True)
+    def service_factory(cls, name) -> Service:
+        return cls(name)
+
+.. doctest:: advanced_usage
+
+    >>> s = antidote.container[SubService]
+    >>> type(s)
+    <class 'SubService'>
+    >>> s.name
+    'Antidote'
+
+The class requested will be passed as first argument if :code:`build_subclasses`
+is set to :py:obj:`True`.
+
+.. note::
+
+    If a class :code:`C` has multiple base classes with a registered factory,
+    Antidote searches :code:`C.__mro__` for the first matching base class.
+    (see `Python Method Resolution Order`_ for more information on the
+    ordering.)
+
+
+.. _Python Method Resolution Order: https://www.python.org/download/releases/3.6/mro/
+
+Using a class as a factory
+""""""""""""""""""""""""""
+
+:py:meth:`~.DependencyManager.factory` can also be used to declare classes
+as factories. It allows you to keep some state between the calls.
+
+For example when processing a request, the user is usually needed. It cannot be
+a singleton as it may change at every request. But retrieving it from database
+at every injection is a performance hit. Thus the factory should at least
+remember the current user.
+
+
+.. testsetup:: advanced_usage
+
+    class Database:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class Request:
+        def getSession(self):
+            pass
+
+    class User:
+        pass
+
+
+.. testcode:: advanced_usage
+
+    from antidote import antidote
+    # from database_vendor import Database
+    # from web_framework import Request
+    # from models import User
+
+    @antidote.factory
+    def database_factory() -> Database:
+        return Database()
+
+    @antidote.factory(singleton=False)
+    def get_current_request() -> Request:
+        return Request()
+
+    @antidote.factory
+    class UserFactory:
+        def __init__(self, database: Database):
+            self.database = database
+            self.current_session = None
+            self.current_user = None
+
+        def __call__(self, request: Request) -> User:
+            # No need to reload the user.
+            if self.current_session != request.getSession():
+                # load new user from database
+                self.current_user = User()
+
+            return self.current_user
+
+    user = antidote.container[User]
+
+This case is similar to what is called a scope in other dependency injection
+framework. The same service may or may not be returned depending on some state.
