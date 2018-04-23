@@ -218,4 +218,3 @@ def do_not_skip_init(app, what, name, obj, skip, options):
 def setup(app):
     app.connect("autodoc-skip-member", do_not_skip_init)
     app.add_stylesheet('css/style.css')  # may also be an URL
-
