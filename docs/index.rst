@@ -15,6 +15,7 @@ Table of Content
 .. toctree::
     :maxdepth: 3
 
+    why
     usage
     extending
     api
