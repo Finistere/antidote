@@ -14,7 +14,6 @@
 # serve to show the default.
 
 import os
-import sys
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -49,14 +48,12 @@ extensions = [
     'sphinx.ext.intersphinx'
 ]
 
-
 # Python code that is treated like it were put in a testcleanup directive for
 # every file that is tested, and for every group.
 doctest_global_cleanup = """
 import antidote
 antidote.antidote = antidote.DependencyManager()
 """
-
 
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
@@ -117,7 +114,6 @@ add_module_names = False
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -161,12 +157,10 @@ html_sidebars = {
     ]
 }
 
-
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'Antidotedoc'
-
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -196,7 +190,6 @@ latex_documents = [
      'Benjamin Rabier', 'manual'),
 ]
 
-
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
@@ -205,7 +198,6 @@ man_pages = [
     (master_doc, 'dependency manager', 'Antidote Documentation',
      [author], 1)
 ]
-
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -219,5 +211,11 @@ texinfo_documents = [
 ]
 
 
+def do_not_skip_init(app, what, name, obj, skip, options):
+    return (name != "__init__") and skip
+
+
 def setup(app):
+    app.connect("autodoc-skip-member", do_not_skip_init)
     app.add_stylesheet('css/style.css')  # may also be an URL
+

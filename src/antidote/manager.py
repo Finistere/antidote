@@ -4,16 +4,13 @@ from collections import Mapping, Sequence
 from functools import reduce
 import contextlib
 from typing import (
-    Any, Callable, Dict, Iterable, Type, TypeVar, Union, get_type_hints
+    Any, Callable, Dict, Iterable, TypeVar, Union, get_type_hints
 )
 
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
 from .injector import DependencyInjector
 from .providers import FactoryProvider, ParameterProvider
-
-ContainerAliasType = Union[Type[DependencyContainer], DependencyContainer]
-InjectorAliasType = Union[Type[DependencyInjector], DependencyInjector]
 
 T = TypeVar('T')
 
@@ -51,18 +48,17 @@ class DependencyManager:
                  auto_wire: bool = None,
                  use_names: bool = None,
                  arg_map: Mapping = None,
-                 container: ContainerAliasType = DependencyContainer,
-                 injector: InjectorAliasType = DependencyInjector
+                 container: DependencyContainer = None,
+                 injector: DependencyInjector = None
                  ) -> None:
         """Initialize the DependencyManager.
 
         Args:
             auto_wire: Default value for :code:`auto_wire` argument.
             use_names: Default value for :code:`use_names` argument.
-            container: Either an instance or the class of the container to use.
-                Defaults to :py:class:`.DependencyContainer`.
-            injector: Either an instance or the class of the injector to use.
-                Defaults to :py:class:`.DependencyInjector`.
+            container: Container to use if specified.
+            injector: Injector to use if specified.
+
         """
         if auto_wire is not None:
             self.auto_wire = auto_wire
@@ -71,16 +67,10 @@ class DependencyManager:
         self.arg_map = dict()
         self.arg_map.update(arg_map or dict())
 
-        self.container = (
-            container() if isinstance(container, type) else container
-        )  # type: DependencyContainer
+        self.container = container or DependencyContainer()
         self.container[DependencyContainer] = weakref.proxy(self.container)
 
-        self.injector = (
-            injector(self.container)
-            if isinstance(injector, type) else
-            injector
-        )  # type: DependencyInjector
+        self.injector = injector or DependencyInjector(self.container)
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
         self.provider(FactoryProvider, auto_wire=False)
