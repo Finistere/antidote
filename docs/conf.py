@@ -62,7 +62,10 @@ antidote.antidote = antidote.DependencyManager()
 
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
-intersphinx_mapping = {'python': ('https://docs.python.org/3.6', None)}
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3.6', None),
+    'attrs': ('http://www.attrs.org/en/stable', None)
+}
 
 # Prefix each section label with the name of the document it is in.
 autosectionlabel_prefix_document = True

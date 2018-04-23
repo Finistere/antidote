@@ -28,7 +28,8 @@ class ParameterProvider:
             dependency: dependency to provide.
 
         Returns:
-            A :py:class:`~.container.Dependency` wrapping the built dependency.
+            A :py:class:`~.container.Instance` wrapping the built instance for
+            the dependency.
         """
         for parameters, getter in self._parameter_getter_couples:
             try:
@@ -42,7 +43,7 @@ class ParameterProvider:
 
     def register(self, parameters: T, getter: Callable[[T, Any], Any]):
         """
-        Register parameters with its parser.
+        Register parameters with its getter.
 
         Args:
             getter: Function used to retrieve a requested dependency from the

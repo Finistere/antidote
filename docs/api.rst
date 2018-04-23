@@ -1,16 +1,6 @@
 API Reference
 =============
 
-:py:mod:`antidote` is mainly composed of 4 components:
-
-- :py:class:`.DependencyContainer`: The container manages the dependencies,
-  it stores them if necessary and uses providers to instantiate them. It also
-  ensures the thread safety and does the cycle detection.
-- :py:class:`.DependencyInjector`: The injector injects the dependencies of a
-  function.
-- :py:class:`.DependencyManager`: The manager is composed of a container, an
-  injector and the  :py:class:`~.providers.FactoryProvider` provider.
-  It exposes utility decorators and functions.
 
 Manager
 -------
@@ -32,9 +22,12 @@ Container
 .. autoclass:: antidote.container.DependencyContainer
     :members:
     :special-members:
-    :exclude-members: __dict__,__weakref__,__init__,__repr__
+    :exclude-members: __dict__,__weakref__,__init__,__repr__,__str__
 
 .. autoclass:: antidote.container.Dependency
+    :members:
+
+.. autoclass:: antidote.container.Instance
     :members:
 
 

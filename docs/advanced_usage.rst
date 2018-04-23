@@ -310,6 +310,7 @@ following example presents a provider using a time limited cache:
             except KeyError:
                 pass
             else:
+                # Is instance too old ?
                 if (time.time() - instantiated_at) < ttl:
                     return instance
 
@@ -337,6 +338,9 @@ following example presents a provider using a time limited cache:
     ...
     >>> antidote.providers[TimeProvider].register('test', called_counter,
     ...                                           time_to_live=1)
+    >>> antidote.container['test']
+    1
+    >>> time.sleep(.1)
     >>> antidote.container['test']
     1
     >>> time.sleep(1)

@@ -36,7 +36,8 @@ class FactoryProvider:
             dependency: dependency to provide.
 
         Returns:
-            A :py:class:`~.container.Dependency` wrapping the built dependency.
+            A :py:class:`~.container.Instance` wrapping the built instance for
+            the dependency.
         """
         try:
             factory = self._factories[dependency.id]

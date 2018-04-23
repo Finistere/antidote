@@ -2,6 +2,7 @@ import inspect
 import weakref
 from collections import Mapping, Sequence
 from functools import reduce
+import contextlib
 from typing import (
     Any, Callable, Dict, Iterable, Type, TypeVar, Union, get_type_hints
 )
@@ -333,8 +334,8 @@ class DependencyManager:
         return cls and wire_methods(cls) or wire_methods
 
     def attrib(self,
-               dependency_id=None,
-               use_name: Union[bool, Iterable[str]] = None,
+               dependency_id: Any = None,
+               use_name: bool = None,
                **attr_kwargs
                ):
         """Injects a dependency with attributes defined with attrs package.
@@ -503,3 +504,42 @@ class DependencyManager:
             return f
 
         return getter and register_parser(getter) or register_parser
+
+    @contextlib.contextmanager
+    def context(self,
+                dependencies: Union[Mapping, Iterable] = None,
+                include: Iterable = None,
+                exclude: Iterable = None,
+                missing: Iterable = None
+                ):
+        """
+        Creates a context within one can control which of the defined
+        dependencies available or not. Any changes will be discarded at the
+        end.
+
+        >>> from antidote import antidote, DependencyContainer
+        >>> with antidote.context(include=[]):
+        ...     s = 'Your code isolated from every other dependencies'
+        ...     antidote.container[DependencyContainer]
+        <... DependencyContainer ...>
+
+        The :py:class:`~antidote.DependencyInjector` and the
+        :py:class:`~antidote.DependencyContainer` will still be accessible.
+
+        Args:
+            dependencies: Dependencies instances used to override existing ones
+                in the new context.
+            include: Iterable of dependency to include. If None
+                everything is accessible.
+            exclude: Iterable of dependency to exclude.
+            missing: Iterable of dependency which should raise a
+                :py:exc:`~.exceptions.DependencyNotFoundError` even if a
+                provider could instantiate them.
+
+        """
+        with self.container.context(dependencies=dependencies, include=include,
+                                    exclude=exclude, missing=missing):
+            # Re-inject DependencyManager's globals
+            self.container[DependencyContainer] = weakref.proxy(self.container)
+            self.container[DependencyInjector] = weakref.proxy(self.injector)
+            yield

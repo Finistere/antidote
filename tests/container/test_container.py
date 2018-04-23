@@ -209,6 +209,16 @@ def test_context_include(container: DependencyContainer):
         with pytest.raises(DependencyNotFoundError):
             container['test']
 
+    with container.context(include=[]):
+        with pytest.raises(DependencyNotFoundError):
+            container[Service]
+
+        with pytest.raises(DependencyNotFoundError):
+            container['name']
+
+        with pytest.raises(DependencyNotFoundError):
+            container['test']
+
 
 def test_context_exclude(container: DependencyContainer):
     container['test'] = 1

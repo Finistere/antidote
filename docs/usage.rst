@@ -67,6 +67,9 @@ hereafter.
 Register a dependency
 ---------------------
 
+Services
+^^^^^^^^
+
 A service is a class which needs to be instantiated before injection.
 Registering one is simply done by applying a decorator:
 
@@ -253,6 +256,9 @@ With :py:meth:`~.DependencyManager.factory`,
 Inject a dependency
 -------------------
 
+Decorator
+^^^^^^^^^
+
 Injection is as simple as it gets with the
 :py:meth:`~.DependencyManager.inject` decorator:
 
@@ -346,3 +352,47 @@ them:
 
     Check out the `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_
     for numbers.
+
+Attrs
+^^^^^
+
+Antidote provides also support for the
+`attr <http://www.attrs.org/en/stable>`_ package (version >= 17.1). As
+usual you have multiple ways to map the dependency to the attribute:
+
+- Variable annotation for Python 3.6+
+- Name of the attribute
+- Explicit *dependency id*.
+
+.. testcode:: usage
+
+    import attr
+
+    @attr.s
+    class MyClass:
+        service: Service = antidote.attrib()
+        name = antidote.attrib(use_name=True)
+        custom_dependency = antidote.attrib('my_hello_world')
+
+Internally antidote uses a :py:class:`attr.Factory` and any additional keyword
+argument is passed on to it.
+
+
+Mocking
+-------
+
+When testing your application one usually need to change the dependencies or
+control which one are accessible. This can be easily done with the
+:py:meth:`~.DependencyManager.context` context manager:
+
+.. doctest:: usage
+
+    >>> antidote.container['param'] = 1
+    >>> with antidote.context(dependencies={'param': 2}):
+    ...     print(antidote.container['param'])
+    2
+    >>> with antidote.context(include=[]):
+    ...     antidote.container['param']
+    Traceback (most recent call last):
+     ...
+    antidote.exceptions.DependencyNotFoundError: param

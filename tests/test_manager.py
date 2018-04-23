@@ -1,13 +1,14 @@
-import pytest
-
-from antidote import DependencyInstantiationError
-from antidote import (
-    Instance, DependencyNotFoundError, DependencyNotProvidableError
-)
-from antidote import DependencyManager
+from configparser import RawConfigParser
 from operator import getitem
 
-from configparser import RawConfigParser
+import pytest
+
+from antidote import (
+    DependencyContainer, DependencyInjector, DependencyInstantiationError,
+    DependencyManager, DependencyNotFoundError, DependencyNotProvidableError,
+    Instance
+)
+from antidote.providers import FactoryProvider, ParameterProvider
 
 
 def test_inject_bind():
@@ -431,11 +432,11 @@ def test_provider():
         def __init__(self, service=None):
             self.service = service
 
-        def __antidote_provide__(self, dependency_id, *ags, **kwargs):
-            if dependency_id == 'test':
-                return Instance(dependency_id)
+        def __antidote_provide__(self, dependency):
+            if dependency.id == 'test':
+                return Instance(dependency.id)
             else:
-                raise DependencyNotProvidableError(dependency_id)
+                raise DependencyNotProvidableError(dependency)
 
     assert isinstance(container.providers[DummyProvider], DummyProvider)
     assert container.providers[DummyProvider].service is container['service']
@@ -458,8 +459,23 @@ def test_provider():
             def __init__(self, service):
                 self.service = service
 
-            def __antidote_provide__(self, dependency_id, *ags, **kwargs):
-                return Instance(dependency_id)
+            def __antidote_provide__(self, dependency):
+                return Instance(dependency.id)
+
+
+def test_providers():
+    manager = DependencyManager()
+
+    assert 2 == len(manager.providers)
+    assert FactoryProvider in manager.providers
+    assert ParameterProvider in manager.providers
+
+    @manager.provider
+    class DummyProvider(object):
+        def __antidote_provide__(self, dependency):
+            return Instance(1)
+
+    assert DummyProvider in manager.providers
 
 
 def test_parameters():
@@ -552,3 +568,41 @@ def test_manager_repr():
     assert 'auto_wire' in repr(manager)
     assert 'use_names' in repr(manager)
     assert 'mapping' in repr(manager)
+
+
+def test_context():
+    manager = DependencyManager()
+    manager.container['param'] = 1
+
+    with manager.context(include=[]):
+        with pytest.raises(DependencyNotFoundError):
+            manager.container['param']
+
+        manager.container[DependencyInjector]
+        manager.container[DependencyContainer]
+
+    with manager.context(include=['param']):
+        assert 1 == manager.container['param']
+
+        manager.container[DependencyInjector]
+        manager.container[DependencyContainer]
+
+    with manager.context(exclude=['param']):
+        with pytest.raises(DependencyNotFoundError):
+            manager.container['param']
+
+        manager.container[DependencyInjector]
+        manager.container[DependencyContainer]
+
+    with manager.context(missing=['param']):
+        with pytest.raises(DependencyNotFoundError):
+            manager.container['param']
+
+        manager.container[DependencyInjector]
+        manager.container[DependencyContainer]
+
+    with manager.context(dependencies={'param': 2}):
+        assert 2 == manager.container['param']
+
+        manager.container[DependencyInjector]
+        manager.container[DependencyContainer]

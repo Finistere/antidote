@@ -14,27 +14,28 @@ class AnotherService(object):
     pass
 
 
+def make_delayed_factory(a, b, factory):
+    def f():
+        time.sleep(a + b * random.random())
+        return factory()
+
+    return f
+
+
 def test_instantiation_safety():
     n_threads = 10
     manager = DependencyManager()
 
-    class Service(object):
-        pass
-
-    class AnotherService(object):
-        pass
-
-    def service_factory():
-        time.sleep(random.random() * .1 + .1)
-        return Service()
-
-    def another_service_factory():
-        time.sleep(random.random() * .1 + .1)
-        return AnotherService()
-
-    manager.factory(service_factory, dependency_id=Service, singleton=True)
-    manager.factory(another_service_factory, dependency_id=AnotherService,
-                    singleton=False)
+    manager.factory(
+        make_delayed_factory(.1, .1, Service),
+        dependency_id=Service,
+        singleton=True
+    )
+    manager.factory(
+        make_delayed_factory(.1, .1, AnotherService),
+        dependency_id=AnotherService,
+        singleton=False
+    )
 
     singleton_got = []
     non_singleton_got = []

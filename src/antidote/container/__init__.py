@@ -149,7 +149,7 @@ class DependencyContainer:
 
                 self._cache = Cache(original_cache if not include else {})
 
-            elif not include:
+            elif include is None:
                 self._cache = original_cache.copy()
             else:
                 self._cache = {}
