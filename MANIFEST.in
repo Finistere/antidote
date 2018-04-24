@@ -1,7 +1,7 @@
 include LICENSE *.rst *.toml benchmark.ipynb
 
 # Don't package GitHub-specific files.
-exclude .travis.yml
+exclude .travis.yml .readthedocs.yml
 
 # Tests
 include tox.ini .coveragerc conftest.py
