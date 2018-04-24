@@ -372,6 +372,7 @@ usual you have multiple ways to map the dependency to the attribute:
 
     @attr.s
     class MyClass:
+        service: Service = antidote.attrib()
         name = antidote.attrib(use_name=True)
         custom_dependency = antidote.attrib('my_hello_world')
 
