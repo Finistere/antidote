@@ -190,6 +190,26 @@ Now you can easily use the :py:class:`Database` service anywhere in your code:
     >>> antidote.container[Database]
     Database(host='localhost', user='admin', password='admin')
 
+You can even pass arguments to the factory if you need different instances of
+a class:
+
+.. doctest:: usage
+
+    >>> from antidote import Dependency as Dy
+    >>> db = antidote.container[Dy(Database, db_host='different host')]
+    >>> db
+    Database(host='different host', user='admin', password='admin')
+
+This custom dependency is also a singleton:
+
+.. doctest:: usage
+
+    >>> db is antidote.container[Dy(Database, db_host='different host')]
+    True
+
+:py:class:`~.container.Dependency` can be used to pass any positional and
+keyword argument to the factory.
+
 .. note::
 
     :ref:`usage:Complex Factories` presents more complex usage of
