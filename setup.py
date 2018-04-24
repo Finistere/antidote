@@ -44,12 +44,19 @@ setup(
     url='https://github.com/Finistere/antidote',
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    # package_data={'': ['LICENSE']},
-    # include_package_data=True,
     install_requires=[],
     extras_require={
         ":python_version<'3.5'": ["typing"],
-        "attrs": ["attrs>=17.1"]
+        "docs": [
+            "sphinx",
+            "sphinx_autodoc_typehints",
+            "sphinx-rtd-theme",
+            "attrs"
+        ],
+        "tests": [
+            "pytest",
+            "pytest-cov"
+        ]
     },
     license='MIT',
     classifiers=(

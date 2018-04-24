@@ -1,15 +1,67 @@
 sudo: false
+cache:
+  directories:
+    - $HOME/.cache/pip
+
 language: python
-python:
-  - "3.4"
-  - "3.5"
-  - "3.6"
-env:
-  global:
-    - COVERAGE_FILE=".coverage"
-  matrix:
-    - ATTRS=true
-    - ATTRS=false
-install: pip install tox-travis codecov
-script: tox
-after_success: codecov
+
+
+matrix:
+  fast_finish: true
+
+  include:
+    - python: "3.4"
+      env: TOXENV=py34
+    - python: "3.4"
+      env: TOXENV=py34-attrs
+    - python: "3.5"
+      env: TOXENV=py35
+    - python: "3.5"
+      env: TOXENV=py35-attrs
+    - python: "3.6"
+      env: TOXENV=py36
+    - python: "3.6"
+      env: TOXENV=py36-attrs
+
+    # Prevent breakage by a new releases
+    - python: "3.6-dev"
+      env: TOXENV=py36
+    - python: "3.6-dev"
+      env: TOXENV=py36-attrs
+    - python: "3.7-dev"
+      env: TOXENV=py37
+    - python: "3.7-dev"
+      env: TOXENV=py37-attrs
+
+    # Meta
+    - python: "3.6"
+      env: TOXENV=flake8
+    - python: "3.6"
+      env: TOXENV=manifest
+    - python: "3.6"
+      env: TOXENV=docs
+
+  allow_failures:
+    - python: "3.6-dev"
+    - python: "3.7-dev"
+
+
+install:
+  - pip install tox
+
+
+script:
+  - tox
+
+
+before_install:
+  - pip install codecov
+
+
+after_success:
+  - tox -e coverage-report
+  - codecov
+
+
+notifications:
+  email: false

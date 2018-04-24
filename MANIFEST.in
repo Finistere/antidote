@@ -1,0 +1,18 @@
+include LICENSE *.rst *.toml benchmark.ipynb
+
+# Don't package GitHub-specific files.
+exclude .travis.yml
+
+# Tests
+include tox.ini .coveragerc conftest.py
+recursive-include tests *.py
+
+# Documentation
+include docs/Makefile
+recursive-include docs *.png
+recursive-include docs *.svg
+recursive-include docs *.css
+recursive-include docs *.gitkeep
+recursive-include docs *.py
+recursive-include docs *.rst
+prune docs/_build
