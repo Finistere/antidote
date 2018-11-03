@@ -6,7 +6,8 @@
 .pytest_cache/
 .python-version
 .tox
-coverage_html_report
+.eggs
+cov_html
 *.pyc
 *.egg-info
 /build/

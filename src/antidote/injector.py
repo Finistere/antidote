@@ -1,10 +1,8 @@
 import functools
 import typing
 from itertools import islice
-from typing import (
-    Any, Callable, Dict, Iterable, Mapping, Sequence, Tuple,
-    Union
-)
+from typing import (Any, Callable, Dict, Iterable, Mapping, Optional, Sequence,
+                    Tuple, Union)
 
 from ._utils import get_arguments_specification
 from .container import DependencyContainer, DependencyNotFoundError
@@ -50,11 +48,11 @@ class DependencyInjector:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
 
         Returns:
             The decorator to be applied or the injected function if the
@@ -104,11 +102,11 @@ class DependencyInjector:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
             args: Positional arguments passed on the function, overriding any
                 injection, which will also be bound.
             kwargs: Keyword arguments passed on the function, overriding any
@@ -149,11 +147,11 @@ class DependencyInjector:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
             args: Positional arguments passed on the function, overriding any
                 injection.
             kwargs: Keyword arguments passed on the function, overriding any
@@ -226,7 +224,7 @@ class DependencyInjector:
 
     @staticmethod
     def _generate_injection_blueprint(func: Callable,
-                                      arg_map: Union[Mapping, Iterable],
+                                      arg_map: Optional[Union[Mapping, Iterable]],
                                       use_names: Union[bool, Iterable[str]]
                                       ) -> InjectionBlueprintType:
         """
@@ -246,7 +244,7 @@ class DependencyInjector:
         ... ]
 
         """
-        from collections import Mapping, Iterable
+        from collections.abc import Mapping, Iterable
 
         try:
             annotations = typing.get_type_hints(func) or dict()

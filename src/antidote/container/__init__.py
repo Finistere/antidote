@@ -1,7 +1,7 @@
 import contextlib
 import threading
 from collections import OrderedDict
-from typing import Any, Union, Mapping, Iterable
+from typing import Any, Iterable, Mapping, Union
 
 from .stack import InstantiationStack
 from ..exceptions import (
@@ -58,8 +58,7 @@ class DependencyContainer:
             pass
 
         try:
-            with self._cache_lock, \
-                    self._instantiation_stack.instantiating(dependency):
+            with self._cache_lock, self._instantiation_stack.instantiating(dependency):
                 try:
                     return self._cache[dependency]
                 except KeyError:

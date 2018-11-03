@@ -2,7 +2,7 @@
 branch = True
 
 [html]
-directory = coverage_html_report
+directory = cov_html
 
 [paths]
 source =

@@ -13,8 +13,6 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import os
-
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -23,10 +21,8 @@ import os
 # sys.path.insert(0, os.path.abspath('..'))
 # sys.path.insert(0, os.path.abspath('_themes'))
 
-about = {}
-with open(os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                       "..", "src", "antidote", "__version__.py")) as f:
-    exec(f.read(), about)
+import antidote
+
 
 # -- General configuration ------------------------------------------------
 
@@ -87,7 +83,7 @@ author = 'Benjamin Rabier'
 # built documents.
 #
 # The full version, including alpha/beta/rc tags.
-release = about['__version__']
+release = antidote.__version__
 # The short X.Y version.
 version = release.rsplit(".", 1)[0]
 

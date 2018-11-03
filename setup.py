@@ -1,16 +1,11 @@
 import os
-import sys
+import pathlib
 import shutil
-from codecs import open
+import sys
 
 from setuptools import setup, find_packages
 
-
-here = os.path.dirname(os.path.abspath(__file__))
-
-about = {}
-with open(os.path.join(here, 'src', 'antidote', '__version__.py')) as f:
-    exec(f.read(), about)
+here = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 
 # 'setup.py publish' shortcut.
 if sys.argv[-1] == 'publish':
@@ -24,20 +19,16 @@ if sys.argv[-1] == 'publish':
     print("Uploading the package to PyPi with Twine...")
     os.system('twine upload dist/*')
 
-    print("Pushing git tags")
-    os.system('git tag v{0}'.format(about['__version__']))
-    os.system('git push --tags')
-
     print("Done !")
     sys.exit()
 
-
-with open('README.rst', 'r') as f:
+with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
 
 setup(
     name='antidote',
-    version=about['__version__'],
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     description='Transparent dependency injection.',
     long_description=readme,
     author='Benjamin Rabier',
@@ -69,6 +60,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
     ),
     keywords='dependency injection',

@@ -1,11 +1,9 @@
+import contextlib
 import inspect
 import weakref
-from collections import Mapping, Sequence
 from functools import reduce
-import contextlib
-from typing import (
-    Any, Callable, Dict, Iterable, TypeVar, Union, get_type_hints
-)
+from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, TypeVar,
+                    Union, get_type_hints)
 
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
@@ -112,11 +110,11 @@ class DependencyManager:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
             bind: bind arguments with :py:func:`functools.partial` directly to
                 avoid the overhead of retrieving dependencies. This should only
                 be used when necessary, it makes testing a lot more difficult.
@@ -165,11 +163,11 @@ class DependencyManager:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
 
         Returns:
             The class or the class decorator.
@@ -227,11 +225,11 @@ class DependencyManager:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
             build_subclasses: If True, subclasses will also be build with this
                 factory. If multiple factories are defined, the first in the
                 MRO is used.
@@ -400,11 +398,11 @@ class DependencyManager:
             arg_map: Custom mapping of the arguments name to their respective
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
-                order. Annotations are overriden.
+                order. Annotations are overridden.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
-                overriden, but not the arg_map.
+                overridden, but not the arg_map.
 
         Returns:
             the providers's class or the class decorator.
