@@ -11,11 +11,11 @@ def test_attrs():
         return
 
     @manager.register
-    class Service(object):
+    class Service:
         pass
 
     @attr.s
-    class Test(object):
+    class Test:
         service: Service = manager.attrib()
 
     test = Test()

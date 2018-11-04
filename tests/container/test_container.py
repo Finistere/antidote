@@ -1,13 +1,12 @@
 import pytest
 
-from antidote import Instance, DependencyContainer, Dependency
-from antidote import (
-    DependencyCycleError, DependencyInstantiationError,
-    DependencyNotFoundError, DependencyNotProvidableError
-)
+from antidote import (Dependency, DependencyContainer, DependencyCycleError,
+                      DependencyInstantiationError, DependencyNotFoundError,
+                      DependencyNotProvidableError,
+                      Instance)
 
 
-class DummyProvider(object):
+class DummyProvider:
     singleton = True
 
     def __init__(self, data=None):
@@ -24,7 +23,7 @@ class DummyProvider(object):
             raise DependencyNotProvidableError(dependency_id)
 
 
-class DummyFactoryProvider(object):
+class DummyFactoryProvider:
     create_singleton = True
 
     def __init__(self, data=None):
@@ -41,22 +40,22 @@ class DummyFactoryProvider(object):
             raise DependencyNotProvidableError(dependency_id)
 
 
-class Service(object):
+class Service:
     def __init__(self, *args):
         pass
 
 
-class AnotherService(object):
+class AnotherService:
     def __init__(self, *args):
         pass
 
 
-class YetAnotherService(object):
+class YetAnotherService:
     def __init__(self, *args):
         pass
 
 
-class ServiceWithNonMetDependency(object):
+class ServiceWithNonMetDependency:
     def __init__(self, dependency):
         pass
 

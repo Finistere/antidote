@@ -15,7 +15,7 @@ def test_inject_bind():
     manager = DependencyManager()
     container = manager.container
 
-    class Service(object):
+    class Service:
         pass
 
     manager.register(Service)
@@ -62,12 +62,12 @@ def test_inject_with_mapping():
     manager = DependencyManager()
     container = manager.container
 
-    class Service(object):
+    class Service:
         pass
 
     manager.register(Service)
 
-    class AnotherService(object):
+    class AnotherService:
         pass
 
     manager.register(AnotherService)
@@ -131,10 +131,10 @@ def test_wire():
     manager = DependencyManager()
     container = manager.container
 
-    class Service(object):
+    class Service:
         pass
 
-    class AnotherService(object):
+    class AnotherService:
         pass
 
     manager.register(Service)
@@ -142,7 +142,7 @@ def test_wire():
 
     @manager.wire(arg_map=dict(service=Service,
                                another_service=AnotherService))
-    class Something(object):
+    class Something:
         def f(self, service):
             return service
 
@@ -170,6 +170,15 @@ def test_wire():
 
     with pytest.raises(TypeError):
         something.v()
+
+
+def test_invalid_wire():
+    manager = DependencyManager()
+
+    with pytest.raises(ValueError):
+        @manager.wire
+        def f():
+            pass
 
 
 def test_use_names():
@@ -214,13 +223,13 @@ def test_register():
     container = manager.container
 
     @manager.register
-    class Service(object):
+    class Service:
         pass
 
     assert isinstance(container[Service], Service)
 
     @manager.register(arg_map=dict(service=Service))
-    class AnotherService(object):
+    class AnotherService:
         def __init__(self, service):
             self.service = service
 
@@ -232,7 +241,7 @@ def test_register():
     container['service'] = object()
 
     @manager.register(use_names=True)
-    class YetAnotherService(object):
+    class YetAnotherService:
         def __init__(self, service):
             self.service = service
 
@@ -242,14 +251,14 @@ def test_register():
     assert container[YetAnotherService] is container[YetAnotherService]
 
     @manager.register(singleton=False)
-    class SingleUsageService(object):
+    class SingleUsageService:
         pass
 
     assert isinstance(container[SingleUsageService], SingleUsageService)
     assert container[SingleUsageService] is not container[SingleUsageService]
 
     @manager.register(auto_wire=False)
-    class BrokenService(object):
+    class BrokenService:
         def __init__(self, service):
             self.service = service
 
@@ -260,7 +269,7 @@ def test_register():
                       arg_map=dict(service=Service,
                                    x=SingleUsageService,
                                    yet=YetAnotherService))
-    class ComplexWiringService(object):
+    class ComplexWiringService:
         def __init__(self, service):
             self.service = service
 
@@ -292,10 +301,10 @@ def test_factory_function():
     manager = DependencyManager()
     container = manager.container
 
-    class Service(object):
+    class Service:
         pass
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # No dependency ID
         @manager.factory
         def faulty_service_provider():
             return Service()
@@ -308,7 +317,7 @@ def test_factory_function():
     # is a singleton
     assert container[Service] is container[Service]
 
-    class AnotherService(object):
+    class AnotherService:
         def __init__(self, service):
             self.service = service
 
@@ -343,21 +352,69 @@ def test_factory_function():
             pass
 
 
+def test_factory_not_auto_wire():
+    manager = DependencyManager()
+
+    class Service:
+        pass
+
+    @manager.factory(auto_wire=False)
+    def faulty_service_provider(x) -> Service:
+        return Service()
+
+    with pytest.raises(TypeError):
+        faulty_service_provider()
+
+    with pytest.raises(DependencyInstantiationError):
+        manager.container[Service]
+
+    faulty_service_provider(1)  # does work properly
+
+
+def test_factory_class_not_auto_wire():
+    manager = DependencyManager()
+
+    class Service:
+        pass
+
+    with pytest.raises(TypeError):
+        @manager.factory(auto_wire=False)
+        class FaultyServiceFactory:
+            def __init__(self, x):
+                pass
+
+            def __call__(self) -> Service:
+                return Service()
+
+    @manager.factory(auto_wire=False)
+    class FaultyServiceFactory2:
+        def __call__(self, x) -> Service:
+            return Service()
+
+    with pytest.raises(DependencyInstantiationError):
+        manager.container[Service]
+
+    with pytest.raises(TypeError):
+        FaultyServiceFactory2()()
+
+    FaultyServiceFactory2()(1)  # does work properly
+
+
 def test_factory_class():
     manager = DependencyManager()
     container = manager.container
 
-    class Service(object):
+    class Service:
         pass
 
     with pytest.raises(ValueError):
         @manager.factory
-        class FaultyServiceProvider(object):
+        class FaultyServiceProvider:
             def __call__(self):
                 return Service()
 
     @manager.factory(dependency_id=Service)
-    class ServiceProvider(object):
+    class ServiceProvider:
         def __call__(self):
             return Service()
 
@@ -365,13 +422,13 @@ def test_factory_class():
     # is a singleton
     assert container[Service] is container[Service]
 
-    class AnotherService(object):
+    class AnotherService:
         def __init__(self, service):
             self.service = service
 
     @manager.factory(arg_map=dict(service=Service),
                      dependency_id=AnotherService)
-    class AnotherServiceProvider(object):
+    class AnotherServiceProvider:
         def __init__(self, service):
             self.service = service
             assert isinstance(service, Service)
@@ -387,11 +444,11 @@ def test_factory_class():
 
     container['test'] = object()
 
-    class YetAnotherService(object):
+    class YetAnotherService:
         pass
 
     @manager.factory(use_names=True, dependency_id=YetAnotherService)
-    class YetAnotherServiceProvider(object):
+    class YetAnotherServiceProvider:
         def __init__(self, test):
             self.test = test
 
@@ -401,14 +458,14 @@ def test_factory_class():
 
     assert container['test'] is container[YetAnotherService]
 
-    class OtherService(object):
+    class OtherService:
         pass
 
     @manager.factory(use_names=True,
                      arg_map=dict(service=Service),
                      auto_wire=('__init__',),
                      dependency_id=OtherService)
-    class OtherServiceProvider(object):
+    class OtherServiceProvider:
         def __init__(self, test, service):
             self.test = test
             self.service = service
@@ -428,7 +485,7 @@ def test_provider():
     container['service'] = object()
 
     @manager.provider(use_names=True)
-    class DummyProvider(object):
+    class DummyProvider:
         def __init__(self, service=None):
             self.service = service
 
@@ -450,12 +507,12 @@ def test_provider():
 
     with pytest.raises(ValueError):
         @manager.provider
-        class MissingAntidoteProvideMethod(object):
+        class MissingAntidoteProvideMethod:
             pass
 
     with pytest.raises(TypeError):
         @manager.provider(auto_wire=False)
-        class MissingDependencyProvider(object):
+        class MissingDependencyProvider:
             def __init__(self, service):
                 self.service = service
 
@@ -471,7 +528,7 @@ def test_providers():
     assert ParameterProvider in manager.providers
 
     @manager.provider
-    class DummyProvider(object):
+    class DummyProvider:
         def __antidote_provide__(self, dependency):
             return Instance(1)
 

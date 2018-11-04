@@ -1,16 +1,15 @@
+import random
 import threading
 import time
-
-import random
 
 from antidote import DependencyManager
 
 
-class Service(object):
+class Service:
     pass
 
 
-class AnotherService(object):
+class AnotherService:
     pass
 
 

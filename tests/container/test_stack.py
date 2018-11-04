@@ -3,7 +3,7 @@ import pytest
 from antidote.container import DependencyCycleError, InstantiationStack
 
 
-class Service(object):
+class Service:
     pass
 
 

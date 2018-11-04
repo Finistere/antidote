@@ -1,9 +1,10 @@
+from functools import reduce
+from operator import getitem
+
 import pytest
 
 from antidote import DependencyNotProvidableError
-from antidote.providers.parameters import ParameterProvider, Dependency
-from functools import reduce
-from operator import getitem
+from antidote.providers.parameters import Dependency, ParameterProvider
 
 
 def test_register():

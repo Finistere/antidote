@@ -3,12 +3,11 @@ import pytest
 from antidote import (
     DependencyDuplicateError, DependencyNotProvidableError
 )
-from antidote.providers.factories import (
-    DependencyFactory, FactoryProvider, Dependency
-)
+from antidote.providers.factories import (Dependency, DependencyFactory,
+                                          FactoryProvider)
 
 
-class Service(object):
+class Service:
     def __init__(self, *args):
         pass
 
@@ -17,7 +16,7 @@ class ServiceSubclass(Service):
     pass
 
 
-class AnotherService(object):
+class AnotherService:
     def __init__(self, *args):
         pass
 

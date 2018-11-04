@@ -131,9 +131,9 @@ class DependencyManager:
             if isinstance(arg_map, Mapping):
                 _mapping.update(arg_map)
             elif isinstance(arg_map, Sequence):
-                arg_spec, _, _ = get_arguments_specification(f)
-                for (name, _), dependency_id in zip(arg_spec, arg_map):
-                    _mapping[name] = dependency_id
+                arg_spec = get_arguments_specification(f)
+                for arg, dependency_id in zip(arg_spec.arguments, arg_map):
+                    _mapping[arg.name] = dependency_id
 
             if bind:
                 return self.injector.bind(func=f, arg_map=_mapping,
@@ -178,9 +178,7 @@ class DependencyManager:
 
         def register_class(_cls):
             if not inspect.isclass(_cls):
-                raise ValueError(
-                    "Expecting a class, found a {}".format(type(_cls))
-                )
+                raise ValueError("Expecting a class, got a {}".format(type(_cls)))
 
             if auto_wire:
                 _cls = self.wire(
@@ -241,15 +239,15 @@ class DependencyManager:
         if auto_wire is None:
             auto_wire = self.auto_wire
 
-        def register_factory(factory):
-            if inspect.isclass(factory):
-                if '__call__' not in dir(factory):
+        def register_factory(obj):
+            if inspect.isclass(obj):
+                if '__call__' not in dir(obj):
                     raise ValueError("Factory class needs to be callable.")
-                type_hints = get_type_hints(factory.__call__) or {}
+                type_hints = get_type_hints(obj.__call__) or {}
 
                 if auto_wire:
-                    factory = self.wire(
-                        factory,
+                    obj = self.wire(
+                        obj,
                         methods=(
                             ('__call__', '__init__')
                             if auto_wire is True else
@@ -259,16 +257,17 @@ class DependencyManager:
                         use_names=use_names
                     )
 
-                factory = factory()
+                factory = obj()
             else:
-                if not callable(factory):
+                if not callable(obj):
                     raise ValueError("factory parameter needs to be callable.")
-                type_hints = get_type_hints(factory) or {}
 
-                if auto_wire:
-                    factory = self.inject(factory,
-                                          arg_map=arg_map,
-                                          use_names=use_names)
+                type_hints = get_type_hints(obj) or {}
+                factory = (
+                    self.inject(obj, arg_map=arg_map, use_names=use_names)
+                    if auto_wire else
+                    obj
+                )
 
             self._factories.register(
                 factory=factory,
@@ -276,7 +275,8 @@ class DependencyManager:
                 dependency_id=dependency_id or type_hints.get('return'),
                 build_subclasses=build_subclasses
             )
-            return factory
+
+            return obj
 
         return func and register_factory(func) or register_factory
 
@@ -299,6 +299,9 @@ class DependencyManager:
         """
 
         def wire_methods(_cls):
+            if not inspect.isclass(_cls):
+                raise ValueError("Expecting a class, got a {}".format(type(_cls)))
+
             nonlocal methods
 
             if methods is None:
@@ -464,8 +467,8 @@ class DependencyManager:
         if not isinstance(prefix, str) or not isinstance(split, str):
             raise ValueError("prefix and split arguments must be strings.")
 
-        def register_parser(f):
-            if not callable(f):
+        def register_parser(parser):
+            if not callable(parser):
                 raise ValueError("parser must be callable or be 'getitem'")
 
             if prefix or split:
@@ -478,18 +481,17 @@ class DependencyManager:
 
                     if split:
                         try:
-                            return reduce(f, dependency_id.split(split),
-                                          params)
+                            return reduce(parser, dependency_id.split(split), params)
                         except TypeError as e:
                             raise LookupError(dependency_id) from e
 
-                    return f(params, dependency_id)
+                    return parser(params, dependency_id)
             else:
-                _getter = f
+                _getter = parser
 
             self._parameters.register(parameters, _getter)
 
-            return f
+            return parser
 
         return getter and register_parser(getter) or register_parser
 

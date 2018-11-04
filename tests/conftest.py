@@ -1,6 +1,6 @@
+import os
 import sys
 
-import os
 import pytest
 
 PY3 = sys.version_info[0] >= 3

@@ -46,7 +46,7 @@ def test_call(injector: DependencyInjector):
 def test_arg_map(injector: DependencyInjector):
     container = injector._container
 
-    class Service(object):
+    class Service:
         pass
 
     container[Service] = Service()
@@ -72,12 +72,7 @@ def test_arg_map(injector: DependencyInjector):
     assert (container[Service], 2) == inject_mapping(g)()
     assert (container[Service], 2) == inject_sequence(g)()
 
-    class Obj(object):
-        def __init__(self, service, parameter=2):
-            self.service = service
-            self.parameter = parameter
-
-    class UnknownService(object):
+    class UnknownService:
         pass
 
     # faulty mapping

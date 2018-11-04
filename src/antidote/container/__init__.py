@@ -1,9 +1,10 @@
 import contextlib
 import threading
 from collections import OrderedDict
-from typing import Any, Iterable, Mapping, Union
+from typing import Iterable, Mapping, Union
 
 from .stack import InstantiationStack
+from .._utils import SlotReprMixin
 from ..exceptions import (
     DependencyCycleError, DependencyInstantiationError,
     DependencyNotFoundError, DependencyNotProvidableError
@@ -238,7 +239,7 @@ class Dependency:
         )
 
 
-class Instance:
+class Instance(SlotReprMixin):
     """
     Simple wrapper which has to be used by providers when returning an
     instance of a dependency.
@@ -249,13 +250,6 @@ class Instance:
 
     __slots__ = ('item', 'singleton')
 
-    def __init__(self, item: Any, singleton: bool = False) -> None:
+    def __init__(self, item, singleton: bool = False) -> None:
         self.item = item
         self.singleton = singleton
-
-    def __repr__(self):
-        return "{}(instance={!r}, singleton={!r})".format(
-            type(self).__name__,
-            self.item,
-            self.singleton
-        )

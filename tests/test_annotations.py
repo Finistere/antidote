@@ -5,7 +5,7 @@ def test_inject():
     manager = DependencyManager()
     container = manager.container
 
-    class Service(object):
+    class Service:
         pass
 
     manager.register(Service)
@@ -22,13 +22,13 @@ def test_register():
     container = manager.container
 
     @manager.register
-    class Service(object):
+    class Service:
         pass
 
     assert isinstance(container[Service], Service)
 
     @manager.register
-    class AnotherService(object):
+    class AnotherService:
         def __init__(self, service: Service):
             self.service = service
 
@@ -41,10 +41,10 @@ def test_provider_function():
     container = manager.container
 
     @manager.register
-    class Service(object):
+    class Service:
         pass
 
-    class AnotherService(object):
+    class AnotherService:
         def __init__(self, service):
             self.service = service
 
@@ -61,15 +61,15 @@ def test_provider_class():
     container = manager.container
 
     @manager.register
-    class Service(object):
+    class Service:
         pass
 
-    class AnotherService(object):
+    class AnotherService:
         def __init__(self, service):
             self.service = service
 
     @manager.factory
-    class Provider(object):
+    class Provider:
         def __call__(self, service: Service) -> AnotherService:
             return AnotherService(service)
 

@@ -1,15 +1,29 @@
 import functools
 import typing
 from itertools import islice
-from typing import (Any, Callable, Dict, Iterable, Mapping, Optional, Sequence,
+from typing import (Callable, Dict, Iterable, Mapping, Optional, Sequence,
                     Tuple, Union)
 
-from ._utils import get_arguments_specification
+from ._utils import SlotReprMixin, get_arguments_specification
 from .container import DependencyContainer, DependencyNotFoundError
 
 _EMPTY_DEPENDENCY = object()
 
-InjectionBlueprintType = Tuple[Tuple[str, bool, Any], ...]
+
+class Injection(SlotReprMixin):
+    __slots__ = ('arg_name', 'required', 'dependency_id')
+
+    def __init__(self, arg_name: str, required: bool, dependency_id):
+        self.arg_name = arg_name
+        self.required = required
+        self.dependency_id = dependency_id
+
+
+class InjectionBlueprint(SlotReprMixin):
+    __slots__ = ('injections',)
+
+    def __init__(self, injections: Sequence[Optional[Injection]]):
+        self.injections = injections
 
 
 class DependencyInjector:
@@ -70,11 +84,9 @@ class DependencyInjector:
 
             @functools.wraps(f)
             def wrapper(*args, **kwargs):
-                args, kwargs = generate_args_kwargs(
-                    injection_blueprint=injection_blueprint,
-                    args=args,
-                    kwargs=kwargs
-                )
+                args, kwargs = generate_args_kwargs(bp=injection_blueprint,
+                                                    args=args,
+                                                    kwargs=kwargs)
 
                 return f(*args, **kwargs)
 
@@ -185,7 +197,7 @@ class DependencyInjector:
         arguments in one step.
         """
         return self._generate_args_kwargs(
-            injection_blueprint=self._generate_injection_blueprint(
+            bp=self._generate_injection_blueprint(
                 func=func,
                 arg_map=arg_map,
                 use_names=use_names
@@ -195,7 +207,7 @@ class DependencyInjector:
         )
 
     def _generate_args_kwargs(self,
-                              injection_blueprint: InjectionBlueprintType,
+                              bp: InjectionBlueprint,
                               args: Sequence,
                               kwargs: Dict
                               ) -> Tuple[Sequence, Dict]:
@@ -210,14 +222,12 @@ class DependencyInjector:
         kwargs = kwargs.copy()
         container = self._container
 
-        for arg_name, has_default, dependency_id \
-                in islice(injection_blueprint, len(args), None):
-            if dependency_id is not _EMPTY_DEPENDENCY \
-                    and arg_name not in kwargs:
+        for inj in islice(bp.injections, len(args), None):
+            if inj is not None and inj.arg_name not in kwargs:
                 try:
-                    kwargs[arg_name] = container[dependency_id]
+                    kwargs[inj.arg_name] = container[inj.dependency_id]
                 except DependencyNotFoundError:
-                    if has_default is False:
+                    if inj.required:
                         raise
 
         return args, kwargs
@@ -226,23 +236,11 @@ class DependencyInjector:
     def _generate_injection_blueprint(func: Callable,
                                       arg_map: Optional[Union[Mapping, Iterable]],
                                       use_names: Union[bool, Iterable[str]]
-                                      ) -> InjectionBlueprintType:
+                                      ) -> InjectionBlueprint:
         """
         Construct a list with all the necessary information about the arguments
         for dependency injection, named the injection blueprint. Storing it
         avoids significant execution overhead.
-
-        The blueprint looks like:
-
-        >>> [
-        ...    (
-        ...        'arg1',  # Name of the argument
-        ...         False,  # whether it has a default value
-        ...         'dependency id'  # associated dependency id
-        ...     ),
-        ...    ('arg2', True, _EMPTY_DEPENDENCY)
-        ... ]
-
         """
         from collections.abc import Mapping, Iterable
 
@@ -252,7 +250,7 @@ class DependencyInjector:
             # Python 3.5.3 does not handle properly method wrappers
             annotations = dict()
 
-        arg_spec, _, _ = get_arguments_specification(func)
+        arg_spec = get_arguments_specification(func)
 
         if arg_map is None:
             arg_to_dependency = {}  # type: Mapping
@@ -260,8 +258,8 @@ class DependencyInjector:
             arg_to_dependency = arg_map
         elif isinstance(arg_map, Iterable):
             arg_to_dependency = {
-                name: dependency_id
-                for (name, _), dependency_id in zip(arg_spec, arg_map)
+                arg.name: dependency_id
+                for arg, dependency_id in zip(arg_spec.arguments, arg_map)
             }
         else:
             raise ValueError('Only a mapping or a iterable is supported for '
@@ -270,23 +268,28 @@ class DependencyInjector:
         if use_names is None or use_names is False:
             use_names = set()
         elif use_names is True:
-            use_names = set(e[0] for e in arg_spec)
+            use_names = set(arg.name for arg in arg_spec.arguments)
         elif isinstance(use_names, Iterable):
             use_names = set(use_names)
         else:
             raise ValueError('Only an iterable or a boolean is supported for '
                              'use_names, not {!r}'.format(use_names))
 
-        return tuple(
-            (
-                name,
-                has_default,
-                arg_to_dependency.get(
-                    name,
-                    name
-                    if name in use_names else
-                    annotations.get(name, _EMPTY_DEPENDENCY)
-                ),
+        dependencies = [
+            arg_to_dependency.get(
+                arg.name,
+                arg.name
+                if arg.name in use_names else
+                annotations.get(arg.name, _EMPTY_DEPENDENCY)
             )
-            for name, has_default in arg_spec
-        )
+            for arg in arg_spec.arguments
+        ]
+
+        return InjectionBlueprint(tuple([
+            Injection(arg_name=arg.name,
+                      required=not arg.has_default,
+                      dependency_id=dependency_id)
+            if dependency_id is not _EMPTY_DEPENDENCY else
+            None
+            for arg, dependency_id in zip(arg_spec.arguments, dependencies)
+        ]))

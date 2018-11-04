@@ -1,5 +1,6 @@
 from typing import Callable, Dict
 
+from .._utils import SlotReprMixin
 from ..container import Dependency, Instance
 from ..exceptions import (
     DependencyDuplicateError, DependencyNotProvidableError
@@ -96,7 +97,7 @@ class FactoryProvider:
         self._factories[dependency_id] = dependency_factory
 
 
-class DependencyFactory(object):
+class DependencyFactory(SlotReprMixin):
     """
     Only used by the FactoryProvider, not part of the public API.
 
@@ -112,16 +113,6 @@ class DependencyFactory(object):
         self.factory = factory
         self.singleton = singleton
         self.takes_dependency_id = takes_dependency_id
-
-    def __repr__(self):
-        return (
-            "{}(factory={!r}, singleton={!r}, takes_dependency_id={!r})"
-        ).format(
-            type(self).__name__,
-            self.factory,
-            self.singleton,
-            self.takes_dependency_id
-        )
 
     def __call__(self, *args, **kwargs):
         return self.factory(*args, **kwargs)

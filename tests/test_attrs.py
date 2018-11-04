@@ -15,13 +15,13 @@ def test_attrs():
         return
 
     @manager.register
-    class Service(object):
+    class Service:
         pass
 
     container['parameter'] = object()
 
     @attr.s
-    class Test(object):
+    class Test:
         service = manager.attrib(Service)
         parameter = manager.attrib(use_name=True)
 
@@ -31,7 +31,7 @@ def test_attrs():
     assert container['parameter'] is test.parameter
 
     @attr.s
-    class BrokenTest(object):
+    class BrokenTest:
         service = manager.attrib()
 
     with pytest.raises(ValueError):
