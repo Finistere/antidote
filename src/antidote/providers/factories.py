@@ -20,7 +20,7 @@ class FactoryProvider:
 
     def __repr__(self):
         return (
-            "{}(auto_wire={!r}, factories={!r}, subclass_factories={!r}"
+            "{}(auto_wire={!r}, factories={!r}, subclass_factories={!r})"
         ).format(
             type(self).__name__,
             self.auto_wire,
@@ -82,11 +82,9 @@ class FactoryProvider:
         if not dependency_id:
             raise ValueError("`dependency_id` parameter must be specified.")
 
-        dependency_factory = DependencyFactory(
-            factory=factory,
-            singleton=singleton,
-            takes_dependency_id=build_subclasses,
-        )
+        dependency_factory = DependencyFactory(factory=factory,
+                                               singleton=singleton,
+                                               takes_dependency_id=build_subclasses)
 
         if dependency_id in self._factories:
             raise DependencyDuplicateError(dependency_id)
@@ -106,7 +104,7 @@ class DependencyFactory(SlotReprMixin):
     __slots__ = ('factory', 'singleton', 'takes_dependency_id')
 
     def __init__(self,
-                 factory,
+                 factory: Callable,
                  singleton: bool,
                  takes_dependency_id: bool
                  ) -> None:

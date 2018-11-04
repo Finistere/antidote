@@ -5,10 +5,8 @@ from typing import Iterable, Mapping, Union
 
 from .stack import InstantiationStack
 from .._utils import SlotReprMixin
-from ..exceptions import (
-    DependencyCycleError, DependencyInstantiationError,
-    DependencyNotFoundError, DependencyNotProvidableError
-)
+from ..exceptions import (DependencyCycleError, DependencyInstantiationError,
+                          DependencyNotFoundError, DependencyNotProvidableError)
 
 _SENTINEL = object()
 
@@ -28,8 +26,8 @@ class DependencyContainer:
 
     def __init__(self):
         self.providers = OrderedDict()
-        self._cache = {}
-        self._cache_lock = threading.RLock()
+        self._singletons = {}
+        self._instantiation_lock = threading.RLock()
         self._instantiation_stack = InstantiationStack()
 
     def __str__(self):
@@ -40,11 +38,11 @@ class DependencyContainer:
         )
 
     def __repr__(self):
-        return "{}(providers=({}), cache={!r})".format(
+        return "{}(providers=({}), singletons={!r})".format(
             type(self).__name__,
             ", ".join("{!r}={!r}".format(name, p)
                       for name, p in self.providers.items()),
-            self._cache
+            self._singletons
         )
 
     def __getitem__(self, dependency):
@@ -54,14 +52,15 @@ class DependencyContainer:
         arguments to the providers.
         """
         try:
-            return self._cache[dependency]
+            return self._singletons[dependency]
         except KeyError:
             pass
 
         try:
-            with self._cache_lock, self._instantiation_stack.instantiating(dependency):
+            with self._instantiation_lock, \
+                    self._instantiation_stack.instantiating(dependency):
                 try:
-                    return self._cache[dependency]
+                    return self._singletons[dependency]
                 except KeyError:
                     pass
 
@@ -76,7 +75,7 @@ class DependencyContainer:
                         pass
                     else:
                         if instance.singleton:
-                            self._cache[dependency] = instance.item
+                            self._singletons[dependency] = instance.item
 
                         return instance.item
 
@@ -99,15 +98,15 @@ class DependencyContainer:
         """
         Set a dependency in the cache.
         """
-        with self._cache_lock:
-            self._cache[dependency_id] = dependency
+        with self._instantiation_lock:
+            self._singletons[dependency_id] = dependency
 
     def update(self, *args, **kwargs):
         """
         Update the cached dependencies.
         """
-        with self._cache_lock:
-            self._cache.update(*args, **kwargs)
+        with self._instantiation_lock:
+            self._singletons.update(*args, **kwargs)
 
     @contextlib.contextmanager
     def context(self,
@@ -124,55 +123,57 @@ class DependencyContainer:
         Args:
             dependencies: Dependencies instances used to override existing ones
                 in the new context.
-            include: Iterable of dependency to include. If None
+            include: Iterable of dependencies to include. If None
                 everything is accessible.
-            exclude: Iterable of dependency to exclude.
-            missing: Iterable of dependency which should raise a
+            exclude: Iterable of dependencies to exclude.
+            missing: Iterable of dependencies which should raise a
                 :py:exc:`~.exceptions.DependencyNotFoundError` even if a
                 provider could instantiate them.
 
         """
 
-        with self._cache_lock:
-            original_cache = self._cache
+        with self._instantiation_lock:
+            original_singletons = self._singletons
 
             if missing:
                 missing = set(missing)
                 exclude = set(exclude) | missing if exclude else missing
 
-                class Cache(dict):
+                class Singletons(dict):
                     def __missing__(self, key):
                         if key in missing:
                             raise DependencyNotFoundError(key)
 
                         raise KeyError(key)
 
-                self._cache = Cache(original_cache if not include else {})
+                self._singletons = Singletons(original_singletons
+                                              if not include else
+                                              {})
 
             elif include is None:
-                self._cache = original_cache.copy()
+                self._singletons = original_singletons.copy()
             else:
-                self._cache = {}
+                self._singletons = {}
 
             if include:
                 for dependency in include:
-                    self._cache[dependency] = original_cache[dependency]
+                    self._singletons[dependency] = original_singletons[dependency]
 
             if exclude:
                 for dependency in exclude:
                     try:
-                        del self._cache[dependency]
+                        del self._singletons[dependency]
                     except KeyError:
                         pass
 
             if dependencies:
-                self._cache.update(dependencies)
+                self._singletons.update(dependencies)
 
         try:
             yield
         finally:
-            with self._cache_lock:
-                self._cache = original_cache
+            with self._instantiation_lock:
+                self._singletons = original_singletons
 
 
 class Dependency:
@@ -193,34 +194,23 @@ class Dependency:
 
     def __init__(self, *args, **kwargs):
         self.id = args[0]
+        # Just in case, because it wouldn't make any sense.
         assert not isinstance(self.id, Dependency)
         self.args = args[1:]
         self.kwargs = kwargs
 
     def __repr__(self):
-        return "{}({!r}, *{!r}, **{!r})".format(
-            type(self).__name__,
-            self.id,
-            self.args,
-            self.kwargs
-        )
+        return "{}({!r}, *{!r}, **{!r})".format(type(self).__name__, self.id,
+                                                self.args, self.kwargs)
 
     def __hash__(self):
         if self.args or self.kwargs:
             try:
                 # Try most precise hash first
-                return hash((
-                    self.id,
-                    self.args,
-                    tuple(self.kwargs.items())
-                ))
+                return hash((self.id, self.args, tuple(self.kwargs.items())))
             except TypeError:
                 # If type error, return the best error-free hash possible
-                return hash((
-                    self.id,
-                    len(self.args),
-                    tuple(self.kwargs.keys())
-                ))
+                return hash((self.id, len(self.args), tuple(self.kwargs.keys())))
 
         return hash(self.id)
 
@@ -247,7 +237,6 @@ class Instance(SlotReprMixin):
     This enables the container to know if the returned dependency needs to
     be cached or not (singleton).
     """
-
     __slots__ = ('item', 'singleton')
 
     def __init__(self, item, singleton: bool = False) -> None:

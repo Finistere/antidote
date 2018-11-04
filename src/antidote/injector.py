@@ -76,18 +76,14 @@ class DependencyInjector:
 
         def _inject(f):
             generate_args_kwargs = self._generate_args_kwargs
-            injection_blueprint = self._generate_injection_blueprint(
-                func=f,
-                arg_map=arg_map or dict(),
-                use_names=use_names
-            )
+            bp = self._generate_injection_blueprint(func=f,
+                                                    arg_map=arg_map or dict(),
+                                                    use_names=use_names)
 
             @functools.wraps(f)
             def wrapper(*args, **kwargs):
-                args, kwargs = generate_args_kwargs(bp=injection_blueprint,
-                                                    args=args,
+                args, kwargs = generate_args_kwargs(bp=bp, args=args,
                                                     kwargs=kwargs)
-
                 return f(*args, **kwargs)
 
             return wrapper
@@ -131,13 +127,11 @@ class DependencyInjector:
         """
 
         def _bind(f):
-            new_args, new_kwargs = self._inject_into_arg_kwargs(
-                func=f,
-                arg_map=arg_map,
-                use_names=use_names,
-                args=args or tuple(),
-                kwargs=kwargs or dict()
-            )
+            new_args, new_kwargs = self._inject_into_arg_kwargs(func=f,
+                                                                arg_map=arg_map,
+                                                                use_names=use_names,
+                                                                args=args or tuple(),
+                                                                kwargs=kwargs or dict())
 
             return functools.partial(f, *new_args, **new_kwargs)
 
@@ -175,13 +169,11 @@ class DependencyInjector:
 
         """
 
-        new_args, new_kwargs = self._inject_into_arg_kwargs(
-            func=func,
-            arg_map=arg_map,
-            use_names=use_names,
-            args=args,
-            kwargs=kwargs
-        )
+        new_args, new_kwargs = self._inject_into_arg_kwargs(func=func,
+                                                            arg_map=arg_map,
+                                                            use_names=use_names,
+                                                            args=args,
+                                                            kwargs=kwargs)
 
         return func(*new_args, **new_kwargs)
 
@@ -197,11 +189,9 @@ class DependencyInjector:
         arguments in one step.
         """
         return self._generate_args_kwargs(
-            bp=self._generate_injection_blueprint(
-                func=func,
-                arg_map=arg_map,
-                use_names=use_names
-            ),
+            bp=self._generate_injection_blueprint(func=func,
+                                                  arg_map=arg_map,
+                                                  use_names=use_names),
             args=args or tuple(),
             kwargs=kwargs or dict()
         )
@@ -276,12 +266,10 @@ class DependencyInjector:
                              'use_names, not {!r}'.format(use_names))
 
         dependencies = [
-            arg_to_dependency.get(
-                arg.name,
-                arg.name
-                if arg.name in use_names else
-                annotations.get(arg.name, _EMPTY_DEPENDENCY)
-            )
+            arg_to_dependency.get(arg.name,
+                                  arg.name
+                                  if arg.name in use_names else
+                                  annotations.get(arg.name, _EMPTY_DEPENDENCY))
             for arg in arg_spec.arguments
         ]
 

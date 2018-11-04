@@ -21,10 +21,7 @@ class InstantiationStack:
         self._dependencies = set(self._stack)
 
     def __repr__(self):
-        return "{}({})".format(
-            type(self).__name__,
-            self.format_stack()
-        )
+        return "{}({})".format(type(self).__name__, self.format_stack())
 
     def __iter__(self):
         return iter(self._stack)

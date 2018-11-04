@@ -72,30 +72,24 @@ class DependencyManager:
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
         self.provider(FactoryProvider, auto_wire=False)
-        self._factories = (
-            self.container.providers[FactoryProvider]
-        )  # type: FactoryProvider
+        self._factories = self.container.providers[FactoryProvider]  # type: FactoryProvider  # noqa
+
         self.provider(ParameterProvider, auto_wire=False)
-        self._parameters = (
-            self.container.providers[ParameterProvider]
-        )  # type: ParameterProvider
+        self._parameters = self.container.providers[ParameterProvider]  # type: ParameterProvider  # noqa
 
     def __repr__(self):
         return (
             "{}(auto_wire={!r}, mapping={!r}, use_names={!r}, "
             "container={!r}, injector={!r})"
-        ).format(
-            type(self).__name__,
-            self.auto_wire,
-            self.arg_map,
-            self.use_names,
-            self.container,
-            self.injector
-        )
+        ).format(type(self).__name__, self.auto_wire, self.arg_map,
+                 self.use_names, self.container, self.injector)
 
     @property
     def providers(self):
         return self.container.providers
+
+    def provide(self, *args, **kwargs):
+        return self.container.provide(*args, **kwargs)
 
     def inject(self,
                func: Callable = None,
@@ -181,14 +175,12 @@ class DependencyManager:
                 raise ValueError("Expecting a class, got a {}".format(type(_cls)))
 
             if auto_wire:
-                _cls = self.wire(
-                    _cls,
-                    methods=(
-                        ('__init__',) if auto_wire is True else auto_wire
-                    ),
-                    arg_map=arg_map,
-                    use_names=use_names
-                )
+                _cls = self.wire(_cls,
+                                 methods=(('__init__',)
+                                          if auto_wire is True else
+                                          auto_wire),
+                                 arg_map=arg_map,
+                                 use_names=use_names)
 
             self._factories.register(dependency_id=_cls, factory=_cls,
                                      singleton=singleton)
@@ -241,21 +233,18 @@ class DependencyManager:
 
         def register_factory(obj):
             if inspect.isclass(obj):
+                # Only way to accurately test if obj has really a __call__() method.
                 if '__call__' not in dir(obj):
                     raise ValueError("Factory class needs to be callable.")
                 type_hints = get_type_hints(obj.__call__) or {}
 
                 if auto_wire:
-                    obj = self.wire(
-                        obj,
-                        methods=(
-                            ('__call__', '__init__')
-                            if auto_wire is True else
-                            auto_wire
-                        ),
-                        arg_map=arg_map,
-                        use_names=use_names
-                    )
+                    obj = self.wire(obj,
+                                    methods=(('__init__', '__call__')
+                                             if auto_wire is True else
+                                             auto_wire),
+                                    arg_map=arg_map,
+                                    use_names=use_names)
 
                 factory = obj()
             else:
@@ -263,11 +252,9 @@ class DependencyManager:
                     raise ValueError("factory parameter needs to be callable.")
 
                 type_hints = get_type_hints(obj) or {}
-                factory = (
-                    self.inject(obj, arg_map=arg_map, use_names=use_names)
-                    if auto_wire else
-                    obj
-                )
+                factory = (self.inject(obj, arg_map=arg_map, use_names=use_names)
+                           if auto_wire else
+                           obj)
 
             self._factories.register(
                 factory=factory,
@@ -423,14 +410,12 @@ class DependencyManager:
                                  "must be defined")
 
             if auto_wire:
-                _cls = self.wire(
-                    _cls,
-                    methods=(
-                        ('__init__',) if auto_wire is True else auto_wire
-                    ),
-                    arg_map=arg_map,
-                    use_names=use_names
-                )
+                _cls = self.wire(_cls,
+                                 methods=(('__init__',)
+                                          if auto_wire is True else
+                                          auto_wire),
+                                 arg_map=arg_map,
+                                 use_names=use_names)
 
             self.container.providers[_cls] = _cls()
 
@@ -440,7 +425,7 @@ class DependencyManager:
 
     def register_parameters(self,
                             parameters: T,
-                            getter: Union[Callable[[T, Any], Any], str] = None,
+                            getter: Callable[[T, Any], Any] = None,
                             prefix: str = '',
                             split: str = ''
                             ) -> Callable:
@@ -465,11 +450,11 @@ class DependencyManager:
             getter callable or decorator.
         """
         if not isinstance(prefix, str) or not isinstance(split, str):
-            raise ValueError("prefix and split arguments must be strings.")
+            raise ValueError("Prefix and split arguments must be strings.")
 
-        def register_parser(parser):
-            if not callable(parser):
-                raise ValueError("parser must be callable or be 'getitem'")
+        def register_parser(getter):
+            if not callable(getter):
+                raise ValueError("Parser must be callable (ex: getitem())")
 
             if prefix or split:
                 def _getter(params, dependency_id):
@@ -481,17 +466,17 @@ class DependencyManager:
 
                     if split:
                         try:
-                            return reduce(parser, dependency_id.split(split), params)
+                            return reduce(getter, dependency_id.split(split), params)
                         except TypeError as e:
                             raise LookupError(dependency_id) from e
 
-                    return parser(params, dependency_id)
+                    return getter(params, dependency_id)
             else:
-                _getter = parser
+                _getter = getter
 
             self._parameters.register(parameters, _getter)
 
-            return parser
+            return getter
 
         return getter and register_parser(getter) or register_parser
 
@@ -509,7 +494,7 @@ class DependencyManager:
 
         >>> from antidote import antidote, DependencyContainer
         >>> with antidote.context(include=[]):
-        ...     s = 'Your code isolated from every other dependencies'
+        ...     # Your code isolated from every other dependencies
         ...     antidote.container[DependencyContainer]
         <... DependencyContainer ...>
 
@@ -519,10 +504,10 @@ class DependencyManager:
         Args:
             dependencies: Dependencies instances used to override existing ones
                 in the new context.
-            include: Iterable of dependency to include. If None
+            include: Iterable of dependencies to include. If None
                 everything is accessible.
-            exclude: Iterable of dependency to exclude.
-            missing: Iterable of dependency which should raise a
+            exclude: Iterable of dependencies to exclude.
+            missing: Iterable of dependencies which should raise a
                 :py:exc:`~.exceptions.DependencyNotFoundError` even if a
                 provider could instantiate them.
 

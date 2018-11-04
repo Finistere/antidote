@@ -54,8 +54,6 @@ def get_arguments_specification(func: Callable) -> ArgumentSpecification:
                 has_default=parameter.default is not parameter.empty
             ))
 
-    return ArgumentSpecification(
-        arguments=tuple(arguments),
-        has_var_positional=has_var_positional,
-        has_var_keyword=has_var_keyword
-    )
+    return ArgumentSpecification(arguments=tuple(arguments),
+                                 has_var_positional=has_var_positional,
+                                 has_var_keyword=has_var_keyword)

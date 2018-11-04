@@ -5,6 +5,12 @@ Changelog
 0.3.1-dev
 ---------
 
+Changes
+^^^^^^^
+
+- Add :code:`DependencyManager.provide` method for easier manipulation in the
+  shell.
+
 Bug fixes
 ^^^^^^^^^
 
