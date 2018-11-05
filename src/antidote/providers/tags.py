@@ -1,4 +1,4 @@
-from typing import Dict, Generic, Iterable, TypeVar, Union, Tuple
+from typing import Callable, Dict, Generic, Iterable, Tuple, TypeVar, Union
 
 from antidote._utils import SlotReprMixin
 from ..container import Dependency, DependencyContainer, Instance
@@ -21,7 +21,25 @@ class Tag(SlotReprMixin):
             raise AttributeError(item)
 
 
-class Tagged(Generic[T]):
+class Tagged(Dependency):
+    __slots__ = ('id', 'filter')
+
+    def __init__(self, id: str, filter: Callable[[Tag], bool] = None):
+        # If filter is None -> caching works.
+        # If not, dependencies are still cached if necessary.
+        super().__init__(id)
+        self.filter = filter
+
+    def __hash__(self):
+        return hash((self.id, self.filter))
+
+    def __eq__(self, other):
+        return isinstance(other, Tagged) \
+               and self.id == other.id \
+               and self.filter == other.filter
+
+
+class TaggedDependencies(Generic[T]):
     def __init__(self, data):
         self._data = data
 
@@ -47,15 +65,18 @@ class TagProvider:
         )
 
     def __antidote_provide__(self, dependency: Dependency) -> Instance:
-        if isinstance(dependency.id, Tag):
-            name = dependency.id.name
+        if isinstance(dependency, Tagged):
+            name = dependency.id  # type: str
             if name in self._tagged_dependencies:
-                filter_ = dependency.kwargs.get('filter', lambda _: True)
-                return Instance(Tagged({
-                    self._container[dependency]: tag
-                    for dependency, tag in self._tagged_dependencies[name].items()
-                    if filter_(tag)
-                }))
+                filter_ = dependency.filter or (lambda _: True)
+                return Instance(
+                    item=TaggedDependencies({
+                        self._container[dependency]: tag
+                        for dependency, tag in self._tagged_dependencies[name].items()
+                        if filter_(tag)
+                    }),
+                    singleton=False
+                )
 
         raise DependencyNotProvidableError(dependency)
 

@@ -2,9 +2,7 @@ from typing import Callable, Dict
 
 from .._utils import SlotReprMixin
 from ..container import Dependency, Instance
-from ..exceptions import (
-    DependencyDuplicateError, DependencyNotProvidableError
-)
+from ..exceptions import DependencyDuplicateError, DependencyNotProvidableError
 
 
 class FactoryProvider:
@@ -52,11 +50,17 @@ class FactoryProvider:
             else:
                 raise DependencyNotProvidableError(dependency.id)
 
-        args = dependency.args
+        if isinstance(dependency, Build):
+            args = dependency.args
+            kwargs = dependency.kwargs
+        else:
+            args = tuple()
+            kwargs = dict()
+
         if factory.takes_dependency_id:
             args = (dependency.id,) + args
 
-        return Instance(factory(*args, **dependency.kwargs),
+        return Instance(factory(*args, **kwargs),
                         singleton=factory.singleton)
 
     def register(self,
@@ -114,3 +118,31 @@ class DependencyFactory(SlotReprMixin):
 
     def __call__(self, *args, **kwargs):
         return self.factory(*args, **kwargs)
+
+
+class Build(Dependency):
+    __slots__ = ('id', 'args', 'kwargs')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(args[0])
+        self.args = args[1:]
+        self.kwargs = kwargs
+
+    def __hash__(self):
+        if self.args or self.kwargs:
+            try:
+                # Try most precise hash first
+                return hash((self.id, self.args, tuple(self.kwargs.items())))
+            except TypeError:
+                # If type error, return the best error-free hash possible
+                return hash((self.id, len(self.args), tuple(self.kwargs.keys())))
+
+        return hash(self.id)
+
+    def __eq__(self, other):
+        return ((not self.kwargs and not self.args
+                 and (self.id is other or self.id == other))
+                or (isinstance(other, Dependency)
+                    and (self.id is other.id or self.id == other.id)
+                    and self.args == other.args
+                    and self.kwargs == other.kwargs))

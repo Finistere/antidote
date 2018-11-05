@@ -58,7 +58,7 @@ class DependencyContainer:
 
         try:
             with self._instantiation_lock, \
-                    self._instantiation_stack.instantiating(dependency):
+                 self._instantiation_stack.instantiating(dependency):
                 try:
                     return self._singletons[dependency]
                 except KeyError:
@@ -86,13 +86,6 @@ class DependencyContainer:
             raise DependencyInstantiationError(dependency) from e
 
         raise DependencyNotFoundError(dependency)
-
-    def provide(self, *args, **kwargs):
-        """
-        Utility method which creates a :py:class:`~Dependency` and passes it to
-        :py:meth:`~__getitem__`.
-        """
-        return self[Dependency(*args, **kwargs)]
 
     def __setitem__(self, dependency_id, dependency):
         """
@@ -176,7 +169,7 @@ class DependencyContainer:
                 self._singletons = original_singletons
 
 
-class Dependency:
+class Dependency(SlotReprMixin):
     """
     Simple container which can be used to specify a dependency ID with
     additional arguments, :code:`args` and :code:`kwargs`, for the provider.
@@ -190,43 +183,19 @@ class Dependency:
     'Antidote'
 
     """
-    __slots__ = ('id', 'args', 'kwargs')
+    __slots__ = ('id',)
 
-    def __init__(self, *args, **kwargs):
-        self.id = args[0]
+    def __init__(self, id):
+        self.id = id
         # Just in case, because it wouldn't make any sense.
         assert not isinstance(self.id, Dependency)
-        self.args = args[1:]
-        self.kwargs = kwargs
-
-    def __repr__(self):
-        return "{}({!r}, *{!r}, **{!r})".format(type(self).__name__, self.id,
-                                                self.args, self.kwargs)
 
     def __hash__(self):
-        if self.args or self.kwargs:
-            try:
-                # Try most precise hash first
-                return hash((self.id, self.args, tuple(self.kwargs.items())))
-            except TypeError:
-                # If type error, return the best error-free hash possible
-                return hash((self.id, len(self.args), tuple(self.kwargs.keys())))
-
         return hash(self.id)
 
     def __eq__(self, other):
-        return (
-            (
-                not self.kwargs and not self.args
-                and (self.id is other or self.id == other)
-            )
-            or (
-                isinstance(other, Dependency)
-                and (self.id is other.id or self.id == other.id)
-                and self.args == other.args
-                and self.kwargs == other.kwargs
-            )
-        )
+        return self.id == other \
+               or (isinstance(other, Dependency) and self.id == other.id)
 
 
 class Instance(SlotReprMixin):

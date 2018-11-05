@@ -2,7 +2,7 @@ import contextlib
 import inspect
 import weakref
 from functools import reduce
-from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, TypeVar,
+from typing import (Any, Callable, Iterable, Mapping, Sequence, TypeVar,
                     Union, get_type_hints)
 
 from antidote.providers.tags import Tag, TagProvider
@@ -23,24 +23,6 @@ class DependencyManager:
     Custom instances or classes can be used as :py:attr:`container` and
     :py:attr:`injector`.
 
-    """
-
-    auto_wire = True  # type: bool
-    """
-    Default value for :code:`auto_wire` argument in methods such as
-    :py:meth:`register()` or :py:meth:`factory()`
-    """
-
-    use_names = False  # type: bool
-    """
-    Default value for :code:`use_names` argument in methods such as
-    :py:meth:`inject()` or :py:meth:`register()`
-    """
-
-    arg_map = None  # type: Dict
-    """
-    Default mapping for :code:`arg_map` argument in methods such as
-    :py:meth:`inject()` or :py:meth:`register()`.
     """
 
     def __init__(self,
@@ -66,10 +48,11 @@ class DependencyManager:
         self.arg_map = dict()
         self.arg_map.update(arg_map or dict())
 
-        self.container = container or DependencyContainer()
+        self.container = container or DependencyContainer()  # type: DependencyContainer
         self.container[DependencyContainer] = weakref.proxy(self.container)
 
-        self.injector = injector or DependencyInjector(self.container)
+        self.injector = injector or DependencyInjector(
+            self.container)  # type: DependencyInjector  # noqa
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
         self.provider(FactoryProvider)
@@ -91,9 +74,6 @@ class DependencyManager:
     @property
     def providers(self):
         return self.container.providers
-
-    def provide(self, *args, **kwargs):
-        return self.container.provide(*args, **kwargs)
 
     def inject(self,
                func: Callable = None,

@@ -6,6 +6,8 @@ from .exceptions import (AntidoteError, DependencyCycleError, DependencyDuplicat
                          DependencyNotProvidableError)
 from .injector import DependencyInjector
 from .manager import DependencyManager
+from .providers.factories import Build
+from .providers.tags import Tag, Tagged, TaggedDependencies
 
 try:
     __version__ = get_distribution(__name__).version
@@ -14,6 +16,7 @@ except DistributionNotFound:  # pragma: no cover
     pass
 
 __all__ = [
+    'Build',
     'Instance',
     'DependencyContainer',
     'DependencyInjector',
@@ -25,6 +28,9 @@ __all__ = [
     'DependencyCycleError',
     'DependencyInstantiationError',
     'Dependency',
+    'Tag',
+    'Tagged',
+    'TaggedDependencies',
     'antidote'
 ]
 
