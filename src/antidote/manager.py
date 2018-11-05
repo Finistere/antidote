@@ -5,6 +5,7 @@ from functools import reduce
 from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, TypeVar,
                     Union, get_type_hints)
 
+from antidote.providers.tags import Tag, TagProvider
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
 from .injector import DependencyInjector
@@ -71,11 +72,14 @@ class DependencyManager:
         self.injector = injector or DependencyInjector(self.container)
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
-        self.provider(FactoryProvider, auto_wire=False)
-        self._factories = self.container.providers[FactoryProvider]  # type: FactoryProvider  # noqa
+        self.provider(FactoryProvider)
+        self._factories = self.providers[FactoryProvider]  # type: FactoryProvider
 
-        self.provider(ParameterProvider, auto_wire=False)
-        self._parameters = self.container.providers[ParameterProvider]  # type: ParameterProvider  # noqa
+        self.provider(ParameterProvider)
+        self._parameters = self.providers[ParameterProvider]  # type: ParameterProvider
+
+        self.provider(TagProvider)
+        self._tags = self.providers[TagProvider]  # type: TagProvider
 
     def __repr__(self):
         return (
@@ -143,7 +147,8 @@ class DependencyManager:
                  singleton: bool = True,
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
-                 use_names: Union[bool, Iterable[str]] = None
+                 use_names: Union[bool, Iterable[str]] = None,
+                 tags: Iterable[Union[str, Tag]] = None
                  ) -> Union[Callable, type]:
         """Register a dependency by its class.
 
@@ -185,6 +190,9 @@ class DependencyManager:
             self._factories.register(dependency_id=_cls, factory=_cls,
                                      singleton=singleton)
 
+            if tags is not None:
+                self._tags.register(_cls, tags)
+
             return _cls
 
         return cls and register_class(cls) or register_class
@@ -196,7 +204,8 @@ class DependencyManager:
                 singleton: bool = True,
                 arg_map: Union[Mapping, Sequence] = None,
                 use_names: Union[bool, Iterable[str]] = None,
-                build_subclasses: bool = False
+                build_subclasses: bool = False,
+                tags: Iterable[Union[str, Tag]] = None
                 ) -> Callable:
         """Register a dependency providers, a factory to build the dependency.
 
@@ -256,12 +265,17 @@ class DependencyManager:
                            if auto_wire else
                            obj)
 
+            _id = dependency_id or type_hints.get('return')
+
             self._factories.register(
                 factory=factory,
                 singleton=singleton,
-                dependency_id=dependency_id or type_hints.get('return'),
+                dependency_id=_id,
                 build_subclasses=build_subclasses
             )
+
+            if tags is not None:
+                self._tags.register(_id, tags)
 
             return obj
 

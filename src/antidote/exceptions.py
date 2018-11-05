@@ -35,3 +35,9 @@ class DependencyNotFoundError(AntidoteError):
     The dependency could not be found in the container.
     Raised by the container.
     """
+
+
+class DuplicateTagError(AntidoteError):
+    """
+
+    """
