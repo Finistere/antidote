@@ -1,4 +1,4 @@
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple, Any
 
 from .._utils import SlotReprMixin
 from ..container import Dependency, Instance
@@ -13,8 +13,8 @@ class FactoryProvider:
 
     def __init__(self, auto_wire: bool = True) -> None:
         self.auto_wire = auto_wire
-        self._factories = dict()  # type: Dict
-        self._subclass_factories = dict()  # type: Dict
+        self._factories = dict()  # type: Dict[Any, DependencyFactory]
+        self._subclass_factories = dict()  # type: Dict[Any, DependencyFactory]
 
     def __repr__(self):
         return (
@@ -48,7 +48,7 @@ class FactoryProvider:
                 except KeyError:
                     pass
             else:
-                raise DependencyNotProvidableError(dependency.id)
+                raise DependencyNotProvidableError(dependency)
 
         if isinstance(dependency, Build):
             args = dependency.args
@@ -125,8 +125,8 @@ class Build(Dependency):
 
     def __init__(self, *args, **kwargs):
         super().__init__(args[0])
-        self.args = args[1:]
-        self.kwargs = kwargs
+        self.args = args[1:]  # type: Tuple
+        self.kwargs = kwargs  # type: Dict
 
     def __hash__(self):
         if self.args or self.kwargs:

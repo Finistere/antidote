@@ -1,7 +1,7 @@
 import contextlib
 import threading
 from collections import OrderedDict
-from typing import Iterable, Mapping, Union
+from typing import Any, Iterable, Mapping, Union
 
 from .stack import InstantiationStack
 from .._utils import SlotReprMixin
@@ -186,7 +186,7 @@ class Dependency(SlotReprMixin):
     __slots__ = ('id',)
 
     def __init__(self, id):
-        self.id = id
+        self.id = id  # type: Any
         # Just in case, because it wouldn't make any sense.
         assert not isinstance(self.id, Dependency)
 
@@ -194,8 +194,8 @@ class Dependency(SlotReprMixin):
         return hash(self.id)
 
     def __eq__(self, other):
-        return self.id == other \
-               or (isinstance(other, Dependency) and self.id == other.id)
+        return (self.id == other
+                or (isinstance(other, Dependency) and self.id == other.id))
 
 
 class Instance(SlotReprMixin):
@@ -208,6 +208,6 @@ class Instance(SlotReprMixin):
     """
     __slots__ = ('item', 'singleton')
 
-    def __init__(self, item, singleton: bool = False) -> None:
+    def __init__(self, item, singleton: bool = False):
         self.item = item
         self.singleton = singleton

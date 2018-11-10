@@ -3,7 +3,7 @@ import inspect
 import weakref
 from functools import reduce
 from typing import (Any, Callable, Iterable, Mapping, Sequence, TypeVar,
-                    Union, get_type_hints)
+                    Union, get_type_hints, Dict)
 
 from antidote.providers.tags import Tag, TagProvider
 from ._utils import get_arguments_specification
@@ -41,11 +41,9 @@ class DependencyManager:
             injector: Injector to use if specified.
 
         """
-        if auto_wire is not None:
-            self.auto_wire = auto_wire
-        if use_names is not None:
-            self.use_names = use_names
-        self.arg_map = dict()
+        self.auto_wire = auto_wire if auto_wire is not None else True
+        self.use_names = use_names if use_names is not None else False
+        self.arg_map = dict()  # type: Dict
         self.arg_map.update(arg_map or dict())
 
         self.container = container or DependencyContainer()  # type: DependencyContainer

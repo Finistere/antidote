@@ -39,5 +39,6 @@ class DependencyNotFoundError(AntidoteError):
 
 class DuplicateTagError(AntidoteError):
     """
-
+    A dependency has multiple times the same tag.
+    Raised by the TagProvider.
     """

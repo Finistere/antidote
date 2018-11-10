@@ -104,26 +104,23 @@ def test_extend(container: DependencyContainer):
     assert provider is container.providers[DummyProvider]
 
 
-def test_getitem_and_provide(container: DependencyContainer):
+def test_getitem(container: DependencyContainer):
     container.providers[DummyFactoryProvider] = DummyFactoryProvider({
         Service: lambda: Service(),
         ServiceWithNonMetDependency: lambda: ServiceWithNonMetDependency(),
     })
     container.providers[DummyProvider] = DummyProvider({'name': 'Antidote'})
 
-    for get in (container.__getitem__, container.provide):
-        with pytest.raises(DependencyNotFoundError):
-            get(object)
+    with pytest.raises(DependencyNotFoundError):
+        container[object]
 
-        with pytest.raises(DependencyInstantiationError):
-            get(ServiceWithNonMetDependency)
+    with pytest.raises(DependencyInstantiationError):
+        container[ServiceWithNonMetDependency]
 
     assert isinstance(container[Service], Service)
     assert isinstance(container[Dependency(Service)], Service)
-    assert isinstance(container.provide(Service), Service)
     assert 'Antidote' == container['name']
     assert 'Antidote' == container[Dependency('name')]
-    assert 'Antidote' == container.provide('name')
 
 
 def test_singleton(container: DependencyContainer):
