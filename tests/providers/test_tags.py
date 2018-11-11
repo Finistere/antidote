@@ -1,9 +1,8 @@
 import pytest
-from antidote.exceptions import DuplicateTagError
 
 from antidote.container import DependencyContainer, Instance
-
-from antidote.providers.tags import TagProvider, Tag, TaggedDependencies, Tagged
+from antidote.exceptions import DuplicateTagError
+from antidote.providers.tags import Tag, TagProvider, Tagged, TaggedDependencies
 
 
 def test_duplicate_tag_error():
@@ -72,4 +71,5 @@ def test_tagged_dependencies():
     assert set(data.values()) == set(t.tags())
     assert set(data.keys()) == set(t.dependencies())
     assert set(data.items()) == set(t.items())
+    assert set(data.keys()) == set(t)
     assert len(data) == len(t)

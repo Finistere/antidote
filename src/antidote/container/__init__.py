@@ -1,12 +1,15 @@
 import contextlib
 import threading
 from collections import OrderedDict
-from typing import Any, Iterable, Mapping, Union
+from typing import Any, Dict, Iterable, Mapping, TYPE_CHECKING, Type, Union
 
 from .stack import InstantiationStack
 from .._utils import SlotReprMixin
 from ..exceptions import (DependencyCycleError, DependencyInstantiationError,
                           DependencyNotFoundError, DependencyNotProvidableError)
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..providers import Provider
 
 _SENTINEL = object()
 
@@ -25,7 +28,7 @@ class DependencyContainer:
     """
 
     def __init__(self):
-        self.providers = OrderedDict()
+        self.providers = OrderedDict()  # type: Dict[Type[Provider], Provider]
         self._singletons = {}
         self._instantiation_lock = threading.RLock()
         self._instantiation_stack = InstantiationStack()
@@ -58,7 +61,7 @@ class DependencyContainer:
 
         try:
             with self._instantiation_lock, \
-                 self._instantiation_stack.instantiating(dependency):
+                    self._instantiation_stack.instantiating(dependency):
                 try:
                     return self._singletons[dependency]
                 except KeyError:

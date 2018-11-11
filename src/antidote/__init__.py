@@ -6,6 +6,7 @@ from .exceptions import (AntidoteError, DependencyCycleError, DependencyDuplicat
                          DependencyNotProvidableError)
 from .injector import DependencyInjector
 from .manager import DependencyManager
+from .providers import FactoryProvider, ParameterProvider, TagProvider
 from .providers.factories import Build
 from .providers.tags import Tag, Tagged, TaggedDependencies
 
@@ -28,9 +29,12 @@ __all__ = [
     'DependencyCycleError',
     'DependencyInstantiationError',
     'Dependency',
+    'FactoryProvider',
+    'ParameterProvider',
     'Tag',
     'Tagged',
     'TaggedDependencies',
+    'TagProvider',
     'antidote'
 ]
 

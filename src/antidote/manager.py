@@ -2,9 +2,10 @@ import contextlib
 import inspect
 import weakref
 from functools import reduce
-from typing import (Any, Callable, Iterable, Mapping, Sequence, TypeVar,
-                    Union, get_type_hints, Dict)
+from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, Type, TypeVar,
+                    Union, cast, get_type_hints)
 
+from antidote.providers import Provider
 from antidote.providers.tags import Tag, TagProvider
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
@@ -54,13 +55,13 @@ class DependencyManager:
         self.container[DependencyInjector] = weakref.proxy(self.injector)
 
         self.provider(FactoryProvider)
-        self._factories = self.providers[FactoryProvider]  # type: FactoryProvider
+        self._factories = cast(FactoryProvider, self.providers[FactoryProvider])
 
         self.provider(ParameterProvider)
-        self._parameters = self.providers[ParameterProvider]  # type: ParameterProvider
+        self._parameters = cast(ParameterProvider, self.providers[ParameterProvider])
 
         self.provider(TagProvider)
-        self._tags = self.providers[TagProvider]  # type: TagProvider
+        self._tags = cast(TagProvider, self.providers[TagProvider])
 
     def __repr__(self):
         return (
@@ -70,7 +71,7 @@ class DependencyManager:
                  self.use_names, self.container, self.injector)
 
     @property
-    def providers(self):
+    def providers(self) -> Dict[Type[Provider], Provider]:
         return self.container.providers
 
     def inject(self,
@@ -145,6 +146,10 @@ class DependencyManager:
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
                 overridden, but not the arg_map.
+            tags: Iterable of tags to be applied. Those must be either strings
+                (the tags name) or :py:class:`~.providers.tags.Tag`. All
+                dependencies with a specific tag can then be retrieved with
+                a :py:class:`~.providers.tags.Tagged`.
 
         Returns:
             The class or the class decorator.
@@ -210,6 +215,10 @@ class DependencyManager:
             build_subclasses: If True, subclasses will also be build with this
                 factory. If multiple factories are defined, the first in the
                 MRO is used.
+            tags: Iterable of tags to be applied. Those must be either strings
+                (the tags name) or :py:class:`~.providers.tags.Tag`. All
+                dependencies with a specific tag can then be retrieved with
+                a :py:class:`~.providers.tags.Tagged`.
 
         Returns:
             object: The dependency_provider
@@ -220,7 +229,8 @@ class DependencyManager:
 
         def register_factory(obj):
             if inspect.isclass(obj):
-                # Only way to accurately test if obj has really a __call__() method.
+                # Only way to accurately test if obj has really a __call__()
+                # method.
                 if '__call__' not in dir(obj):
                     raise ValueError("Factory class needs to be callable.")
                 type_hints = get_type_hints(obj.__call__) or {}

@@ -46,7 +46,8 @@ setup(
         ],
         "tests": [
             "pytest",
-            "pytest-cov"
+            "pytest-cov",
+            "hypothesis"
         ]
     },
     license='MIT',

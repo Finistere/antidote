@@ -1,11 +1,12 @@
-from typing import Callable, Dict, Tuple, Any
+from typing import Any, Callable, Dict, Tuple
 
+from .base import Provider
 from .._utils import SlotReprMixin
 from ..container import Dependency, Instance
 from ..exceptions import DependencyDuplicateError, DependencyNotProvidableError
 
 
-class FactoryProvider:
+class FactoryProvider(Provider):
     """
     Provider managing factories. When a dependency is requested, it tries
     to find a matching factory and builds it. Subclasses may also be built.

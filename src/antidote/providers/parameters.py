@@ -1,12 +1,13 @@
 from typing import Any, Callable, TypeVar
 
+from .base import Provider
 from ..container import Dependency, Instance
 from ..exceptions import DependencyNotProvidableError
 
 T = TypeVar('T')
 
 
-class ParameterProvider:
+class ParameterProvider(Provider):
     """
     Provider managing constant parameters like configuration.
     """

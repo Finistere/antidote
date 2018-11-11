@@ -1,7 +1,8 @@
 from typing import Any, Callable, Dict, Generic, Iterable, Tuple, TypeVar, \
     Union
 
-from antidote._utils import SlotReprMixin
+from .base import Provider
+from .._utils import SlotReprMixin
 from ..container import Dependency, DependencyContainer, Instance
 from ..exceptions import DependencyNotProvidableError, DuplicateTagError
 
@@ -44,22 +45,25 @@ class Tagged(Dependency):
 
 class TaggedDependencies(Generic[T]):
     def __init__(self, data: Dict):
-        self._data = data
+        self._dependency_to_tag = data
 
-    def tags(self) -> Iterable[Tag]:
-        return self._data.values()
-
-    def dependencies(self) -> Iterable[T]:
-        return self._data.keys()
-
-    def items(self) -> Iterable[Tuple[T, Tag]]:
-        return self._data.items()
+    def __iter__(self):
+        return iter(self.dependencies())
 
     def __len__(self):
-        return len(self._data)
+        return len(self._dependency_to_tag)
+
+    def tags(self) -> Iterable[Tag]:
+        return self._dependency_to_tag.values()
+
+    def dependencies(self) -> Iterable[T]:
+        return self._dependency_to_tag.keys()
+
+    def items(self) -> Iterable[Tuple[T, Tag]]:
+        return self._dependency_to_tag.items()
 
 
-class TagProvider:
+class TagProvider(Provider):
     def __init__(self, container: DependencyContainer):
         self._tagged_dependencies = {}  # type: Dict[str, Dict[Any, Tag]]
         self._container = container
