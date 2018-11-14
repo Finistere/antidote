@@ -42,7 +42,7 @@ def test_provide_tags():
     assert 1 == len(result.item)
 
     result = dict(result.item.items())
-    assert result[container['test']].name == 'tag1'
+    assert 'tag1' == result[container['test']].name
 
     result = provider.__antidote_provide__(Tagged('tag2'))
     assert isinstance(result, Instance)
@@ -65,11 +65,15 @@ def test_provide_tags():
 
 
 def test_tagged_dependencies():
-    data = {'test': Tag('tag1'), 'test2': Tag('tag2', dummy=True)}
-    t = TaggedDependencies(data)
+    tag1 = Tag('tag1')
+    tag2 = Tag('tag2', dummy=True)
+    t = TaggedDependencies([
+        (lambda: 'test', tag1),
+        (lambda: 'test2', tag2)
+    ])
 
-    assert set(data.values()) == set(t.tags())
-    assert set(data.keys()) == set(t.dependencies())
-    assert set(data.items()) == set(t.items())
-    assert set(data.keys()) == set(t)
-    assert len(data) == len(t)
+    assert {tag1, tag2} == set(t.tags())
+    assert {'test', 'test2'} == set(t.dependencies())
+    assert {'test', 'test2'} == set(t)
+    assert {('test', tag1), ('test2', tag2)} == set(t.items())
+    assert 2 == len(t)

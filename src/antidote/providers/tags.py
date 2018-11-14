@@ -1,5 +1,7 @@
-from typing import Any, Callable, Dict, Generic, Iterable, Tuple, TypeVar, \
-    Union
+import threading
+from collections import deque
+from typing import Any, Callable, Dict, Generic, Iterable, Iterator, Tuple, TypeVar, \
+    Union, List
 
 from .base import Provider
 from .._utils import SlotReprMixin
@@ -44,23 +46,41 @@ class Tagged(Dependency):
 
 
 class TaggedDependencies(Generic[T]):
-    def __init__(self, data: Dict):
-        self._dependency_to_tag = data
+    def __init__(self, data: Iterable[Tuple[Callable[..., T], Tag]]):
+        getters, self._tags = zip(*data)
+        self._reverse_dependency_getters = deque(getters)
+        self._dependency_instances = []  # type: List[T]
+        self._lock = threading.Lock()
 
     def __iter__(self):
         return iter(self.dependencies())
 
     def __len__(self):
-        return len(self._dependency_to_tag)
-
-    def tags(self) -> Iterable[Tag]:
-        return self._dependency_to_tag.values()
-
-    def dependencies(self) -> Iterable[T]:
-        return self._dependency_to_tag.keys()
+        return len(self._tags)
 
     def items(self) -> Iterable[Tuple[T, Tag]]:
-        return self._dependency_to_tag.items()
+        return zip(self.dependencies(), self.tags())
+
+    def tags(self) -> Iterable[Tag]:
+        return iter(self._tags)
+
+    def dependencies(self) -> Iterator[T]:
+        if self._reverse_dependency_getters:
+            for i in range(len(self._tags)):
+                try:
+                    yield self._dependency_instances[i]
+                except IndexError:
+                    with self._lock:
+                        try:
+                            getter = self._reverse_dependency_getters.popleft()
+                        except IndexError:
+                            pass
+                        else:
+                            self._dependency_instances.append(getter())
+                    yield self._dependency_instances[i]
+        else:
+            for dependency in self._dependency_instances:
+                yield dependency
 
 
 class TagProvider(Provider):
@@ -78,13 +98,14 @@ class TagProvider(Provider):
         if isinstance(dependency, Tagged) \
                 and dependency.name in self._tagged_dependencies:
             return Instance(
-                TaggedDependencies({
-                    self._container[tagged_dependency]: tag
+                TaggedDependencies((
+                    ((lambda d=tagged_dependency: self._container[d]), tag)
                     for tagged_dependency, tag
                     in self._tagged_dependencies[dependency.name].items()
                     if dependency.filter(tag)
-                }),
-                # Tags are by nature dynamic
+                )),
+                # Tags are by nature dynamic. Whether the returned dependencies
+                # are singletons or not is their decision to take.
                 singleton=False
             )
 
