@@ -52,7 +52,7 @@ class TaggedDependencies(Generic[T]):
         self._dependency_instances = []  # type: List[T]
         self._lock = threading.Lock()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable[T]:
         return iter(self.dependencies())
 
     def __len__(self):

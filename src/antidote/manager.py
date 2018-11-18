@@ -78,6 +78,7 @@ class DependencyManager:
                func: Callable = None,
                arg_map: Union[Mapping, Sequence] = None,
                use_names: Union[bool, Iterable[str]] = None,
+               use_type_hints: Union[bool, Iterable[str]] = None,
                bind: bool = False
                ) -> Callable:
         """Inject dependencies into the function.
@@ -92,6 +93,9 @@ class DependencyManager:
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
                 overridden, but not the arg_map.
+            use_type_hints: Whether the type hints should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments.
             bind: bind arguments with :py:func:`functools.partial` directly to
                 avoid the overhead of retrieving dependencies. This should only
                 be used when necessary, it makes testing a lot more difficult.
@@ -114,10 +118,12 @@ class DependencyManager:
 
             if bind:
                 return self.injector.bind(func=f, arg_map=_mapping,
-                                          use_names=use_names)
+                                          use_names=use_names,
+                                          use_type_hints=use_type_hints)
 
             return self.injector.inject(func=f, arg_map=_mapping,
-                                        use_names=use_names)
+                                        use_names=use_names,
+                                        use_type_hints=use_type_hints)
 
         return func and _inject(func) or _inject
 
@@ -127,6 +133,7 @@ class DependencyManager:
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
                  use_names: Union[bool, Iterable[str]] = None,
+                 use_type_hints: Union[bool, Iterable[str]] = None,
                  tags: Iterable[Union[str, Tag]] = None
                  ) -> Union[Callable, type]:
         """Register a dependency by its class.
@@ -146,6 +153,9 @@ class DependencyManager:
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
                 overridden, but not the arg_map.
+            use_type_hints: Whether the type hints should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments.
             tags: Iterable of tags to be applied. Those must be either strings
                 (the tags name) or :py:class:`~.providers.tags.Tag`. All
                 dependencies with a specific tag can then be retrieved with
@@ -168,7 +178,8 @@ class DependencyManager:
                                           if auto_wire is True else
                                           auto_wire),
                                  arg_map=arg_map,
-                                 use_names=use_names)
+                                 use_names=use_names,
+                                 use_type_hints=use_type_hints)
 
             self._factories.register(dependency_id=_cls, factory=_cls,
                                      singleton=singleton)
@@ -187,6 +198,7 @@ class DependencyManager:
                 singleton: bool = True,
                 arg_map: Union[Mapping, Sequence] = None,
                 use_names: Union[bool, Iterable[str]] = None,
+                use_type_hints: Union[bool, Iterable[str]] = None,
                 build_subclasses: bool = False,
                 tags: Iterable[Union[str, Tag]] = None
                 ) -> Callable:
@@ -212,6 +224,9 @@ class DependencyManager:
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
                 overridden, but not the arg_map.
+            use_type_hints: Whether the type hints should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments.
             build_subclasses: If True, subclasses will also be build with this
                 factory. If multiple factories are defined, the first in the
                 MRO is used.
@@ -241,7 +256,8 @@ class DependencyManager:
                                              if auto_wire is True else
                                              auto_wire),
                                     arg_map=arg_map,
-                                    use_names=use_names)
+                                    use_names=use_names,
+                                    use_type_hints=use_type_hints)
 
                 factory = obj()
             else:
@@ -272,7 +288,9 @@ class DependencyManager:
     def wire(self,
              cls: type = None,
              methods: Iterable[str] = None,
-             **inject_kwargs
+             arg_map: Union[Mapping, Sequence] = None,
+             use_names: Union[bool, Iterable[str]] = None,
+             use_type_hints: Union[bool, Iterable[str]] = None,
              ) -> Union[Callable, type]:
         """Wire a class by injecting the dependencies in all specified methods.
 
@@ -280,7 +298,17 @@ class DependencyManager:
             cls: class to wire.
             methods: Name of the methods for which dependencies should be
                 injected. Defaults to all defined methods.
-            **inject_kwargs: Keyword arguments passed on to :py:meth:`inject`.
+            arg_map: Custom mapping of the arguments name to their respective
+                dependency id. A sequence of dependencies can also be
+                specified, which will be mapped to the arguments through their
+                order. Annotations are overridden.
+            use_names: Whether the arguments name should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments. Annotations are
+                overridden, but not the arg_map.
+            use_type_hints: Whether the type hints should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments.
 
         Returns:
             type: Wired class.
@@ -307,7 +335,10 @@ class DependencyManager:
             for method in methods:
                 setattr(_cls,
                         method,
-                        self.inject(getattr(_cls, method), **inject_kwargs))
+                        self.inject(getattr(_cls, method),
+                                    arg_map=arg_map,
+                                    use_names=use_names,
+                                    use_type_hints=use_type_hints))
 
             return _cls
 
@@ -375,7 +406,8 @@ class DependencyManager:
                  cls: type = None,
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
-                 use_names: Union[bool, Iterable[str]] = None
+                 use_names: Union[bool, Iterable[str]] = None,
+                 use_type_hints: Union[bool, Iterable[str]] = None,
                  ) -> Union[Callable, type]:
         """Register a providers by its class.
 
@@ -391,6 +423,9 @@ class DependencyManager:
                 dependency id. A sequence of dependencies can also be
                 specified, which will be mapped to the arguments through their
                 order. Annotations are overridden.
+            use_type_hints: Whether the type hints should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments.
             use_names: Whether the arguments name should be used to find for
                 a dependency. An iterable of names may also be provided to
                 restrict this to a subset of the arguments. Annotations are
@@ -417,7 +452,8 @@ class DependencyManager:
                                           if auto_wire is True else
                                           auto_wire),
                                  arg_map=arg_map,
-                                 use_names=use_names)
+                                 use_names=use_names,
+                                 use_type_hints=use_type_hints)
 
             self.container.providers[_cls] = _cls()
 

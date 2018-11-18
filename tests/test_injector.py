@@ -8,9 +8,7 @@ from antidote import (
 
 @pytest.fixture()
 def injector():
-    container = DependencyContainer()
-    injector = DependencyInjector(container)
-    return injector
+    return DependencyInjector(container=DependencyContainer())
 
 
 def test_bind(injector: DependencyInjector):
@@ -100,7 +98,7 @@ def test_use_names(injector: DependencyInjector):
 
     # test is inject by name
     f = injector.inject(func=f, use_names=True)
-    assert container['test'] == f()
+    assert container['test'] == injector.inject(f, use_names=True)()
 
     container['yes'] = 'yes'
     container['no'] = 'no'
@@ -108,8 +106,38 @@ def test_use_names(injector: DependencyInjector):
     def g(yes, no=None):
         return yes, no
 
-    inject = injector.inject(use_names=('yes',))
-    assert (container['yes'], None) == inject(g)()
+    assert (container['yes'], None) == injector.inject(g, use_names=['yes'])()
+
+
+def test_use_type_hints(injector: DependencyInjector):
+    container = injector._container
+
+    class Service:
+        pass
+
+    class AnotherService:
+        pass
+
+    container[Service] = Service()
+    container[AnotherService] = AnotherService()
+
+    def f(service: Service):
+        return service
+
+    assert container[Service] == injector.inject(f)()
+    assert container[Service] == injector.inject(f, use_type_hints=True)()
+
+    with pytest.raises(TypeError):
+        injector.inject(f, use_type_hints=False)()
+
+    container['yes'] = 'yes'
+    container['no'] = 'no'
+
+    def g(service: Service, another_service: AnotherService = None):
+        return service, another_service
+
+    inject = injector.inject(use_type_hints=['service'])
+    assert (container[Service], None) == inject(g)()
 
 
 def test_defaults(injector: DependencyInjector):
@@ -154,7 +182,7 @@ def test_repr(injector):
         'call'
     ]
 )
-def test_value_error(method_name, injector: DependencyInjector):
+def test_invalid_argument(method_name, injector: DependencyInjector):
     def f():
         pass
 
@@ -163,6 +191,9 @@ def test_value_error(method_name, injector: DependencyInjector):
 
     with pytest.raises(ValueError):
         getattr(injector, method_name)(func=f, arg_map=object())
+
+    with pytest.raises(ValueError):
+        getattr(injector, method_name)(func=f, use_type_hints=object())
 
 
 def test_injection_order(injector: DependencyInjector):
