@@ -1,12 +1,13 @@
+import collections.abc as c_abc
 import functools
 import typing
 from itertools import islice
-import collections.abc as c_abc
 from typing import (Callable, Dict, Iterable, Mapping, Optional, Sequence,
                     Tuple, Union)
 
 from ._utils import SlotReprMixin, get_arguments_specification
-from .container import DependencyContainer, DependencyNotFoundError
+from .container import DependencyContainer
+from .exceptions import DependencyNotFoundError
 
 _EMPTY_DEPENDENCY = object()
 
@@ -41,12 +42,12 @@ class DependencyInjector:
                 retrieve the dependencies.
 
         """
-        self._container = container
+        self.container = container
 
     def __repr__(self):
         return "{}(container={!r}".format(
             type(self).__name__,
-            self._container
+            self.container
         )
 
     def inject(self,
@@ -232,7 +233,7 @@ class DependencyInjector:
         raised.
         """
         kwargs = kwargs.copy()
-        container = self._container
+        container = self.container
 
         for inj in islice(bp.injections, len(args), None):
             if inj is not None and inj.arg_name not in kwargs:

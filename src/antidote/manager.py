@@ -4,10 +4,11 @@ import weakref
 from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, Type, TypeVar,
                     Union, cast, get_type_hints)
 
-from antidote.providers import Provider
-from antidote.providers.tags import Tag, TagProvider
+from .providers import Provider
+from .providers.tags import Tag, TagProvider
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
+from .container.proxy import ProxyContainer
 from .injector import DependencyInjector
 from .providers import FactoryProvider, GetterProvider
 
@@ -518,12 +519,21 @@ class DependencyManager:
                 provider could instantiate them.
 
         """
-        with self.container.context(dependencies=dependencies, include=include,
-                                    exclude=exclude, missing=missing):
-            # Re-inject DependencyManager's globals
-            self.container[DependencyContainer] = weakref.proxy(self.container)
-            self.container[DependencyInjector] = weakref.proxy(self.injector)
+        container = ProxyContainer(container=self.container,
+                                   dependencies=dependencies,
+                                   include=include,
+                                   exclude=exclude,
+                                   missing=missing)
+        container[DependencyContainer] = weakref.proxy(container)
+        container[DependencyInjector] = weakref.proxy(self.injector)
+
+        original_container, self.container = self.container, container
+        self.injector.container = container
+        try:
             yield
+        finally:
+            self.container = original_container
+            self.injector.container = original_container
 
     def _prepare_class(self, cls, auto_wire, **inject_kwargs):
         if not inspect.isclass(cls):

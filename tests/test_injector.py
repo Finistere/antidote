@@ -42,7 +42,7 @@ def test_call(injector: DependencyInjector):
 
 
 def test_arg_map(injector: DependencyInjector):
-    container = injector._container
+    container = injector.container
 
     class Service:
         pass
@@ -89,7 +89,7 @@ def test_arg_map(injector: DependencyInjector):
 
 
 def test_use_names(injector: DependencyInjector):
-    container = injector._container
+    container = injector.container
 
     container['test'] = object()
 
@@ -110,7 +110,7 @@ def test_use_names(injector: DependencyInjector):
 
 
 def test_use_type_hints(injector: DependencyInjector):
-    container = injector._container
+    container = injector.container
 
     class Service:
         pass
@@ -141,7 +141,7 @@ def test_use_type_hints(injector: DependencyInjector):
 
 
 def test_defaults(injector: DependencyInjector):
-    container = injector._container
+    container = injector.container
 
     container['service'] = object()
 
@@ -171,7 +171,7 @@ def test_method_wrapper_type_hints_error(monkeypatch,
 
 
 def test_repr(injector):
-    assert repr(injector._container) in repr(injector)
+    assert repr(injector.container) in repr(injector)
 
 
 @pytest.mark.parametrize(
@@ -197,7 +197,7 @@ def test_invalid_argument(method_name, injector: DependencyInjector):
 
 
 def test_injection_order(injector: DependencyInjector):
-    container = injector._container
+    container = injector.container
 
     class Service:
         pass

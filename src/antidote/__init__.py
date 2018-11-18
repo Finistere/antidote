@@ -6,7 +6,7 @@ from .exceptions import (AntidoteError, DependencyCycleError, DependencyDuplicat
                          DependencyNotProvidableError)
 from .injector import DependencyInjector
 from .manager import DependencyManager
-from .providers import FactoryProvider, GetterProvider, TagProvider
+from .providers import FactoryProvider, GetterProvider, TagProvider, Provider
 from .providers.factories import Build
 from .providers.tags import Tag, Tagged, TaggedDependencies
 
