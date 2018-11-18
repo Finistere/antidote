@@ -1,7 +1,7 @@
 import threading
 from collections import deque
-from typing import Any, Callable, Dict, Generic, Iterable, Iterator, Tuple, TypeVar, \
-    Union, List
+from typing import (Any, Callable, Dict, Generic, Iterable, Iterator, List, Tuple,
+                    TypeVar, Union)
 
 from .base import Provider
 from .._utils import SlotReprMixin

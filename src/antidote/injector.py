@@ -200,9 +200,9 @@ class DependencyInjector:
 
     def _inject_into_arg_kwargs(self,
                                 func: Callable,
-                                arg_map: Union[Mapping, Iterable],
-                                use_names: Union[bool, Iterable[str]],
-                                use_type_hints: Union[bool, Iterable[str]],
+                                arg_map: Union[Mapping, Iterable] = None,
+                                use_names: Union[bool, Iterable[str]] = None,
+                                use_type_hints: Union[bool, Iterable[str]] = None,
                                 args: Sequence = None,
                                 kwargs: Dict = None
                                 ) -> Tuple[Sequence, Dict]:
@@ -247,9 +247,9 @@ class DependencyInjector:
 
     @staticmethod
     def _generate_injection_blueprint(func: Callable,
-                                      arg_map: Optional[Union[Mapping, Iterable]],
-                                      use_names: Union[bool, Iterable[str]],
-                                      use_type_hints: Union[bool, Iterable[str]],
+                                      arg_map: Union[Mapping, Iterable] = None,
+                                      use_names: Union[bool, Iterable[str]] = None,
+                                      use_type_hints: Union[bool, Iterable[str]] = None,
                                       ) -> InjectionBlueprint:
         """
         Construct a list with all the necessary information about the arguments

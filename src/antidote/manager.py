@@ -1,18 +1,15 @@
 import contextlib
 import inspect
 import weakref
-from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, Type, TypeVar,
-                    Union, cast, get_type_hints)
+from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, Type, Union, cast,
+                    get_type_hints)
 
-from .providers import Provider
-from .providers.tags import Tag, TagProvider
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
 from .container.proxy import ProxyContainer
 from .injector import DependencyInjector
-from .providers import FactoryProvider, GetterProvider
-
-T = TypeVar('T')
+from .providers import FactoryProvider, GetterProvider, Provider
+from .providers.tags import Tag, TagProvider
 
 
 class DependencyManager:
@@ -29,7 +26,7 @@ class DependencyManager:
     def __init__(self,
                  auto_wire: bool = None,
                  use_names: bool = None,
-                 arg_map: Mapping = None,
+                 arg_map: Mapping[str, Any] = None,
                  container: DependencyContainer = None,
                  injector: DependencyInjector = None
                  ) -> None:
@@ -44,7 +41,7 @@ class DependencyManager:
         """
         self.auto_wire = auto_wire if auto_wire is not None else True
         self.use_names = use_names if use_names is not None else False
-        self.arg_map = dict()  # type: Dict
+        self.arg_map = dict()  # type: Dict[str, Any]
         self.arg_map.update(arg_map or dict())
 
         self.container = container or DependencyContainer()  # type: DependencyContainer
@@ -128,7 +125,7 @@ class DependencyManager:
         return func and _inject(func) or _inject
 
     def register(self,
-                 cls: type = None,
+                 class_: type = None,
                  singleton: bool = True,
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
@@ -139,7 +136,7 @@ class DependencyManager:
         """Register a dependency by its class.
 
         Args:
-            cls: Class to register as a dependency. It will be instantiated
+            class_: Class to register as a dependency. It will be instantiated
                 only when requested.
             singleton: If True, the class will be instantiated only once,
                 further will receive the same instance.
@@ -168,22 +165,22 @@ class DependencyManager:
         if auto_wire is None:
             auto_wire = self.auto_wire
 
-        def register_class(_cls):
-            _cls = self._prepare_class(_cls,
-                                       auto_wire=auto_wire,
-                                       arg_map=arg_map,
-                                       use_names=use_names,
-                                       use_type_hints=use_type_hints)
+        def register_class(cls):
+            cls = self._prepare_class(cls,
+                                      auto_wire=auto_wire,
+                                      arg_map=arg_map,
+                                      use_names=use_names,
+                                      use_type_hints=use_type_hints)
 
-            self._factories.register(dependency_id=_cls, factory=_cls,
+            self._factories.register(dependency_id=cls, factory=cls,
                                      singleton=singleton)
 
             if tags is not None:
-                self._tags.register(_cls, tags)
+                self._tags.register(cls, tags)
 
-            return _cls
+            return cls
 
-        return cls and register_class(cls) or register_class
+        return class_ and register_class(class_) or register_class
 
     def factory(self,
                 func: Callable = None,
@@ -260,7 +257,7 @@ class DependencyManager:
         return func and register_factory(func) or register_factory
 
     def wire(self,
-             cls: type = None,
+             class_: type = None,
              methods: Iterable[str] = None,
              arg_map: Union[Mapping, Sequence] = None,
              use_names: Union[bool, Iterable[str]] = None,
@@ -269,7 +266,7 @@ class DependencyManager:
         """Wire a class by injecting the dependencies in all specified methods.
 
         Args:
-            cls: class to wire.
+            class_: class to wire.
             methods: Name of the methods for which dependencies should be
                 injected. Defaults to all defined methods.
             arg_map: Custom mapping of the arguments name to their respective
@@ -289,9 +286,9 @@ class DependencyManager:
 
         """
 
-        def wire_methods(_cls):
-            if not inspect.isclass(_cls):
-                raise ValueError("Expecting a class, got a {}".format(type(_cls)))
+        def wire_methods(cls):
+            if not inspect.isclass(cls):
+                raise ValueError("Expecting a class, got a {}".format(type(cls)))
 
             nonlocal methods
 
@@ -299,7 +296,7 @@ class DependencyManager:
                 methods = map(
                     lambda m: m[0],  # get only the name
                     inspect.getmembers(
-                        _cls,
+                        cls,
                         # Retrieve static methods, class methods, methods.
                         predicate=lambda f: (inspect.isfunction(f)
                                              or inspect.ismethod(f))
@@ -307,16 +304,16 @@ class DependencyManager:
                 )
 
             for method in methods:
-                setattr(_cls,
+                setattr(cls,
                         method,
-                        self.inject(getattr(_cls, method),
+                        self.inject(getattr(cls, method),
                                     arg_map=arg_map,
                                     use_names=use_names,
                                     use_type_hints=use_type_hints))
 
-            return _cls
+            return cls
 
-        return cls and wire_methods(cls) or wire_methods
+        return class_ and wire_methods(class_) or wire_methods
 
     def attrib(self,
                dependency_id: Any = None,
@@ -376,7 +373,7 @@ class DependencyManager:
                        **attr_kwargs)
 
     def provider(self,
-                 cls: type = None,
+                 class_: type = None,
                  auto_wire: Union[bool, Iterable[str]] = None,
                  arg_map: Union[Mapping, Sequence] = None,
                  use_names: Union[bool, Iterable[str]] = None,
@@ -385,7 +382,7 @@ class DependencyManager:
         """Register a providers by its class.
 
         Args:
-            cls: class to register as a provider. The class must have a
+            class_: class to register as a provider. The class must have a
                 :code:`__antidote_provide()` method accepting as first argument
                 the dependency id. Variable keyword and positional arguments
                 must be accepted as they may be provided.
@@ -410,22 +407,22 @@ class DependencyManager:
         if auto_wire is None:
             auto_wire = self.auto_wire
 
-        def register_provider(_cls):
-            if not hasattr(_cls, '__antidote_provide__'):
+        def register_provider(cls):
+            if not hasattr(cls, '__antidote_provide__'):
                 raise ValueError("Method __antidote_provide__() "
                                  "must be defined")
 
-            _cls = self._prepare_class(_cls,
-                                       auto_wire=auto_wire,
-                                       arg_map=arg_map,
-                                       use_names=use_names,
-                                       use_type_hints=use_type_hints)
+            cls = self._prepare_class(cls,
+                                      auto_wire=auto_wire,
+                                      arg_map=arg_map,
+                                      use_names=use_names,
+                                      use_type_hints=use_type_hints)
 
-            self.container.providers[_cls] = _cls()
+            self.container.providers[cls] = cls()
 
-            return _cls
+            return cls
 
-        return cls and register_provider(cls) or register_provider
+        return class_ and register_provider(class_) or register_provider
 
     def getter(self,
                getter: Callable[[str], Any] = None,
@@ -489,7 +486,7 @@ class DependencyManager:
 
     @contextlib.contextmanager
     def context(self,
-                dependencies: Union[Mapping, Iterable] = None,
+                dependencies: Mapping = None,
                 include: Iterable = None,
                 exclude: Iterable = None,
                 missing: Iterable = None

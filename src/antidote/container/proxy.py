@@ -1,6 +1,6 @@
-from typing import Iterable, Mapping
-
 import collections.abc as c_abc
+from typing import Any, Iterable, Mapping, Set
+
 from .base import DependencyContainer
 from ..exceptions import DependencyNotFoundError
 
@@ -16,7 +16,7 @@ class ProxyContainer(DependencyContainer):
         self.providers = container.providers.copy()
 
         if missing is None:
-            self._missing = set()
+            self._missing = set()  # type: Set[Any]
         elif isinstance(missing, c_abc.Iterable):
             self._missing = set(missing)
         else:
