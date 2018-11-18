@@ -2,7 +2,7 @@ import pytest
 
 from antidote import (DependencyManager, DependencyNotFoundError,
                       DependencyNotProvidableError, Instance)
-from antidote.providers import FactoryProvider, ParameterProvider
+from antidote.providers import FactoryProvider, GetterProvider
 from antidote.providers.tags import TagProvider
 
 
@@ -53,7 +53,7 @@ def test_providers():
 
     assert 3 == len(manager.providers)
     assert FactoryProvider in manager.providers
-    assert ParameterProvider in manager.providers
+    assert GetterProvider in manager.providers
     assert TagProvider in manager.providers
 
     @manager.provider

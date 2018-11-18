@@ -1,7 +1,6 @@
 import contextlib
 import inspect
 import weakref
-from functools import reduce
 from typing import (Any, Callable, Dict, Iterable, Mapping, Sequence, Type, TypeVar,
                     Union, cast, get_type_hints)
 
@@ -10,7 +9,7 @@ from antidote.providers.tags import Tag, TagProvider
 from ._utils import get_arguments_specification
 from .container import DependencyContainer
 from .injector import DependencyInjector
-from .providers import FactoryProvider, ParameterProvider
+from .providers import FactoryProvider, GetterProvider
 
 T = TypeVar('T')
 
@@ -57,8 +56,8 @@ class DependencyManager:
         self.provider(FactoryProvider)
         self._factories = cast(FactoryProvider, self.providers[FactoryProvider])
 
-        self.provider(ParameterProvider)
-        self._parameters = cast(ParameterProvider, self.providers[ParameterProvider])
+        self.provider(GetterProvider)
+        self._getters = cast(GetterProvider, self.providers[GetterProvider])
 
         self.provider(TagProvider)
         self._tags = cast(TagProvider, self.providers[TagProvider])
@@ -169,17 +168,11 @@ class DependencyManager:
             auto_wire = self.auto_wire
 
         def register_class(_cls):
-            if not inspect.isclass(_cls):
-                raise ValueError("Expecting a class, got a {}".format(type(_cls)))
-
-            if auto_wire:
-                _cls = self.wire(_cls,
-                                 methods=(('__init__',)
-                                          if auto_wire is True else
-                                          auto_wire),
-                                 arg_map=arg_map,
-                                 use_names=use_names,
-                                 use_type_hints=use_type_hints)
+            _cls = self._prepare_class(_cls,
+                                       auto_wire=auto_wire,
+                                       arg_map=arg_map,
+                                       use_names=use_names,
+                                       use_type_hints=use_type_hints)
 
             self._factories.register(dependency_id=_cls, factory=_cls,
                                      singleton=singleton)
@@ -243,43 +236,23 @@ class DependencyManager:
             auto_wire = self.auto_wire
 
         def register_factory(obj):
-            if inspect.isclass(obj):
-                # Only way to accurately test if obj has really a __call__()
-                # method.
-                if '__call__' not in dir(obj):
-                    raise ValueError("Factory class needs to be callable.")
-                type_hints = get_type_hints(obj.__call__) or {}
-
-                if auto_wire:
-                    obj = self.wire(obj,
-                                    methods=(('__init__', '__call__')
-                                             if auto_wire is True else
-                                             auto_wire),
-                                    arg_map=arg_map,
-                                    use_names=use_names,
-                                    use_type_hints=use_type_hints)
-
-                factory = obj()
-            else:
-                if not callable(obj):
-                    raise ValueError("factory parameter needs to be callable.")
-
-                type_hints = get_type_hints(obj) or {}
-                factory = (self.inject(obj, arg_map=arg_map, use_names=use_names)
-                           if auto_wire else
-                           obj)
-
-            _id = dependency_id or type_hints.get('return')
-
-            self._factories.register(
-                factory=factory,
-                singleton=singleton,
-                dependency_id=_id,
-                build_subclasses=build_subclasses
+            nonlocal dependency_id
+            factory, return_type_hint = self._prepare_callable(
+                obj,
+                auto_wire=auto_wire,
+                arg_map=arg_map,
+                use_names=use_names,
+                use_type_hints=use_type_hints
             )
 
+            dependency_id = dependency_id or return_type_hint
+            self._factories.register(factory=factory,
+                                     singleton=singleton,
+                                     dependency_id=dependency_id,
+                                     build_subclasses=build_subclasses)
+
             if tags is not None:
-                self._tags.register(_id, tags)
+                self._tags.register(dependency_id, tags)
 
             return obj
 
@@ -347,8 +320,7 @@ class DependencyManager:
     def attrib(self,
                dependency_id: Any = None,
                use_name: bool = None,
-               **attr_kwargs
-               ):
+               **attr_kwargs):
         """Injects a dependency with attributes defined with attrs package.
 
         Args:
@@ -438,22 +410,15 @@ class DependencyManager:
             auto_wire = self.auto_wire
 
         def register_provider(_cls):
-            if not inspect.isclass(_cls):
-                raise ValueError("Expecting a class, "
-                                 "found {}".format(repr(type(_cls))))
-
             if not hasattr(_cls, '__antidote_provide__'):
                 raise ValueError("Method __antidote_provide__() "
                                  "must be defined")
 
-            if auto_wire:
-                _cls = self.wire(_cls,
-                                 methods=(('__init__',)
-                                          if auto_wire is True else
-                                          auto_wire),
-                                 arg_map=arg_map,
-                                 use_names=use_names,
-                                 use_type_hints=use_type_hints)
+            _cls = self._prepare_class(_cls,
+                                       auto_wire=auto_wire,
+                                       arg_map=arg_map,
+                                       use_names=use_names,
+                                       use_type_hints=use_type_hints)
 
             self.container.providers[_cls] = _cls()
 
@@ -461,62 +426,65 @@ class DependencyManager:
 
         return cls and register_provider(cls) or register_provider
 
-    def register_parameters(self,
-                            parameters: T,
-                            getter: Callable[[T, Any], Any] = None,
-                            prefix: str = '',
-                            split: str = ''
-                            ) -> Callable:
+    def getter(self,
+               getter: Callable[[str], Any] = None,
+               namespace: str = None,
+               omit_namespace: bool = None,
+               auto_wire: Union[bool, Iterable[str]] = None,
+               arg_map: Union[Mapping, Sequence] = None,
+               use_names: Union[bool, Iterable[str]] = None,
+               use_type_hints: Union[bool, Iterable[str]] = None,
+               ) -> Callable:
         """
         Register a mapping of parameters and its associated parser.
 
         Args:
-            parameters: Object containing the parameters, usually a mapping.
-            getter: Function retrieving the dependency from the parameters, it
-                must accept the parameters as first argument and the dependency
-                id as second.
-            prefix: If specified, only string prefixed with it will be taken
-                into account.
-            split: If specified, only string dependency_id are accepted, which
-                will be split by :code:`split`. The result is used to
-                recursively retrieve the dependency from :code:`parameters`.
-                Beware that :py:exc:`TypeError` will be converted to
-                :py:exc:`LookUpError` and thus be ignored, as the recursion may
-                go too far.
+            getter: Function used to retrieve a requested dependency which will
+                be given as an argument. If the dependency cannot be provided,
+                it should raise a :py:exc:`LookupError`.
+            namespace: Used to identity which getter should be used with a
+                dependency, as such they have to be mutually exclusive.
+            omit_namespace: Whether or the namespace should be removed from the
+                dependency name which is given to the getter. Defaults to False.
+            auto_wire: If True, the dependencies of :code:`__init__()` are
+                injected. An iterable of method names which require dependency
+                injection may also be specified.
+            arg_map: Custom mapping of the arguments name to their respective
+                dependency id. A sequence of dependencies can also be
+                specified, which will be mapped to the arguments through their
+                order. Annotations are overridden.
+            use_type_hints: Whether the type hints should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments.
+            use_names: Whether the arguments name should be used to find for
+                a dependency. An iterable of names may also be provided to
+                restrict this to a subset of the arguments. Annotations are
+                overridden, but not the arg_map.
 
         Returns:
             getter callable or decorator.
         """
-        if not isinstance(prefix, str) or not isinstance(split, str):
-            raise ValueError("Prefix and split arguments must be strings.")
 
-        def register_parser(getter):
-            if not callable(getter):
-                raise ValueError("Parser must be callable (ex: getitem())")
+        def register_getter(obj):
+            nonlocal namespace, omit_namespace
 
-            if prefix or split:
-                def _getter(params, dependency_id):
-                    if not isinstance(dependency_id, str) \
-                            or not dependency_id.startswith(prefix):
-                        raise LookupError(dependency_id)
+            if namespace is None:
+                namespace = obj.__name__ + ":"
+                omit_namespace = omit_namespace if omit_namespace is not None else True
 
-                    dependency_id = dependency_id[len(prefix):]
+            func, _ = self._prepare_callable(obj,
+                                             auto_wire=auto_wire,
+                                             arg_map=arg_map,
+                                             use_names=use_names,
+                                             use_type_hints=use_type_hints)
 
-                    if split:
-                        try:
-                            return reduce(getter, dependency_id.split(split), params)
-                        except TypeError as e:
-                            raise LookupError(dependency_id) from e
+            self._getters.register(getter=func,
+                                   namespace=namespace,
+                                   omit_namespace=omit_namespace)
 
-                    return getter(params, dependency_id)
-            else:
-                _getter = getter
+            return func
 
-            self._parameters.register(parameters, _getter)
-
-            return getter
-
-        return getter and register_parser(getter) or register_parser
+        return getter and register_getter(getter) or register_getter
 
     @contextlib.contextmanager
     def context(self,
@@ -556,3 +524,41 @@ class DependencyManager:
             self.container[DependencyContainer] = weakref.proxy(self.container)
             self.container[DependencyInjector] = weakref.proxy(self.injector)
             yield
+
+    def _prepare_class(self, cls, auto_wire, **inject_kwargs):
+        if not inspect.isclass(cls):
+            raise ValueError("Expecting a class, got a {}".format(type(cls)))
+
+        if auto_wire:
+            cls = self.wire(cls,
+                            methods=(('__init__',)
+                                     if auto_wire is True else
+                                     auto_wire),
+                            **inject_kwargs)
+
+        return cls
+
+    def _prepare_callable(self, obj, auto_wire, **inject_kwargs):
+        if inspect.isclass(obj):
+            # Only way to accurately test if obj has really a __call__()
+            # method.
+            if '__call__' not in dir(obj):
+                raise ValueError("Factory class needs to be callable.")
+            type_hints = get_type_hints(obj.__call__)
+
+            if auto_wire:
+                obj = self.wire(obj,
+                                methods=(('__init__', '__call__')
+                                         if auto_wire is True else
+                                         auto_wire),
+                                **inject_kwargs)
+
+            factory = obj()
+        else:
+            if not callable(obj):
+                raise ValueError("factory parameter needs to be callable.")
+
+            type_hints = get_type_hints(obj)
+            factory = self.inject(obj, **inject_kwargs) if auto_wire else obj
+
+        return factory, (type_hints or {}).get('return')
