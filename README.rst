@@ -19,7 +19,7 @@ Antidote
   :target: https://codecov.io/gh/Finistere/antidote
 
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
-  :target: http://antidote.readthedocs.io/en/latest/?badge=latest
+  :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
 *Antidote* is a dependency injection micro framework for Python 3.4+.
 It provides simple decorators to declare services and to inject those
@@ -36,7 +36,7 @@ needed with simple decorators, which
 impacted as one can override any injection and control the available
 dependencies easily.
 
-For the longer version: `<https://antidote.readthedocs.io/en/latest/why.html>`_
+For the longer version: `<https://antidote.readthedocs.io/en/stable/why.html>`_
 
 
 Features Highlight
@@ -153,7 +153,7 @@ Documentation
 
 
 The documentation is available at
-`<https://antidote.readthedocs.io/>`_.
+`<https://antidote.readthedocs.io/en/stable>`_.
 
 Injection benchmark is available at
 `injection benchmarks <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
