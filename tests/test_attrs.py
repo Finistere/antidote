@@ -1,38 +1,42 @@
 import pytest
 
-from antidote import DependencyManager
+from antidote.helpers import attrib, new_container
 
 
-def test_attrs():
-    manager = DependencyManager()
-    container = manager.container
+class Service:
+    pass
 
-    try:
-        import attr
-    except ImportError:
+
+@pytest.fixture()
+def container():
+    c = new_container()
+    c.update({Service: Service(), 'parameter': object()})
+
+    return c
+
+
+try:
+    import attr
+except ImportError:
+    def test_runtime_error():
         with pytest.raises(RuntimeError):
-            manager.attrib()
-        return
+            attrib()
+else:
+    def test_simple(container):
+        @attr.s
+        class Test:
+            service = attrib(Service, container=container)
+            parameter = attrib(use_name=True, container=container)
 
-    @manager.register
-    class Service:
-        pass
+        test = Test()
 
-    container['parameter'] = object()
+        assert container[Service] is test.service
+        assert container['parameter'] is test.parameter
 
-    @attr.s
-    class Test:
-        service = manager.attrib(Service)
-        parameter = manager.attrib(use_name=True)
+    def test_invalid_attrib(container):
+        @attr.s
+        class BrokenTest:
+            service = attrib(container=container)
 
-    test = Test()
-
-    assert container[Service] is test.service
-    assert container['parameter'] is test.parameter
-
-    @attr.s
-    class BrokenTest:
-        service = manager.attrib()
-
-    with pytest.raises(ValueError):
-        BrokenTest()
+        with pytest.raises(ValueError):
+            BrokenTest()

@@ -1,8 +1,8 @@
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
-from .base import Provider
-from ..container import Dependency, Instance
-from ..exceptions import DependencyNotProvidableError, GetterNamespaceConflict
+from .._internal.utils import SlotReprMixin
+from ..container import Dependency, Instance, Provider
+from ..exceptions import GetterNamespaceConflict
 
 
 class GetterProvider(Provider):
@@ -16,7 +16,7 @@ class GetterProvider(Provider):
     def __repr__(self):
         return "{}(getters={!r})".format(type(self).__name__, self._dependency_getters)
 
-    def __antidote_provide__(self, dependency: Dependency) -> Instance:
+    def provide(self, dependency: Dependency) -> Optional[Instance]:
         """
         Provide the parameter associated with the dependency_id.
 
@@ -29,18 +29,21 @@ class GetterProvider(Provider):
         """
         if isinstance(dependency.id, str):
             for getter in self._dependency_getters:
-                if dependency.id.startswith(getter.namespace):
+                if dependency.id.startswith(getter.namespace_):
                     try:
-                        return Instance(getter(dependency.id), singleton=True)
+                        instance = getter.get(dependency.id)
                     except LookupError:
                         break
+                    else:
+                        return Instance(instance, singleton=getter.singleton)
 
-        raise DependencyNotProvidableError(dependency)
+        return None
 
     def register(self,
                  getter: Callable[[str], Any],
                  namespace: str,
-                 omit_namespace: bool = None):
+                 omit_namespace: bool = False,
+                 singleton: bool = True):
         """
         Register parameters with its getter.
 
@@ -54,31 +57,33 @@ class GetterProvider(Provider):
                 dependency name which is given to the getter. Defaults to False.
 
         """
-        omit_namespace = omit_namespace if omit_namespace is not None else False
         if not isinstance(namespace, str):
             raise ValueError("prefix must be a string")
 
         for g in self._dependency_getters:
-            if g.namespace.startswith(namespace) or namespace.startswith(g.namespace):
-                raise GetterNamespaceConflict(g.namespace, namespace)
+            if g.namespace_.startswith(namespace) or namespace.startswith(g.namespace_):
+                raise GetterNamespaceConflict(g.namespace_, namespace)
 
-        self._dependency_getters.append(DependencyGetter(func=getter,
+        self._dependency_getters.append(DependencyGetter(getter=getter,
                                                          namespace=namespace,
-                                                         omit_namespace=omit_namespace))
+                                                         omit_namespace=omit_namespace,
+                                                         singleton=singleton))
 
 
-class DependencyGetter:
-    __slots__ = ('namespace', 'func', 'omit_namespace')
+class DependencyGetter(SlotReprMixin):
+    __slots__ = ('_getter', '_omit_namespace', 'namespace_', 'singleton')
 
     def __init__(self,
-                 func: Callable[[str], Any],
+                 getter: Callable[[str], Any],
                  namespace: str,
-                 omit_namespace: bool):
-        self.func = func
-        self.namespace = namespace
-        self.omit_namespace = omit_namespace
+                 omit_namespace: bool,
+                 singleton: bool):
+        self._getter = getter
+        self._omit_namespace = omit_namespace
+        self.namespace_ = namespace
+        self.singleton = singleton
 
-    def __call__(self, name):
-        if self.omit_namespace:
-            name = name[len(self.namespace):]
-        return self.func(name)
+    def get(self, name):
+        if self._omit_namespace:
+            name = name[len(self.namespace_):]
+        return self._getter(name)

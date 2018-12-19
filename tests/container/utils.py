@@ -1,4 +1,4 @@
-from antidote import DependencyNotProvidableError, Instance, Provider
+from antidote import Instance, Provider
 
 
 class DummyProvider(Provider):
@@ -10,12 +10,12 @@ class DummyProvider(Provider):
     def __setitem__(self, key, value):
         self.data[key] = value
 
-    def __antidote_provide__(self, dependency_id, *args, **kwargs):
+    def provide(self, dependency_id):
         try:
             return Instance(self.data[dependency_id],
                             singleton=self.singleton)
         except KeyError:
-            raise DependencyNotProvidableError(dependency_id)
+            pass
 
 
 class DummyFactoryProvider(Provider):
@@ -27,12 +27,12 @@ class DummyFactoryProvider(Provider):
     def __setitem__(self, key, value):
         self.data[key] = value
 
-    def __antidote_provide__(self, dependency_id, *args, **kwargs):
+    def provide(self, dependency_id):
         try:
             return Instance(self.data[dependency_id](),
                             singleton=self.create_singleton)
         except KeyError:
-            raise DependencyNotProvidableError(dependency_id)
+            pass
 
 
 class Service:

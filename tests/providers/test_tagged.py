@@ -10,7 +10,7 @@ class Service:
 
 @given(st.builds(
     Tagged,
-    name=st.sampled_from(['test', 1, object]),
+    name=st.sampled_from(['test', '987 jkh@è']),
     filter=st.sampled_from([None, lambda t: t.valid is True])
 ))
 def test_eq_hash(tagged):

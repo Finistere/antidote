@@ -4,7 +4,6 @@ import sys
 import pytest
 
 PY3 = sys.version_info[0] >= 3
-
 if os.environ.get('MOCK_ATTRS'):
     @pytest.fixture(autouse=True, scope="function")
     def hide_attr(monkeypatch):

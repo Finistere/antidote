@@ -120,7 +120,7 @@ def test_context_override():
 def test_context_missing():
     container = DependencyContainer()
     container['test'] = 1
-    container.providers[DummyProvider] = DummyProvider({'name': 'Antidote'})
+    container.register_provider(DummyProvider({'name': 'Antidote'}))
     s = Service()
     container[Service] = s
 

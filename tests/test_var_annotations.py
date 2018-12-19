@@ -1,22 +1,21 @@
-from antidote import DependencyManager
+from antidote.helpers import register, new_container, attrib
 
 
 def test_attrs():
-    manager = DependencyManager()
-    container = manager.container
+    container = new_container()
 
     try:
         import attr
     except ImportError:
         return
 
-    @manager.register
+    @register(container=container)
     class Service:
         pass
 
     @attr.s
     class Test:
-        service: Service = manager.attrib()
+        service: Service = attrib(container=container)
 
     test = Test()
 

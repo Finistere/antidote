@@ -1,31 +1,32 @@
-from pkg_resources import DistributionNotFound, get_distribution
+import typing as _t
 
-from .container import Dependency, DependencyContainer, Instance
-from .exceptions import (AntidoteError, DependencyCycleError, DependencyDuplicateError,
+import pkg_resources as _pkg_resources
+
+from .container import Dependency, DependencyContainer, Instance, Provider
+from .exceptions import (AntidoteError, DependencyCycleError,
                          DependencyInstantiationError, DependencyNotFoundError,
-                         DependencyNotProvidableError)
-from .injector import DependencyInjector
-from .manager import DependencyManager
-from .providers import FactoryProvider, GetterProvider, Provider, TagProvider
-from .providers.factories import Build
+                         DependencyNotProvidableError, DuplicateDependencyError)
+from .helpers import attrib, context, factory, getter, provider, register, new_container
+from .injection import inject
+from .providers import FactoryProvider, GetterProvider, TagProvider
+from .providers.factory import Build
 from .providers.tags import Tag, Tagged, TaggedDependencies
 
 try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:  # pragma: no cover
+    __version__ = _pkg_resources.get_distribution(__name__).version
+except _pkg_resources.DistributionNotFound:  # pragma: no cover
     # package is not installed
     pass
 
 __all__ = [
     'Build',
+    'inject',
     'Instance',
     'DependencyContainer',
-    'DependencyInjector',
-    'DependencyManager',
     'AntidoteError',
     'DependencyNotProvidableError',
     'DependencyNotFoundError',
-    'DependencyDuplicateError',
+    'DuplicateDependencyError',
     'DependencyCycleError',
     'DependencyInstantiationError',
     'Dependency',
@@ -35,7 +36,12 @@ __all__ = [
     'Tagged',
     'TaggedDependencies',
     'TagProvider',
-    'antidote'
+    'register',
+    'factory',
+    'getter',
+    'provider',
+    'attrib',
+    'context'
 ]
 
-antidote = DependencyManager()
+global_container = None  # type: _t.Optional[DependencyContainer]

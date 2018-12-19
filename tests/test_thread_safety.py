@@ -2,7 +2,10 @@ import random
 import threading
 import time
 
-from antidote import DependencyManager, Tagged, TaggedDependencies
+import pytest
+
+from antidote import Tagged, TaggedDependencies
+from antidote.helpers import factory, new_container
 
 
 class Service:
@@ -13,12 +16,20 @@ class AnotherService:
     pass
 
 
-def make_delayed_factory(factory, a=0.01, b=0.01):
+def make_delayed_factory(factory_, a=0.01, b=0.01):
     def f():
         time.sleep(a + b * random.random())
-        return factory()
+        return factory_()
 
     return f
+
+
+@pytest.fixture()
+def container():
+    c = new_container()
+    c.update({Service: Service(), 'parameter': object()})
+
+    return c
 
 
 def multi_thread_do(target, n_threads=10):
@@ -32,23 +43,24 @@ def multi_thread_do(target, n_threads=10):
         thread.join()
 
 
-def test_container_instantiation_safety():
+def test_container_instantiation_safety(container):
     n_threads = 10
-    manager = DependencyManager()
 
-    manager.factory(make_delayed_factory(Service),
-                    dependency_id=Service,
-                    singleton=True)
-    manager.factory(make_delayed_factory(AnotherService),
-                    dependency_id=AnotherService,
-                    singleton=False)
+    factory(make_delayed_factory(Service),
+            dependency_id=Service,
+            singleton=True,
+            container=container)
+    factory(make_delayed_factory(AnotherService),
+            dependency_id=AnotherService,
+            singleton=False,
+            container=container)
 
     singleton_got = []
     non_singleton_got = []
 
     def worker():
-        singleton_got.append(manager.container[Service])
-        non_singleton_got.append(manager.container[AnotherService])
+        singleton_got.append(container[Service])
+        non_singleton_got.append(container[AnotherService])
 
     multi_thread_do(worker, n_threads)
 
@@ -56,17 +68,17 @@ def test_container_instantiation_safety():
     assert n_threads == len(set(non_singleton_got))
 
 
-def test_tagged_dependencies_instantiation_safety():
+def test_tagged_dependencies_instantiation_safety(container):
     n_dependencies = 40
-    manager = DependencyManager()
 
     for i in range(n_dependencies):
-        manager.factory(make_delayed_factory(object),
-                        dependency_id=i + 1,
-                        singleton=False,
-                        tags=['test'])
+        factory(make_delayed_factory(object),
+                dependency_id=i + 1,
+                singleton=False,
+                tags=['test'],
+                container=container)
 
-    tagged = manager.container[Tagged('test')]  # type: TaggedDependencies
+    tagged = container[Tagged('test')]  # type: TaggedDependencies
     dependencies = []
 
     def worker():

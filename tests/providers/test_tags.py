@@ -5,6 +5,15 @@ from antidote.exceptions import DuplicateTagError
 from antidote.providers.tags import Tag, TagProvider, Tagged, TaggedDependencies
 
 
+def test_repr():
+    provider = TagProvider(DependencyContainer())
+
+    x = object()
+    provider.register(x, [Tag(name='tag')])
+
+    assert str(x) in repr(provider)
+
+
 def test_duplicate_tag_error():
     provider = TagProvider(DependencyContainer())
 
@@ -36,7 +45,12 @@ def test_provide_tags():
     provider.register('test', ['tag1', Tag('tag2', error=True)])
     provider.register('test2', ['tag2'])
 
-    result = provider.__antidote_provide__(Tagged('tag1'))
+    result = provider.provide(Tagged('xxxxx'))
+    assert isinstance(result, Instance)
+    assert result.singleton is False
+    assert 0 == len(result.item)
+
+    result = provider.provide(Tagged('tag1'))
     assert isinstance(result, Instance)
     assert result.singleton is False
     assert 1 == len(result.item)
@@ -44,7 +58,7 @@ def test_provide_tags():
     result = dict(result.item.items())
     assert 'tag1' == result[container['test']].name
 
-    result = provider.__antidote_provide__(Tagged('tag2'))
+    result = provider.provide(Tagged('tag2'))
     assert isinstance(result, Instance)
     assert result.singleton is False
     assert 2 == len(result.item)
@@ -54,8 +68,8 @@ def test_provide_tags():
     assert 'tag2' == result[container['test']].name
     assert result[container['test']].error
 
-    result = provider.__antidote_provide__(Tagged('tag2',
-                                                  filter=lambda t: t.error is not True))
+    result = provider.provide(Tagged('tag2',
+                                     filter=lambda t: t.error is not True))
     assert isinstance(result, Instance)
     assert result.singleton is False
     assert 1 == len(result.item)
@@ -67,10 +81,12 @@ def test_provide_tags():
 def test_tagged_dependencies():
     tag1 = Tag('tag1')
     tag2 = Tag('tag2', dummy=True)
-    t = TaggedDependencies([
-        (lambda: 'test', tag1),
-        (lambda: 'test2', tag2)
-    ])
+    t = TaggedDependencies(
+        getter_tag_pairs=[
+            (lambda: 'test', tag1),
+            (lambda: 'test2', tag2)
+        ]
+    )
 
     assert {tag1, tag2} == set(t.tags())
     assert {'test', 'test2'} == set(t.dependencies())
