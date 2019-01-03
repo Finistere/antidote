@@ -2,48 +2,70 @@ API Reference
 =============
 
 
-Manager
--------
+Injection
+---------
 
-.. autoclass:: antidote.manager.DependencyManager
+.. automodule:: antidote.injection.inject
+    :members:
+
+.. automodule:: antidote.injection.wiring
     :members:
 
 
-Injector
---------
+Helpers
+-------
 
-.. autoclass:: antidote.injector.DependencyInjector
+.. automodule:: antidote.helpers.registration
+    :members:
+
+.. automodule:: antidote.helpers.attrs
+    :members:
+
+.. automodule:: antidote.helpers.container
     :members:
 
 
 Container
 ---------
 
-.. autoclass:: antidote.container.DependencyContainer
+.. autoclass:: antidote.container.container.DependencyContainer
     :members:
     :special-members:
     :exclude-members: __dict__,__weakref__,__init__,__repr__,__str__
 
-.. autoclass:: antidote.container.Dependency
+.. autoclass:: antidote.container.container.Dependency
     :members:
 
-.. autoclass:: antidote.container.Instance
+.. autoclass:: antidote.container.container.Instance
+    :members:
+
+.. autoclass:: antidote.container.container.Provider
     :members:
 
 
 Providers
 ---------
 
-.. autoclass:: antidote.providers.factories.FactoryProvider
-    :members:
-    :special-members:
-    :exclude-members: __dict__,__weakref__,__init__,__repr__
+Factory
+^^^^^^^
 
+.. automodule:: antidote.providers.factory
+    :members: FactoryProvider,Build
 
-.. autoclass:: antidote.providers.parameters.ParameterProvider
+Resource
+^^^^^^^^
+
+.. automodule:: antidote.providers.resource
+    :members: ResourceProvider
+
+Tag
+^^^
+
+.. automodule:: antidote.providers.tag.dependency
     :members:
-    :special-members:
-    :exclude-members: __dict__,__weakref__,__init__,__repr__
+
+.. automodule:: antidote.providers.tag.provider
+    :members:
 
 
 Exceptions

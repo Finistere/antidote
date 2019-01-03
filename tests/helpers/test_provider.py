@@ -1,9 +1,8 @@
 import pytest
 
-from antidote import DependencyNotProvidableError, Instance, Provider
-from antidote.helpers import new_container, provider
-from antidote.providers import FactoryProvider, GetterProvider
-from antidote.providers.tags import TagProvider
+from antidote import new_container, provider
+from antidote.core import DependencyInstance, DependencyProvider
+from antidote.providers import ServiceProvider, ResourceProvider, TagProvider
 
 
 @pytest.fixture()
@@ -14,46 +13,31 @@ def container():
 def test_simple(container):
     container['service'] = object()
 
-    @provider(container=container)
-    class DummyProvider(Provider):
+    @provider(container=container, use_mro=True)
+    class DummyProvider(DependencyProvider):
         def provide(self, dependency):
-            if dependency.id == 'test':
-                return Instance(dependency.id)
-            else:
-                raise DependencyNotProvidableError(dependency)
+            if dependency == 'test':
+                return DependencyInstance(dependency)
 
     assert isinstance(container.providers[DummyProvider], DummyProvider)
     assert 'test' == container['test']
 
 
-def test_invalid_provider(container):
+@pytest.mark.parametrize('cls', [1, type('MissingCall', tuple(), {})])
+def test_invalid_provider(cls):
     with pytest.raises(TypeError):
-        provider(object(), container=container)
-
-    with pytest.raises(ValueError):
-        @provider(container=container)
-        class Dummy:
-            pass
-
-    with pytest.raises(TypeError):
-        @provider(auto_wire=False, container=container)
-        class MissingDependencyProvider(Provider):
-            def __init__(self, service):
-                self.service = service
-
-            def provide(self, dependency):
-                return Instance(dependency.id)
+        provider(cls)
 
 
 def test_providers(container):
     assert 3 == len(container.providers)
-    assert FactoryProvider in container.providers
-    assert GetterProvider in container.providers
+    assert ServiceProvider in container.providers
+    assert ResourceProvider in container.providers
     assert TagProvider in container.providers
 
-    @provider(container=container)
-    class DummyProvider(Provider):
+    @provider(container=container, use_mro=True)
+    class DummyProvider(DependencyProvider):
         def provide(self, dependency):
-            return Instance(1)
+            return DependencyInstance(1)
 
     assert DummyProvider in container.providers

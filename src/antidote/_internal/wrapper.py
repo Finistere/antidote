@@ -1,0 +1,106 @@
+from typing import Callable, Sequence
+
+from .._internal.utils import SlotsReprMixin
+from ..core import DependencyContainer
+from ..exceptions import DependencyNotFoundError
+
+
+class Injection(SlotsReprMixin):
+    """
+    Maps an argument name to its dependency and if the injection is required,
+    which is equivalent to no default argument.
+    """
+    __slots__ = ('arg_name', 'required', 'dependency')
+
+    def __init__(self, arg_name: str, required: bool, dependency):
+        self.arg_name = arg_name
+        self.required = required
+        self.dependency = dependency
+
+
+class InjectionBlueprint(SlotsReprMixin):
+    """
+    Stores all the injections for a function.
+    """
+    __slots__ = ('injections',)
+
+    def __init__(self, injections: Sequence[Injection]):
+        self.injections = injections
+
+
+class InjectedWrapper:
+    """
+    Wrapper which injects all the dependencies not supplied in the passed
+    arguments. An InjectionBlueprint is used to store the mapping of the
+    arguments to their dependency if any and if the injection is required.
+    """
+
+    def __init__(self,
+                 container: DependencyContainer,
+                 blueprint: InjectionBlueprint,
+                 wrapped: Callable,
+                 skip_first: bool = False):
+        self.__wrapped__ = wrapped
+        self.__container = container
+        self.__blueprint = blueprint
+        self.__injection_offset = 1 if skip_first else 0
+
+    def __call__(self, *args, **kwargs):
+        kwargs = _inject_kwargs(
+            self.__container,
+            self.__blueprint,
+            self.__injection_offset + len(args),
+            kwargs
+        )
+        return self.__wrapped__(*args, **kwargs)
+
+    def __get__(self, instance, owner):
+        return InjectedBoundWrapper(
+            self.__container,
+            self.__blueprint,
+            self.__wrapped__.__get__(instance, owner),
+            isinstance(self.__wrapped__, classmethod)
+            or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
+        )
+
+    @property
+    def __func__(self):
+        """ Imitate classmethod & staticmethod descriptors """
+        return self.__wrapped__.__func__
+
+    @property
+    def __self__(self):
+        """ Imitate classmethod & staticmethod descriptors """
+        return self.__wrapped__.__self__
+
+
+class InjectedBoundWrapper(InjectedWrapper):
+    """
+    Behaves like Python bound methods. Unsure whether this is really necessary
+    or not.
+    """
+
+    def __get__(self, instance, owner):
+        return self  # pragma: no cover
+
+
+def _inject_kwargs(container: DependencyContainer,
+                   blueprint: InjectionBlueprint,
+                   offset: int,
+                   kwargs: dict) -> dict:
+    """
+    Does the actual injection of the dependencies. Used by InjectedCallableWrapper.
+    """
+    dirty_kwargs = False
+    for injection in blueprint.injections[offset:]:
+        if injection.dependency is not None and injection.arg_name not in kwargs:
+            instance = container.provide(injection.dependency)
+            if instance is not container.SENTINEL:
+                if not dirty_kwargs:
+                    kwargs = kwargs.copy()
+                    dirty_kwargs = True
+                kwargs[injection.arg_name] = instance
+            elif injection.required:
+                raise DependencyNotFoundError(injection.dependency)
+
+    return kwargs

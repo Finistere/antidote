@@ -1,51 +1,60 @@
 import inspect
-from typing import Callable, Sequence
+import typing
+from typing import Callable, Iterator, Sequence
 
-from .utils import SlotReprMixin
 
-
-class Argument(SlotReprMixin):
-    def __init__(self, name: str, has_default: bool):
+class Argument:
+    def __init__(self, name: str, has_default: bool, type_hint):
         self.name = name
         self.has_default = has_default
+        self.type_hint = type_hint
 
 
 class Arguments:
+    @classmethod
+    def from_callable(cls, func: Callable) -> 'Arguments':
+        arguments = []
+        has_var_positional = False
+        has_var_keyword = False
+
+        try:
+            # typing is used, as lazy evaluation is not done properly with Signature.
+            type_hints = typing.get_type_hints(func)
+        except Exception:  # Python 3.5.3 does not handle properly method wrappers
+            type_hints = {}
+
+        for name, parameter in inspect.signature(func).parameters.items():
+            if parameter.kind is parameter.VAR_POSITIONAL:
+                has_var_positional = True
+            elif parameter.kind is parameter.VAR_KEYWORD:
+                has_var_keyword = True
+            else:
+                arguments.append(Argument(
+                    name=name,
+                    has_default=parameter.default is not parameter.empty,
+                    type_hint=type_hints.get(name)
+                ))
+
+        return Arguments(arguments=tuple(arguments),
+                         has_var_positional=has_var_positional,
+                         has_var_keyword=has_var_keyword)
+
     def __init__(self,
                  arguments: Sequence[Argument],
                  has_var_positional: bool,
                  has_var_keyword: bool):
-        self.arguments = arguments
+        self.arguments_by_name = {arg.name: arg for arg in arguments}
         self.has_var_positional = has_var_positional
         self.has_var_keyword = has_var_keyword
 
-    def __iter__(self):
-        return iter(self.arguments)
+    def __getitem__(self, name) -> Argument:
+        return self.arguments_by_name[name]
 
+    def __contains__(self, name):
+        return name in self.arguments_by_name
 
-def get_arguments_specification(func: Callable) -> Arguments:
-    """
-    Extract for each argument its name and if a default is set.
-    Whether the function accepts *args and/or **kwargs is also extracted.
+    def __len__(self):
+        return len(self.arguments_by_name)
 
-    Currently only used in the injection to determine all arguments which may
-    need injection.
-    """
-    arguments = []
-    has_var_positional = False
-    has_var_keyword = False
-
-    for name, parameter in inspect.signature(func).parameters.items():
-        if parameter.kind is parameter.VAR_POSITIONAL:
-            has_var_positional = True
-        elif parameter.kind is parameter.VAR_KEYWORD:
-            has_var_keyword = True
-        else:
-            arguments.append(Argument(
-                name=name,
-                has_default=parameter.default is not parameter.empty
-            ))
-
-    return Arguments(arguments=tuple(arguments),
-                     has_var_positional=has_var_positional,
-                     has_var_keyword=has_var_keyword)
+    def __iter__(self) -> Iterator[Argument]:
+        return iter(self.arguments_by_name.values())

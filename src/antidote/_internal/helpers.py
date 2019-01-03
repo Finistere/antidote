@@ -1,37 +1,23 @@
 import inspect
-from typing import (get_type_hints)
+from typing import Any, Callable, get_type_hints, Iterable, Tuple, TypeVar, Union
 
-from ..injection.inject import inject
-from ..injection.wiring import wire
+from ..core import DependencyContainer, inject
+from antidote.core import Lazy
 
-
-def prepare_class(cls, auto_wire, **inject_kwargs):
-    """
-    Used by the helpers to wire a class automatically.
-    """
-    if not inspect.isclass(cls):
-        raise ValueError("Expecting a class, got a {}".format(type(cls)))
-
-    if auto_wire:
-        cls = wire(cls,
-                   methods=(('__init__',)
-                            if auto_wire is True else
-                            auto_wire),
-                   **inject_kwargs)
-
-    return cls
+T = TypeVar('T', bound=Union[Callable, type])
 
 
-def prepare_callable(obj, auto_wire, **inject_kwargs):
-    """
-    Used by the helpers to wire a callable, or a class implementing __call__,
-    automatically.
-    """
+def prepare_callable(obj: T,
+                     auto_wire: Union[bool, Iterable[str]],
+                     use_mro: Union[bool, Iterable[str]],
+                     container: DependencyContainer,
+                     **inject_kwargs
+                     ) -> Tuple[T, Callable, Any]:
     if inspect.isclass(obj):
-        # Only way to accurately test if obj has really a __call__()
-        # method.
         if '__call__' not in dir(obj):
-            raise ValueError("Factory class needs to be callable.")
+            raise TypeError("A Factory class must implement __call__()")
+        from ..helpers import register, wire
+
         type_hints = get_type_hints(obj.__call__)
 
         if auto_wire:
@@ -39,14 +25,23 @@ def prepare_callable(obj, auto_wire, **inject_kwargs):
                        methods=(('__init__', '__call__')
                                 if auto_wire is True else
                                 auto_wire),
+                       use_mro=use_mro,
+                       container=container,
+                       ignore_missing_methods=auto_wire is True,
                        **inject_kwargs)
 
-        factory = obj()
-    else:
-        if not callable(obj):
-            raise ValueError("factory parameter needs to be callable.")
-
+        obj = register(obj, auto_wire=False, container=container)
+        func = Lazy(obj)
+    elif inspect.isfunction(obj):
         type_hints = get_type_hints(obj)
-        obj = factory = inject(obj, **inject_kwargs) if auto_wire else obj
+        if auto_wire:
+            obj = inject(obj,
+                         container=container,
+                         **inject_kwargs)
 
-    return obj, factory, (type_hints or {}).get('return')
+        func = obj
+    else:
+        raise TypeError("Factory must be either a function "
+                        "or a class implementing __call__().")
+
+    return obj, func, type_hints.get('return')

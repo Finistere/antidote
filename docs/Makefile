@@ -2,7 +2,8 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS    = -W -a -E
+#SPHINXOPTS    = -W -a -E
+SPHINXOPTS    =
 SPHINXBUILD   = python -msphinx
 SPHINXPROJ    = DependencyManager
 SOURCEDIR     = .

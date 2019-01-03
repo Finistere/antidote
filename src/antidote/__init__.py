@@ -1,16 +1,10 @@
-import typing as _t
-
 import pkg_resources as _pkg_resources
 
-from .container import Dependency, DependencyContainer, Instance, Provider
-from .exceptions import (AntidoteError, DependencyCycleError,
-                         DependencyInstantiationError, DependencyNotFoundError,
-                         DependencyNotProvidableError, DuplicateDependencyError)
-from .helpers import attrib, context, factory, getter, provider, register, new_container
-from .injection import inject
-from .providers import FactoryProvider, GetterProvider, TagProvider
-from .providers.factory import Build
-from .providers.tags import Tag, Tagged, TaggedDependencies
+from .core import inject
+from .helpers import (attrib, context, factory, new_container, provider, register,
+                      resource, wire)
+from .providers.service import Build
+from .providers.tag import Tag, Tagged, TaggedDependencies
 
 try:
     __version__ = _pkg_resources.get_distribution(__name__).version
@@ -20,28 +14,14 @@ except _pkg_resources.DistributionNotFound:  # pragma: no cover
 
 __all__ = [
     'Build',
-    'inject',
-    'Instance',
-    'DependencyContainer',
-    'AntidoteError',
-    'DependencyNotProvidableError',
-    'DependencyNotFoundError',
-    'DuplicateDependencyError',
-    'DependencyCycleError',
-    'DependencyInstantiationError',
-    'Dependency',
-    'FactoryProvider',
-    'GetterProvider',
     'Tag',
     'Tagged',
-    'TaggedDependencies',
-    'TagProvider',
-    'register',
-    'factory',
-    'getter',
-    'provider',
     'attrib',
-    'context'
+    'context',
+    'factory',
+    'inject',
+    'new_container',
+    'wire'
 ]
 
-global_container = None  # type: _t.Optional[DependencyContainer]
+world = new_container()

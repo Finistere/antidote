@@ -21,16 +21,19 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-**WARNING**: The master branch is in a work in progress state for the v0.4, there 
+**WARNING**: The master branch is in a work in progress state for the v0.4, there
 are some breaking changes and the current documentation is only valid for the v0.3.
 The v0.4 will bring among others:
+
 - better performance through Cython
 - a global dependency container is not imposed and necessary anymore
-- better abstractions for subclass instantiation and parameters
+- better dependency definitions for more maintainable code
 
 *Antidote* is a dependency injection micro framework for Python 3.4+.
 It provides simple decorators to declare services and to inject those
 automatically based on type hints.
+
+If you're currently using the v0.3, be sure to use the stable documentation: `<https://antidote.readthedocs.io/en/stable/why.html>`_
 
 
 Why ?
@@ -111,7 +114,7 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
     # Declare a factory which should be called to instantiate Database.
     # Variables names are used here for injection. A dictionary mapping
     # arguments name to their dependency could also have been used.
-    @antidote.factory(arg_map=('conf:db.host', 'conf:db.port',
+    @antidote.factory(dependencies=('conf:db.host', 'conf:db.port',
                                'conf:db.user', 'conf:db.password'))
     def database_factory(db_host, db_port, db_user,
                          db_password) -> Database:
@@ -227,3 +230,4 @@ be implemented.
 - proxies (?)
 - rework of :code:`register_parameters` to something like :code:`getter` to
   provide a way of getting remote parameters. (?)
+

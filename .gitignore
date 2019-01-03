@@ -11,6 +11,8 @@ cov_html
 *.pyc
 *.egg-info
 *.so
+*.cpp
+/src/**/*.html
 /build/
 /dist/
 /docs/_build/

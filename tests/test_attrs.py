@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.helpers import attrib, new_container
+from antidote import attrib, new_container
 
 
 class Service:
@@ -10,7 +10,7 @@ class Service:
 @pytest.fixture()
 def container():
     c = new_container()
-    c.update({Service: Service(), 'parameter': object()})
+    c.update_singletons({Service: Service(), 'parameter': object()})
 
     return c
 
@@ -38,5 +38,5 @@ else:
         class BrokenTest:
             service = attrib(container=container)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(RuntimeError):
             BrokenTest()

@@ -46,16 +46,16 @@ extensions = [
 
 # Python code that is treated like it were put in a testcleanup directive for
 # every file that is tested, and for every group.
-doctest_global_cleanup = """
-import antidote
-antidote.antidote = antidote.DependencyManager()
-"""
+# doctest_global_cleanup = """
+# import antidote
+# antidote.global_container = antidote.new_container()
+# """
 
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.6', None),
-    'attrs': ('http://www.attrs.org/en/stable', None)
+    # 'python': ('https://docs.python.org/3.6', None),
+    # 'attrs': ('http://www.attrs.org/en/stable', None)
 }
 
 # Prefix each section label with the name of the document it is in.
@@ -82,7 +82,7 @@ author = 'Benjamin Rabier'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-# The full version, including alpha/beta/rc tags.
+# The full version, including alpha/beta/rc tag.
 release = antidote.__version__
 # The short X.Y version.
 version = release.rsplit(".", 1)[0]

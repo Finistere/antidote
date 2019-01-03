@@ -8,27 +8,32 @@ class Service:
 
 
 @pytest.mark.parametrize(
-    'id,args,kwargs',
+    'wrapped,args,kwargs',
     [
         ('test', (1,), {}),
         (1, tuple(), {'test': 1}),
         (Service, (1, 'test'), {'another': 'no'}),
-        (Service, tuple(), {}),
         (Service, tuple(), {'not_hashable': {'hey': 'hey'}})
     ]
 )
-def test_eq_hash(id, args, kwargs):
-    p = Build(id, *args, **kwargs)
+def test_eq_hash(wrapped, args, kwargs):
+    b = Build(wrapped, *args, **kwargs)
 
     # does not fail
-    hash(p)
+    hash(b)
 
     for f in (lambda e: e, hash):
-        assert (f(Build(id, **kwargs)) == f(p)) is not len(args)
-        assert (f(Build(id, *args)) == f(p)) is not len(kwargs)
-        assert (f(Build(id)) == f(p)) is not (len(args) or len(kwargs))
-        assert (f(id) == f(p)) is not (len(args) or len(kwargs))
+        assert f(Build(wrapped, *args, **kwargs)) == f(b)
 
-    assert repr(id) in repr(p)
-    assert repr(args) in repr(p)
-    assert repr(kwargs) in repr(p)
+    assert repr(wrapped) in repr(b)
+    if args or kwargs:
+        assert repr(args) in repr(b)
+        assert repr(kwargs) in repr(b)
+
+
+def test_invalid_build():
+    with pytest.raises(TypeError):
+        Build(1)
+
+    with pytest.raises(TypeError):
+        Build()

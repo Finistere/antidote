@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from antidote import Tagged, TaggedDependencies
-from antidote.helpers import factory, new_container
+from antidote import Tagged, factory, new_container
+from antidote.providers.tag import TaggedDependencies
 
 
 class Service:
@@ -16,10 +16,10 @@ class AnotherService:
     pass
 
 
-def make_delayed_factory(factory_, a=0.01, b=0.01):
-    def f():
+def make_delayed_factory(service, a=0.01, b=0.01):
+    def f() -> service:
         time.sleep(a + b * random.random())
-        return factory_()
+        return service()
 
     return f
 
@@ -27,7 +27,7 @@ def make_delayed_factory(factory_, a=0.01, b=0.01):
 @pytest.fixture()
 def container():
     c = new_container()
-    c.update({Service: Service(), 'parameter': object()})
+    c.update_singletons({Service: Service(), 'parameter': object()})
 
     return c
 
@@ -47,11 +47,9 @@ def test_container_instantiation_safety(container):
     n_threads = 10
 
     factory(make_delayed_factory(Service),
-            dependency_id=Service,
             singleton=True,
             container=container)
     factory(make_delayed_factory(AnotherService),
-            dependency_id=AnotherService,
             singleton=False,
             container=container)
 
@@ -72,8 +70,7 @@ def test_tagged_dependencies_instantiation_safety(container):
     n_dependencies = 40
 
     for i in range(n_dependencies):
-        factory(make_delayed_factory(object),
-                dependency_id=i + 1,
+        factory(make_delayed_factory(type('Service{}'.format(i), (object,), {})),
                 singleton=False,
                 tags=['test'],
                 container=container)
@@ -82,10 +79,10 @@ def test_tagged_dependencies_instantiation_safety(container):
     dependencies = []
 
     def worker():
-        for i, dep in enumerate(tagged.dependencies()):
+        for i, dep in enumerate(tagged.instances()):
             dependencies.append((i, dep))
 
     multi_thread_do(worker)
 
     assert n_dependencies == len(set(dependencies))
-    assert set(dependencies) == set(enumerate(tagged.dependencies()))
+    assert set(dependencies) == set(enumerate(tagged.instances()))

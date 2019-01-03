@@ -1,3 +1,7 @@
-from .registration import register, factory, provider, getter
-from .container import new_container, context
-from .attrs import attrib
+from .attrib import attrib
+from .container import context, new_container
+from .factory import factory
+from .provider import provider
+from .register import register
+from .resource import resource
+from .wire import wire

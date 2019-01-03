@@ -1,7 +1,7 @@
-from antidote._internal.utils import SlotReprMixin
+from antidote._internal.utils import SlotsReprMixin
 
 
-class DummySlot(SlotReprMixin):
+class DummySlot(SlotsReprMixin):
     __slots__ = ('test', 'value')
 
     def __init__(self, test, value):

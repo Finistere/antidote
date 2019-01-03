@@ -1,7 +1,7 @@
 from itertools import chain
 
 
-class SlotReprMixin:
+class SlotsReprMixin:
     """
     Used by all classes using __slots__ to generate an helpful repr with all
     the defined fields.

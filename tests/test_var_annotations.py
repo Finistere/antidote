@@ -1,4 +1,4 @@
-from antidote.helpers import register, new_container, attrib
+from antidote import register, new_container, attrib
 
 
 def test_attrs():

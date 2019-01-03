@@ -1,4 +1,4 @@
-from antidote import DependencyCycleError
+from antidote.exceptions import DependencyCycleError
 
 
 class Service:

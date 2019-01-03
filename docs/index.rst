@@ -16,6 +16,5 @@ Table of Content
     :maxdepth: 3
 
     why
-    usage
-    extending
+    tutorial
     api
