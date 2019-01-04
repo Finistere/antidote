@@ -33,7 +33,7 @@ The v0.4 will bring among others:
 It provides simple decorators to declare services and to inject those
 automatically based on type hints.
 
-If you're currently using the v0.3, be sure to use the stable documentation: `<https://antidote.readthedocs.io/en/stable/why.html>`_
+If you're currently using the v0.3, be sure to use the stable documentation: `<https://antidote.readthedocs.io/en/stable/index.html>`_
 
 
 Why ?
