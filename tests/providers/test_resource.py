@@ -73,6 +73,14 @@ def test_singleton(provider: ResourceProvider):
     assert True is provider.provide('default:').singleton
 
 
+def test_lazy(provider: ResourceProvider):
+    sentinel = object()
+    provider._container['lazy_getter'] = lambda _: sentinel
+    provider.register(Lazy('lazy_getter'), namespace='test')
+
+    assert sentinel is provider.provide('test:dummy').instance
+
+
 @pytest.mark.parametrize('namespace', ['test:', 'test ', 'Nop!yes', '', object(), 1])
 def test_invalid_namespace(provider: ResourceProvider, namespace):
     with pytest.raises((TypeError,  # TypeError for Cython
@@ -92,3 +100,8 @@ def test_invalid_priority(provider: ResourceProvider, priority):
 def test_invalid_getter(provider: ResourceProvider, getter):
     with pytest.raises(ValueError):
         provider.register(getter, 'dummy')
+
+
+@pytest.mark.parametrize('dependency', ['test',  'test:value', object()])
+def test_unknown_dependency(provider: ResourceProvider, dependency):
+    assert provider.provide(dependency) is None

@@ -1,5 +1,6 @@
 import pytest
 
+from antidote._internal.argspec import Arguments
 from antidote.core import DependencyContainer, inject
 from antidote.exceptions import DependencyNotFoundError
 
@@ -172,6 +173,44 @@ def test_with_type_hints(expected, kwargs):
     assert (a, b) == f(a, b)
 
 
+def test_arguments():
+    container = DependencyContainer()
+    container.update_singletons(dict(a=12, b=24))
+
+    def f(a, b):
+        pass
+
+    arguments = Arguments.from_callable(f)
+
+    @inject(arguments=arguments, use_names=True, container=container)
+    def g(**kwargs):
+        return kwargs
+
+    assert dict(a=12, b=24) == g()
+
+
+def test_class_static_method():
+    container = DependencyContainer()
+    sentinel = object()
+    container.update_singletons(dict(x=sentinel))
+
+    class Dummy:
+        @inject(container=container, use_names=True)
+        @staticmethod
+        def static_method(x):
+            return x
+
+        @inject(container=container, use_names=True)
+        @classmethod
+        def class_method(cls, x):
+            return x
+
+    assert sentinel == Dummy.static_method()
+    assert sentinel == Dummy.class_method()
+    assert sentinel == Dummy().static_method()
+    assert sentinel == Dummy().class_method()
+
+
 @pytest.mark.parametrize(
     'error,kwargs',
     [
@@ -236,28 +275,6 @@ def test_invalid(error, kwargs):
 
     with pytest.raises(error):
         inject(f, container=container, **kwargs)()
-
-
-def test_class_static_method():
-    container = DependencyContainer()
-    sentinel = object()
-    container.update_singletons(dict(x=sentinel))
-
-    class Dummy:
-        @inject(container=container, use_names=True)
-        @staticmethod
-        def static_method(x):
-            return x
-
-        @inject(container=container, use_names=True)
-        @classmethod
-        def class_method(cls, x):
-            return x
-
-    assert sentinel == Dummy.static_method()
-    assert sentinel == Dummy.class_method()
-    assert sentinel == Dummy().static_method()
-    assert sentinel == Dummy().class_method()
 
 
 def test_invalid_type_hint():

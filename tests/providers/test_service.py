@@ -24,6 +24,43 @@ def provider():
     return provider
 
 
+@pytest.mark.parametrize(
+    'wrapped,args,kwargs',
+    [
+        ('test', (1,), {}),
+        (1, tuple(), {'test': 1}),
+        (Service, (1, 'test'), {'another': 'no'}),
+        (Service, tuple(), {'not_hashable': {'hey': 'hey'}})
+    ]
+)
+def test_build_eq_hash(wrapped, args, kwargs):
+    b = Build(wrapped, *args, **kwargs)
+
+    # does not fail
+    hash(b)
+
+    for f in (lambda e: e, hash):
+        assert f(Build(wrapped, *args, **kwargs)) == f(b)
+
+    assert repr(wrapped) in repr(b)
+    if args or kwargs:
+        assert repr(args) in repr(b)
+        assert repr(kwargs) in repr(b)
+
+
+@pytest.mark.parametrize(
+    'args,kwargs',
+    [
+        [(), {}],
+        [(1,), {}],
+        [(), {'test': 1}],
+    ]
+)
+def test_invalid_build(args: tuple, kwargs: dict):
+    with pytest.raises(TypeError):
+        Build(*args, **kwargs)
+
+
 def test_simple(provider: ServiceProvider):
     provider.register(factory=Service, service=Service)
 
@@ -59,6 +96,14 @@ def test_build(provider: ServiceProvider):
     assert dict(val=object) == s.kwargs
 
 
+def test_lazy(provider: ServiceProvider):
+    sentinel = object()
+    provider._container['lazy_getter'] = lambda: sentinel
+    provider.register(factory=Lazy('lazy_getter'), service=Service)
+
+    assert sentinel is provider.provide(Service).instance
+
+
 def test_duplicate_error(provider: ServiceProvider):
     provider.register(factory=Service, service=Service)
 
@@ -79,4 +124,9 @@ def test_invalid_factory(provider: ServiceProvider, factory):
 def test_invalid_service(provider: ServiceProvider, service):
     with pytest.raises(TypeError):
         provider.register(service=service)
+
+
+@pytest.mark.parametrize('dependency', ['test', Service, object()])
+def test_unknown_dependency(provider: ServiceProvider, dependency):
+    assert provider.provide(dependency) is None
 

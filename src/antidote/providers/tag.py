@@ -36,8 +36,19 @@ class Tag(SlotsReprMixin):
             name: Name which identifies the tag.
             **attrs: Any other parameters will be accessible as an attribute.
         """
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
+
+        if len(name) == 0:
+            raise ValueError("name must be a non empty string")
+
         self.name = name
         self._attrs = attrs
+
+    def __str__(self):
+        if not self._attrs:
+            return "{}({!r})".format(type(self).__name__, self.name)
+        return repr(self)
 
     def __getattr__(self, item):
         return self._attrs.get(item)
@@ -55,7 +66,12 @@ class Tagged(SlotsReprMixin):
         Args:
             name: Name of the tags which shall be retrieved.
         """
-        super().__init__()
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
+
+        if len(name) == 0:
+            raise ValueError("name must be a non empty string")
+
         self.name = name
 
     __str__ = SlotsReprMixin.__repr__

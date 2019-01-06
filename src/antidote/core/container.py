@@ -206,6 +206,7 @@ class DependencyProvider:
 
 
 class Lazy(SlotsReprMixin):
+    # TODO: move Lazy somewhere else
     __slots__ = ('dependency',)
 
     def __init__(self, dependency: Any):
