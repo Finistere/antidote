@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Mapping, Tuple
 cimport cython
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 from cpython.ref cimport PyObject
+from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 
-from antidote._internal.lock cimport FastRLock
 from antidote._internal.stack cimport DependencyStack
 # @formatter:on
 from ..exceptions import (DependencyCycleError, DependencyInstantiationError,
@@ -31,7 +31,7 @@ cdef class DependencyContainer:
         self._singletons = dict()  # type: Dict[Any, Any]
         self._singletons[DependencyContainer] = self
         self._dependency_stack = DependencyStack()
-        self._instantiation_lock = FastRLock()
+        self._instantiation_lock = create_fastrlock()
         # class attributes do not exist in Cython
         self.SENTINEL = object()
 
@@ -79,25 +79,25 @@ cdef class DependencyContainer:
         """
         Set a dependency in the singletons.
         """
-        self._instantiation_lock.acquire()
+        lock_fastrlock(self._instantiation_lock, -1, True)
         self._singletons[dependency] = instance
-        self._instantiation_lock.release()
+        unlock_fastrlock(self._instantiation_lock)
 
     def __delitem__(self, dependency):
         """
         Delete a dependency in the singletons.
         """
-        self._instantiation_lock.acquire()
+        lock_fastrlock(self._instantiation_lock, -1, True)
         del self._singletons[dependency]
-        self._instantiation_lock.release()
+        unlock_fastrlock(self._instantiation_lock)
 
     def update_singletons(self, dependencies: Mapping):
         """
         Update the singletons.
         """
-        self._instantiation_lock.acquire()
+        lock_fastrlock(self._instantiation_lock, -1, True)
         self._singletons.update(dependencies)
-        self._instantiation_lock.release()
+        unlock_fastrlock(self._instantiation_lock)
 
     def __getitem__(self, dependency):
         instance = self.provide(dependency)
@@ -117,16 +117,16 @@ cdef class DependencyContainer:
         if ptr != NULL:
             return <object> ptr
 
-        self._instantiation_lock.acquire()
+        lock_fastrlock(self._instantiation_lock, -1, True)
 
         ptr = PyDict_GetItem(self._singletons, dependency)
         if ptr != NULL:
-            self._instantiation_lock.release()
+            unlock_fastrlock(self._instantiation_lock)
             return <object> ptr
 
         if 1 != self._dependency_stack.push(dependency):
             stack = self._dependency_stack._stack.copy()
-            self._instantiation_lock.release()
+            unlock_fastrlock(self._instantiation_lock)
             stack.append(dependency)
             raise DependencyCycleError(stack)
 
@@ -153,7 +153,7 @@ cdef class DependencyContainer:
             raise DependencyInstantiationError(dependency) from e
         finally:
             self._dependency_stack.pop()
-            self._instantiation_lock.release()
+            unlock_fastrlock(self._instantiation_lock)
 
         return self.SENTINEL
 

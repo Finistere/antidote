@@ -1,3 +1,4 @@
+import functools
 from typing import Callable, Sequence
 
 from .._internal.utils import SlotsReprMixin
@@ -44,6 +45,7 @@ class InjectedWrapper:
         self.__container = container
         self.__blueprint = blueprint
         self.__injection_offset = 1 if skip_first else 0
+        functools.wraps(wrapped, updated=())(self)
 
     def __call__(self, *args, **kwargs):
         kwargs = _inject_kwargs(
@@ -55,13 +57,14 @@ class InjectedWrapper:
         return self.__wrapped__(*args, **kwargs)
 
     def __get__(self, instance, owner):
-        return InjectedBoundWrapper(
+        wrapped = self.__wrapped__.__get__(instance, owner)
+        return functools.wraps(wrapped, updated=())(InjectedBoundWrapper(
             self.__container,
             self.__blueprint,
-            self.__wrapped__.__get__(instance, owner),
+            wrapped,
             isinstance(self.__wrapped__, classmethod)
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
-        )
+        ))
 
     @property
     def __func__(self):

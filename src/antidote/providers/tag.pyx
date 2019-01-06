@@ -5,8 +5,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Union
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
 from cpython.ref cimport PyObject
+from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 
-from antidote._internal.lock cimport FastRLock
 from antidote.core.container cimport (DependencyContainer, DependencyInstance,
                                       DependencyProvider)
 # @formatter:on
@@ -134,7 +134,7 @@ cdef class TaggedDependencies:
                   DependencyContainer container,
                   list dependencies,
                   list tags):
-        self._lock = FastRLock()
+        self._lock = create_fastrlock()
         self._container = container
         self._dependencies = dependencies  # type: List[Any]
         self._tags = tags  # type: List[Tag]
@@ -170,7 +170,7 @@ cdef class TaggedDependencies:
             if i < n:
                 yield self._instances[i]
             else:
-                self._lock.acquire()
+                lock_fastrlock(self._lock, -1, True)
                 try:
                     # If not other thread has already added the instance.
                     if i < len(self._instances):
@@ -183,7 +183,7 @@ cdef class TaggedDependencies:
                         self._instances.append(instance)
                     n += 1
                 finally:
-                    self._lock.release()
+                    unlock_fastrlock(self._lock)
 
                 yield instance
             i += 1

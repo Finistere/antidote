@@ -1,6 +1,5 @@
 import builtins
 import collections.abc as c_abc
-from functools import wraps
 from typing import Any, Callable, Dict, Iterable, Mapping, Set, Union
 
 from .._internal.argspec import Arguments
@@ -86,12 +85,9 @@ def inject(func: Union[Callable, staticmethod, classmethod] = None,
         if all(injection.dependency is None for injection in blueprint.injections):
             return wrapped
 
-        wrapper = InjectedWrapper(
-            container=container or get_default_container(),
-            blueprint=blueprint,
-            wrapped=wrapped
-        )
-        return wraps(wrapped, updated=[])(wrapper)
+        return InjectedWrapper(container=container or get_default_container(),
+                               blueprint=blueprint,
+                               wrapped=wrapped)
 
     return func and _inject(func) or _inject
 

@@ -1,7 +1,6 @@
 # cython: language_level=3, language=c++
 # cython: boundscheck=False, wraparound=False
 # @formatter:off
-from antidote._internal.lock cimport FastRLock
 from antidote._internal.stack cimport DependencyStack
 # @formatter:on
 
@@ -18,7 +17,7 @@ cdef class DependencyContainer:
         dict _type_to_provider
         dict _singletons
         DependencyStack _dependency_stack
-        FastRLock _instantiation_lock
+        object _instantiation_lock
 
     cpdef object provide(self, object dependency)
 

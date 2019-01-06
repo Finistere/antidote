@@ -1,6 +1,5 @@
 # cython: language_level=3, language=c++
 # cython: boundscheck=False, wraparound=False
-from antidote._internal.lock cimport FastRLock
 from antidote.core.container cimport DependencyContainer, DependencyInstance, DependencyProvider
 
 cdef class Tag:
@@ -15,7 +14,7 @@ cdef class Tagged:
 cdef class TaggedDependencies:
     cdef:
         DependencyContainer _container
-        FastRLock _lock
+        object _lock
         list _dependencies
         list _tags
         list _instances

@@ -9,6 +9,7 @@ from antidote.core.container cimport DependencyContainer
 from ..exceptions import DependencyNotFoundError
 # @formatter:on
 
+
 @cython.freelist(10)
 cdef class Injection:
     cdef:
@@ -40,12 +41,7 @@ cdef class InjectedWrapper:
     cdef:
         # public attributes as those are going to be overwritten by
         # functools.wraps()
-        public object __wrapped__
-        public str __module__
-        public str __name__
-        public str __qualname__
-        public str __doc__
-        public dict __annotations__
+        readonly object __wrapped__
         DependencyContainer __container
         InjectionBlueprint __blueprint
         int __injection_offset
@@ -78,6 +74,26 @@ cdef class InjectedWrapper:
             isinstance(self.__wrapped__, classmethod)
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
         )
+
+    @property
+    def __name__(self):
+        return self.__wrapped__.__name__
+
+    @property
+    def __qualname__(self):
+        return self.__wrapped__.__qualname__
+
+    @property
+    def __doc__(self):
+        return self.__wrapped__.__doc__
+
+    @property
+    def __annotations__(self):
+        return self.__wrapped__.__annotations__
+
+    @property
+    def __module__(self):
+        return self.__wrapped__.__module__
 
     @property
     def __func__(self):

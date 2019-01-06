@@ -21,9 +21,9 @@ inject_cls_x = [('cls', True, None), ('x', True, 'x')]
 inject_x = [('x', True, 'x')]
 
 
-def wrap(func=None,
-         arg_dependency: List[Tuple[str, bool, Any]] = tuple(),
-         container: DependencyContainer = None):
+def easy_wrap(func=None,
+              arg_dependency: List[Tuple[str, bool, Any]] = tuple(),
+              container: DependencyContainer = None):
     def wrapper(func):
         return InjectedWrapper(
             container=container or default_container,
@@ -38,27 +38,27 @@ def wrap(func=None,
 
 
 class Dummy:
-    @wrap(arg_dependency=inject_self_x)
+    @easy_wrap(arg_dependency=inject_self_x)
     def method(self, x):
         return self, x
 
-    @wrap(arg_dependency=inject_cls_x)
+    @easy_wrap(arg_dependency=inject_cls_x)
     @classmethod
     def class_before(cls, x):
         return cls, x
 
     @classmethod
-    @wrap(arg_dependency=inject_cls_x)
+    @easy_wrap(arg_dependency=inject_cls_x)
     def class_after(cls, x):
         return cls, x
 
-    @wrap(arg_dependency=inject_x)
+    @easy_wrap(arg_dependency=inject_x)
     @staticmethod
     def static_before(x):
         return x
 
     @staticmethod
-    @wrap(arg_dependency=inject_x)
+    @easy_wrap(arg_dependency=inject_x)
     def static_after(x):
         return x
 
@@ -76,12 +76,12 @@ class Dummy2:
         return x
 
 
-Dummy2.method = wrap(Dummy2.__dict__['method'], inject_self_x)
-Dummy2.class_method = wrap(Dummy2.__dict__['class_method'], inject_cls_x)
-Dummy2.static = wrap(Dummy2.__dict__['static'], inject_x)
+Dummy2.method = easy_wrap(Dummy2.__dict__['method'], inject_self_x)
+Dummy2.class_method = easy_wrap(Dummy2.__dict__['class_method'], inject_cls_x)
+Dummy2.static = easy_wrap(Dummy2.__dict__['static'], inject_x)
 
 
-@wrap(arg_dependency=inject_x)
+@easy_wrap(arg_dependency=inject_x)
 def f(x):
     return x
 
@@ -157,14 +157,14 @@ def test_classmethod_wrapping():
         pass
 
     class A:
-        method = wrap(classmethod(class_method))
+        method = easy_wrap(classmethod(class_method))
 
     assert class_method == A.__dict__['method'].__func__
     assert A == A.method.__self__
 
 
 def test_required_dependency_not_found():
-    @wrap(arg_dependency=[('x', True, 'unknown')])
+    @easy_wrap(arg_dependency=[('x', True, 'unknown')])
     def f(x):
         return x
 
@@ -173,7 +173,7 @@ def test_required_dependency_not_found():
 
 
 def test_dependency_not_found():
-    @wrap(arg_dependency=[('x', False, 'unknown')])
+    @easy_wrap(arg_dependency=[('x', False, 'unknown')])
     def f(x):
         return x
 
@@ -188,10 +188,10 @@ def test_multiple_injections():
     zz = object()
     container.update_singletons(dict(xx=xx, yy=yy))
 
-    @wrap(arg_dependency=[('x', True, 'xx'),
-                          ('y', True, 'yy'),
-                          ('z', False, 'zz')],
-          container=container)
+    @easy_wrap(arg_dependency=[('x', True, 'xx'),
+                               ('y', True, 'yy'),
+                               ('z', False, 'zz')],
+               container=container)
     def f(x, y, z=zz):
         return x, y, z
 
@@ -203,3 +203,43 @@ def test_multiple_injections():
 
     with pytest.raises(TypeError):
         f(sentinel, x=sentinel)
+
+
+def g():
+    pass
+
+
+class G:
+    original = staticmethod(g)
+    wrapped = easy_wrap(original)
+
+
+@pytest.mark.parametrize(
+    'original,wrapped',
+    [
+        pytest.param(g, easy_wrap(g), id='function'),
+        pytest.param(G.original, G.wrapped, id='staticmethod')
+    ]
+)
+def test_wrap(original, wrapped):
+    assert original.__module__ is wrapped.__module__
+    assert original.__name__ is wrapped.__name__
+    assert original.__qualname__ is wrapped.__qualname__
+    assert original.__doc__ is wrapped.__doc__
+    assert original.__annotations__ is wrapped.__annotations__
+
+    try:
+        func = original.__func__
+    except AttributeError:
+        with pytest.raises(AttributeError):
+            wrapped.__func__
+    else:
+        assert func is wrapped.__func__
+
+    try:
+        func = original.__self__
+    except AttributeError:
+        with pytest.raises(AttributeError):
+            wrapped.__self__
+    else:
+        assert func is wrapped.__self__
