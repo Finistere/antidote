@@ -20,18 +20,18 @@ def provider():
 
 
 def test_tag():
-    t = Tag(name='test', val=1)
+    t = Tag(name='test', val='x')
 
     assert 'test' == t.name
-    assert 1 == t.val
+    assert 'x' == t.val
     assert t.anything is None
-    assert 'val' in repr(t)
-    assert 'test' in repr(t)
-    assert 'val' in str(t)
-    assert 'test' in str(t)
+    assert "val='x'" in repr(t)
+    assert "'test'" in repr(t)
+    assert "val='x'" in str(t)
+    assert "'test'" in str(t)
 
     t2 = Tag(name='test')
-    assert 'test' in str(t2)
+    assert "'test'" in str(t2)
 
 
 @pytest.mark.parametrize('name,error', [('', ValueError),

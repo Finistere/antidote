@@ -50,6 +50,13 @@ class Tag(SlotsReprMixin):
             return "{}({!r})".format(type(self).__name__, self.name)
         return repr(self)
 
+    def __repr__(self):
+        return "{}(name={!r}, {})".format(
+            type(self).__name__,
+            self.name,
+            ", ".join("{}={!r}".format(k, v) for k, v in self._attrs.items())
+        )
+
     def __getattr__(self, item):
         return self._attrs.get(item)
 
