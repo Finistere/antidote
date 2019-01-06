@@ -1,5 +1,6 @@
 import inspect
 import typing
+from collections import OrderedDict
 from typing import Callable, Iterator, Sequence
 
 
@@ -43,7 +44,8 @@ class Arguments:
                  arguments: Sequence[Argument],
                  has_var_positional: bool,
                  has_var_keyword: bool):
-        self.arguments_by_name = {arg.name: arg for arg in arguments}
+        self.arguments_by_name = OrderedDict(((arg.name, arg)
+                                              for arg in arguments))
         self.has_var_positional = has_var_positional
         self.has_var_keyword = has_var_keyword
 

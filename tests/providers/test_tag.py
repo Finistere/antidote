@@ -42,7 +42,8 @@ def test_provide_tags():
     container = DependencyContainer()
     container.update_singletons(dict(test=object(), test2=object()))
     provider = TagProvider(container)
-    provider.register('test', ['tag1', Tag('tag2', error=True)])
+    custom_tag = Tag('tag2', error=True)
+    provider.register('test', ['tag1', custom_tag])
     provider.register('test2', ['tag2'])
 
     result = provider.provide(Tagged('xxxxx'))
@@ -66,12 +67,12 @@ def test_provide_tags():
 
     tagged_dependencies = result.instance  # type: TaggedDependencies
     assert 2 == len(tagged_dependencies)
-    assert ['test', 'test2'] == list(tagged_dependencies.dependencies())
+    assert {'test', 'test2'} == set(tagged_dependencies.dependencies())
     tags = list(tagged_dependencies.tags())
-    assert ['tag2', 'tag2'] == [tag.name for tag in tags]
-    assert tags[0].error
-    instances = [container['test'], container['test2']]
-    assert instances == list(tagged_dependencies.instances())
+    assert {'tag2', 'tag2'} == {tag.name for tag in tags}
+    assert any(tag is custom_tag for tag in tags)
+    instances = {container['test'], container['test2']}
+    assert instances == set(tagged_dependencies.instances())
 
 
 def test_tagged_dependencies():
