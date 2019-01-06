@@ -102,7 +102,5 @@ def test_invalid_factory_wiring():
 
     with pytest.raises(TypeError):
         @register(factory='build', use_mro=False)
-        class Dummy(NewDummy):
+        class Dummy2(NewDummy):
             pass
-
-

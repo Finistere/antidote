@@ -1,6 +1,6 @@
 import inspect
 import collections.abc as c_abc
-from typing import Callable, cast, Iterable, Union
+from typing import Callable, cast, Iterable, Union, Tuple
 
 from .wire import wire
 from .._internal.default_container import get_default_container
@@ -69,7 +69,7 @@ def register(class_: type = None,
 
     if auto_wire is True:
         if isinstance(factory, str):
-            methods = (factory,)
+            methods = (factory,)  # type: Tuple[str, ...]
             if use_mro is None:
                 use_mro = (factory,)
         else:

@@ -36,7 +36,8 @@ class ResourceProvider(DependencyProvider):
             resources = self._priority_sorted_resources_by_namespace.get(namespace)
             if resources is not None:
                 for resource in resources:
-                    if resource.lazy_dependency is not None:
+                    if resource.getter is None:
+                        assert resource.lazy_dependency is not None
                         resource.getter = self._container[resource.lazy_dependency]
                         resource.lazy_dependency = None
                     try:

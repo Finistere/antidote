@@ -1,4 +1,5 @@
 import pytest
+import typing
 
 from antidote._internal.argspec import Arguments
 from antidote.core import DependencyContainer, inject
@@ -171,6 +172,23 @@ def test_with_type_hints(expected, kwargs):
 
     a, b = object(), object()
     assert (a, b) == f(a, b)
+
+
+@pytest.mark.parametrize(
+    'type_hint',
+    [str, int, float, set, list, dict, complex, type, tuple, bytes, bytearray,
+     typing.Optional, typing.Sequence]
+)
+def test_ignored_type_hints(type_hint):
+    container = DependencyContainer()
+    container[type_hint] = object()
+
+    @inject(container=container)
+    def f(x: type_hint):
+        pass
+
+    with pytest.raises(TypeError):
+        f()
 
 
 def test_arguments():

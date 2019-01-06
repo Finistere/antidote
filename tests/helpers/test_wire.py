@@ -158,5 +158,5 @@ def test_ignore_missing_methods(container: DependencyContainer):
             pass
 
     @wire(methods=['method'], container=container, ignore_missing_methods=True)
-    class Dummy:
+    class Dummy2:
         pass

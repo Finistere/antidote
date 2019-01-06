@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.core import Lazy, DependencyContainer
+from antidote.core import DependencyContainer, Lazy
 from antidote.exceptions import DuplicateDependencyError
 from antidote.providers.service import Build, ServiceProvider
 
@@ -129,4 +129,3 @@ def test_invalid_service(provider: ServiceProvider, service):
 @pytest.mark.parametrize('dependency', ['test', Service, object()])
 def test_unknown_dependency(provider: ServiceProvider, dependency):
     assert provider.provide(dependency) is None
-

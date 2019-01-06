@@ -102,6 +102,6 @@ def test_invalid_getter(provider: ResourceProvider, getter):
         provider.register(getter, 'dummy')
 
 
-@pytest.mark.parametrize('dependency', ['test',  'test:value', object()])
+@pytest.mark.parametrize('dependency', ['test', 'test:value', object()])
 def test_unknown_dependency(provider: ResourceProvider, dependency):
     assert provider.provide(dependency) is None

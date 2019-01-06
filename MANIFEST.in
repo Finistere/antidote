@@ -1,4 +1,4 @@
-include LICENSE *.rst *.toml benchmark.ipynb
+include LICENSE *.rst *.md benchmark.ipynb
 
 # Sources
 include *.py
@@ -21,3 +21,6 @@ recursive-include docs *.gitkeep
 recursive-include docs *.py
 recursive-include docs *.rst
 prune docs/_build
+
+# Exclude bin
+prune bin

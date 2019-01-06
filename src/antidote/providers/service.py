@@ -104,7 +104,8 @@ class ServiceProvider(DependencyProvider):
         if factory.takes_dependency:
             args = (service,) + args
 
-        if factory.lazy_dependency is not None:
+        if factory.func is None:
+            assert factory.lazy_dependency is not None
             factory.func = self._container[factory.lazy_dependency]
             factory.lazy_dependency = None
 
