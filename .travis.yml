@@ -30,6 +30,10 @@ matrix:
       env: TOXENV=py37-cython
       sudo: required
       dist: xenial
+    - python: "pypy3.5"
+      env: TOXENV=pypy35
+    - python: "pypy3.5"
+      env: TOXENV=pypy35-cython
 
     # Prevent breakage by a new releases
     - python: "3.6-dev"
