@@ -1,5 +1,4 @@
-from .attrib import attrib
-from .container import context, new_container
+from .container import new_container
 from .factory import factory
 from .provider import provider
 from .register import register

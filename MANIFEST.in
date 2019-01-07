@@ -1,7 +1,7 @@
 include LICENSE *.rst *.md benchmark.ipynb
 
 # Sources
-include *.py
+recursive-include src *.py
 recursive-include src *.pxd
 recursive-include src *.pyx
 

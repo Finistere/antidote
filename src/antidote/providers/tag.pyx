@@ -14,19 +14,27 @@ from ..exceptions import DependencyNotFoundError, DuplicateTagError
 
 cdef class Tag:
     def __init__(self, str name, **attrs):
+        if len(name) == 0:
+            raise ValueError("name must be a non empty string")
+
         self.name = name
         self._attrs = attrs
 
     def __repr__(self):
-        return "{}(name={!r}, **attrs={!r})".format(type(self).__name__,
-                                                    self.name,
-                                                    self._attrs)
+        return "{}(name={!r}, {})".format(
+            type(self).__name__,
+            self.name,
+            ", ".join("{}={!r}".format(k, v) for k, v in self._attrs.items())
+        )
 
     def __getattr__(self, item):
         return self._attrs.get(item)
 
 cdef class Tagged:
     def __init__(self, str name):
+        if len(name) == 0:
+            raise ValueError("name must be a non empty string")
+
         self.name = name
 
     def __repr__(self):

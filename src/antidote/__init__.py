@@ -1,8 +1,7 @@
 import pkg_resources as _pkg_resources
 
 from .core import inject
-from .helpers import (attrib, context, factory, new_container, provider, register,
-                      resource, wire)
+from .helpers import factory, new_container, provider, register, resource, wire
 from .providers.service import Build
 from .providers.tag import Tag, Tagged, TaggedDependencies
 
@@ -16,8 +15,6 @@ __all__ = [
     'Build',
     'Tag',
     'Tagged',
-    'attrib',
-    'context',
     'factory',
     'inject',
     'new_container',
