@@ -14,12 +14,14 @@ class Build(SlotsReprMixin):
 
     .. doctest::
 
-        >>> from antidote import Build, factory, world
-        >>> @factory(dependency='test')
-        ... def f(name):
-        ...     return {'name': name}
-        >>> world[Build('test', name='me')]
-        {'name': 'me'}
+        >>> import antidote
+        >>> @antidote.register
+        ... class Dummy:
+        ...     def __init__(self, name=None):
+        ...         self.name = name
+        >>> dummy = antidote.world.get(antidote.Build(Dummy, name='me'))
+        >>> dummy.name
+        'me'
 
     With no arguments, that is to say :code:`Build(x)`, it is equivalent to
     :code:`x` for the :py:class:`~.core.DependencyContainer`.
