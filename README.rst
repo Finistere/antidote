@@ -58,7 +58,7 @@ Features Highlight
 - Integrates well with any code, injected functions can be called as usual
   with all their arguments.
 - Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
-  (>= v17.1).
+  through the `antidote_attrs` package.
 - Thread-safe and limited performance impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
 - Dependency cycle detection.
@@ -87,8 +87,7 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
 
 .. code-block:: python
 
-    from antidote import antidote, Dependency as Dy
-    from operator import getitem
+    import antidote
 
 
     class Database:
@@ -98,34 +97,30 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
         def __init__(self, *args, **kwargs):
             """ Initializes the database. """
 
-    config = {
-        'db': {
-            'host': 'host',
-            'user': 'user',
-            'port': '5432',
-            'password': 'password',
-        }
+    parameters = {
+        'db.host': 'host',
+        'db.user': 'user',
+        'db.port': 5432,
+        'db.password': 'password'
     }
 
-    # Add configuration parameters.
-    antidote.register_parameters(config, getter=getitem, prefix='conf:',
-                                 split='.')
+    @antidote.resource
+    def conf(key):
+        return parameters[key]
 
     # Declare a factory which should be called to instantiate Database.
     # Variables names are used here for injection. A dictionary mapping
     # arguments name to their dependency could also have been used.
-    @antidote.factory(dependencies=('conf:db.host', 'conf:db.port',
-                               'conf:db.user', 'conf:db.password'))
-    def database_factory(db_host, db_port, db_user,
-                         db_password) -> Database:
+    @antidote.factory(dependencies='conf:db.{arg_name}')
+    def database_factory(host: str, port: int, user: str, password: str) -> Database:
         """
         Configure your database.
         """
         return Database(
-            host=db_host,
-            port=int(db_port),
-            user=db_user,
-            password=db_password
+            host=host,
+            port=port,
+            user=user,
+            password=password
         )
 
     # Declare DatabaseWrapper as a service to be injected.
@@ -151,10 +146,10 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
     # You can still explicitly pass the arguments to override
     # injection.
     f(DatabaseWrapper(database_factory(
-        db_host=config['db']['host'],
-        db_port=config['db']['port'],
-        db_user=config['db']['user'],
-        db_password=config['db']['password']
+        host=parameters['db.host'],
+        port=parameters['db.port'],
+        user=parameters['db.user'],
+        password=parameters['db.password']
     )))
 
 
@@ -211,23 +206,3 @@ Pull requests **will not** be accepted if:
 
 *Do not hesitate to send a pull request, even if incomplete, to get early
 feedback ! :)*
-
-
-TODO
-====
-
-
-This actually more of a roadmap of features. Those marked with a "(?)" may not
-be implemented.
-
-- tags to filter services and retrieve a list of them.
-- Add a proper way to test with injector.bind + mocking utility.
-- Add possibility for a factory to be aware of the injected variable's name
-  annotation. And take it into account for the dependency hash if, and only if,
-  it is specified. (?)
-- way to restrict services availability, either through tags, different
-  containers or injectors, etc... (?)
-- proxies (?)
-- rework of :code:`register_parameters` to something like :code:`getter` to
-  provide a way of getting remote parameters. (?)
-

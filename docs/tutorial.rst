@@ -43,15 +43,15 @@ If you need to retrieve :code:`Service` directly you can use the global
 
 .. doctest:: tutorial_overview
 
-    >>> from antidote import global_container
-    >>> global_container[Service]
+    >>> from antidote import world
+    >>> world.get(Service)
     <Service object at ...>
 
 By default, it will return same instance every time:
 
 .. doctest:: tutorial_overview
 
-    >>> global_container[Service] is global_container[Service]
+    >>> world.get(Service) is world.get(Service)
     True
 
 Let's take a quick look on how this works. It can be simplified to three
@@ -131,8 +131,8 @@ service for this:
 
 .. doctest:: tutorial_services
 
-    >>> from antidote import global_container
-    >>> global_container[DatabaseStatistics].get_user_count()
+    >>> from antidote import world
+    >>> world.get(DatabaseStatistics).get_user_count()
     1
 
 No need to use :py:func:`.inject` on :code:`__init__`, :py:func`.register` will
@@ -166,50 +166,50 @@ need, a factory:
 
 .. doctest:: tutorial_services
 
-    >>> global_container[User]
+    >>> world.get(User)
     User(name='Bob')
 
-:py:func:`factory` will use the return type hint as the dependency ID, it can
-also be explicitly specified with the parameter :code:`dependency_id`.
+:py:func:`factory` uses the return type hint as the dependency ID.
 
 But what happens if we modify the database now ?
 
 .. doctest:: tutorial_services
 
-    >>> global_container[Database].users = [dict(name='Alice'), dict(name='John')]
+    >>> world.get(Database).users = [dict(name='Alice'), dict(name='John')]
     >>> get_user_count()
     2
-    >>> global_container[DatabaseStatistics].get_user_count()
+    >>> world.get(DatabaseStatistics).get_user_count()
     2
 
 Perfect ! What about our first user ?
 
 .. doctest:: tutorial_services
 
-    >>> global_container[User]
+    >>> world.get(User)
     User(name='Bob')
 
 But... :code:`'Bob'` is not even in our database anymore ! We just missed an
 important part of dependency injection, the scope of the dependency. The scope
 is the context in which an specific instance is valid as a dependency. The
-default scope is singleton, which means that dependencies are only
-instantiated once during the application lifetime.
+default scope is singleton, which means that dependencies are only instantiated
+once during the application lifetime.
 
 .. testcode:: tutorial_services
 
-    from antidote import factory
+    class FirstUser:
+        pass
 
-    @factory(dependency_id='real first user', singleton=False)
-    def first_user(db: Database):
+    @factory(singleton=False)
+    def first_user(db: Database) -> FirstUser:
         return User(**db.users[0])
 
 .. doctest:: tutorial_services
 
-    >>> global_container['real first user']
+    >>> world.get(FirstUser)
     User(name='Alice')
 
-Here we had to use another :code:`dependency_id` as Antidote out of the box
-does not accept any duplicate dependency IDs.
+Here we created another type as Antidote does not accept any duplicate
+dependency IDs.
 
 
 3. Configuration
@@ -239,9 +239,9 @@ Let's give Antidote a shot and see what we can do:
 
 .. testcode:: tutorial_conf
 
-    from antidote import inject, global_container
+    from antidote import inject, world
 
-    global_container.update_singletons(config)
+    world.update_singletons(config)
 
     @inject(use_names=True)
     def am_i_in_prod_v2(env: str):
@@ -281,7 +281,7 @@ declared, the resource can be accessed through its dependency ID
 
 .. doctest:: tutorial_conf
 
-    >>> global_container['conf:env']
+    >>> world.get('conf:env')
     'PROD'
 
 As we cannot have :code:`':'` in the argument name, we cannot use
@@ -291,7 +291,7 @@ is for :
 
 .. testcode:: tutorial_conf
 
-    @inject(dependencies='conf:{name}')
+    @inject(dependencies='conf:{arg_name}')
     def am_i_in_prod_v3(env: str):
         return env == 'PROD'
 
@@ -345,7 +345,7 @@ resource:
     def env_conf(name):
         return config[name.lower()]
 
-    @inject(dependencies='env_conf:{name}')
+    @inject(dependencies='env_conf:{arg_name}')
     def am_i_in_prod_v5(env: str):
         return env == 'PROD'
 

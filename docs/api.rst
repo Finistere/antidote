@@ -2,54 +2,44 @@ API Reference
 =============
 
 
-Injection
----------
+Core
+----
 
-.. automodule:: antidote.injection.inject
+.. automodule:: antidote.core.injection
     :members:
 
-.. automodule:: antidote.injection.wiring
+.. automodule:: antidote.core.container
     :members:
-
 
 Helpers
 -------
 
-.. automodule:: antidote.helpers.registration
+.. automodule:: antidote.helpers.register
     :members:
 
-.. automodule:: antidote.helpers.attrs
+.. automodule:: antidote.helpers.factory
+    :members:
+
+.. automodule:: antidote.helpers.resource
+    :members:
+
+.. automodule:: antidote.helpers.provider
     :members:
 
 .. automodule:: antidote.helpers.container
     :members:
 
-
-Container
----------
-
-.. autoclass:: antidote.container.container.DependencyContainer
-    :members:
-    :special-members:
-    :exclude-members: __dict__,__weakref__,__init__,__repr__,__str__
-
-.. autoclass:: antidote.container.container.Dependency
-    :members:
-
-.. autoclass:: antidote.container.container.Instance
-    :members:
-
-.. autoclass:: antidote.container.container.Provider
+.. automodule:: antidote.helpers.wire
     :members:
 
 
 Providers
 ---------
 
-Factory
+Service
 ^^^^^^^
 
-.. automodule:: antidote.providers.factory
+.. automodule:: antidote.providers.service
     :members: FactoryProvider,Build
 
 Resource
@@ -61,10 +51,7 @@ Resource
 Tag
 ^^^
 
-.. automodule:: antidote.providers.tag.dependency
-    :members:
-
-.. automodule:: antidote.providers.tag.provider
+.. automodule:: antidote.providers.tag
     :members:
 
 
