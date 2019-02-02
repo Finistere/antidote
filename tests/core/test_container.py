@@ -43,14 +43,14 @@ def test_dependency_repr():
 
 def test_setitem(container: DependencyContainer):
     s = object()
-    container['service'] = s
+    container.update_singletons({'service': s})
 
-    assert s is container['service']
+    assert s is container.get('service')
     assert repr(s) in repr(container)
 
 
 def test_update(container: DependencyContainer):
-    container[Service] = Service()
+    container.update_singletons({Service: Service()})
 
     another_service = AnotherService()
     x = object()
@@ -60,8 +60,8 @@ def test_update(container: DependencyContainer):
         'x': x
     })
 
-    assert another_service is container[Service]
-    assert x is container['x']
+    assert another_service is container.get(Service)
+    assert x is container.get('x')
 
 
 def test_register_provider(container: DependencyContainer):
@@ -80,14 +80,14 @@ def test_getitem(container: DependencyContainer):
     container.register_provider(DummyProvider({'name': 'Antidote'}))
 
     with pytest.raises(DependencyNotFoundError):
-        container[object]
+        container.get(object)
 
     with pytest.raises(DependencyInstantiationError):
-        container[ServiceWithNonMetDependency]
+        container.get(ServiceWithNonMetDependency)
 
-    assert isinstance(container[Service], Service)
+    assert isinstance(container.get(Service), Service)
     assert isinstance(container.provide(Service), Service)
-    assert 'Antidote' == container['name']
+    assert 'Antidote' == container.get('name')
     assert 'Antidote' == container.provide('name')
 
 
@@ -97,36 +97,36 @@ def test_singleton(container: DependencyContainer):
         AnotherService: lambda: AnotherService(),
     }))
 
-    service = container[Service]
-    assert service is container[Service]
+    service = container.get(Service)
+    assert service is container.get(Service)
 
     container.providers[DummyFactoryProvider].singleton = False
-    another_service = container[AnotherService]
-    assert another_service is not container[AnotherService]
+    another_service = container.get(AnotherService)
+    assert another_service is not container.get(AnotherService)
 
     assert {Service: service, DependencyContainer: container} == container.singletons
 
 
 def test_dependency_cycle_error(container: DependencyContainer):
     container.register_provider(DummyFactoryProvider({
-        Service: lambda: Service(container[AnotherService]),
-        AnotherService: lambda: AnotherService(container[YetAnotherService]),
-        YetAnotherService: lambda: YetAnotherService(container[Service]),
+        Service: lambda: Service(container.get(AnotherService)),
+        AnotherService: lambda: AnotherService(container.get(YetAnotherService)),
+        YetAnotherService: lambda: YetAnotherService(container.get(Service)),
     }))
 
     with pytest.raises(DependencyCycleError):
-        container[Service]
+        container.get(Service)
 
     with pytest.raises(DependencyCycleError):
-        container[AnotherService]
+        container.get(AnotherService)
 
     with pytest.raises(DependencyCycleError):
-        container[YetAnotherService]
+        container.get(YetAnotherService)
 
 
 def test_repr_str(container: DependencyContainer):
     container.register_provider(DummyProvider({'name': 'Antidote'}))
-    container['test'] = 1
+    container.update_singletons({'test': 1})
 
     assert 'test' in repr(container)
     assert repr(container.providers[DummyProvider]) in repr(container)
@@ -155,12 +155,12 @@ def test_bound_dependency_types():
     container = DependencyContainer()
     container.register_provider(DummyProvider2(container))
     container.register_provider(DummyProvider1(container))
-    assert isinstance(container[CustomDependency()], DummyProvider1)
+    assert isinstance(container.get(CustomDependency()), DummyProvider1)
 
     container = DependencyContainer()
     container.register_provider(DummyProvider1(container))
     container.register_provider(DummyProvider2(container))
-    assert isinstance(container[CustomDependency()], DummyProvider1)
+    assert isinstance(container.get(CustomDependency()), DummyProvider1)
 
 
 def test_bound_dependency_types_conflict():

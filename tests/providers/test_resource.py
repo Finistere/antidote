@@ -75,7 +75,7 @@ def test_singleton(provider: ResourceProvider):
 
 def test_lazy(provider: ResourceProvider):
     sentinel = object()
-    provider._container['lazy_getter'] = lambda _: sentinel
+    provider._container.update_singletons({'lazy_getter': lambda _: sentinel})
     provider.register(Lazy('lazy_getter'), namespace='test')
 
     assert sentinel is provider.provide('test:dummy').instance

@@ -35,9 +35,9 @@ def test_function(container):
     def build() -> Service:
         return Service()
 
-    assert isinstance(container[Service], Service)
+    assert isinstance(container.get(Service), Service)
     # singleton by default
-    assert container[Service] is container[Service]
+    assert container.get(Service) is container.get(Service)
 
 
 def test_class(container):
@@ -46,9 +46,9 @@ def test_class(container):
         def __call__(self) -> Service:
             return Service()
 
-    assert isinstance(container[Service], Service)
+    assert isinstance(container.get(Service), Service)
     # singleton by default
-    assert container[Service] is container[Service]
+    assert container.get(Service) is container.get(Service)
 
 
 def test_missing_return_type_hint(container):

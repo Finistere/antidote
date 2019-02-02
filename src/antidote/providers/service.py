@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
@@ -106,7 +106,7 @@ class ServiceProvider(DependencyProvider):
 
         if factory.func is None:
             assert factory.lazy_dependency is not None
-            factory.func = self._container[factory.lazy_dependency]
+            factory.func = self._container.get(factory.lazy_dependency)
             factory.lazy_dependency = None
 
         return DependencyInstance(factory.func(*args, **kwargs),
@@ -114,7 +114,7 @@ class ServiceProvider(DependencyProvider):
 
     def register(self,
                  service: type,
-                 factory: Callable = None,
+                 factory: Union[Callable, Lazy] = None,
                  singleton: bool = True,
                  takes_dependency: bool = False):
         """
@@ -147,7 +147,7 @@ class ServiceProvider(DependencyProvider):
                 takes_dependency=takes_dependency
             )
         else:
-            raise ValueError("factory must be callable")
+            raise TypeError("factory must be callable or be a Lazy dependency.")
 
         if service in self._service_to_factory:
             raise DuplicateDependencyError(service)

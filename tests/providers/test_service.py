@@ -98,7 +98,9 @@ def test_build(provider: ServiceProvider):
 
 def test_lazy(provider: ServiceProvider):
     sentinel = object()
-    provider._container['lazy_getter'] = lambda: sentinel
+    provider._container.update_singletons({
+        'lazy_getter': lambda: sentinel
+    })
     provider.register(factory=Lazy('lazy_getter'), service=Service)
 
     assert sentinel is provider.provide(Service).instance
@@ -114,16 +116,16 @@ def test_duplicate_error(provider: ServiceProvider):
         provider.register(factory=lambda: Service(), service=Service)
 
 
-@pytest.mark.parametrize('factory', ['test', object()])
-def test_invalid_factory(provider: ServiceProvider, factory):
-    with pytest.raises(ValueError):
-        provider.register(factory=factory, service=Service)
-
-
-@pytest.mark.parametrize('service', ['test', object()])
-def test_invalid_service(provider: ServiceProvider, service):
+@pytest.mark.parametrize(
+    'kwargs',
+    [dict(service='test'),
+     dict(service=object()),
+     dict(factory='test', service=Service),
+     dict(factory=object(), service=Service)]
+)
+def test_invalid_type(provider: ServiceProvider, kwargs):
     with pytest.raises(TypeError):
-        provider.register(service=service)
+        provider.register(**kwargs)
 
 
 @pytest.mark.parametrize('dependency', ['test', Service, object()])

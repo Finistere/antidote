@@ -38,7 +38,7 @@ class ResourceProvider(DependencyProvider):
                 for resource in resources:
                     if resource.getter is None:
                         assert resource.lazy_dependency is not None
-                        resource.getter = self._container[resource.lazy_dependency]
+                        resource.getter = self._container.get(resource.lazy_dependency)
                         resource.lazy_dependency = None
                     try:
                         instance = resource.getter(resource_name)

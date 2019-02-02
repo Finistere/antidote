@@ -7,12 +7,12 @@ from antidote.providers import ServiceProvider, TagProvider
 
 @pytest.fixture()
 def container():
-    c = DependencyContainer()
-    c.register_provider(ServiceProvider(container=c))
-    c.register_provider(TagProvider(container=c))
-    c['instantiate'] = lambda cls: cls()
+    container = DependencyContainer()
+    container.register_provider(ServiceProvider(container=container))
+    container.register_provider(TagProvider(container=container))
+    container.update_singletons({'instantiate': lambda cls: cls()})
 
-    return c
+    return container
 
 
 def test_simple(container):
@@ -20,9 +20,9 @@ def test_simple(container):
     class Service:
         pass
 
-    assert isinstance(container[Service], Service)
+    assert isinstance(container.get(Service), Service)
     # singleton by default
-    assert container[Service] is container[Service]
+    assert container.get(Service) is container.get(Service)
 
 
 def test_singleton(container):
@@ -30,13 +30,13 @@ def test_singleton(container):
     class Singleton:
         pass
 
-    assert container[Singleton] is container[Singleton]
+    assert container.get(Singleton) is container.get(Singleton)
 
     @register(container=container, singleton=False)
     class NoScope:
         pass
 
-    assert container[NoScope] != container[NoScope]
+    assert container.get(NoScope) != container.get(NoScope)
 
 
 @pytest.mark.parametrize(
@@ -60,13 +60,13 @@ def test_factory(container, factory):
         def static_build(cls):
             return cls()
 
-    assert isinstance(container[Service], Service)
+    assert isinstance(container.get(Service), Service)
 
     @register(container=container, factory=factory)
     class SubService(Service):
         pass
 
-    assert isinstance(container[SubService], SubService)
+    assert isinstance(container.get(SubService), SubService)
 
 
 @pytest.mark.parametrize('cls', ['test', object(), lambda: None])

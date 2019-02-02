@@ -87,10 +87,10 @@ def parametrize_tagging(tags):
 def test_multi_tags(container, dependency, tags):
     for tag in tags:
         tag_name = tag if isinstance(tag, str) else tag.name
-        tagged_dependencies = container[Tagged(tag_name)]  # type: TaggedDependencies
+        tagged_dependencies = container.get(Tagged(tag_name))  # type: TaggedDependencies
 
         assert 1 == len(tagged_dependencies)
-        assert [container[dependency]] == list(tagged_dependencies.instances())
+        assert [container.get(dependency) == list(tagged_dependencies.instances())]
         assert [dependency] == list(tagged_dependencies.dependencies())
 
         bound_tag, = list(tagged_dependencies.tags())

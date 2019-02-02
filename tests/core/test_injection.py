@@ -60,12 +60,12 @@ class AnotherService:
 )
 def test_without_type_hints(expected, kwargs):
     container = DependencyContainer()
-    container[Service] = Service()
-    container[AnotherService] = AnotherService()
-    container['first'] = object()
-    container['second'] = object()
-    container['prefix:first'] = object()
-    container['prefix:second'] = object()
+    container.update_singletons({Service: Service()})
+    container.update_singletons({AnotherService: AnotherService()})
+    container.update_singletons({'first': object()})
+    container.update_singletons({'second': object()})
+    container.update_singletons({'prefix:first': object()})
+    container.update_singletons({'prefix:second': object()})
     default = object()
 
     @inject(container=container, **kwargs)
@@ -73,7 +73,7 @@ def test_without_type_hints(expected, kwargs):
         return first, second
 
     expected = tuple((
-        container[d] if d is not None else default
+        container.get(d) if d is not None else default
         for d in expected
     ))
     assert expected == f()
@@ -152,12 +152,12 @@ def test_without_type_hints(expected, kwargs):
 )
 def test_with_type_hints(expected, kwargs):
     container = DependencyContainer()
-    container[Service] = Service()
-    container[AnotherService] = AnotherService()
-    container['first'] = object()
-    container['second'] = object()
-    container['prefix:first'] = object()
-    container['prefix:second'] = object()
+    container.update_singletons({Service: Service()})
+    container.update_singletons({AnotherService: AnotherService()})
+    container.update_singletons({'first': object()})
+    container.update_singletons({'second': object()})
+    container.update_singletons({'prefix:first': object()})
+    container.update_singletons({'prefix:second': object()})
     default = object()
 
     @inject(container=container, **kwargs)
@@ -165,7 +165,7 @@ def test_with_type_hints(expected, kwargs):
         return first, second
 
     expected = tuple((
-        container[d] if d is not None else default
+        container.get(d) if d is not None else default
         for d in expected
     ))
     assert expected == f()
@@ -181,7 +181,7 @@ def test_with_type_hints(expected, kwargs):
 )
 def test_ignored_type_hints(type_hint):
     container = DependencyContainer()
-    container[type_hint] = object()
+    container.update_singletons({type_hint: object()})
 
     @inject(container=container)
     def f(x: type_hint):

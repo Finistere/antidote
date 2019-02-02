@@ -14,7 +14,7 @@ def prepare_callable(obj: Union[Callable, type],
     if inspect.isclass(obj):
         obj = cast(type, obj)
         if '__call__' not in dir(obj):
-            raise TypeError("A Factory class must implement __call__()")
+            raise TypeError("The class must implement __call__()")
         from ..helpers import register, wire
 
         type_hints = get_type_hints(obj.__call__)
@@ -34,8 +34,7 @@ def prepare_callable(obj: Union[Callable, type],
 
         obj = register(obj, auto_wire=False, container=container)
         func = Lazy(obj)  # type: Union[Callable, Lazy]
-    elif inspect.isfunction(obj):
-        obj = cast(Callable, obj)
+    elif callable(obj):
         type_hints = get_type_hints(obj)
         if auto_wire:
             obj = inject(obj,
@@ -44,7 +43,8 @@ def prepare_callable(obj: Union[Callable, type],
 
         func = obj
     else:
-        raise TypeError("Factory must be either a function "
-                        "or a class implementing __call__().")
+        raise TypeError("Must be either a function "
+                        "or a class implementing __call__(), "
+                        "not {!r}".format(type(obj)))
 
     return obj, func, type_hints.get('return')

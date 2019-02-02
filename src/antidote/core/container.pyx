@@ -13,6 +13,7 @@ from antidote._internal.stack cimport DependencyStack
 from ..exceptions import (DependencyCycleError, DependencyInstantiationError,
                           DependencyNotFoundError)
 
+
 @cython.freelist(32)
 cdef class DependencyInstance:
     def __cinit__(self, object instance, bint singleton = False):
@@ -75,22 +76,6 @@ cdef class DependencyContainer:
 
         self._providers.append(provider)
 
-    def __setitem__(self, dependency, instance):
-        """
-        Set a dependency in the singletons.
-        """
-        lock_fastrlock(self._instantiation_lock, -1, True)
-        self._singletons[dependency] = instance
-        unlock_fastrlock(self._instantiation_lock)
-
-    def __delitem__(self, dependency):
-        """
-        Delete a dependency in the singletons.
-        """
-        lock_fastrlock(self._instantiation_lock, -1, True)
-        del self._singletons[dependency]
-        unlock_fastrlock(self._instantiation_lock)
-
     def update_singletons(self, dependencies: Mapping):
         """
         Update the singletons.
@@ -99,7 +84,7 @@ cdef class DependencyContainer:
         self._singletons.update(dependencies)
         unlock_fastrlock(self._instantiation_lock)
 
-    def __getitem__(self, dependency):
+    def get(self, dependency):
         instance = self.provide(dependency)
         if instance is self.SENTINEL:
             raise DependencyNotFoundError(dependency)

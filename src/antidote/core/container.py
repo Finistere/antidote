@@ -95,14 +95,7 @@ class DependencyContainer:
         with self._instantiation_lock:
             self._singletons.update(dependencies)
 
-    def __setitem__(self, dependency, instance):
-        """
-        Set a dependency in the singletons.
-        """
-        with self._instantiation_lock:
-            self._singletons[dependency] = instance
-
-    def __getitem__(self, dependency):
+    def get(self, dependency):
         """
         Returns an instance for the given dependency. All registered providers
         are called sequentially until one returns an instance.  If none is
@@ -183,7 +176,7 @@ class DependencyProvider:
     bound_dependency_types = cast(Tuple[type], ())  # type: Tuple[type]
 
     def __init__(self, container: DependencyContainer):
-        self._container = container
+        self._container = container  # type: DependencyContainer
 
     def provide(self, dependency: Any) -> Optional[DependencyInstance]:
         """

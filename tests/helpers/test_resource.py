@@ -58,4 +58,4 @@ def test_namespace(mk_getter, container):
     mk_getter = functools.partial(mk_getter, data=data)
 
     getter_()(mk_getter('conf'))
-    assert data['test'] == container['conf:test']
+    assert data['test'] == container.get('conf:test')

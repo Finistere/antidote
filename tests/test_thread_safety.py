@@ -5,6 +5,7 @@ import time
 import pytest
 
 from antidote import Tagged, factory, new_container
+from antidote.core import DependencyContainer
 from antidote.providers.tag import TaggedDependencies
 
 
@@ -43,7 +44,7 @@ def multi_thread_do(target, n_threads=10):
         thread.join()
 
 
-def test_container_instantiation_safety(container):
+def test_container_instantiation_safety(container: DependencyContainer):
     n_threads = 10
 
     factory(make_delayed_factory(Service),
@@ -57,8 +58,8 @@ def test_container_instantiation_safety(container):
     non_singleton_got = []
 
     def worker():
-        singleton_got.append(container[Service])
-        non_singleton_got.append(container[AnotherService])
+        singleton_got.append(container.get(Service))
+        non_singleton_got.append(container.get(AnotherService))
 
     multi_thread_do(worker, n_threads)
 
@@ -66,7 +67,7 @@ def test_container_instantiation_safety(container):
     assert n_threads == len(set(non_singleton_got))
 
 
-def test_tagged_dependencies_instantiation_safety(container):
+def test_tagged_dependencies_instantiation_safety(container: DependencyContainer):
     n_dependencies = 40
 
     for i in range(n_dependencies):
@@ -75,7 +76,7 @@ def test_tagged_dependencies_instantiation_safety(container):
                 tags=['test'],
                 container=container)
 
-    tagged = container[Tagged('test')]  # type: TaggedDependencies
+    tagged = container.get(Tagged('test'))  # type: TaggedDependencies
     dependencies = []
 
     def worker():

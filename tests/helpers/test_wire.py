@@ -12,8 +12,8 @@ def container():
 
 
 def test_multi_wire(container: DependencyContainer):
-    xx = container['x']
-    yy = container['y']
+    xx = container.get('x')
+    yy = container.get('y')
 
     @wire(methods=['f', 'g'],
           dependencies=dict(x='x', y='y'),
@@ -60,7 +60,7 @@ def test_multi_wire(container: DependencyContainer):
 
 
 def test_subclass_classmethod(container: DependencyContainer):
-    xx = container['x']
+    xx = container.get('x')
 
     @wire(methods=['cls_method'], use_names=True, container=container)
     class Dummy:
@@ -77,7 +77,7 @@ def test_subclass_classmethod(container: DependencyContainer):
 
 
 def test_use_mro(container: DependencyContainer):
-    xx = container['x']
+    xx = container.get('x')
     sentinel = object()
 
     class Dummy:

@@ -11,7 +11,7 @@ def container():
 
 
 def test_simple(container):
-    container['service'] = object()
+    container.update_singletons({'service': object()})
 
     @provider(container=container, use_mro=True)
     class DummyProvider(DependencyProvider):
@@ -20,7 +20,7 @@ def test_simple(container):
                 return DependencyInstance(dependency)
 
     assert isinstance(container.providers[DummyProvider], DummyProvider)
-    assert 'test' == container['test']
+    assert 'test' == container.get('test')
 
 
 @pytest.mark.parametrize('cls', [1, type('MissingCall', tuple(), {})])

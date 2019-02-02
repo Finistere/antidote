@@ -125,7 +125,7 @@ def test_provide_tags(provider: TagProvider):
     assert 1 == len(tagged_dependencies)
     assert ['test'] == list(tagged_dependencies.dependencies())
     assert ['tag1'] == [tag.name for tag in tagged_dependencies.tags()]
-    assert [container['test']] == list(tagged_dependencies.instances())
+    assert [container.get('test') == list(tagged_dependencies.instances())]
 
     result = provider.provide(Tagged('tag2'))
     assert isinstance(result, DependencyInstance)
@@ -137,7 +137,7 @@ def test_provide_tags(provider: TagProvider):
     tags = list(tagged_dependencies.tags())
     assert {'tag2', 'tag2'} == {tag.name for tag in tags}
     assert any(tag is custom_tag for tag in tags)
-    instances = {container['test'], container['test2']}
+    instances = {container.get('test'), container.get('test2')}
     assert instances == set(tagged_dependencies.instances())
 
 

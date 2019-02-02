@@ -271,18 +271,18 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,
                 if return_wrapped:
                     if wrapper in {register_build, register_external_build}:
                         try:
-                            return container[wrapped_]
+                            return container.get(wrapped_)
                         except DependencyInstantiationError as e:
                             raise TypeError() from e
                     else:
                         return wrapped_()
 
                 if wrapper in {register, register_build, register_external_build}:
-                    return container[wrapped_]
+                    return container.get(wrapped_)
                 elif wrapper == factory:
-                    return container[MyService]
+                    return container.get(MyService)
                 elif wrapper == resource_:
-                    return container['my_service:*']
+                    return container.get('my_service:*')
                 elif wrapper == provider:
                     return container.providers[wrapped_]
                 elif wrapper in {inject, wire_}:
@@ -300,14 +300,14 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,
 
 @parametrize_injection(all_tests)
 def test_basic_wiring(container, instance: MyService):
-    assert instance.service is container[Service]
+    assert instance.service is container.get(Service)
     assert instance.another_service is None
 
 
 @parametrize_injection(class_tests, return_wrapped=True,
                        auto_wire=['__init__', 'method'])
 def test_complex_wiring(container, instance: MyService):
-    assert instance.method() is container[YetAnotherService]
+    assert instance.method() is container.get(YetAnotherService)
 
 
 @parametrize_injection(class_tests,
@@ -316,7 +316,7 @@ def test_complex_wiring(container, instance: MyService):
                        auto_wire=['__init__', 'method'],
                        use_mro=True)
 def test_subclass_use_mro(container, instance: MyService):
-    assert instance.method() is container[YetAnotherService]
+    assert instance.method() is container.get(YetAnotherService)
 
 
 @parametrize_injection(class_tests,
@@ -349,7 +349,7 @@ def test_no_type_hints(container, create_instance: Callable):
 
 @parametrize_injection(all_tests, use_type_hints=['service'])
 def test_type_hints_only_service(container, instance):
-    assert instance.service is container[Service]
+    assert instance.service is container.get(Service)
     assert instance.another_service is None
 
 
@@ -367,7 +367,7 @@ def test_type_hints_only_another_service(container, create_instance: Callable):
     dependencies=lambda s: AnotherService if s == 'service' else None
 )
 def test_dependencies_func_override(container, instance: MyService):
-    assert instance.service is container[AnotherService]
+    assert instance.service is container.get(AnotherService)
     assert instance.another_service is None
 
 
@@ -376,49 +376,49 @@ def test_dependencies_func_override(container, instance: MyService):
     dependencies=lambda s: AnotherService if s == 'another_service' else None
 )
 def test_dependencies_func(container, instance: MyService):
-    assert instance.service is container[Service]
-    assert instance.another_service is container[AnotherService]
+    assert instance.service is container.get(Service)
+    assert instance.another_service is container.get(AnotherService)
 
 
 @parametrize_injection(all_tests,
                        dependencies=dict(service=AnotherService))
 def test_dependencies_dict_override(container, instance: MyService):
-    assert instance.service is container[AnotherService]
+    assert instance.service is container.get(AnotherService)
     assert instance.another_service is None
 
 
 @parametrize_injection(all_tests,
                        dependencies=dict(another_service=AnotherService))
 def test_dependencies_dict(container, instance: MyService):
-    assert instance.service is container[Service]
-    assert instance.another_service is container[AnotherService]
+    assert instance.service is container.get(Service)
+    assert instance.another_service is container.get(AnotherService)
 
 
 @parametrize_injection(function_tests, dependencies=(AnotherService,))
 def test_function_dependencies_tuple_override(container, instance: MyService):
-    assert instance.service is container[AnotherService]
+    assert instance.service is container.get(AnotherService)
     assert instance.another_service is None
 
 
 @parametrize_injection(function_tests, dependencies=(None, AnotherService))
 def test_function_dependencies_tuple(container, instance: MyService):
-    assert instance.service is container[Service]
-    assert instance.another_service is container[AnotherService]
+    assert instance.service is container.get(Service)
+    assert instance.another_service is container.get(AnotherService)
 
 
 @parametrize_injection(all_tests, use_names=True)
 def test_use_names_activated(container, instance: MyService):
-    assert instance.service is container[Service]
-    assert instance.another_service is container['another_service']
+    assert instance.service is container.get(Service)
+    assert instance.another_service is container.get('another_service')
 
 
 @parametrize_injection(all_tests, use_names=['another_service'])
 def test_use_names_only_another_service(container, instance: MyService):
-    assert instance.service is container[Service]
-    assert instance.another_service is container['another_service']
+    assert instance.service is container.get(Service)
+    assert instance.another_service is container.get('another_service')
 
 
 @parametrize_injection(all_tests, use_names=['service'])
 def test_use_names_only_service(container, instance: MyService):
-    assert instance.service is container[Service]
+    assert instance.service is container.get(Service)
     assert instance.another_service is None
