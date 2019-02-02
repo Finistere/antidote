@@ -21,21 +21,6 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-**WARNING**: The master branch is in a work in progress state for the v0.4, there
-are some breaking changes and the current documentation is only valid for the v0.3.
-The v0.4 will bring among others:
-
-- better performance through Cython
-- a global dependency container is not imposed and necessary anymore
-- better dependency definitions for more maintainable code
-
-*Antidote* is a dependency injection micro framework for Python 3.4+.
-It provides simple decorators to declare services and to inject those
-automatically based on type hints.
-
-If you're currently using the v0.3, be sure to use the stable documentation: `<https://antidote.readthedocs.io/en/stable/index.html>`_
-
-
 Why ?
 =====
 

@@ -12,14 +12,14 @@ Changelog
   container of Antidote is used. Thus one can easily replace 
   `from antidote import antidote` to `import antidote` to adapt existing code.
 - The global container of Antidote, previously named `container`, has been 
-  renamed `global_container`.
+  renamed `world`.
 - `Dependency` does not take additional arguments anymore, for custom 
   dependencies `Build`, `Tagged` must be used instead.
 - Custom providers must inherit `Provider`.
 - `register_parameters()` has been replaced by a more general function, 
   `resource()`. See the documentation to imitate its functionality.
-- In `provider()`, `wire()`, `register()`, the argument `cls` has  been renamed
-  `class_`.
+- `factory()` is more strict. Subclasses are not handled anymore, one should
+  use `register()` with its `factory` argument instead.
 
 ### Features
 
@@ -27,18 +27,9 @@ Changelog
   a dependency. This allows one to extend an app by registering a service in
   special way just by adding a tag.
 - Type hints usage can now be finely controlled or disabled with `use_type_hints`.
-- Add `getter()` to support custom string dependencies.
-
-### Changes
-
-- Add `DependencyManager.provide` method for easier manipulation in the
-  shell.
-
-### Bug fixes
-
-- When `DependencyManager.factory` was applied on a class it would return
-  an instance of it and not the class itself.
-
+- Add `resource()` to support custom resources, such as configuration.
+- Dependency providers are more strict for more maintainable code.
+- Use of Cython for better injection performance.
 
 0.3.0 (2018-04-29)
 ------------------
