@@ -19,3 +19,4 @@ cov_html
 /.ipynb_checkpoints/
 **.hypothesis/
 cython_debug/
+pip-wheel-metadata

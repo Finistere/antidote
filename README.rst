@@ -72,6 +72,13 @@ To install Antidote, simply run this command:
 
     pip install antidote
 
+In order to install the cython version, you'll need to install the following
+first (This should be better in the near future):
+
+.. code-block:: bash
+
+    pip install cython fastrlock
+
 
 Quick Start
 ===========

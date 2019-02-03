@@ -41,6 +41,7 @@ def generate_extensions():
 
 ext_modules = []
 requires = []
+setup_requires = ['setuptools_scm']
 
 try:
     from Cython.Build import cythonize
@@ -48,12 +49,13 @@ except ImportError:
     pass
 else:
     ext_modules = cythonize(generate_extensions(), annotate=True)
-    requires = ['fastrlock>=0.4,<0.5']
+    requires.append('fastrlock>=0.4,<0.5')
+    setup_requires.append('fastrlock>=0.4,<0.5')
 
 setup(
     name='antidote',
     use_scm_version=True,
-    setup_requires=['setuptools_scm'],
+    setup_requires=setup_requires,
     description='Transparent dependency injection.',
     long_description=readme,
     author='Benjamin Rabier',
