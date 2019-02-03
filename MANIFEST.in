@@ -1,4 +1,4 @@
-include LICENSE *.rst *.md benchmark.ipynb
+include LICENSE *.rst *.md benchmark.ipynb pyproject.toml
 
 # Sources
 recursive-include src *.py
