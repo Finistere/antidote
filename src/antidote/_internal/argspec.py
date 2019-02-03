@@ -1,7 +1,6 @@
 import inspect
-import typing
 from collections import OrderedDict
-from typing import Callable, Iterator, Sequence
+from typing import Callable, get_type_hints, Iterator, Sequence, Union
 
 
 class Argument:
@@ -13,6 +12,14 @@ class Argument:
 
 class Arguments:
     @classmethod
+    def from_method(cls,
+                    func: Union[Callable, staticmethod, classmethod]
+                    ) -> 'Arguments':
+        if isinstance(func, (staticmethod, classmethod)):
+            func = func.__func__
+        return cls.from_callable(func)
+
+    @classmethod
     def from_callable(cls, func: Callable) -> 'Arguments':
         arguments = []
         has_var_positional = False
@@ -20,7 +27,7 @@ class Arguments:
 
         try:
             # typing is used, as lazy evaluation is not done properly with Signature.
-            type_hints = typing.get_type_hints(func)
+            type_hints = get_type_hints(func)
         except Exception:  # Python 3.5.3 does not handle properly method wrappers
             type_hints = {}
 

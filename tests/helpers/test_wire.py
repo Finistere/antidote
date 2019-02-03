@@ -160,3 +160,7 @@ def test_ignore_missing(container: DependencyContainer):
     @wire(methods=['method'], container=container, ignore_missing=True)
     class Dummy2:
         pass
+
+    @wire(wire_super=True, methods=['method'], container=container, ignore_missing=True)
+    class Dummy3(Dummy2):
+        pass

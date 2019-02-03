@@ -35,6 +35,8 @@ def inject(func: Union[Callable, staticmethod, classmethod] = None,
 
     Args:
         func: Callable to be wrapped.
+        arguments: Arguments of the function can directly be specified if they
+            have already been built.
         dependencies: Can be either a mapping of arguments name to their
             dependency, an iterable of dependencies or a function which returns
             the dependency given the arguments name. If an iterable is specified,
@@ -67,11 +69,7 @@ def inject(func: Union[Callable, staticmethod, classmethod] = None,
             return wrapped
 
         if arguments is None:
-            arguments = Arguments.from_callable(
-                wrapped.__func__
-                if isinstance(wrapped, (staticmethod, classmethod)) else
-                wrapped
-            )
+            arguments = Arguments.from_method(wrapped)
 
         blueprint = _build_injection_blueprint(
             arguments=arguments,

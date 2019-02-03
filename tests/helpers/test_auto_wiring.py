@@ -218,7 +218,7 @@ function_tests = [
 all_tests = class_tests + function_tests
 
 
-def parametrize_injection(tests, lazy=False, return_wrapped=False,
+def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
                           create_subclass=False,
                           **inject_kwargs):
     def decorator(test):

@@ -165,7 +165,7 @@ def lazy(dummy: 'Dummy'):
         ),
     ]
 )
-def test_arguments_builder(func, expected: Arguments):
+def test_from_callable(func, expected: Arguments):
     result = Arguments.from_callable(func)
     assert isinstance(result, Arguments)
     assert expected.has_var_positional == result.has_var_positional
@@ -185,8 +185,25 @@ def test_arguments_builder(func, expected: Arguments):
         assert expected_arg.type_hint == result_arg.type_hint
 
 
+@pytest.mark.parametrize(
+    'descriptor',
+    [staticmethod, classmethod]
+)
+def test_from_methods(descriptor):
+    def f(a, b=None):
+        pass
+
+    expected = Arguments.from_callable(f)
+    result = Arguments.from_method(descriptor(f))
+
+    for expected_arg, result_arg in zip(expected, result):
+        assert expected_arg.name == result_arg.name
+        assert expected_arg.has_default == result_arg.has_default
+        assert expected_arg.type_hint == result_arg.type_hint
+
+
 def test_broken_type_hints_cpy353(monkeypatch):
-    monkeypatch.setattr('typing.get_type_hints', raiser(Exception))
+    monkeypatch.setattr('antidote._internal.argspec.get_type_hints', raiser(Exception))
     Arguments.from_callable(k)
 
 
