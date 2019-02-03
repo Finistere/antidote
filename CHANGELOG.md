@@ -2,8 +2,10 @@ Changelog
 =========
 
 
-0.4.0-dev
----------
+0.4.0 (2019-02-03)
+------------------
+
+A lot of internals have changed, but it can roughly be resumed as the following:
 
 ### Breaking changes
 
