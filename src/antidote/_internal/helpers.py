@@ -1,13 +1,12 @@
 import inspect
 from typing import Any, Callable, cast, get_type_hints, Iterable, Tuple, Union
 
-from antidote.core import Lazy
-from ..core import DependencyContainer, inject
+from ..core import DependencyContainer, inject, Lazy
 
 
 def prepare_callable(obj: Union[Callable, type],
                      auto_wire: Union[bool, Iterable[str]],
-                     use_mro: Union[bool, Iterable[str]],
+                     wire_super: Union[bool, Iterable[str]],
                      container: DependencyContainer,
                      **inject_kwargs
                      ) -> Tuple[Union[Callable, type], Union[Callable, Lazy], Any]:
@@ -27,9 +26,9 @@ def prepare_callable(obj: Union[Callable, type],
 
             obj = cast(type, wire(obj,
                                   methods=methods,
-                                  use_mro=use_mro,
+                                  wire_super=wire_super,
                                   container=container,
-                                  ignore_missing_methods=auto_wire is True,
+                                  ignore_missing=auto_wire is True,
                                   **inject_kwargs))
 
         obj = register(obj, auto_wire=False, container=container)

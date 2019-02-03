@@ -2,9 +2,8 @@ import bisect
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from antidote.core import Lazy
 from .._internal.utils import SlotsReprMixin
-from ..core import DependencyContainer, DependencyInstance, DependencyProvider
+from ..core import DependencyContainer, DependencyInstance, DependencyProvider, Lazy
 from ..exceptions import ResourcePriorityConflict
 
 

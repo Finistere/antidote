@@ -101,6 +101,6 @@ def test_invalid_factory_wiring():
             return cls()
 
     with pytest.raises(TypeError):
-        @register(factory='build', use_mro=False)
+        @register(factory='build', wire_super=False)
         class Dummy2(NewDummy):
             pass

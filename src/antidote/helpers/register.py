@@ -1,11 +1,10 @@
-import inspect
 import collections.abc as c_abc
-from typing import Callable, cast, Iterable, Union, Tuple
+import inspect
+from typing import Callable, cast, Iterable, Tuple, Union
 
 from .wire import wire
 from .._internal.default_container import get_default_container
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
-from antidote.core import Lazy
+from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject, Lazy
 from ..providers.service import ServiceProvider
 from ..providers.tag import Tag, TagProvider
 
@@ -15,10 +14,10 @@ def register(class_: type = None,
              singleton: bool = True,
              factory: Union[Callable, str] = None,
              auto_wire: Union[bool, Iterable[str]] = None,
-             use_mro: Union[bool, Iterable[str]] = None,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
+             wire_super: Union[bool, Iterable[str]] = None,
              tags: Iterable[Union[str, Tag]] = None,
              container: DependencyContainer = None
              ) -> Union[Callable, type]:
@@ -51,6 +50,10 @@ def register(class_: type = None,
             also be specified to restrict this to those. Any type hints from
             the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
             ...) are ignored. Defaults to :code:`True`.
+        wire_super: If a method from a super-class needs to be wired, specify
+            either a list of method names or :code:`True` to enable it for
+            all methods. Defaults to :code:`False`, only methods defined in the
+            class itself can be wired.
         tags: Iterable of tag to be applied. Those must be either strings
             (the tag name) or :py:class:`~.providers.tag.Tag`. All
             dependencies with a specific tag can then be retrieved with
@@ -65,15 +68,15 @@ def register(class_: type = None,
     """
     container = container or get_default_container()
     auto_wire = auto_wire if auto_wire is not None else True
-    ignore_missing_methods = False
+    ignore_missing = False
 
     if auto_wire is True:
         if isinstance(factory, str):
             methods = (factory,)  # type: Tuple[str, ...]
-            if use_mro is None:
-                use_mro = (factory,)
+            if wire_super is None:
+                wire_super = (factory,)
         else:
-            ignore_missing_methods = True
+            ignore_missing = True
             methods = ('__init__',)
     elif auto_wire is False:
         pass
@@ -100,12 +103,12 @@ def register(class_: type = None,
         if auto_wire:
             cls = wire(cls,
                        methods=methods,
-                       use_mro=use_mro,
+                       wire_super=wire_super,
                        dependencies=dependencies,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
                        container=container,
-                       ignore_missing_methods=ignore_missing_methods)
+                       ignore_missing=ignore_missing)
 
         if factory is None or isinstance(factory, Lazy):
             pass

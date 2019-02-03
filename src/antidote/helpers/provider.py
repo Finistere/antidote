@@ -8,10 +8,10 @@ from ..core import DEPENDENCIES_TYPE, DependencyContainer, DependencyProvider
 def provider(class_: type = None,
              *,
              auto_wire: Union[bool, Iterable[str]] = True,
-             use_mro: Union[bool, Iterable[str]] = None,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
+             wire_super: Union[bool, Iterable[str]] = None,
              container: DependencyContainer = None):
     """Register a providers by its class.
 
@@ -37,6 +37,10 @@ def provider(class_: type = None,
             also be specified to restrict this to those. Any type hints from
             the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
             ...) are ignored. Defaults to :code:`True`.
+        wire_super: If a method from a super-class needs to be wired, specify
+            either a list of method names or :code:`True` to enable it for
+            all methods. Defaults to :code:`False`, only methods defined in the
+            class itself can be wired.
         container: :py:class:~.core.base.DependencyContainer` to which the
             dependency should be attached. Defaults to the global core if
             it is defined.
@@ -56,11 +60,11 @@ def provider(class_: type = None,
                                 if auto_wire is True else
                                 auto_wire),
                        dependencies=dependencies,
-                       use_mro=use_mro,
+                       wire_super=wire_super,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
                        container=container,
-                       ignore_missing_methods=auto_wire is True)
+                       ignore_missing=auto_wire is True)
 
         container.register_provider(cls(container=container))
 

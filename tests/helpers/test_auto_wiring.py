@@ -230,7 +230,7 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,
                     def __init__(*args, **kwargs):
                         pass
 
-                    # Subclass to ensure use_mro is working properly.
+                    # Subclass to ensure wire_super is working properly.
                     wrapped = type("Sub" + wrapped.__name__,
                                    (wrapped,),
                                    {'__init__': __init__,
@@ -314,8 +314,8 @@ def test_complex_wiring(container, instance: MyService):
                        return_wrapped=True,
                        create_subclass=True,
                        auto_wire=['__init__', 'method'],
-                       use_mro=True)
-def test_subclass_use_mro(container, instance: MyService):
+                       wire_super=True)
+def test_subclass_wire_super(container, instance: MyService):
     assert instance.method() is container.get(YetAnotherService)
 
 

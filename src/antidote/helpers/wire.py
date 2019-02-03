@@ -10,11 +10,11 @@ def wire(class_: type = None,
          *,
          methods: Iterable[str],
          dependencies: DEPENDENCIES_TYPE = None,
-         use_mro: Union[bool, Iterable[str]] = None,
          use_names: Union[bool, Iterable[str]] = None,
          use_type_hints: Union[bool, Iterable[str]] = None,
+         wire_super: Union[bool, Iterable[str]] = None,
          container: DependencyContainer = None,
-         ignore_missing_methods: bool = False
+         ignore_missing: bool = False
          ) -> Union[Callable, type]:
     """Wire a class by injecting the dependencies in all specified methods.
 
@@ -36,34 +36,40 @@ def wire(class_: type = None,
             also be specified to restrict this to those. Any type hints from
             the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
             ...) are ignored. Defaults to :code:`True`.
+        wire_super: If a method from a super-class needs to be wired, specify
+            either a list of method names or :code:`True` to enable it for
+            all methods. Defaults to :code:`False`, only methods defined in the
+            class itself can be wired.
         container: :py:class:~.core.base.DependencyContainer` from which
             the dependencies should be retrieved. Defaults to the global
             core if it is defined.
+        ignore_missing: Do not raise an error if a method does exist.
+            Defaults to :code:`False`.
 
     Returns:
         Wired class or a decorator.
 
     """
-    use_mro = use_mro if use_mro is not None else False
+    wire_super = wire_super if wire_super is not None else False
 
     if not isinstance(methods, c_abc.Iterable):
         raise TypeError("methods must be either None or an iterable.")
 
     methods = set(methods)
-    if isinstance(use_mro, c_abc.Iterable):
-        use_mro = set(use_mro)
-        if not use_mro.issubset(methods):
+    if isinstance(wire_super, c_abc.Iterable):
+        wire_super = set(wire_super)
+        if not wire_super.issubset(methods):
             raise ValueError(
                 "Method names {!r} are not specified "
-                "not specified in methods".format(use_mro - methods)
+                "not specified in methods".format(wire_super - methods)
             )
-    elif not isinstance(use_mro, bool):
-        raise TypeError("use_mro must be either a boolean "
+    elif not isinstance(wire_super, bool):
+        raise TypeError("wire_super must be either a boolean "
                         "or an iterable of method names.")
 
-    if not isinstance(ignore_missing_methods, bool):
-        raise TypeError("ignore_missing_methods must be a boolean, "
-                        "not a {!r}".format(type(ignore_missing_methods)))
+    if not isinstance(ignore_missing, bool):
+        raise TypeError("ignore_missing must be a boolean, "
+                        "not a {!r}".format(type(ignore_missing)))
 
     def wire_methods(cls):
         nonlocal methods
@@ -78,7 +84,8 @@ def wire(class_: type = None,
                              "when multiple methods are injected.")
 
         for method_name in methods:
-            if use_mro is True or (isinstance(use_mro, set) and method_name in use_mro):
+            if wire_super is True \
+                    or (isinstance(wire_super, set) and method_name in wire_super):
                 for c in cls.__mro__:
                     wrapped = c.__dict__.get(method_name)
                     if wrapped is not None:
@@ -89,7 +96,7 @@ def wire(class_: type = None,
                 wrapped = cls.__dict__.get(method_name)
 
             if wrapped is None:
-                if ignore_missing_methods is True:
+                if ignore_missing is True:
                     continue
                 else:
                     raise TypeError("{!r} does not have a method "

@@ -12,9 +12,9 @@ def factory(func: Callable = None,
             auto_wire: Union[bool, Iterable[str]] = True,
             singleton: bool = True,
             dependencies: DEPENDENCIES_TYPE = None,
-            use_mro: Union[bool, Iterable[str]] = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
+            wire_super: Union[bool, Iterable[str]] = None,
             tags: Iterable[Union[str, Tag]] = None,
             container: DependencyContainer = None
             ) -> Callable:
@@ -44,6 +44,10 @@ def factory(func: Callable = None,
             also be specified to restrict this to those. Any type hints from
             the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
             ...) are ignored. Defaults to :code:`True`.
+        wire_super: If a method from a super-class needs to be wired, specify
+            either a list of method names or :code:`True` to enable it for
+            all methods. Defaults to :code:`False`, only methods defined in the
+            class itself can be wired.
         tags: Iterable of tag to be applied. Those must be either strings
             (the tag name) or :py:class:`~.providers.tag.Tag`. All
             dependencies with a specific tag can then be retrieved with
@@ -62,7 +66,7 @@ def factory(func: Callable = None,
         obj, factory_, return_type_hint = prepare_callable(
             obj,
             auto_wire=auto_wire,
-            use_mro=use_mro,
+            wire_super=wire_super,
             container=container,
             dependencies=dependencies,
             use_names=use_names,

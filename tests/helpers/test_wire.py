@@ -76,7 +76,7 @@ def test_subclass_classmethod(container: DependencyContainer):
     assert (SubDummy, xx) == SubDummy.cls_method()
 
 
-def test_use_mro(container: DependencyContainer):
+def test_wire_super(container: DependencyContainer):
     xx = container.get('x')
     sentinel = object()
 
@@ -84,7 +84,7 @@ def test_use_mro(container: DependencyContainer):
         def method(self, x):
             return self, x
 
-    @wire(use_mro=True, methods=['method'], use_names=True, container=container)
+    @wire(wire_super=True, methods=['method'], use_names=True, container=container)
     class SubDummy(Dummy):
         pass
 
@@ -107,7 +107,7 @@ def test_do_not_change_for_nothing(container: DependencyContainer):
 
     assert Dummy.__dict__['method'] is original_method
 
-    @wire(use_mro=True, methods=['method'], container=container)
+    @wire(wire_super=True, methods=['method'], container=container)
     class SubDummy(Dummy):
         pass
 
@@ -125,7 +125,7 @@ def test_invalid_class(obj):
     'kwargs',
     [
         dict(methods=['__init__', '__call__'], dependencies=(None, None)),
-        dict(methods=['__init__'], use_mro=['__call__']),
+        dict(methods=['__init__'], wire_super=['__call__']),
     ]
 )
 def test_invalid_params(kwargs):
@@ -139,8 +139,8 @@ def test_invalid_params(kwargs):
     'kwargs',
     [
         dict(methods=object()),
-        dict(methods=['method'], use_mro=object()),
-        dict(methods=['method'], ignore_missing_methods=object()),
+        dict(methods=['method'], wire_super=object()),
+        dict(methods=['method'], ignore_missing=object()),
     ]
 )
 def test_invalid_type(kwargs):
@@ -150,13 +150,13 @@ def test_invalid_type(kwargs):
             pass
 
 
-def test_ignore_missing_methods(container: DependencyContainer):
+def test_ignore_missing(container: DependencyContainer):
     with pytest.raises(TypeError):
         @wire(methods=['method'], container=container,
-              ignore_missing_methods=False)
+              ignore_missing=False)
         class Dummy:
             pass
 
-    @wire(methods=['method'], container=container, ignore_missing_methods=True)
+    @wire(methods=['method'], container=container, ignore_missing=True)
     class Dummy2:
         pass

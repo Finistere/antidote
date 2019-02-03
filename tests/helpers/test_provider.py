@@ -13,7 +13,7 @@ def container():
 def test_simple(container):
     container.update_singletons({'service': object()})
 
-    @provider(container=container, use_mro=True)
+    @provider(container=container, wire_super=True)
     class DummyProvider(DependencyProvider):
         def provide(self, dependency):
             if dependency == 'test':
@@ -35,7 +35,7 @@ def test_providers(container):
     assert ResourceProvider in container.providers
     assert TagProvider in container.providers
 
-    @provider(container=container, use_mro=True)
+    @provider(container=container, wire_super=True)
     class DummyProvider(DependencyProvider):
         def provide(self, dependency):
             return DependencyInstance(1)

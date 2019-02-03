@@ -2,8 +2,7 @@ import inspect
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from .._internal.utils import SlotsReprMixin
-from ..core import DependencyContainer, DependencyInstance, DependencyProvider
-from antidote.core import Lazy
+from ..core import DependencyContainer, DependencyInstance, DependencyProvider, Lazy
 from ..exceptions import DuplicateDependencyError
 
 
