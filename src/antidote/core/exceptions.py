@@ -5,6 +5,9 @@ from typing import List
 class AntidoteError(Exception):
     """ Base class of all errors of antidote. """
 
+    def __repr__(self):
+        return "{}({})".format(type(self).__name__, str(self))
+
 
 class DuplicateDependencyError(AntidoteError):
     """
@@ -29,11 +32,8 @@ class DependencyCycleError(AntidoteError):
     def __init__(self, stack: List):
         self.stack = stack
 
-    def __repr__(self):
-        return "{}({})".format(
-            type(self).__name__,
-            ' => '.join(map(self._repr, self.stack))
-        )
+    def __str__(self):
+        return ' => '.join(map(self._repr, self.stack))
 
     @staticmethod
     def _repr(obj) -> str:
@@ -48,3 +48,9 @@ class DependencyNotFoundError(AntidoteError):
     The dependency could not be found in the core.
     Raised by the core.
     """
+
+    def __init__(self, dependency):
+        self.missing_dependency = dependency
+
+    def __str__(self):
+        return repr(self.missing_dependency)

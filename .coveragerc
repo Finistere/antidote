@@ -8,3 +8,4 @@ directory = cov_html
 source =
     src/
     .tox/py*/lib/python*/site-packages/
+    .tox/pypy*/site-packages

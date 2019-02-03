@@ -21,6 +21,17 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
+Antidotes is a declarative dependency injection micro-framework which tries to
+do the following  :
+- Injection can be added anywhere easily, no need to use anything else than
+  decorators except for advanced features.
+- It should be easy to find where dependencies are instantiated from any point
+  in the code where they're injected.
+- Easily extendable to support any kind of dependencies.
+- Testing injected objects must be easy.
+- Catch as much errors as it can.
+- Limit performance impact of injection.
+
 Why ?
 =====
 
@@ -37,18 +48,17 @@ For the longer version: `<https://antidote.readthedocs.io/en/stable/why.html>`_
 Features Highlight
 ==================
 
-
+- Services, factories, resources (configuration typically), tags, auto-wiring...
 - Dependencies bound through type hints and optionally from variable names
   and/or mapping.
 - Integrates well with any code, injected functions can be called as usual
   with all their arguments.
-- Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
-  through the `antidote_attrs` package.
 - Thread-safe and limited performance impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
 - Dependency cycle detection.
-- Other dependencies, such as configuration parameters, can be easily added.
-- Easily extendable.
+- Easily extendable to support any kind of dependencies.
+- Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
+  through the `antidote_attrs` package.
 
 
 Installation

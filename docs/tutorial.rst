@@ -212,8 +212,8 @@ Here we created another type as Antidote does not accept any duplicate
 dependency IDs.
 
 
-3. Configuration
-----------------
+3. Resources
+------------
 
 Every applications needs to load its configuration from somewhere, one simple
 way to do this is to load a file into a global dictionary :code:`config` and
@@ -361,3 +361,81 @@ To summarize, declaring resources with Antidote helps decoupling the code,
 which makes latter modification easier. Moreover using multiple endpoints to
 retrieve configuration becomes obvious without any custom code which has to be
 maintained.
+
+
+4. Tags
+-------
+
+Tags are a way to retrieve a list of services, such as plugins, extensions, etc...
+
+.. testcode:: tutorial_tags
+
+    from antidote import register, Tag
+
+    @register(tags=['dummies', Tag('extension', version=1)])
+    class Service:
+        pass
+
+    @register(tags=['dummies', Tag('extension', version=2)])
+    class Service2:
+        pass
+
+.. doctest:: tutorial_tags
+
+    >>> from antidote import world, Tagged
+    >>> services = world.get(Tagged('extension'))
+    >>> list(zip(services.tags(), services.dependencies(), services.instances()))
+    [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
+
+
+5. Providers
+------------
+
+While Antidote provides several ways to handle your dependencies out of the box, it may
+not be enough. But don't worry, Antidote got you covered ! It is designed from the ground
+up to have an easily extendable core mechanism. Services, resources and tags are all
+handled in the same way, through a custom :py:class:`.DependencyProvider` ::
+
+                    +-------------+
+      tag=... +-----> TagProvider +----+
+                    +-------------+    |
+                                       |
+                 +------------------+  |    +----------+    +-----------+
+    @resource +--> ResourceProvider +-------> Provider +----> Container +---> @inject
+                 +------------------+  |    +----------+    +-----------+
+                                       |
+                  +-----------------+  |
+    @register +---> ServiceProvider +--+
+                  +-----------------+
+
+The container never handles the instantiation of the dependencies itself, it mostly
+handles their scope. Let's suppose you want to inject a random number through Antidote,
+without passing through a Service. You could do it the following way:
+
+
+.. testcode:: tutorial_tags
+
+    import random
+    from typing import Any, Optional
+
+    import antidote
+    from antidote.core import DependencyProvider, DependencyInstance
+
+    @antidote.provider
+    class RandomProvider(DependencyProvider):
+        def provide(self, dependency: Any) -> Optional[DependencyInstance]:
+            if dependency == 'random':
+                return DependencyInstance(random.random(), singleton=False)
+
+.. doctest:: tutorial_tags
+
+    >>> from antidote import world
+    >>> world.get('random')
+    0...
+    >>> world.get('random')
+    0...
+
+Provider are in most cases tried sequentially. So if a provider returns nothing,
+it is simply ignored and another provider is tried. For the same reason it is not
+recommended to have a lot of different :py:class:`.DependencyProvider`s as this
+implies a performance penalty.

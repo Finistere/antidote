@@ -5,24 +5,24 @@ Why do I need ...
 --------------------------
 
 Dependency injection is a technique where objects do not instantiate themselves
-their dependencies, it is up to the user or another object to supply them. A
-simple example is presented below: :code:`f()` and :code:`g()` are two functions
-operating on a database, they both require a connection to it. :code:`g()` is
-implemented with dependency injection in mind, while :code:`f()` is not.
+their dependencies, it is up to its user to supply them. A simple example
+is presented below: :code:`f()` and :code:`g()` are two functions operating on
+a database, they both require a connection to it. :code:`g()` is implemented
+with dependency injection in mind, while :code:`f()` is not.
 
 .. code-block:: python
 
     class Database:
-        def __init__(self, host):
+        def __init__(self, host: str):
             """ Initializes database """
 
-    def f(host):
+    def f(host: str):
         db = Database(host)
         # do stuff
 
     # With dependency injection, it's up to the user/framework to
     # provide the database.
-    def g(database):
+    def g(database: Database):
         # do stuff
 
 
@@ -62,26 +62,19 @@ instantiate it and you're done !
 --------------
 
 While there are several dependency injection libraries, there was none which
-matched my needs or at least convinced me it could, as of 26/11/17:
+really convinced me. At the minimum it should have:
 
 - Use of type hints to inject dependencies. And provide other means to specify
   dependencies as configuration parameters cannot be injected this way for
   example.
-- Standard dependency injection features: services, factories, auto-wiring...
+- Flexible enough to have standard dependency injection features: services,
+  factories, auto-wiring, tags, parameter injection, etc...
 - It has be easy to integrate with existing code.
 
-Here is quick and non extensive list of frameworks at which I looked:
-
-- `Dependency Injector <https://github.com/ets-labs/python-dependency-injector>`_:
-  Does not use type hints, which leads to a more boilerplate code.
-- `Siringa <https://github.com/h2non/siringa>`_: Does not use type hints but
-  custom annotations with for :code:`'!'` to specify dependencies to be
-  injected.
-- `PyCDI <https://github.com/ettoreleandrotognoli/python-cdi>`_: Need to use
-  :code:`call()` to execute a function. This is, IMHO, not a proper design for
-  dependency injection, you either need to use :code:`call()` on all your entry
-  points, or know which functions needs it. This makes it harder to use on
-  existing projects.
-- `Injector <https://github.com/alecthomas/injector>`_: Need to retrieve a
-  service with the :code:`Injector`. Same issue as the previous library.
-
+The closest I am aware of is `Injector <https://github.com/alecthomas/injector>`_.
+But I don't really like the design of :code:`Injector`. It may be just a matter of
+taste, but I think a dependency injection framework should be the most declarative
+possible. Antidote only works with decorators out of the box, it does not require
+of you to be aware of a global instance managing your dependencies. You only
+declare what should and can be injected. Behind the scene all the wiring is done
+automatically.
