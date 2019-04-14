@@ -131,7 +131,7 @@ cdef class ServiceProvider(DependencyProvider):
                 takes_dependency=takes_dependency
             )
         else:
-            raise ValueError("factory must be callable")
+            raise TypeError("factory must be callable or be a Lazy dependency.")
 
         if service in self._service_to_factory:
             raise DuplicateDependencyError(service)

@@ -28,20 +28,8 @@ def mk_simple_getter(name, data):
     return namespace[name]
 
 
-def mk_complex_getter(name, data):
-    namespace = {'data': data}
-    code = textwrap.dedent("""
-        class {name}:
-            def __call__(self, key):
-                return data[key]
-    """).format(**locals())
-    exec(code, namespace)
-
-    return namespace[name]
-
-
-@pytest.fixture(params=[mk_simple_getter, mk_complex_getter],
-                ids=['function', 'class'])
+@pytest.fixture(params=[mk_simple_getter],
+                ids=['function'])
 def mk_getter(request):
     return request.param
 

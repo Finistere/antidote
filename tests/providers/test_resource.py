@@ -1,6 +1,6 @@
 import pytest
 
-from antidote.core import DependencyInstance, Lazy, DependencyContainer
+from antidote.core import DependencyContainer, DependencyInstance
 from antidote.exceptions import ResourcePriorityConflict
 from antidote.providers import ResourceProvider
 
@@ -71,14 +71,6 @@ def test_priority_conflict(provider: ResourceProvider):
 def test_singleton(provider: ResourceProvider):
     provider.register(lambda _: object(), namespace='default')
     assert True is provider.provide('default:').singleton
-
-
-def test_lazy(provider: ResourceProvider):
-    sentinel = object()
-    provider._container.update_singletons({'lazy_getter': lambda _: sentinel})
-    provider.register(Lazy('lazy_getter'), namespace='test')
-
-    assert sentinel is provider.provide('test:dummy').instance
 
 
 @pytest.mark.parametrize('namespace', ['test:', 'test ', 'Nop!yes', '', object(), 1])

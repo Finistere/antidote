@@ -1,9 +1,9 @@
 import bisect
 import re
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from .._internal.utils import SlotsReprMixin
-from ..core import DependencyContainer, DependencyInstance, DependencyProvider, Lazy
+from ..core import DependencyContainer, DependencyInstance, DependencyProvider
 from ..exceptions import ResourcePriorityConflict
 
 
@@ -35,10 +35,6 @@ class ResourceProvider(DependencyProvider):
             resources = self._priority_sorted_resources_by_namespace.get(namespace)
             if resources is not None:
                 for resource in resources:
-                    if resource.getter is None:
-                        assert resource.lazy_dependency is not None
-                        resource.getter = self._container.get(resource.lazy_dependency)
-                        resource.lazy_dependency = None
                     try:
                         instance = resource.getter(resource_name)
                     except LookupError:
@@ -49,7 +45,7 @@ class ResourceProvider(DependencyProvider):
         return None
 
     def register(self,
-                 getter: Union[Callable[[str], Any], Lazy],
+                 getter: Callable[[str], Any],
                  namespace: str,
                  priority: float = 0):
         """
@@ -81,14 +77,8 @@ class ResourceProvider(DependencyProvider):
                 "priority must be a number, not a {!r}".format(type(priority))
             )
 
-        if isinstance(getter, Lazy):
-            resource = Resource(getter=None,
-                                lazy_dependency=getter.dependency,
-                                namespace=namespace,
-                                priority=priority)
-        elif callable(getter):
+        if callable(getter):
             resource = Resource(getter=getter,
-                                lazy_dependency=None,
                                 namespace=namespace,
                                 priority=priority)
         else:
@@ -113,15 +103,12 @@ class Resource(SlotsReprMixin):
     Only used by the GetterProvider to store information on how a getter has to
     be used.
     """
-    __slots__ = ('getter', 'namespace_', 'priority', 'lazy_dependency')
+    __slots__ = ('getter', 'namespace_', 'priority')
 
     def __init__(self,
-                 getter: Optional[Callable[[str], Any]],
-                 lazy_dependency: Optional[Any],
+                 getter: Callable[[str], Any],
                  namespace: str,
                  priority: float):
-        assert getter is not None or lazy_dependency is not None
         self.getter = getter
-        self.lazy_dependency = lazy_dependency
         self.namespace_ = namespace
         self.priority = priority

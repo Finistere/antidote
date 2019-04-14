@@ -84,45 +84,6 @@ class F3:
         return yet_another_service
 
 
-class G1:
-    def __init__(self,
-                 service: Service,
-                 another_service=None):
-        self.service = service
-        self.another_service = another_service
-
-    def __call__(self, x) -> MyService:
-        return MyService(self.service, self.another_service)
-
-    def method(self, yet_another_service: YetAnotherService):
-        return yet_another_service
-
-
-class G2:
-    def __init__(self, service: Service):
-        self.service = service
-
-    def __call__(self, x, another_service=None) -> MyService:
-        return MyService(self.service, another_service)
-
-    def method(self, yet_another_service: YetAnotherService):
-        return yet_another_service
-
-
-class G3:
-    def __init__(self):
-        pass
-
-    def __call__(self,
-                 x,
-                 service: Service,
-                 another_service=None) -> MyService:
-        return MyService(service, another_service)
-
-    def method(self, yet_another_service: YetAnotherService):
-        return yet_another_service
-
-
 class B1:
     def __init__(self, s, a):
         self.service = s
@@ -194,12 +155,6 @@ class_tests = [
                  id='factory-F2'),
     pytest.param(factory, F3,
                  id='factory-F3'),
-    pytest.param(resource_, G1,
-                 id='resource-G1'),
-    pytest.param(resource_, G2,
-                 id='resource-G2'),
-    pytest.param(resource_, G3,
-                 id='resource-G3'),
     pytest.param(register_build, B1,
                  id='register_build-B1'),
 ]
@@ -224,7 +179,6 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
     def decorator(test):
         @pytest.mark.parametrize('wrapper,wrapped', tests)
         def f(container, wrapper, wrapped):
-            original_wrapped = wrapped
             if isinstance(wrapped, type):
                 if create_subclass:
                     def __init__(*args, **kwargs):
@@ -245,8 +199,7 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
             def create():
                 inj_kwargs = inject_kwargs.copy()
 
-                if (wrapper == resource_ and original_wrapped is not G1) \
-                        or wrapper == register_external_build:
+                if wrapper == resource_ or wrapper == register_external_build:
                     try:
                         if isinstance(inj_kwargs['dependencies'], tuple):
                             # @formatter:off

@@ -115,7 +115,7 @@ class DependencyContainer:
     def provide(self, dependency):
         """
         Internal method which should not be directly called. Prefer
-        :py:meth:`~.core.core.DependencyContainer.__getitem__`.
+        :py:meth:`~.core.core.DependencyContainer.get`.
         It may be overridden in a subclass to customize how dependencies are
         instantiated.
 

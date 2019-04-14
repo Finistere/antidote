@@ -2,16 +2,14 @@
 # cython: boundscheck=False, wraparound=False
 import bisect
 import re
-from typing import Any, Callable, Dict, List, Union, Optional
+from typing import Any, Callable, Dict, List
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
 from cpython.ref cimport PyObject
 
-from antidote.core import Lazy
 from antidote.core.container cimport (DependencyContainer, DependencyInstance,
-                                      DependencyProvider, Lazy)
-from antidote.core.exceptions import DependencyNotFoundError
+                                      DependencyProvider )
 from ..exceptions import ResourcePriorityConflict
 # @formatter:on
 
@@ -28,7 +26,6 @@ cdef class ResourceProvider(DependencyProvider):
     cpdef DependencyInstance provide(self, object dependency):
         cdef:
             object instance
-            object dependency_instance
             Resource resource
             str namespace_
             str resource_name
@@ -44,15 +41,10 @@ cdef class ResourceProvider(DependencyProvider):
             else:
                 namespace_ = resource_full_name[:i]
                 resource_name = resource_full_name[i + 1:]
-            ptr = PyDict_GetItem(self._priority_sorted_resources_by_namespace, namespace_)
+            ptr = PyDict_GetItem(self._priority_sorted_resources_by_namespace,
+                                 namespace_)
             if ptr != NULL:
                 for resource in <list> ptr:
-                    if resource.lazy_dependency is not None:
-                        dependency_instance = self._container.provide(resource.lazy_dependency)
-                        if dependency_instance is None:
-                            raise DependencyNotFoundError(dependency_instance)
-                        resource.getter = dependency_instance
-                        resource.lazy_dependency = None
                     try:
                         instance = resource.getter(resource_name)
                     except LookupError:
@@ -63,7 +55,7 @@ cdef class ResourceProvider(DependencyProvider):
                                                           True)
 
     def register(self,
-                 getter: Union[Callable[[str], Any], Lazy],
+                 getter: Callable[[str], Any],
                  str namespace,
                  float priority = 0):
         cdef:
@@ -75,14 +67,8 @@ cdef class ResourceProvider(DependencyProvider):
         if not re.match(r'^\w+$', namespace):
             raise ValueError("namespace can only contain characters in [a-zA-Z0-9_]")
 
-        if isinstance(getter, Lazy):
-            resource = Resource(getter=None,
-                                lazy_dependency=getter.dependency,
-                                namespace=namespace,
-                                priority=priority)
-        elif callable(getter):
+        if callable(getter):
             resource = Resource(getter=getter,
-                                lazy_dependency=None,
                                 namespace=namespace,
                                 priority=priority)
         else:
@@ -99,31 +85,24 @@ cdef class ResourceProvider(DependencyProvider):
 
         self._priority_sorted_resources_by_namespace[namespace] = resources
 
-
 cdef class Resource:
     cdef:
         readonly object getter
-        readonly object lazy_dependency
         readonly float priority
         readonly str namespace_
 
     def __init__(self,
-                 getter: Optional[Callable[[str], Any]],
-                 lazy_dependency: Optional[Any],
+                 getter: Callable[[str], Any],
                  str namespace,
                  float priority):
-        assert getter is not None or lazy_dependency is not None
         self.getter = getter
-        self.lazy_dependency = lazy_dependency
         self.namespace_ = namespace
         self.priority = priority
 
     def __repr__(self):
-        return "{}(getter={!r}, priority={!r}, namespace={!r}, " \
-               "lazy_dependency={!r})".format(
+        return "{}(getter={!r}, priority={!r}, namespace={!r})".format(
             type(self).__name__,
             self.getter,
             self.priority,
             self.namespace_,
-            self.lazy_dependency,
         )
