@@ -1,49 +1,51 @@
-import functools
-import textwrap
-
 import pytest
 
-from antidote import resource
 from antidote.core import DependencyContainer
-from antidote.providers import ResourceProvider, ServiceProvider
+from antidote.helpers.resource import ResourceMeta
+from antidote.providers import LazyCallProvider, ServiceProvider
 
 
 @pytest.fixture()
 def container():
     c = DependencyContainer()
-    c.register_provider(ResourceProvider(container=c))
+    c.register_provider(LazyCallProvider(container=c))
     c.register_provider(ServiceProvider(container=c))
 
     return c
 
 
-def mk_simple_getter(name, data):
-    namespace = {'data': data}
-    code = textwrap.dedent("""
-        def {name}(key):
-            return data[key]
-    """).format(**locals())
-    exec(code, namespace)
+def test_resource_meta(container: DependencyContainer):
+    class Conf(metaclass=ResourceMeta, container=container):
+        A = 'a'
+        B = 'b'
 
-    return namespace[name]
+        def __call__(self, key):
+            return key * 2
+
+    assert 'aa' == container.get(Conf.A)
+    assert 'bb' == container.get(Conf.B)
+
+    conf = Conf()
+
+    assert 'aa' == conf.A
+    assert 'bb' == conf.B
 
 
-@pytest.fixture(params=[mk_simple_getter],
-                ids=['function'])
-def mk_getter(request):
-    return request.param
+def test_missing_get(container: DependencyContainer):
+    with pytest.raises(ValueError):
+        class Conf(metaclass=ResourceMeta, container=container):
+            A = 'a'
 
 
-def test_namespace(mk_getter, container):
-    getter_ = functools.partial(resource, container=container)
+def test_private(container: DependencyContainer):
+    class Conf(metaclass=ResourceMeta, container=container):
+        _A = 'a'
 
-    data = {
-        'test': object(),
-        'test3': object(),
-        'http:test': object(),
-        'conf3:test': object()
-    }
-    mk_getter = functools.partial(mk_getter, data=data)
+        b = 'b'
 
-    getter_()(mk_getter('conf'))
-    assert data['test'] == container.get('conf:test')
+        def __call__(self, key):
+            return key * 2
+
+    conf = Conf()
+    assert 'a' == conf._A
+    assert 'b' == conf.b

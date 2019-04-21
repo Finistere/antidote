@@ -4,6 +4,7 @@ include LICENSE *.rst *.md benchmark.ipynb pyproject.toml
 recursive-include src *.py
 recursive-include src *.pxd
 recursive-include src *.pyx
+recursive-include src *.pyi
 
 # Don't package GitHub-specific files.
 exclude .travis.yml .readthedocs.yml

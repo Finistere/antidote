@@ -1,13 +1,15 @@
 import threading
-from typing import Any, cast, Dict, List, Mapping, Optional, Tuple
+from typing import Any, cast, Dict, Generic, List, Mapping, Optional, Tuple, TypeVar
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError)
 from .._internal.stack import DependencyStack
 from .._internal.utils import SlotsReprMixin
 
+T = TypeVar('T')
 
-class DependencyInstance(SlotsReprMixin):
+
+class DependencyInstance(SlotsReprMixin, Generic[T]):
     """
     Simple wrapper used by a :py:class:`~.core.Provider` when returning an
     instance of a dependency so it can specify in which scope the instance
@@ -15,7 +17,7 @@ class DependencyInstance(SlotsReprMixin):
     """
     __slots__ = ('instance', 'singleton')
 
-    def __init__(self, instance, singleton: bool = False):
+    def __init__(self, instance: T, singleton: bool = False):
         self.instance = instance
         self.singleton = singleton
 
@@ -173,7 +175,7 @@ class DependencyProvider:
     This should be used whenever one needs to introduce a new kind of dependency,
     or control how certain dependencies are instantiated.
     """
-    bound_dependency_types = cast(Tuple[type], ())  # type: Tuple[type]
+    bound_dependency_types = cast(Tuple[type], ())  # type: Tuple[type, ...]
 
     def __init__(self, container: DependencyContainer):
         self._container = container  # type: DependencyContainer
@@ -196,11 +198,3 @@ class DependencyProvider:
             if available or :py:obj:`None`.
         """
         raise NotImplementedError()  # pragma: no cover
-
-
-class Lazy(SlotsReprMixin):
-    # TODO: move Lazy somewhere else
-    __slots__ = ('dependency',)
-
-    def __init__(self, dependency: Any):
-        self.dependency = dependency

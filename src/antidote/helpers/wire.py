@@ -1,9 +1,36 @@
 import collections.abc as c_abc
 import inspect
-from typing import Callable, Iterable, Optional, Set, Union
+from typing import Callable, Iterable, Optional, overload, Set, TypeVar, Union
 
 from .._internal.argspec import Arguments
 from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
+
+C = TypeVar('C', bound=type)
+
+
+@overload
+def wire(class_: C,  # noqa: E704
+         *,
+         methods: Iterable[str],
+         dependencies: DEPENDENCIES_TYPE = None,
+         use_names: Union[bool, Iterable[str]] = None,
+         use_type_hints: Union[bool, Iterable[str]] = None,
+         wire_super: Union[bool, Iterable[str]] = None,
+         container: DependencyContainer = None,
+         raise_on_missing: bool = True
+         ) -> C: ...
+
+
+@overload
+def wire(*,  # noqa: E704
+         methods: Iterable[str],
+         dependencies: DEPENDENCIES_TYPE = None,
+         use_names: Union[bool, Iterable[str]] = None,
+         use_type_hints: Union[bool, Iterable[str]] = None,
+         wire_super: Union[bool, Iterable[str]] = None,
+         container: DependencyContainer = None,
+         raise_on_missing: bool = True
+         ) -> Callable[[C], C]: ...
 
 
 def wire(class_: type = None,
@@ -14,7 +41,7 @@ def wire(class_: type = None,
          use_type_hints: Union[bool, Iterable[str]] = None,
          wire_super: Union[bool, Iterable[str]] = None,
          container: DependencyContainer = None,
-         ignore_missing: bool = False
+         raise_on_missing: bool = True
          ) -> Union[Callable, type]:
     """Wire a class by injecting the dependencies in all specified methods.
 
@@ -43,8 +70,8 @@ def wire(class_: type = None,
         container: :py:class:~.core.base.DependencyContainer` from which
             the dependencies should be retrieved. Defaults to the global
             core if it is defined.
-        ignore_missing: Do not raise an error if a method does exist.
-            Defaults to :code:`False`.
+        raise_on_missing: Raise an error if a method does exist.
+            Defaults to :code:`True`.
 
     Returns:
         Wired class or a decorator.
@@ -56,9 +83,9 @@ def wire(class_: type = None,
     methods = set(methods)
     wire_super = _validate_wire_super(wire_super, methods)
 
-    if not isinstance(ignore_missing, bool):
-        raise TypeError("ignore_missing must be a boolean, "
-                        "not a {!r}".format(type(ignore_missing)))
+    if not isinstance(raise_on_missing, bool):
+        raise TypeError("raise_on_missing must be a boolean, "
+                        "not a {!r}".format(type(raise_on_missing)))
 
     if isinstance(dependencies, c_abc.Iterable) \
             and not isinstance(dependencies, c_abc.Mapping) \
@@ -75,11 +102,11 @@ def wire(class_: type = None,
                                  with_super=method_name in wire_super)
 
             if method is None:
-                if ignore_missing is True:
-                    continue
-                else:
+                if raise_on_missing:
                     raise TypeError("{!r} does not have a method "
                                     "named {!r}".format(cls, method_name))
+                else:
+                    continue  # pragma: no cover
 
             arguments = Arguments.from_method(method)
             _dependencies = dependencies

@@ -1,13 +1,16 @@
-from typing import Callable, cast, Iterable, Union
+from typing import (Any, Callable, cast, get_type_hints, Iterable, overload, Tuple,
+                    TypeVar, Union)
 
 from .._internal.default_container import get_default_container
-from .._internal.helpers import prepare_callable
-from ..core import DEPENDENCIES_TYPE, DependencyContainer
-from ..providers.service import ServiceProvider
+from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
+from ..providers.service import LazyFactory, ServiceProvider
 from ..providers.tag import Tag, TagProvider
 
+F = TypeVar('F', Callable, type)
 
-def factory(func: Callable = None,
+
+@overload
+def factory(func: F,  # noqa: E704
             *,
             auto_wire: Union[bool, Iterable[str]] = True,
             singleton: bool = True,
@@ -17,7 +20,33 @@ def factory(func: Callable = None,
             wire_super: Union[bool, Iterable[str]] = None,
             tags: Iterable[Union[str, Tag]] = None,
             container: DependencyContainer = None
-            ) -> Callable:
+            ) -> F: ...
+
+
+@overload
+def factory(*,  # noqa: E704
+            auto_wire: Union[bool, Iterable[str]] = True,
+            singleton: bool = True,
+            dependencies: DEPENDENCIES_TYPE = None,
+            use_names: Union[bool, Iterable[str]] = None,
+            use_type_hints: Union[bool, Iterable[str]] = None,
+            wire_super: Union[bool, Iterable[str]] = None,
+            tags: Iterable[Union[str, Tag]] = None,
+            container: DependencyContainer = None
+            ) -> Callable[[F], F]: ...
+
+
+def factory(func: Union[Callable, type] = None,
+            *,
+            auto_wire: Union[bool, Iterable[str]] = True,
+            singleton: bool = True,
+            dependencies: DEPENDENCIES_TYPE = None,
+            use_names: Union[bool, Iterable[str]] = None,
+            use_type_hints: Union[bool, Iterable[str]] = None,
+            wire_super: Union[bool, Iterable[str]] = None,
+            tags: Iterable[Union[str, Tag]] = None,
+            container: DependencyContainer = None
+            ):
     """Register a dependency providers, a factory to build the dependency.
 
     Args:
@@ -63,7 +92,7 @@ def factory(func: Callable = None,
     container = container or get_default_container()
 
     def register_factory(obj):
-        obj, factory_, return_type_hint = prepare_callable(
+        obj, factory_, return_type_hint = _prepare_callable(
             obj,
             auto_wire=auto_wire,
             wire_super=wire_super,
@@ -91,3 +120,47 @@ def factory(func: Callable = None,
         return obj
 
     return func and register_factory(func) or register_factory
+
+
+def _prepare_callable(
+        obj: F,
+        auto_wire: Union[bool, Iterable[str]],
+        wire_super: Union[bool, Iterable[str]],
+        container: DependencyContainer,
+        **inject_kwargs) -> Tuple[F, Union[F, LazyFactory], Any]:
+    if isinstance(obj, type):
+        if '__call__' not in dir(obj):
+            raise TypeError("The class must implement __call__()")
+        from ..helpers import register, wire
+
+        type_hints = get_type_hints(obj.__call__)
+
+        if auto_wire:
+            if auto_wire is True:
+                methods = ('__init__', '__call__')  # type: Tuple[str, ...]
+            else:
+                methods = tuple(cast(Iterable[str], auto_wire))
+
+            obj = wire(obj,
+                       methods=methods,
+                       wire_super=wire_super,
+                       container=container,
+                       raise_on_missing=auto_wire is not True,
+                       **inject_kwargs)
+
+        obj = register(obj, auto_wire=False, container=container)
+        func = LazyFactory(obj)  # type: Union[F, LazyFactory]
+    elif callable(obj):
+        type_hints = get_type_hints(obj)
+        if auto_wire:
+            obj = inject(obj,
+                         container=container,
+                         **inject_kwargs)
+
+        func = obj
+    else:
+        raise TypeError("Must be either a function "
+                        "or a class implementing __call__(), "
+                        "not {!r}".format(type(obj)))
+
+    return obj, func, type_hints.get('return')

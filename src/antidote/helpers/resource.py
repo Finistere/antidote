@@ -1,76 +1,60 @@
-from typing import Any, Callable, cast, Iterable, Union
+from typing import Iterable, Union
 
-from .._internal.default_container import get_default_container
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
-from ..providers import ResourceProvider
+from .register import register
+from .wire import wire
+from ..core import DEPENDENCIES_TYPE, DependencyContainer
+from ..providers.lazy import LazyMethodCall
 
 
-def resource(func: Callable[[str], Any] = None,
-             *,
-             namespace: str = None,
-             priority: float = 0,
-             auto_wire: bool = True,
-             dependencies: DEPENDENCIES_TYPE = None,
-             use_names: Union[bool, Iterable[str]] = None,
-             use_type_hints: Union[bool, Iterable[str]] = None,
-             container: DependencyContainer = None
-             ) -> Callable:
-    """
-    Register a mapping of parameters and its associated parser.
+class ResourceMeta(type):
+    def __new__(metacls, cls, bases, namespace,
+                lazy_method: str = '__call__',
+                auto_wire: Union[bool, Iterable[str]] = None,
+                dependencies: DEPENDENCIES_TYPE = None,
+                use_names: Union[bool, Iterable[str]] = None,
+                use_type_hints: Union[bool, Iterable[str]] = None,
+                container: DependencyContainer = None):
+        if lazy_method not in namespace:
+            raise ValueError(
+                "Lazy method {} is no defined in {}".format(lazy_method, cls)
+            )
 
-    Args:
-        func: Function used to retrieve a requested dependency which will
-            be given as an argument. If the dependency cannot be provided,
-            it should raise a :py:exc:`LookupError`.
-        namespace: Used to identity which getter should be used with a
-            dependency. It should only contain characters in
-            :code:`[a-zA-Z0-9_]`.
-        priority: Used to determine which getter should be called first when
-            they share the same namespace. Highest priority wins. Defaults to
-            0.
-        auto_wire: If False nothing will be injected, defaults to True.
-        dependencies: Can be either a mapping of arguments name to their
-            dependency, an iterable of dependencies or a function which returns
-            the dependency given the arguments name. If an iterable is specified,
-            the position of the arguments is used to determine their respective
-            dependency. An argument may be skipped by using :code:`None` as a
-            placeholder. Type hints are overridden. Defaults to :code:`None`.
-        use_names: Whether or not the arguments' name should be used as their
-            respective dependency. An iterable of argument names may also be
-            supplied to restrict this to those. Defaults to :code:`False`.
-        use_type_hints: Whether or not the type hints (annotations) should be
-            used as the arguments dependency. An iterable of argument names may
-            also be specified to restrict this to those. Any type hints from
-            the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
-            ...) are ignored. Defaults to :code:`True`.
-        container: :py:class:~.core.base.DependencyContainer` to which the
-            dependency should be attached. Defaults to the global core if
-            it is defined.
+        resource_class = super().__new__(metacls, cls, bases, namespace)
 
-    Returns:
-        getter callable or decorator.
-    """
-    container = container or get_default_container()
+        wire_raise_on_missing = True
+        if auto_wire is None or isinstance(auto_wire, bool):
+            if auto_wire is False:
+                methods = ()  # type: Iterable[str]
+            else:
+                methods = (lazy_method, '__init__')
+                wire_raise_on_missing = False
+        else:
+            methods = auto_wire
 
-    def register_resource(getter):
-        nonlocal namespace
+        if methods:
+            resource_class = wire(
+                resource_class,
+                methods=methods,
+                dependencies=dependencies,
+                use_names=use_names,
+                use_type_hints=use_type_hints,
+                container=container,
+                raise_on_missing=wire_raise_on_missing
+            )
 
-        if namespace is None:
-            namespace = getter.__name__
+        resource_class = register(
+            resource_class,
+            auto_wire=False,
+            container=container,
+            singleton=True
+        )
 
-        if auto_wire:
-            getter = inject(getter,
-                            dependencies=dependencies,
-                            use_names=use_names,
-                            use_type_hints=use_type_hints,
-                            container=container)
+        func = resource_class.__dict__[lazy_method]
+        for k, v in resource_class.__dict__.items():
+            if not k.startswith('_') and k.isupper():
+                setattr(resource_class, k, LazyMethodCall(func)(v))
 
-        resource_provider = cast(ResourceProvider,
-                                 container.providers[ResourceProvider])
-        resource_provider.register(getter=getter,
-                                   namespace=namespace,
-                                   priority=priority)
+        return resource_class
 
-        return getter
-
-    return func and register_resource(func) or register_resource
+    def __init__(metacls, cls, bases, namespace, **kwargs):  # pypy35 compatibility
+        super().__init__(cls, bases, namespace)

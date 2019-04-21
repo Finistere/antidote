@@ -1,11 +1,36 @@
-from typing import Iterable, Union
+from typing import Callable, Iterable, overload, TypeVar, Union, Type
 
 from .wire import wire
 from .._internal.default_container import get_default_container
 from ..core import DEPENDENCIES_TYPE, DependencyContainer, DependencyProvider
 
+P = TypeVar('P', bound=Type[DependencyProvider])
 
-def provider(class_: type = None,
+
+@overload
+def provider(class_: P,  # noqa: E704
+             *,
+             auto_wire: Union[bool, Iterable[str]] = True,
+             dependencies: DEPENDENCIES_TYPE = None,
+             use_names: Union[bool, Iterable[str]] = None,
+             use_type_hints: Union[bool, Iterable[str]] = None,
+             wire_super: Union[bool, Iterable[str]] = None,
+             container: DependencyContainer = None
+             ) -> P: ...
+
+
+@overload
+def provider(*,  # noqa: E704
+             auto_wire: Union[bool, Iterable[str]] = True,
+             dependencies: DEPENDENCIES_TYPE = None,
+             use_names: Union[bool, Iterable[str]] = None,
+             use_type_hints: Union[bool, Iterable[str]] = None,
+             wire_super: Union[bool, Iterable[str]] = None,
+             container: DependencyContainer = None
+             ) -> Callable[[P], P]: ...
+
+
+def provider(class_: Type[DependencyProvider] = None,
              *,
              auto_wire: Union[bool, Iterable[str]] = True,
              dependencies: DEPENDENCIES_TYPE = None,
@@ -64,7 +89,7 @@ def provider(class_: type = None,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
                        container=container,
-                       ignore_missing=auto_wire is True)
+                       raise_on_missing=auto_wire is not True)
 
         container.register_provider(cls(container=container))
 

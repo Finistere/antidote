@@ -1,3 +1,3 @@
+from .lazy import LazyCallProvider
 from .service import ServiceProvider
-from .resource import ResourceProvider
 from .tag import TagProvider

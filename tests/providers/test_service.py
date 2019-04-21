@@ -1,8 +1,8 @@
 import pytest
 
-from antidote.core import DependencyContainer, Lazy
+from antidote.core import DependencyContainer
 from antidote.exceptions import DuplicateDependencyError
-from antidote.providers.service import Build, ServiceProvider
+from antidote.providers.service import Build, ServiceProvider, LazyFactory
 
 
 class Service:
@@ -101,7 +101,7 @@ def test_lazy(provider: ServiceProvider):
     provider._container.update_singletons({
         'lazy_getter': lambda: sentinel
     })
-    provider.register(factory=Lazy('lazy_getter'), service=Service)
+    provider.register(factory=LazyFactory('lazy_getter'), service=Service)
 
     assert sentinel is provider.provide(Service).instance
 
