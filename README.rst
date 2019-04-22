@@ -100,7 +100,8 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
         def __init__(self, *args, **kwargs):
             """ Initializes the database. """
 
-
+    # Usage of constants for configuration makes refactoring easier and is
+    # less error-prone. Moreover Conf will only be instantiated if necessary.
     class Conf(metaclass=antidote.LazyConfigurationMeta):
         DB_HOST = 'db.host'
         DB_USER = 'db.user'
@@ -109,7 +110,7 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
 
         def __init__(self):
             # Load configuration from somewhere
-            self.raw_conf = {
+            self._raw_conf = {
                 'db.host': 'host',
                 'db.user': 'user',
                 'db.port': 5432,
@@ -117,12 +118,13 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
             }
 
         def __call__(self, key):
-            return self.raw_conf[key]
+            return self._raw_conf[key]
 
 
     # Declare a factory which should be called to instantiate Database.
-    # Variables names are used here for injection. A dictionary mapping
-    # arguments name to their dependency could also have been used.
+    # The order of the arguments is here used to map the dependencies.
+    # A dictionary mapping arguments name to their dependency could also
+    # have been used.
     @antidote.factory(dependencies=(Conf.DB_HOST, Conf.DB_PORT,
                                     Conf.DB_USER, Conf.DB_PASSWORD))
     def database_factory(host: str, port: int, user: str, password: str) -> Database:
@@ -155,10 +157,10 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
     # injection.
     conf = Conf()
     f(DatabaseWrapper(database_factory(
-        host=conf.DB_HOST,  # equivalent to conf.raw_conf['db.host']
-        port=conf.raw_conf['db.port'],
-        user=conf.raw_conf['db.user'],
-        password=conf.raw_conf['db.password']
+        host=conf.DB_HOST,  # equivalent to conf._raw_conf['db.host']
+        port=conf._raw_conf['db.port'],
+        user=conf._raw_conf['db.user'],
+        password=conf._raw_conf['db.password']
     )))
 
 
