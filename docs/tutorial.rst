@@ -212,8 +212,8 @@ Here we created another type as Antidote does not accept any duplicate
 dependency IDs.
 
 
-3. Resources
-------------
+3. Configuration
+----------------
 
 Every applications needs to load its configuration from somewhere, one simple
 way to do this is to load a file into a global dictionary :code:`config` and
@@ -221,45 +221,140 @@ import it wherever necessary, like this:
 
 .. testcode:: tutorial_conf
 
-    config = dict(url='my_url', env='PROD')
+    config = dict(domain='example.com', port=3000)
 
-    def am_i_in_prod(env: str = None):
-        env = env or config['env']
-        return env == 'PROD'
+    def absolute_url(path: str, domain: str = None, port: int = None):
+        domain = domain or config['domain']
+        port = port or config['port']
+        return f"https://{domain}:{port}{path}"
 
-Now we can call :code:`am_i_in_prod` without needing to be aware of what it
+Now we can call :code:`absolute_url` without needing to be aware of what it
 needs and are still able to test it properly with unit tests without having to
-change the global configuration. The downside is that we have now a tight
-coupling of the application code and the configuration. If your configuration
-becomes more complicated, such as using environment variables to override some
-parameters, you'll have to either adapt all functions like :code:`am_i_in_prod`
-or create custom code to emulate your existing :code:`config`.
+change the global configuration. There are two major downsides here:
+
+- we have now a tight coupling of the application code and the configuration
+  as the inner body needs to know how to retrieve the configuration. If you need
+  more complex parameters, from multiple sources or lazily loaded for example,
+  you'll probably need to either adapt all functions like :code:`absolute_url`
+  or create custom code to emulate your existing :code:`config`.
+- Retrieving configuration through a string :code:`'domain'` makes refactoring
+  more complicated, as your IDE cannot provide any support for refactoring.
+
 
 Let's give Antidote a shot and see what we can do:
 
 .. testcode:: tutorial_conf
 
-    from antidote import resource
+    from antidote import LazyConfigurationMeta, inject
 
-    @resource
-    def conf(key: str):
-        return config[key]
+    class Conf(metaclass=LazyConfigurationMeta):
+        DOMAIN = 'domain'
+        PORT = 'port'
 
-    @inject(dependencies=(conf['env']))
-    def am_i_in_prod_v2(env: str):
-        return env == 'PROD'
+        def __call__(self, key):
+            return config[key]
+
+    @inject(dependencies=(None, Conf.DOMAIN, Conf.PORT))
+    def absolute_url_v2(path: str, domain: str, port: int):
+        return f"https://{domain}:{port}{path}"
 
 .. doctest:: tutorial_conf
 
-    >>> am_i_in_prod_v2()
-    True
-    >>> am_i_in_prod_v2('dev')
-    False
+    >>> absolute_url_v2("/user/1")
+    'https://example.com:3000/user/1'
+    >>> absolute_url_v2('/dog/2', port=80)
+    'https://example.com:80/dog/2'
 
-Pretty easy ! Now while that does not seem really different from having a global
-:code:`config`, it stays as simple with more complex cases
+Pretty easy ! Now you may think, that's a lot of code to access :code:`config`,
+but it is much more flexible:
+- :code:`Conf` has :code:`__init__()` and :code:`__call__()` injected, so you can
+  rely on other dependencies easily.
+- Everything is lazy, even the instantiation of :code:`Conf`.
 
-4. Tags
+:py:class:`.LazyConfigurationMeta` accepts several parameters to customize its behavior:
+
+.. testcode:: tutorial_conf
+
+    from antidote import LazyConfigurationMeta
+
+    class CustomizedConf(metaclass=LazyConfigurationMeta, lazy_method='get', auto_wire=False):
+        DOMAIN = 'domain'
+        PORT = 'port'
+
+        def get(self, key):
+            return config[key]
+
+
+.. note::
+
+    Actually, :py:class:`.LazyConfigurationMeta` is only an helper. Underneath it uses
+    :py:class:`.LazyMethodCall` (presented in the next section) and
+    :py:func:`.register`. It is equivalent to:
+
+    .. testcode:: tutorial_conf
+
+        from antidote import LazyMethodCall, register
+
+        @register(auto_wire=('__init__', '__call__'))
+        class Conf:
+            # Required as we explicitly name __init__ for auto wiring, so it has to exist.
+            def __init__(self):
+                pass
+
+            def __call__(self, key):
+                return config[key]
+
+            DOMAIN = LazyMethodCall(__call__)('domain')
+            PORT = LazyMethodCall(__call__)('port')
+
+
+4. Lazy function calls
+----------------------
+
+Sometimes a dependency can be the output of a function call, which could fetch remote
+configuration with a network call. To avoid multiple round trips you would cache the
+results, like this:
+
+.. testsetup:: tutorial_lazy
+
+    import sys
+
+    class DummyRequests:
+        def get(url):
+            return dict()
+
+    sys.modules['requests'] = DummyRequests()
+
+.. testcode:: tutorial_lazy
+
+    import requests
+    from functools import lru_cache
+
+    @lru_cache(maxsize=32)
+    def fetch_remote_conf(name):
+        return requests.get(f"https://example.com/conf/{name}")
+
+    def f(conf = None):
+        conf = conf if conf is not None else fetch_remote_conf("conf_1")
+
+This has one downside, it requires :code:`f()` to be aware of how to call
+:code:`fetch_remote_conf` and with which arguments. Now with Antidote:
+
+.. testcode:: tutorial_lazy
+
+    from antidote import LazyCall, inject
+
+    def fetch_remote_conf(name):
+        return requests.get(f"https://example.com/conf/{name}")
+
+    CONF_1 = LazyCall(fetch_remote_conf)("conf_1")
+
+    @inject(dependencies=(CONF_1,))
+    def f(conf):
+        pass
+
+
+5. Tags
 -------
 
 Tags are a way to retrieve a list of services, such as plugins, extensions, etc...

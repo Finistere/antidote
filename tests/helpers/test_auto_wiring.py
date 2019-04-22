@@ -3,8 +3,8 @@ from typing import Callable
 
 import pytest
 
-from antidote import (factory, inject, new_container, provider, register, ResourceMeta,
-                      wire)
+from antidote import (factory, inject, LazyConfigurationMeta, new_container, provider,
+                      register, wire)
 from antidote.core import DependencyContainer, DependencyProvider
 from antidote.exceptions import DependencyInstantiationError
 
@@ -139,7 +139,7 @@ def wire_(class_=None, auto_wire=True, **kwargs):
 
 
 def resource(class_, **kwargs):
-    return ResourceMeta(
+    return LazyConfigurationMeta(
         'Resource' + class_.__name__,
         (),
         dict(

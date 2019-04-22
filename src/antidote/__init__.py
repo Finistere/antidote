@@ -1,5 +1,6 @@
 from .core import inject
-from .helpers import factory, new_container, provider, register, ResourceMeta, wire
+from .helpers import (factory, LazyConfigurationMeta, new_container, provider, register,
+                      wire)
 from .providers.lazy import LazyCall, LazyMethodCall
 from .providers.service import Build
 from .providers.tag import Tag, Tagged, TaggedDependencies
@@ -18,7 +19,7 @@ __all__ = [
     'Build',
     'LazyCall',
     'LazyMethodCall',
-    'ResourceMeta',
+    'LazyConfigurationMeta',
     'Tag',
     'Tagged',
     'factory',

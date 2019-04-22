@@ -6,7 +6,7 @@ from ..core import DEPENDENCIES_TYPE, DependencyContainer
 from ..providers.lazy import LazyMethodCall
 
 
-class ResourceMeta(type):
+class LazyConfigurationMeta(type):
     def __new__(metacls, cls, bases, namespace,
                 lazy_method: str = '__call__',
                 auto_wire: Union[bool, Iterable[str]] = None,
@@ -52,7 +52,7 @@ class ResourceMeta(type):
         func = resource_class.__dict__[lazy_method]
         for k, v in resource_class.__dict__.items():
             if not k.startswith('_') and k.isupper():
-                setattr(resource_class, k, LazyMethodCall(func)(v))
+                setattr(resource_class, k, LazyMethodCall(func, singleton=True)(v))
 
         return resource_class
 
