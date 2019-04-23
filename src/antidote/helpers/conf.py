@@ -50,9 +50,9 @@ class LazyConfigurationMeta(type):
         )
 
         func = resource_class.__dict__[lazy_method]
-        for k, v in resource_class.__dict__.items():
-            if not k.startswith('_') and k.isupper():
-                setattr(resource_class, k, LazyMethodCall(func, singleton=True)(v))
+        for name, v in resource_class.__dict__.items():
+            if not name.startswith('_') and name.isupper():
+                setattr(resource_class, name, LazyMethodCall(func, singleton=True)(v))
 
         return resource_class
 

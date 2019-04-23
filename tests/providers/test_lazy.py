@@ -109,7 +109,9 @@ def test_method_singleton(lazy_provider: LazyCallProvider,
 
     service_provider.register(Test)
 
+    assert Test.A is Test.A
     assert True is lazy_provider.provide(Test.A).singleton
+    assert Test.B is not Test.B
     assert False is lazy_provider.provide(Test.B).singleton
 
 

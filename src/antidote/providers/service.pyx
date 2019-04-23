@@ -1,16 +1,22 @@
 # cython: language_level=3, language=c++
 # cython: boundscheck=False, wraparound=False
 import inspect
-from typing import Any, Callable, Dict, Tuple, Optional
+from typing import Any, Callable, Dict, Tuple, Optional, Union
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
 from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyContainer, DependencyInstance,
-                                     DependencyProvider, Lazy)
+                                     DependencyProvider)
 from ..exceptions import DuplicateDependencyError, DependencyNotFoundError
 # @formatter:on
+
+
+cdef class LazyFactory:
+    def __init__(self, dependency):
+        self.dependency = dependency
+
 
 cdef class Build:
     def __init__(self, *args, **kwargs):
@@ -109,14 +115,14 @@ cdef class ServiceProvider(DependencyProvider):
                                           factory.singleton)
 
     def register(self,
-                 service: type,
-                 factory: Callable = None,
+                 service,
+                 factory: Union[Callable, LazyFactory] = None,
                  bint singleton: bool = True,
                  bint takes_dependency: bool = False):
         if not inspect.isclass(service):
             raise TypeError("A service must be a class, not a {!r}".format(service))
 
-        if isinstance(factory, Lazy):
+        if isinstance(factory, LazyFactory):
             service_factory = ServiceFactory(
                 singleton=singleton,
                 func=None,

@@ -5,28 +5,11 @@ from ..core import DependencyInstance, DependencyProvider
 
 
 class LazyCall(SlotsReprMixin):
-    __slots__ = ('func', 'args', 'kwargs', 'singleton')
+    __slots__ = ('_func', '_args', '_kwargs', '_singleton')
 
     def __init__(self, func: Callable, singleton: bool = True):
-        self.singleton = singleton
-        self.func = func
-        self.args = ()  # type: Tuple
-        self.kwargs = {}  # type: Dict
-
-    def __call__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-        return self
-
-
-class LazyMethodCall(SlotsReprMixin):
-    __slots__ = ('_method_name', '_args', '_kwargs', 'singleton')
-
-    def __init__(self, method: Union[Callable, str], singleton: bool = True):
-        self.singleton = singleton
-        # Retrieve the name of the method, as injection can be done after the class
-        # creation which is typically the case with @register.
-        self._method_name = method if isinstance(method, str) else method.__name__
+        self._singleton = singleton
+        self._func = func
         self._args = ()  # type: Tuple
         self._kwargs = {}  # type: Dict
 
@@ -35,17 +18,45 @@ class LazyMethodCall(SlotsReprMixin):
         self._kwargs = kwargs
         return self
 
+
+class LazyMethodCall(SlotsReprMixin):
+    __slots__ = ('_method_name', '_args', '_kwargs', '_singleton', '_key')
+
+    def __init__(self, method: Union[Callable, str], singleton: bool = True):
+        self._singleton = singleton
+        # Retrieve the name of the method, as injection can be done after the class
+        # creation which is typically the case with @register.
+        self._method_name = method if isinstance(method, str) else method.__name__
+        self._args = ()  # type: Tuple
+        self._kwargs = {}  # type: Dict
+        self._key = None
+
+    def __call__(self, *args, **kwargs):
+        self._args = args
+        self._kwargs = kwargs
+        return self
+
     def __get__(self, instance, owner):
         if instance is None:
-            return owner.__dict__.get(self, LazyMethodCallDependency(self, owner))
+            if self._singleton:
+                if self._key is None:
+                    self._key = "{}_dependency".format(self._get_attribute_name(owner))
+                    setattr(owner, self._key, LazyMethodCallDependency(self, owner))
+                return getattr(owner, self._key)
+            return LazyMethodCallDependency(self, owner)
         return getattr(instance, self._method_name)(*self._args, **self._kwargs)
+
+    def _get_attribute_name(self, owner):
+        for k, v in owner.__dict__.items():
+            if v is self:
+                return k
 
 
 class LazyMethodCallDependency(SlotsReprMixin):
-    __slots__ = ('lazy_call', 'owner')
+    __slots__ = ('lazy_method_call', 'owner')
 
-    def __init__(self, lazy_call, owner):
-        self.lazy_call = lazy_call
+    def __init__(self, lazy_method_call, owner):
+        self.lazy_method_call = lazy_method_call
         self.owner = owner
 
 
@@ -57,14 +68,14 @@ class LazyCallProvider(DependencyProvider):
                 ) -> Optional[DependencyInstance]:
         if isinstance(dependency, LazyMethodCallDependency):
             return DependencyInstance(
-                dependency.lazy_call.__get__(
+                dependency.lazy_method_call.__get__(
                     self._container.provide(dependency.owner),
                     dependency.owner
                 ),
-                singleton=dependency.lazy_call.singleton
+                singleton=dependency.lazy_method_call._singleton
             )
         elif isinstance(dependency, LazyCall):
             return DependencyInstance(
-                dependency.func(*dependency.args, **dependency.kwargs),
-                singleton=dependency.singleton
+                dependency._func(*dependency._args, **dependency._kwargs),
+                singleton=dependency._singleton
             )

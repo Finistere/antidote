@@ -20,8 +20,8 @@ Helpers
 .. automodule:: antidote.helpers.factory
     :members:
 
-.. automodule:: antidote.helpers.resource
-    :members:
+.. automodule:: antidote.providers.conf
+    :members: LazyConfigurationMeta
 
 .. automodule:: antidote.helpers.provider
     :members:
@@ -42,11 +42,11 @@ Service
 .. automodule:: antidote.providers.service
     :members: FactoryProvider,Build
 
-Resource
-^^^^^^^^
+Lazy
+^^^^
 
-.. automodule:: antidote.providers.resource
-    :members: ResourceProvider
+.. automodule:: antidote.providers.lazy
+    :members: LazyCall,LazyMethodCall,LazyCallProvider
 
 Tag
 ^^^

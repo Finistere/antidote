@@ -1,7 +1,7 @@
 import pytest
 
 from antidote.core import DependencyContainer
-from antidote.helpers.resource import LazyConfigurationMeta
+from antidote.helpers.conf import LazyConfigurationMeta
 from antidote.providers import LazyCallProvider, ServiceProvider
 
 
