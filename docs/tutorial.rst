@@ -251,8 +251,12 @@ Let's give Antidote a shot and see what we can do:
         DOMAIN = 'domain'
         PORT = 'port'
 
+        def __init__(self):
+            # Load anything you need and/or use dependencies.
+            self._data = dict(domain='example.com', port=3000)
+
         def __call__(self, key):
-            return config[key]
+            return self._data[key]
 
     @inject(dependencies=(None, Conf.DOMAIN, Conf.PORT))
     def absolute_url_v2(path: str, domain: str, port: int):
@@ -267,6 +271,7 @@ Let's give Antidote a shot and see what we can do:
 
 Pretty easy ! Now you may think, that's a lot of code to access :code:`config`,
 but it is much more flexible:
+
 - :code:`Conf` has :code:`__init__()` and :code:`__call__()` injected, so you can
   rely on other dependencies easily.
 - Everything is lazy, even the instantiation of :code:`Conf`.
@@ -281,31 +286,17 @@ but it is much more flexible:
         DOMAIN = 'domain'
         PORT = 'port'
 
-        def get(self, key):
-            return config[key]
+        def __init__(self):
+            self._data = dict(domain='example.com', port=3000)
 
+        def get(self, key):
+            return self._data[key]
 
 .. note::
 
-    Actually, :py:class:`.LazyConfigurationMeta` is only an helper. Underneath it uses
-    :py:class:`.LazyMethodCall` (presented in the next section) and
-    :py:func:`.register`. It is equivalent to:
-
-    .. testcode:: tutorial_conf
-
-        from antidote import LazyMethodCall, register
-
-        @register(auto_wire=('__init__', '__call__'))
-        class Conf:
-            # Required as we explicitly name __init__ for auto wiring, so it has to exist.
-            def __init__(self):
-                pass
-
-            def __call__(self, key):
-                return config[key]
-
-            DOMAIN = LazyMethodCall(__call__)('domain')
-            PORT = LazyMethodCall(__call__)('port')
+    Only public uppercase class attributes will be converted to dependencies.
+    This means that :code:`A` will be changed, but not :code:`_A` neither
+    :code:`a`.
 
 
 4. Lazy function calls
@@ -428,5 +419,5 @@ without passing through a Service. You could do it the following way:
 
 Provider are in most cases tried sequentially. So if a provider returns nothing,
 it is simply ignored and another provider is tried. For the same reason it is not
-recommended to have a lot of different :py:class:`.DependencyProvider`s as this
+recommended to have a lot of different :py:class:`.DependencyProvider`\ s as this
 implies a performance penalty.

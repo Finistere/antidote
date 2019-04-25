@@ -66,9 +66,9 @@ def provider(class_: Type[DependencyProvider] = None,
             either a list of method names or :code:`True` to enable it for
             all methods. Defaults to :code:`False`, only methods defined in the
             class itself can be wired.
-        container: :py:class:~.core.base.DependencyContainer` to which the
-            dependency should be attached. Defaults to the global core if
-            it is defined.
+        container: :py:class:`~.core.base.DependencyContainer` to which the
+            dependency should be attached. Defaults to the global container,
+            :code:`antidote.world`.
 
     Returns:
         the providers's class or the class decorator.

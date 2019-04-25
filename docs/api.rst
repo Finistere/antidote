@@ -20,8 +20,8 @@ Helpers
 .. automodule:: antidote.helpers.factory
     :members:
 
-.. automodule:: antidote.providers.conf
-    :members: LazyConfigurationMeta
+.. autoclass:: antidote.helpers.conf.LazyConfigurationMeta
+   :special-members: __new__
 
 .. automodule:: antidote.helpers.provider
     :members:
@@ -40,7 +40,7 @@ Service
 ^^^^^^^
 
 .. automodule:: antidote.providers.service
-    :members: FactoryProvider,Build
+    :members: ServiceProvider,Build
 
 Lazy
 ^^^^

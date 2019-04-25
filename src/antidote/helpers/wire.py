@@ -67,7 +67,7 @@ def wire(class_: type = None,
             either a list of method names or :code:`True` to enable it for
             all methods. Defaults to :code:`False`, only methods defined in the
             class itself can be wired.
-        container: :py:class:~.core.base.DependencyContainer` from which
+        container: :py:class:`~.core.base.DependencyContainer` from which
             the dependencies should be retrieved. Defaults to the global
             core if it is defined.
         raise_on_missing: Raise an error if a method does exist.
