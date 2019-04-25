@@ -46,8 +46,10 @@ class LazyMethodCall(SlotsReprMixin):
             return LazyMethodCallDependency(self, owner)
         return getattr(instance, self._method_name)(*self._args, **self._kwargs)
 
+    # The attribute is expected to be found in owner, as one should not call
+    # directly __get__.
     def _get_attribute_name(self, owner):
-        for k, v in owner.__dict__.items():
+        for k, v in owner.__dict__.items():  # pragma: no cover
             if v is self:
                 return k
 
