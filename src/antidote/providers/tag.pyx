@@ -104,8 +104,6 @@ cdef class TagProvider(DependencyProvider):
                 singleton=False
             )
 
-        return None
-
     def register(self, dependency, tags: Iterable[Union[str, Tag]]):
         """
         Mark a dependency with all the supplied tags. Raises

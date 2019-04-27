@@ -20,12 +20,12 @@ class Build(SlotsReprMixin):
 
     .. doctest::
 
-        >>> import antidote
-        >>> @antidote.register
+        >>> from antidote import Build, register, world
+        >>> @register
         ... class Dummy:
         ...     def __init__(self, name=None):
         ...         self.name = name
-        >>> dummy = antidote.world.get(antidote.Build(Dummy, name='me'))
+        >>> dummy = world.get(Build(Dummy, name='me'))
         >>> dummy.name
         'me'
 
@@ -84,14 +84,6 @@ class ServiceProvider(DependencyProvider):
                                            tuple(self._service_to_factory.keys()))
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
-        """
-
-        Args:
-            dependency:
-
-        Returns:
-
-        """
         if isinstance(dependency, Build):
             service = dependency.wrapped
         else:
