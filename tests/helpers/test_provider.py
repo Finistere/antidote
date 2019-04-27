@@ -2,7 +2,7 @@ import pytest
 
 from antidote import new_container, provider
 from antidote.core import DependencyInstance, DependencyProvider
-from antidote.providers import ServiceProvider, ResourceProvider, TagProvider
+from antidote.providers import ServiceProvider, TagProvider
 
 
 @pytest.fixture()
@@ -32,7 +32,6 @@ def test_invalid_provider(cls):
 def test_providers(container):
     assert 3 == len(container.providers)
     assert ServiceProvider in container.providers
-    assert ResourceProvider in container.providers
     assert TagProvider in container.providers
 
     @provider(container=container, wire_super=True)

@@ -2,8 +2,15 @@ import inspect
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from .._internal.utils import SlotsReprMixin
-from ..core import DependencyContainer, DependencyInstance, DependencyProvider, Lazy
+from ..core import DependencyContainer, DependencyInstance, DependencyProvider
 from ..exceptions import DuplicateDependencyError
+
+
+class LazyFactory(SlotsReprMixin):
+    __slots__ = ('dependency',)
+
+    def __init__(self, dependency):
+        self.dependency = dependency
 
 
 class Build(SlotsReprMixin):
@@ -13,12 +20,12 @@ class Build(SlotsReprMixin):
 
     .. doctest::
 
-        >>> import antidote
-        >>> @antidote.register
+        >>> from antidote import Build, register, world
+        >>> @register
         ... class Dummy:
         ...     def __init__(self, name=None):
         ...         self.name = name
-        >>> dummy = antidote.world.get(antidote.Build(Dummy, name='me'))
+        >>> dummy = world.get(Build(Dummy, name='me'))
         >>> dummy.name
         'me'
 
@@ -77,14 +84,6 @@ class ServiceProvider(DependencyProvider):
                                            tuple(self._service_to_factory.keys()))
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
-        """
-
-        Args:
-            dependency:
-
-        Returns:
-
-        """
         if isinstance(dependency, Build):
             service = dependency.wrapped
         else:
@@ -115,7 +114,7 @@ class ServiceProvider(DependencyProvider):
 
     def register(self,
                  service: type,
-                 factory: Union[Callable, Lazy] = None,
+                 factory: Union[Callable, LazyFactory] = None,
                  singleton: bool = True,
                  takes_dependency: bool = False):
         """
@@ -133,7 +132,7 @@ class ServiceProvider(DependencyProvider):
         if not inspect.isclass(service):
             raise TypeError("A service must be a class, not a {!r}".format(service))
 
-        if isinstance(factory, Lazy):
+        if isinstance(factory, LazyFactory):
             service_factory = ServiceFactory(
                 singleton=singleton,
                 func=None,

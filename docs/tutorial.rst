@@ -212,8 +212,8 @@ Here we created another type as Antidote does not accept any duplicate
 dependency IDs.
 
 
-3. Resources
-------------
+3. Configuration
+----------------
 
 Every applications needs to load its configuration from somewhere, one simple
 way to do this is to load a file into a global dictionary :code:`config` and
@@ -221,149 +221,131 @@ import it wherever necessary, like this:
 
 .. testcode:: tutorial_conf
 
-    config = dict(url='my_url', env='PROD')
+    config = dict(domain='example.com', port=3000)
 
-    def am_i_in_prod(env: str = None):
-        env = env or config['env']
-        return env == 'PROD'
+    def absolute_url(path: str, domain: str = None, port: int = None):
+        domain = domain or config['domain']
+        port = port or config['port']
+        return f"https://{domain}:{port}{path}"
 
-Now we can call :code:`am_i_in_prod` without needing to be aware of what it
+Now we can call :code:`absolute_url` without needing to be aware of what it
 needs and are still able to test it properly with unit tests without having to
-change the global configuration. The downside is that we have now a tight
-coupling of the application code and the configuration. If your configuration
-becomes more complicated, such as using environment variables to override some
-parameters, you'll have to either adapt all functions like :code:`am_i_in_prod`
-or create custom code to emulate your existing :code:`config`.
+change the global configuration. There are two major downsides here:
+
+- we have now a tight coupling of the application code and the configuration
+  as the inner body needs to know how to retrieve the configuration. If you need
+  more complex parameters, from multiple sources or lazily loaded for example,
+  you'll probably need to either adapt all functions like :code:`absolute_url`
+  or create custom code to emulate your existing :code:`config`.
+- Retrieving configuration through a string :code:`'domain'` makes refactoring
+  more complicated, as your IDE cannot provide any support for refactoring.
+
 
 Let's give Antidote a shot and see what we can do:
 
 .. testcode:: tutorial_conf
 
-    from antidote import inject, world
+    from antidote import LazyConfigurationMeta, inject
 
-    world.update_singletons(config)
+    class Conf(metaclass=LazyConfigurationMeta):
+        DOMAIN = 'domain'
+        PORT = 'port'
 
-    @inject(use_names=True)
-    def am_i_in_prod_v2(env: str):
-        return env == 'PROD'
+        def __init__(self):
+            # Load anything you need and/or use dependencies.
+            self._data = dict(domain='example.com', port=3000)
 
-.. doctest:: tutorial_conf
+        def __call__(self, key):
+            return self._data[key]
 
-    >>> am_i_in_prod_v2()
-    True
-    >>> am_i_in_prod_v2('dev')
-    False
-
-Pretty easy ! We've updated the singletons stored in the global
-:py:class:`.DependencyContainer` with the configuration directly.
-For the injection we directly use the argument names by specifying
-:code:`use_names=True`. Now while this feels a bit cleaner as  we don't pass
-:code:`config` around anymore, changing how parameters are loaded in
-:code:`config` is still the same.
-
-To improve this, we have to define what Antidote calls a resource with the
-decorator :py:func:`.resource`:
-
-.. testcode:: tutorial_conf
-
-    from antidote import resource
-
-    @resource
-    def conf(key):
-        return config[key]
-
-A resource is identified by a name, here :code:`key`, and a namespace. The
-latter is implicit here, it's the functions name. The function itself is
-expected to return the resource or to raise :py:exc:`LookupError` (which is the
-base class for :py:exc:`KeyError` or :py:exc:`IndexError` for example). Once
-declared, the resource can be accessed through its dependency ID
-:code:`<namespace>:<name>` as in :
+    @inject(dependencies=(None, Conf.DOMAIN, Conf.PORT))
+    def absolute_url_v2(path: str, domain: str, port: int):
+        return f"https://{domain}:{port}{path}"
 
 .. doctest:: tutorial_conf
 
-    >>> world.get('conf:env')
-    'PROD'
+    >>> absolute_url_v2("/user/1")
+    'https://example.com:3000/user/1'
+    >>> absolute_url_v2('/dog/2', port=80)
+    'https://example.com:80/dog/2'
 
-As we cannot have :code:`':'` in the argument name, we cannot use
-:code:`use_names=True` anymore. We have to specify explicitly the mapping of
-the arguments to their dependencies. That's what the parameter :code:`arg_map`
-is for :
+Pretty easy ! Now you may think, that's a lot of code to access :code:`config`,
+but it is much more flexible:
 
-.. testcode:: tutorial_conf
+- :code:`Conf` has :code:`__init__()` and :code:`__call__()` injected, so you can
+  rely on other dependencies easily.
+- Everything is lazy, even the instantiation of :code:`Conf`.
 
-    @inject(dependencies='conf:{arg_name}')
-    def am_i_in_prod_v3(env: str):
-        return env == 'PROD'
-
-.. doctest:: tutorial_conf
-
-    >>> am_i_in_prod_v3()
-    True
-
-Here a template string was used, which is syntactic sugar for :
+:py:class:`.LazyConfigurationMeta` accepts several parameters to customize its behavior:
 
 .. testcode:: tutorial_conf
 
-    @inject(dependencies=lambda name: 'conf:{}'.format(name))
-    def am_i_in_prod_v4(env: str):
-        return env == 'PROD'
+    from antidote import LazyConfigurationMeta
+
+    class CustomizedConf(metaclass=LazyConfigurationMeta, lazy_method='get', auto_wire=False):
+        DOMAIN = 'domain'
+        PORT = 'port'
+
+        def __init__(self):
+            self._data = dict(domain='example.com', port=3000)
+
+        def get(self, key):
+            return self._data[key]
 
 .. note::
 
-    :code:`arg_map` also accepts a sequence of dependency IDs, or a mapping:
-
-    .. doctest:: tutorial_conf
-
-        >>> @inject(dependencies=['conf:env'])
-        ... def am_i_in_prod3(env: str):
-        ...     return env == 'PROD'
-        >>> @inject(dependencies=dict(env='conf:env'))
-        ... def am_i_in_prod3(env: str):
-        ...     return env == 'PROD'
-
-    See :py:func:`.inject` for more information.
-
-So what ares the pros of defining a resource ? It hides how you retrieve the
-parameters from the code which is using them. Now you could retrieve parameters
-with HTTP requests or through database queries and those would only be executed
-only if they are necessary and once. Changing this would only affect the code
-inside :code:`conf`, nothing else.
-
-There is second advantage, multiple functions can declared for the same
-resource:
-
-.. testcode:: tutorial_conf
-
-    from antidote import resource
-    import os
-
-    @resource(priority=10)
-    def env_conf(name):
-        return os.environ['APP_'.format(name.upper())]
-
-    @resource
-    def env_conf(name):
-        return config[name.lower()]
-
-    @inject(dependencies='env_conf:{arg_name}')
-    def am_i_in_prod_v5(env: str):
-        return env == 'PROD'
-
-.. doctest:: tutorial_conf
-
-    >>> am_i_in_prod_v5()
-    True
-
-A priority has to specified so Antidote knows which function it should call
-first.
-
-To summarize, declaring resources with Antidote helps decoupling the code,
-which makes latter modification easier. Moreover using multiple endpoints to
-retrieve configuration becomes obvious without any custom code which has to be
-maintained.
+    Only public uppercase class attributes will be converted to dependencies.
+    This means that :code:`A` will be changed, but not :code:`_A` neither
+    :code:`a`.
 
 
-4. Tags
+4. Lazy function calls
+----------------------
+
+Sometimes a dependency can be the output of a function call, which could fetch remote
+configuration with a network call. To avoid multiple round trips you would cache the
+results, like this:
+
+.. testsetup:: tutorial_lazy
+
+    import sys
+
+    class DummyRequests:
+        def get(url):
+            return dict()
+
+    sys.modules['requests'] = DummyRequests()
+
+.. testcode:: tutorial_lazy
+
+    import requests
+    from functools import lru_cache
+
+    @lru_cache(maxsize=32)
+    def fetch_remote_conf(name):
+        return requests.get(f"https://example.com/conf/{name}")
+
+    def f(conf = None):
+        conf = conf if conf is not None else fetch_remote_conf("conf_1")
+
+This has one downside, it requires :code:`f()` to be aware of how to call
+:code:`fetch_remote_conf` and with which arguments. Now with Antidote:
+
+.. testcode:: tutorial_lazy
+
+    from antidote import LazyCall, inject
+
+    def fetch_remote_conf(name):
+        return requests.get(f"https://example.com/conf/{name}")
+
+    CONF_1 = LazyCall(fetch_remote_conf)("conf_1")
+
+    @inject(dependencies=(CONF_1,))
+    def f(conf):
+        pass
+
+
+5. Tags
 -------
 
 Tags are a way to retrieve a list of services, such as plugins, extensions, etc...
@@ -437,5 +419,5 @@ without passing through a Service. You could do it the following way:
 
 Provider are in most cases tried sequentially. So if a provider returns nothing,
 it is simply ignored and another provider is tried. For the same reason it is not
-recommended to have a lot of different :py:class:`.DependencyProvider`s as this
+recommended to have a lot of different :py:class:`.DependencyProvider`\ s as this
 implies a performance penalty.

@@ -3,9 +3,9 @@ from typing import Callable
 
 import pytest
 
-from antidote import (factory, inject, new_container, provider, register, resource,
-                      wire)
-from antidote.core import DependencyProvider, DependencyContainer
+from antidote import (factory, inject, LazyConfigurationMeta, new_container, provider,
+                      register, wire)
+from antidote.core import DependencyContainer, DependencyProvider
 from antidote.exceptions import DependencyInstantiationError
 
 
@@ -138,7 +138,20 @@ def wire_(class_=None, auto_wire=True, **kwargs):
     return wire(class_=class_, methods=m, **kwargs)
 
 
-resource_ = functools.partial(resource, namespace='my_service')
+def resource(class_, **kwargs):
+    return LazyConfigurationMeta(
+        'Resource' + class_.__name__,
+        (),
+        dict(
+            __init__=class_.__init__,
+            __call__=class_.__call__,
+            method=class_.method
+        ),
+        lazy_method='__call__',
+        **kwargs
+    )
+
+
 register_build = functools.partial(register, factory='build')
 register_external_build = functools.partial(register, factory=build)
 
@@ -159,18 +172,25 @@ class_tests = [
                  id='register_build-B1'),
 ]
 
+metaclass_tests = [
+    pytest.param(resource, F1,
+                 id='resource-F1'),
+    pytest.param(resource, F2,
+                 id='resource-F2'),
+    pytest.param(resource, F3,
+                 id='resource-F3')
+]
+
 function_tests = [
     pytest.param(factory, f1,
                  id='factory-f1'),
-    pytest.param(resource_, g1,
-                 id='resource-g1'),
     pytest.param(inject, f1,
                  id='inject-f1'),
     pytest.param(register_external_build, B1,
                  id='register_external_build-B1'),
 ]
 
-all_tests = class_tests + function_tests
+all_tests = metaclass_tests + class_tests + function_tests
 
 
 def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
@@ -199,7 +219,7 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
             def create():
                 inj_kwargs = inject_kwargs.copy()
 
-                if wrapper == resource_ or wrapper == register_external_build:
+                if wrapper == register_external_build:
                     try:
                         if isinstance(inj_kwargs['dependencies'], tuple):
                             # @formatter:off
@@ -234,12 +254,14 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
                     return container.get(wrapped_)
                 elif wrapper == factory:
                     return container.get(MyService)
-                elif wrapper == resource_:
-                    return container.get('my_service:*')
                 elif wrapper == provider:
                     return container.providers[wrapped_]
                 elif wrapper in {inject, wire_}:
                     return wrapped_()
+                elif wrapper is resource:
+                    return wrapped_()()
+                else:
+                    raise RuntimeError("Unsupported helper")
 
             if lazy:
                 return test(container, create_instance=create)
@@ -257,7 +279,7 @@ def test_basic_wiring(container, instance: MyService):
     assert instance.another_service is None
 
 
-@parametrize_injection(class_tests, return_wrapped=True,
+@parametrize_injection(metaclass_tests + class_tests, return_wrapped=True,
                        auto_wire=['__init__', 'method'])
 def test_complex_wiring(container, instance: MyService):
     assert instance.method() is container.get(YetAnotherService)
@@ -276,8 +298,9 @@ def test_subclass_wire_super(container, instance: MyService):
                        lazy=True,
                        return_wrapped=True,
                        create_subclass=True,
-                       auto_wire=['method'])
-def test_subclass_no_mro(container, create_instance: Callable):
+                       auto_wire=['method'],
+                       wire_super=False)
+def test_subclass_no_wire_super(container, create_instance: Callable):
     with pytest.raises(TypeError):
         create_instance()
 

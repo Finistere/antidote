@@ -1,7 +1,8 @@
 import pytest
 
 from antidote import register
-from antidote.core import DependencyContainer, Lazy
+from antidote.core import DependencyContainer
+from antidote.providers.service import LazyFactory
 from antidote.providers import ServiceProvider, TagProvider
 
 
@@ -45,7 +46,7 @@ def test_singleton(container):
         lambda cls: cls(),
         'class_build',
         'static_build',
-        Lazy('instantiate'),
+        LazyFactory('instantiate'),
         None
     ]
 )

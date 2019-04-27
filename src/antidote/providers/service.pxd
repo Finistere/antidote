@@ -13,3 +13,8 @@ cdef class Build:
         readonly object wrapped
         readonly tuple args
         readonly dict kwargs
+
+
+cdef class LazyFactory:
+    cdef:
+        readonly object dependency

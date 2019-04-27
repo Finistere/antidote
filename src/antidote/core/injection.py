@@ -51,7 +51,7 @@ def inject(func: Union[Callable, staticmethod, classmethod] = None,
             also be specified to restrict this to those. Any type hints from
             the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
             ...) are ignored. Defaults to :code:`True`.
-        container: :py:class:~.core.base.DependencyContainer` from which
+        container: :py:class:`~.core.base.DependencyContainer` from which
             the dependencies should be retrieved. Defaults to the global
             core if it is defined.
 

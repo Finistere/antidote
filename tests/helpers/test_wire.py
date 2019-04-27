@@ -140,7 +140,7 @@ def test_invalid_params(kwargs):
     [
         dict(methods=object()),
         dict(methods=['method'], wire_super=object()),
-        dict(methods=['method'], ignore_missing=object()),
+        dict(methods=['method'], raise_on_missing=object()),
     ]
 )
 def test_invalid_type(kwargs):
@@ -150,17 +150,18 @@ def test_invalid_type(kwargs):
             pass
 
 
-def test_ignore_missing(container: DependencyContainer):
+def test_raise_on_missing(container: DependencyContainer):
     with pytest.raises(TypeError):
         @wire(methods=['method'], container=container,
-              ignore_missing=False)
+              raise_on_missing=True)
         class Dummy:
             pass
 
-    @wire(methods=['method'], container=container, ignore_missing=True)
+    @wire(methods=['method'], container=container, raise_on_missing=False)
     class Dummy2:
         pass
 
-    @wire(wire_super=True, methods=['method'], container=container, ignore_missing=True)
+    @wire(wire_super=True, methods=['method'], container=container,
+          raise_on_missing=False)
     class Dummy3(Dummy2):
         pass

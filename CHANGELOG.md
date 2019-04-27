@@ -2,6 +2,22 @@ Changelog
 =========
 
 
+0.5.0 (2019-04-22)
+------------------
+
+### Breaking changes
+
+- `@resource` has been removed an replaced by `LazyConfigurationMeta` to handle 
+  configuration. 
+  
+### Features
+
+- Add `LazyMethodCall` and `LazyCall` to support output of functions as dependencies.
+
+### Changes
+
+- Add better type hints for helper decorators.
+
 0.4.0 (2019-02-03)
 ------------------
 

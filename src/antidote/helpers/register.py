@@ -1,12 +1,42 @@
-import collections.abc as c_abc
 import inspect
-from typing import Callable, cast, Iterable, Tuple, Union
+from typing import Callable, cast, Iterable, overload, TypeVar, Union
 
 from .wire import wire
 from .._internal.default_container import get_default_container
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject, Lazy
-from ..providers.service import ServiceProvider
+from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
+from ..providers.service import LazyFactory, ServiceProvider
 from ..providers.tag import Tag, TagProvider
+
+C = TypeVar('C', bound=type)
+
+
+@overload
+def register(class_: C,  # noqa: E704
+             *,
+             singleton: bool = True,
+             factory: Union[Callable, str] = None,
+             auto_wire: Union[bool, Iterable[str]] = None,
+             dependencies: DEPENDENCIES_TYPE = None,
+             use_names: Union[bool, Iterable[str]] = None,
+             use_type_hints: Union[bool, Iterable[str]] = None,
+             wire_super: Union[bool, Iterable[str]] = None,
+             tags: Iterable[Union[str, Tag]] = None,
+             container: DependencyContainer = None
+             ) -> C: ...
+
+
+@overload
+def register(*,  # noqa: E704
+             singleton: bool = True,
+             factory: Union[Callable, str] = None,
+             auto_wire: Union[bool, Iterable[str]] = None,
+             dependencies: DEPENDENCIES_TYPE = None,
+             use_names: Union[bool, Iterable[str]] = None,
+             use_type_hints: Union[bool, Iterable[str]] = None,
+             wire_super: Union[bool, Iterable[str]] = None,
+             tags: Iterable[Union[str, Tag]] = None,
+             container: DependencyContainer = None
+             ) -> Callable[[C], C]: ...
 
 
 def register(class_: type = None,
@@ -20,7 +50,7 @@ def register(class_: type = None,
              wire_super: Union[bool, Iterable[str]] = None,
              tags: Iterable[Union[str, Tag]] = None,
              container: DependencyContainer = None
-             ) -> Union[Callable, type]:
+             ):
     """Register a dependency by its class.
 
     Args:
@@ -58,9 +88,9 @@ def register(class_: type = None,
             (the tag name) or :py:class:`~.providers.tag.Tag`. All
             dependencies with a specific tag can then be retrieved with
             a :py:class:`~.providers.tag.Tagged`.
-        container: :py:class:~.core.base.DependencyContainer` to which the
-            dependency should be attached. Defaults to the global core if
-            it is defined.
+        container: :py:class:`~.core.base.DependencyContainer` to which the
+            dependency should be attached. Defaults to the global container,
+            :code:`antidote.world`.
 
     Returns:
         The class or the class decorator.
@@ -68,23 +98,20 @@ def register(class_: type = None,
     """
     container = container or get_default_container()
     auto_wire = auto_wire if auto_wire is not None else True
-    ignore_missing = False
+    methods = ()  # type: Iterable[str]
+    wire_raise_on_missing = True
 
-    if auto_wire is True:
-        if isinstance(factory, str):
-            methods = (factory,)  # type: Tuple[str, ...]
-            if wire_super is None:
-                wire_super = (factory,)
-        else:
-            ignore_missing = True
-            methods = ('__init__',)
-    elif auto_wire is False:
-        pass
-    elif isinstance(auto_wire, c_abc.Iterable):
-        methods = tuple(auto_wire)
+    if isinstance(auto_wire, bool):  # for Mypy
+        if auto_wire:
+            if isinstance(factory, str):
+                methods = (factory,)
+                if wire_super is None:
+                    wire_super = (factory,)
+            else:
+                wire_raise_on_missing = False
+                methods = ('__init__',)
     else:
-        raise TypeError("auto_wire must be a boolean or an iterable of "
-                        "method names.")
+        methods = auto_wire
 
     def register_service(cls):
         nonlocal factory
@@ -108,9 +135,9 @@ def register(class_: type = None,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
                        container=container,
-                       ignore_missing=ignore_missing)
+                       raise_on_missing=wire_raise_on_missing)
 
-        if factory is None or isinstance(factory, Lazy):
+        if factory is None or isinstance(factory, LazyFactory):
             pass
         elif isinstance(factory, str):
             factory = getattr(cls, factory)

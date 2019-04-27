@@ -100,31 +100,38 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
         def __init__(self, *args, **kwargs):
             """ Initializes the database. """
 
-    parameters = {
-        'db.host': 'host',
-        'db.user': 'user',
-        'db.port': 5432,
-        'db.password': 'password'
-    }
+    # Usage of constants for configuration makes refactoring easier and is
+    # less error-prone. Moreover Conf will only be instantiated if necessary.
+    class Conf(metaclass=antidote.LazyConfigurationMeta):
+        DB_HOST = 'db.host'
+        DB_USER = 'db.user'
+        DB_PORT = 'db.port'
+        DB_PASSWORD = 'db.password'
 
-    @antidote.resource
-    def conf(key):
-        return parameters[key]
+        def __init__(self):
+            # Load configuration from somewhere
+            self._raw_conf = {
+                'db.host': 'host',
+                'db.user': 'user',
+                'db.port': 5432,
+                'db.password': 'password'
+            }
+
+        def __call__(self, key):
+            return self._raw_conf[key]
+
 
     # Declare a factory which should be called to instantiate Database.
-    # Variables names are used here for injection. A dictionary mapping
-    # arguments name to their dependency could also have been used.
-    @antidote.factory(dependencies='conf:db.{arg_name}')
+    # The order of the arguments is here used to map the dependencies.
+    # A dictionary mapping arguments name to their dependency could also
+    # have been used.
+    @antidote.factory(dependencies=(Conf.DB_HOST, Conf.DB_PORT,
+                                    Conf.DB_USER, Conf.DB_PASSWORD))
     def database_factory(host: str, port: int, user: str, password: str) -> Database:
         """
         Configure your database.
         """
-        return Database(
-            host=host,
-            port=port,
-            user=user,
-            password=password
-        )
+        return Database(host=host, port=port, user=user, password=password)
 
     # Declare DatabaseWrapper as a service to be injected.
     @antidote.register
@@ -148,11 +155,12 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
 
     # You can still explicitly pass the arguments to override
     # injection.
+    conf = Conf()
     f(DatabaseWrapper(database_factory(
-        host=parameters['db.host'],
-        port=parameters['db.port'],
-        user=parameters['db.user'],
-        password=parameters['db.password']
+        host=conf.DB_HOST,  # equivalent to conf._raw_conf['db.host']
+        port=conf._raw_conf['db.port'],
+        user=conf._raw_conf['db.user'],
+        password=conf._raw_conf['db.password']
     )))
 
 

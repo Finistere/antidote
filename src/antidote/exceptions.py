@@ -16,13 +16,6 @@ class DuplicateTagError(AntidoteError):
     """
 
 
-class ResourcePriorityConflict(AntidoteError):
-    """
-    Two getters having the same namespace have also the same priority.
-    Raised by the GetterProvider.
-    """
-
-
 __all__ = [
     'AntidoteError',
     'DependencyCycleError',
@@ -30,5 +23,4 @@ __all__ = [
     'DependencyNotFoundError',
     'DuplicateDependencyError',
     'DuplicateTagError',
-    'ResourcePriorityConflict'
 ]
