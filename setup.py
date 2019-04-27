@@ -1,26 +1,9 @@
 import os
 import pathlib
-import shutil
-import sys
 
 from setuptools import Extension, find_packages, setup
 
 here = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
-
-# 'setup.py publish' shortcut.
-if sys.argv[-1] == 'publish':
-    print("Removing previous builds...")
-    if os.path.exists(os.path.join(here, 'dist')):
-        shutil.rmtree(os.path.join(here, 'dist'))
-
-    print("Building distribution...")
-    os.system('python setup.py sdist bdist_wheel')
-
-    print("Uploading the package to PyPi with Twine...")
-    os.system('twine upload dist/*')
-
-    print("Done !")
-    sys.exit()
 
 with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
@@ -67,18 +50,6 @@ setup(
     install_requires=requires,
     extras_require={
         ":python_version<'3.5'": ["typing"],
-        "docs": [
-            "sphinx",
-            "sphinx_autodoc_typehints",
-            "sphinx-rtd-theme",
-            "attrs"
-        ],
-        "tests": [
-            "pytest",
-            "pytest-cov",
-            "hypothesis",
-            "pretend"
-        ]
     },
     license='MIT',
     classifiers=(

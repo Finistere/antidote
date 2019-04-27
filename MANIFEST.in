@@ -13,6 +13,9 @@ exclude .travis.yml .readthedocs.yml
 include tox.ini .coveragerc conftest.py
 recursive-include tests *.py
 
+# Requirements
+recursive-include requirements *.txt
+
 # Documentation
 include docs/Makefile
 recursive-include docs *.png
@@ -23,5 +26,6 @@ recursive-include docs *.py
 recursive-include docs *.rst
 prune docs/_build
 
-# Exclude bin
-prune bin
+# bin
+recursive-include bin *.sh
+
