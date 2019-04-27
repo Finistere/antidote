@@ -22,15 +22,12 @@ Antidote
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
 Antidotes is a declarative dependency injection micro-framework for Python 3.5+
-which tries to do the following :
+which tries to do the following:
 
-- Injection can be added anywhere easily, no need to use anything else than
-  decorators except for advanced features.
-- It should be easy to find where dependencies are instantiated from any point
-  in the code where they're injected.
-- Easily extendable to support any kind of dependencies.
-- Testing injected objects must be easy.
-- Catch as much errors as it can.
+- Injection can applied on any existing code easily.
+- Finding the source and the usage of a dependency is straightforward (through
+  an IDE's "Go to definition" / "Find usage").
+- Core functionality is flexible and extendable to support any custom dependencies.
 - Limit performance impact of injection.
 
 Why ?
@@ -49,17 +46,22 @@ For the longer version: `<https://antidote.readthedocs.io/en/stable/why.html>`_
 Features Highlight
 ==================
 
-- Services, factories, resources (configuration typically), tags, auto-wiring...
-- Dependencies bound through type hints and optionally from variable names
-  and/or mapping.
-- Integrates well with any code, injected functions can be called as usual
-  with all their arguments.
-- Thread-safe and limited performance impact (see
+Core functionalities:
+
+- Injection done through type hints and optionally from argument's name and/or
+  with explicitly specified dependencies.
+- Dependency cycle detection
+- Thread-safety and limited performace impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
-- Dependency cycle detection.
-- Easily extendable to support any kind of dependencies.
-- Integration with the `attrs <http://www.attrs.org/en/stable/>`_ package
-  through the `antidote_attrs` package.
+- Easily extendable, through dependency providers. All aftermetioned dependencies are
+  implemented with it.
+
+Dependencies:
+
+- Services and factories: provides an instance of a class.
+- Tags: Services can be tagged, and as such all service matching a tag can be retrieved.
+- Configuration: Constants which are lazily evaluated.
+- Lazy function calls: Results of a function call is lazily provided.
 
 
 Installation
@@ -71,13 +73,6 @@ To install Antidote, simply run this command:
 .. code-block:: bash
 
     pip install antidote
-
-In order to install the cython version, you'll need to install the following
-first (This should be better in the near future):
-
-.. code-block:: bash
-
-    pip install cython fastrlock
 
 
 Quick Start
