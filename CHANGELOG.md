@@ -2,6 +2,15 @@ Changelog
 =========
 
 
+0.5.1-dev
+---------
+  
+### Features
+
+- Add `is_compiled()` to know whether the current version is compiled or pure 
+  python.
+
+
 0.5.0 (2019-04-27)
 ------------------
 
@@ -17,6 +26,7 @@ Changelog
 ### Changes
 
 - Add better type hints for helper decorators.
+
 
 0.4.0 (2019-02-03)
 ------------------
@@ -48,6 +58,7 @@ A lot of internals have changed, but it can roughly be resumed as the following:
 - Add `resource()` to support custom resources, such as configuration.
 - Dependency providers are more strict for more maintainable code.
 - Use of Cython for better injection performance.
+
 
 0.3.0 (2018-04-29)
 ------------------
