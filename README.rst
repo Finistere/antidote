@@ -59,7 +59,8 @@ Core functionalities:
 Dependencies:
 
 - Services and factories: provides an instance of a class.
-- Tags: Services can be tagged, and as such all service matching a tag can be retrieved.
+- Tags: Dependencies can be tagged, and as such all of them matching a specific tag can be
+  retrieved.
 - Configuration: Constants which are lazily evaluated.
 - Lazy function calls: Results of a function call is lazily provided.
 
