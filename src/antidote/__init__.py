@@ -1,3 +1,4 @@
+from ._internal.utils import is_compiled
 from .core import inject
 from .helpers import (factory, LazyConfigurationMeta, new_container, provider, register,
                       wire)

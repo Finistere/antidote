@@ -150,7 +150,3 @@ cdef class DependencyProvider:
 
     cpdef DependencyInstance provide(self, dependency):
         raise NotImplementedError()
-
-cdef class Lazy:
-    def __init__(self, dependency: Any):
-        self.dependency = dependency

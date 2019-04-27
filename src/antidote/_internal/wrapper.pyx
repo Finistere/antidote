@@ -9,6 +9,8 @@ from antidote.core.container cimport DependencyContainer
 from ..exceptions import DependencyNotFoundError
 # @formatter:on
 
+compiled = True
+
 
 @cython.freelist(10)
 cdef class Injection:

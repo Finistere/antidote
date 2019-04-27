@@ -5,6 +5,8 @@ from .._internal.utils import SlotsReprMixin
 from ..core import DependencyContainer
 from ..exceptions import DependencyNotFoundError
 
+compiled = False
+
 
 class Injection(SlotsReprMixin):
     """

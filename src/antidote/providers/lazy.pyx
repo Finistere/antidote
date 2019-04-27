@@ -82,7 +82,7 @@ cdef class LazyCallProvider(DependencyProvider):
 
     cpdef DependencyInstance provide(self, object dependency):
         cdef:
-            LazyCall lazy_method_call
+            LazyCall lazy_call
             LazyMethodCallDependency lazy_method_dependency
             object dependency_instance
             object method
