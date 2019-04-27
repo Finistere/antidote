@@ -2,12 +2,12 @@ Changelog
 =========
 
 
-0.5.1-dev
----------
+0.5.1 (2019-04-27)
+------------------
   
 ### Features
 
-- Add `is_compiled()` to know whether the current version is compiled or pure 
+- Add `is_compiled()` to check whether the current version is compiled or pure 
   python.
 
 
