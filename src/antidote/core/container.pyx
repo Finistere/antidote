@@ -1,4 +1,4 @@
-# cython: language_level=3, language=c++
+# cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
 from typing import Any, Dict, List, Mapping, Tuple
 

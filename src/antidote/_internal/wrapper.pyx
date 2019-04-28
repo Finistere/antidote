@@ -1,10 +1,11 @@
-# cython: language_level=3, language=c++
+# cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
 
 # @formatter:off
 cimport cython
-from cpython.object cimport PyObject_Call
 from cpython.dict cimport PyDict_Contains, PyDict_Copy, PyDict_SetItem
+from cpython.object cimport PyObject_Call
+from cpython.tuple cimport PyTuple_GET_ITEM,  PyTuple_Size
 
 from antidote.core.container cimport DependencyContainer, DependencyInstance
 from ..exceptions import DependencyNotFoundError
@@ -12,7 +13,7 @@ from ..exceptions import DependencyNotFoundError
 
 compiled = True
 
-@cython.freelist(10)
+@cython.freelist(128)
 cdef class Injection:
     cdef:
         readonly str arg_name
@@ -119,8 +120,8 @@ cdef inline dict _inject_kwargs(DependencyContainer container,
         bint dirty_kwargs = False
         int i
 
-    for i in range(offset, len(blueprint.injections)):
-        injection = blueprint.injections[i]
+    for i in range(offset, PyTuple_Size(blueprint.injections)):
+        injection = <Injection> PyTuple_GET_ITEM(blueprint.injections, i)
         if injection.dependency is not None \
                 and PyDict_Contains(kwargs, injection.arg_name) == 0:
             dependency_instance = container.provide(injection.dependency)
