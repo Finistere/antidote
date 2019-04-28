@@ -27,13 +27,11 @@ class DependencyContainer:
     Instantiates the dependencies through the registered providers and handles
     their scope.
     """
-    SENTINEL = object()
-
     def __init__(self):
         self._providers = list()  # type: List[DependencyProvider]
         self._type_to_provider = dict()  # type: Dict[type, DependencyProvider]
-        self._singletons = dict()  # type: Dict[Any, Any]
-        self._singletons[DependencyContainer] = self
+        self._singletons = dict()  # type: Dict[Any, DependencyInstance]
+        self._singletons[DependencyContainer] = DependencyInstance(self, singleton=True)
         self._dependency_stack = DependencyStack()
         self._instantiation_lock = threading.RLock()
 
@@ -95,7 +93,10 @@ class DependencyContainer:
         Update the singletons.
         """
         with self._instantiation_lock:
-            self._singletons.update(dependencies)
+            self._singletons.update({
+                k: DependencyInstance(v, singleton=True)
+                for k, v in dependencies.items()
+            })
 
     def get(self, dependency):
         """
@@ -109,12 +110,12 @@ class DependencyContainer:
         Returns:
             instance for the given dependency
         """
-        instance = self.provide(dependency)
-        if instance is self.SENTINEL:
+        dependency_instance = self.provide(dependency)
+        if dependency_instance is None:
             raise DependencyNotFoundError(dependency)
-        return instance
+        return dependency_instance.instance
 
-    def provide(self, dependency):
+    def provide(self, dependency) -> Optional[DependencyInstance]:
         """
         Internal method which should not be directly called. Prefer
         :py:meth:`~.core.core.DependencyContainer.get`.
@@ -150,9 +151,9 @@ class DependencyContainer:
 
                 if dependency_instance is not None:
                     if dependency_instance.singleton:
-                        self._singletons[dependency] = dependency_instance.instance
+                        self._singletons[dependency] = dependency_instance
 
-                    return dependency_instance.instance
+                    return dependency_instance
 
         except DependencyCycleError:
             raise
@@ -160,7 +161,7 @@ class DependencyContainer:
         except Exception as e:
             raise DependencyInstantiationError(dependency) from e
 
-        return self.SENTINEL
+        return None
 
 
 class DependencyProvider:

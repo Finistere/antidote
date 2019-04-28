@@ -2,5 +2,5 @@ from .container import new_container
 from .factory import factory
 from .provider import provider
 from .register import register
-from .conf import LazyConfigurationMeta
+from .constants import LazyConstantsMeta
 from .wire import wire

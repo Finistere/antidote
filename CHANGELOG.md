@@ -2,6 +2,16 @@ Changelog
 =========
 
 
+0.6.0-dev
+---------
+
+### Breaking changes
+
+- `DependencyContainer.provide()` returns a `DependencyInstance` not the 
+  instance itself anymore.
+- Rename `LazyConfigurationMeta` to `LazyConstantsMeta`.
+
+
 0.5.1 (2019-04-27)
 ------------------
   

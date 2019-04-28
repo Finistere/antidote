@@ -3,14 +3,14 @@
 
 # @formatter:off
 cimport cython
+from cpython.object cimport PyObject_Call
 from cpython.dict cimport PyDict_Contains, PyDict_Copy, PyDict_SetItem
 
-from antidote.core.container cimport DependencyContainer
+from antidote.core.container cimport DependencyContainer, DependencyInstance
 from ..exceptions import DependencyNotFoundError
 # @formatter:on
 
 compiled = True
-
 
 @cython.freelist(10)
 cdef class Injection:
@@ -65,7 +65,7 @@ cdef class InjectedWrapper:
             self.__injection_offset + len(args),
             kwargs
         )
-        return self.__wrapped__(*args, **kwargs)
+        return PyObject_Call(self.__wrapped__, args, kwargs)
 
     def __get__(self, instance, owner):
         return InjectedBoundWrapper.__new__(
@@ -109,13 +109,13 @@ cdef class InjectedBoundWrapper(InjectedWrapper):
     def __get__(self, instance, owner):
         return self
 
-cdef dict _inject_kwargs(DependencyContainer container,
-                         InjectionBlueprint blueprint,
-                         int offset,
-                         dict kwargs):
+cdef inline dict _inject_kwargs(DependencyContainer container,
+                                InjectionBlueprint blueprint,
+                                int offset,
+                                dict kwargs):
     cdef:
         Injection injection
-        object instance
+        DependencyInstance dependency_instance
         bint dirty_kwargs = False
         int i
 
@@ -123,12 +123,12 @@ cdef dict _inject_kwargs(DependencyContainer container,
         injection = blueprint.injections[i]
         if injection.dependency is not None \
                 and PyDict_Contains(kwargs, injection.arg_name) == 0:
-            instance = container.provide(injection.dependency)
-            if instance is not container.SENTINEL:
+            dependency_instance = container.provide(injection.dependency)
+            if dependency_instance is not None:
                 if not dirty_kwargs:
                     kwargs = PyDict_Copy(kwargs)
                     dirty_kwargs = True
-                PyDict_SetItem(kwargs, injection.arg_name, <object> instance)
+                PyDict_SetItem(kwargs, injection.arg_name, dependency_instance.instance)
             elif injection.required:
                 raise DependencyNotFoundError(injection.dependency)
 

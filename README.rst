@@ -98,7 +98,7 @@ with a custom class for easier usage. Antidote can do all the wiring for you:
 
     # Usage of constants for configuration makes refactoring easier and is
     # less error-prone. Moreover Conf will only be instantiated if necessary.
-    class Conf(metaclass=antidote.LazyConfigurationMeta):
+    class Conf(metaclass=antidote.LazyConstantsMeta):
         DB_HOST = 'db.host'
         DB_USER = 'db.user'
         DB_PORT = 'db.port'

@@ -20,7 +20,7 @@ Helpers
 .. automodule:: antidote.helpers.factory
     :members:
 
-.. autoclass:: antidote.helpers.conf.LazyConfigurationMeta
+.. autoclass:: antidote.helpers.constants.LazyConstantsMeta
    :special-members: __new__
 
 .. automodule:: antidote.helpers.provider

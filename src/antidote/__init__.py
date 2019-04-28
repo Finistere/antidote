@@ -1,6 +1,6 @@
 from ._internal.utils import is_compiled
 from .core import inject
-from .helpers import (factory, LazyConfigurationMeta, new_container, provider, register,
+from .helpers import (factory, LazyConstantsMeta, new_container, provider, register,
                       wire)
 from .providers.lazy import LazyCall, LazyMethodCall
 from .providers.service import Build
@@ -20,7 +20,7 @@ __all__ = [
     'Build',
     'LazyCall',
     'LazyMethodCall',
-    'LazyConfigurationMeta',
+    'LazyConstantsMeta',
     'Tag',
     'Tagged',
     'factory',

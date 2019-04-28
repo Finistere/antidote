@@ -84,18 +84,19 @@ cdef class LazyCallProvider(DependencyProvider):
         cdef:
             LazyCall lazy_call
             LazyMethodCallDependency lazy_method_dependency
-            object dependency_instance
-            object method
+            DependencyInstance dependency_instance
 
         if isinstance(dependency, LazyMethodCallDependency):
             lazy_method_dependency = <LazyMethodCallDependency> dependency
             dependency_instance = self._container.provide(lazy_method_dependency.owner)
             if dependency_instance is None:
-                raise DependencyNotFoundError(dependency_instance)
+                raise DependencyNotFoundError(lazy_method_dependency.owner)
 
             return DependencyInstance.__new__(
                 DependencyInstance,
-                lazy_method_dependency.lazy_method_call._call(dependency_instance),
+                lazy_method_dependency.lazy_method_call._call(
+                    dependency_instance.instance
+                ),
                 lazy_method_dependency.lazy_method_call._singleton
             )
         elif isinstance(dependency, LazyCall):

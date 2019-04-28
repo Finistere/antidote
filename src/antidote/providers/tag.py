@@ -221,10 +221,8 @@ class TaggedDependencies:
                 with self._lock:
                     # If not other thread has already added the instance.
                     if i == len(self._instances):
-                        instance = self._container.provide(self._dependencies[i])
-                        if instance is self._container.SENTINEL:
-                            raise DependencyNotFoundError(self._dependencies[i])
-
-                        self._instances.append(instance)
+                        self._instances.append(
+                            self._container.get(self._dependencies[i])
+                        )
                 yield self._instances[i]
             i += 1

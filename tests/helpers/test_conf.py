@@ -1,7 +1,7 @@
 import pytest
 
 from antidote.core import DependencyContainer
-from antidote.helpers.conf import LazyConfigurationMeta
+from antidote.helpers.constants import LazyConstantsMeta
 from antidote.providers import LazyCallProvider, ServiceProvider
 
 
@@ -15,7 +15,7 @@ def container():
 
 
 def test_resource_meta(container: DependencyContainer):
-    class Conf(metaclass=LazyConfigurationMeta, container=container):
+    class Conf(metaclass=LazyConstantsMeta, container=container):
         A = 'a'
         B = 'b'
 
@@ -33,12 +33,12 @@ def test_resource_meta(container: DependencyContainer):
 
 def test_missing_get(container: DependencyContainer):
     with pytest.raises(ValueError):
-        class Conf(metaclass=LazyConfigurationMeta, container=container):
+        class Conf(metaclass=LazyConstantsMeta, container=container):
             A = 'a'
 
 
 def test_private(container: DependencyContainer):
-    class Conf(metaclass=LazyConfigurationMeta, container=container):
+    class Conf(metaclass=LazyConstantsMeta, container=container):
         _A = 'a'
 
         b = 'b'

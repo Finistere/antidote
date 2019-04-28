@@ -245,9 +245,9 @@ Let's give Antidote a shot and see what we can do:
 
 .. testcode:: tutorial_conf
 
-    from antidote import LazyConfigurationMeta, inject
+    from antidote import LazyConstantsMeta, inject
 
-    class Conf(metaclass=LazyConfigurationMeta):
+    class Conf(metaclass=LazyConstantsMeta):
         DOMAIN = 'domain'
         PORT = 'port'
 
@@ -276,13 +276,13 @@ but it is much more flexible:
   rely on other dependencies easily.
 - Everything is lazy, even the instantiation of :code:`Conf`.
 
-:py:class:`.LazyConfigurationMeta` accepts several parameters to customize its behavior:
+:py:class:`.LazyConstantsMeta` accepts several parameters to customize its behavior:
 
 .. testcode:: tutorial_conf
 
-    from antidote import LazyConfigurationMeta
+    from antidote import LazyConstantsMeta
 
-    class CustomizedConf(metaclass=LazyConfigurationMeta, lazy_method='get', auto_wire=False):
+    class CustomizedConf(metaclass=LazyConstantsMeta, lazy_method='get', auto_wire=False):
         DOMAIN = 'domain'
         PORT = 'port'
 

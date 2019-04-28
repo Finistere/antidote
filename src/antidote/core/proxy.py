@@ -1,7 +1,7 @@
 import collections.abc as c_abc
 from typing import Any, Iterable, Mapping, Set, Dict
 
-from .container import DependencyContainer
+from .container import DependencyContainer, DependencyInstance
 from .exceptions import DependencyNotFoundError
 
 
@@ -27,7 +27,7 @@ class ProxyContainer(DependencyContainer):
         else:
             raise ValueError("missing must be either an iterable or None")
 
-        new_singletons = {}    # type: Dict[Any, Any]
+        new_singletons = {}    # type: Dict[Any, DependencyInstance]
         if include is None:
             new_singletons = container.singletons
         elif isinstance(include, c_abc.Iterable):
@@ -45,7 +45,10 @@ class ProxyContainer(DependencyContainer):
                     pass
         elif exclude is not None:
             raise ValueError("exclude must be either an iterable or None")
-        self.update_singletons(new_singletons)
+        self.update_singletons({
+            k: v.instance
+            for k, v in new_singletons.items()
+        })
 
         if isinstance(dependencies, c_abc.Mapping):
             self.update_singletons(dependencies)

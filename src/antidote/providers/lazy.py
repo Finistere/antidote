@@ -71,7 +71,7 @@ class LazyMethodCall(SlotsReprMixin):
     - if retrieved as a instance attribute it returns the result for this
       instance. This makes testing a lot easier as it does not require Antidote.
 
-    Check out :py:class:`~.helpers.conf.LazyConfigurationMeta` for simple way
+    Check out :py:class:`~.helpers.conf.LazyConstantsMeta` for simple way
     to declare multiple constants.
     """
     __slots__ = ('_method_name', '_args', '_kwargs', '_singleton', '_key')
@@ -134,7 +134,7 @@ class LazyCallProvider(DependencyProvider):
         if isinstance(dependency, LazyMethodCallDependency):
             return DependencyInstance(
                 dependency.lazy_method_call.__get__(
-                    self._container.provide(dependency.owner),
+                    self._container.get(dependency.owner),
                     dependency.owner
                 ),
                 singleton=dependency.lazy_method_call._singleton

@@ -6,7 +6,7 @@ from ..core import DEPENDENCIES_TYPE, DependencyContainer
 from ..providers.lazy import LazyMethodCall
 
 
-class LazyConfigurationMeta(type):
+class LazyConstantsMeta(type):
     def __new__(metacls, cls, bases, namespace,
                 lazy_method: str = '__call__',
                 auto_wire: Union[bool, Iterable[str]] = None,
@@ -23,7 +23,7 @@ class LazyConfigurationMeta(type):
         .. doctest::
 
             >>> import antidote
-            >>> class Conf(metaclass=antidote.LazyConfigurationMeta):
+            >>> class Conf(metaclass=antidote.LazyConstantsMeta):
             ...     DOMAIN = 'domain'
             ...     _A = 'unchanged'
             ...     a = 'unchanged'

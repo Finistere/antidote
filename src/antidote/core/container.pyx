@@ -29,12 +29,10 @@ cdef class DependencyContainer:
     def __init__(self):
         self._providers = list()  # type: List[DependencyProvider]
         self._type_to_provider = dict()  # type: Dict[type, DependencyProvider]
-        self._singletons = dict()  # type: Dict[Any, Any]
-        self._singletons[DependencyContainer] = self
+        self._singletons = dict()  # type: Dict[Any, DependencyInstance]
+        self._singletons[DependencyContainer] = DependencyInstance(self, True)
         self._dependency_stack = DependencyStack()
         self._instantiation_lock = create_fastrlock()
-        # class attributes do not exist in Cython
-        self.SENTINEL = object()
 
     def __str__(self):
         return "{}(providers={!r}, type_to_provider={!r})".format(
@@ -81,16 +79,19 @@ cdef class DependencyContainer:
         Update the singletons.
         """
         lock_fastrlock(self._instantiation_lock, -1, True)
-        self._singletons.update(dependencies)
+        self._singletons.update({
+            k: DependencyInstance(v, singleton=True)
+            for k, v in dependencies.items()
+        })
         unlock_fastrlock(self._instantiation_lock)
 
     def get(self, dependency):
-        instance = self.provide(dependency)
-        if instance is self.SENTINEL:
+        dependency_instance = self.provide(dependency)
+        if dependency_instance is None:
             raise DependencyNotFoundError(dependency)
-        return instance
+        return dependency_instance.instance
 
-    cpdef object provide(self, object dependency):
+    cpdef DependencyInstance provide(self, object dependency):
         cdef:
             DependencyInstance dependency_instance = None
             DependencyProvider provider
@@ -100,14 +101,14 @@ cdef class DependencyContainer:
 
         ptr = PyDict_GetItem(self._singletons, dependency)
         if ptr != NULL:
-            return <object> ptr
+            return <DependencyInstance> ptr
 
         lock_fastrlock(self._instantiation_lock, -1, True)
 
         ptr = PyDict_GetItem(self._singletons, dependency)
         if ptr != NULL:
             unlock_fastrlock(self._instantiation_lock)
-            return <object> ptr
+            return <DependencyInstance> ptr
 
         if 1 != self._dependency_stack.push(dependency):
             stack = self._dependency_stack._stack.copy()
@@ -127,10 +128,8 @@ cdef class DependencyContainer:
 
             if dependency_instance is not None:
                 if dependency_instance.singleton:
-                    PyDict_SetItem(self._singletons,
-                                   dependency,
-                                   dependency_instance.instance)
-                return dependency_instance.instance
+                    PyDict_SetItem(self._singletons, dependency, dependency_instance)
+                return dependency_instance
 
         except Exception as e:
             if isinstance(e, DependencyCycleError):
@@ -140,7 +139,7 @@ cdef class DependencyContainer:
             self._dependency_stack.pop()
             unlock_fastrlock(self._instantiation_lock)
 
-        return self.SENTINEL
+        return None
 
 cdef class DependencyProvider:
     bound_dependency_types = ()  # type: Tuple[type]

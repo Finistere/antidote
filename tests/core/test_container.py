@@ -86,9 +86,9 @@ def test_getitem(container: DependencyContainer):
         container.get(ServiceWithNonMetDependency)
 
     assert isinstance(container.get(Service), Service)
-    assert isinstance(container.provide(Service), Service)
+    assert isinstance(container.provide(Service), DependencyInstance)
     assert 'Antidote' == container.get('name')
-    assert 'Antidote' == container.provide('name')
+    assert 'Antidote' == container.provide('name').instance
 
 
 def test_singleton(container: DependencyContainer):
@@ -104,7 +104,8 @@ def test_singleton(container: DependencyContainer):
     another_service = container.get(AnotherService)
     assert another_service is not container.get(AnotherService)
 
-    assert {Service: service, DependencyContainer: container} == container.singletons
+    singletons = {k: v.instance for k, v in container.singletons.items()}
+    assert {Service: service, DependencyContainer: container} == singletons
 
 
 def test_dependency_cycle_error(container: DependencyContainer):

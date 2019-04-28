@@ -11,7 +11,6 @@ cdef class DependencyInstance:
 
 cdef class DependencyContainer:
     cdef:
-        readonly object SENTINEL
         object __weakref__
         list _providers
         dict _type_to_provider
@@ -19,7 +18,7 @@ cdef class DependencyContainer:
         DependencyStack _dependency_stack
         object _instantiation_lock
 
-    cpdef object provide(self, object dependency)
+    cpdef DependencyInstance provide(self, object dependency)
 
 cdef class DependencyProvider:
     cdef:

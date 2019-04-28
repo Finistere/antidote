@@ -69,8 +69,8 @@ cdef class ServiceProvider(DependencyProvider):
             ServiceFactory factory
             Build build
             PyObject*ptr
+            DependencyInstance dependency_instance
             object instance
-            object dependency_instance
 
         if isinstance(dependency, Build):
             build = <Build> dependency
@@ -81,9 +81,9 @@ cdef class ServiceProvider(DependencyProvider):
                 if factory.lazy_dependency is not None:
                     dependency_instance = self._container.provide(factory.lazy_dependency)
                     if dependency_instance is None:
-                        raise DependencyNotFoundError(dependency_instance)
+                        raise DependencyNotFoundError(factory.lazy_dependency)
                     factory.lazy_dependency = None
-                    factory.func = dependency_instance
+                    factory.func = dependency_instance.instance
 
                 if factory.takes_dependency:
                     instance = factory.func(build.wrapped, *build.args, **build.kwargs)
@@ -99,9 +99,9 @@ cdef class ServiceProvider(DependencyProvider):
                 if factory.lazy_dependency is not None:
                     dependency_instance = self._container.provide(factory.lazy_dependency)
                     if dependency_instance is None:
-                        raise DependencyNotFoundError(dependency_instance)
+                        raise DependencyNotFoundError(factory.lazy_dependency)
                     factory.lazy_dependency = None
-                    factory.func = dependency_instance
+                    factory.func = dependency_instance.instance
 
                 if factory.takes_dependency:
                     instance = factory.func(dependency)

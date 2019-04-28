@@ -170,6 +170,7 @@ cdef class TaggedDependencies:
         cdef:
             ssize_t n = len(self._instances)
             ssize_t i = 0
+            DependencyInstance dependency_instance
             object instance
 
         while i < len(self):
@@ -182,10 +183,11 @@ cdef class TaggedDependencies:
                     if i < len(self._instances):
                         instance = self._instances[i]
                     else:
-                        instance = self._container.provide(self._dependencies[i])
-                        if instance is self._container.SENTINEL:
+                        dependency_instance = self._container.provide(self._dependencies[i])
+                        if dependency_instance is None:
                             raise DependencyNotFoundError(self._dependencies[i])
 
+                        instance = dependency_instance.instance
                         self._instances.append(instance)
                     n += 1
                 finally:

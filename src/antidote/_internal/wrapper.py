@@ -99,12 +99,12 @@ def _inject_kwargs(container: DependencyContainer,
     dirty_kwargs = False
     for injection in blueprint.injections[offset:]:
         if injection.dependency is not None and injection.arg_name not in kwargs:
-            instance = container.provide(injection.dependency)
-            if instance is not container.SENTINEL:
+            dependency_instance = container.provide(injection.dependency)
+            if dependency_instance is not None:
                 if not dirty_kwargs:
                     kwargs = kwargs.copy()
                     dirty_kwargs = True
-                kwargs[injection.arg_name] = instance
+                kwargs[injection.arg_name] = dependency_instance.instance
             elif injection.required:
                 raise DependencyNotFoundError(injection.dependency)
 
