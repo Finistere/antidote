@@ -154,6 +154,8 @@ class ServiceProvider(DependencyProvider):
 
         self._service_to_factory[service] = service_factory
 
+        return service
+
 
 class ServiceFactory(SlotsReprMixin):
     """

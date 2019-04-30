@@ -1,7 +1,7 @@
 from ._internal.utils import is_compiled
 from .core import inject
 from .helpers import (factory, LazyConstantsMeta, new_container, provider, register,
-                      wire)
+                      wire, implements)
 from .providers.lazy import LazyCall, LazyMethodCall
 from .providers.service import Build
 from .providers.tag import Tag, Tagged, TaggedDependencies

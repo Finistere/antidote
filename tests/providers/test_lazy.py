@@ -69,6 +69,7 @@ def test_method_call(lazy_provider: LazyCallProvider,
                      service_provider: ServiceProvider):
     x = object()
 
+    @service_provider.register
     class Test:
         def get(self, s):
             return id(s)
@@ -76,22 +77,19 @@ def test_method_call(lazy_provider: LazyCallProvider,
         A = LazyMethodCall(get)(x)
         B = LazyMethodCall('get')(x)
 
-    service_provider.register(Test)
-
     assert id(x) == lazy_provider.provide(Test.A).instance
     assert id(x) == lazy_provider.provide(Test.B).instance
 
 
 def test_method_same_instance(lazy_provider: LazyCallProvider,
                               service_provider: ServiceProvider):
+    @service_provider.register
     class Test:
         def get(self):
             return self
 
         A = LazyMethodCall(get, singleton=True)
         B = LazyMethodCall(get, singleton=False)
-
-    service_provider.register(Test)
 
     x = lazy_provider.provide(Test.A).instance
     assert x is lazy_provider.provide(Test.A).instance
@@ -100,14 +98,13 @@ def test_method_same_instance(lazy_provider: LazyCallProvider,
 
 def test_method_singleton(lazy_provider: LazyCallProvider,
                           service_provider: ServiceProvider):
+    @service_provider.register
     class Test:
         def get(self):
             return self
 
         A = LazyMethodCall(get, singleton=True)
         B = LazyMethodCall(get, singleton=False)
-
-    service_provider.register(Test)
 
     assert Test.A is Test.A
     assert True is lazy_provider.provide(Test.A).singleton
@@ -117,13 +114,12 @@ def test_method_singleton(lazy_provider: LazyCallProvider,
 
 def test_method_direct_call(lazy_provider: LazyCallProvider,
                             service_provider: ServiceProvider):
+    @service_provider.register
     class Test:
         def get(self):
             return self
 
         A = LazyMethodCall(get)
-
-    service_provider.register(Test)
 
     t = Test()
     assert t is t.A
@@ -143,13 +139,12 @@ def test_method_direct_call(lazy_provider: LazyCallProvider,
 def test_method_args_kwargs(lazy_provider: LazyCallProvider,
                             service_provider: ServiceProvider,
                             args, kwargs):
+    @service_provider.register
     class Test:
         def get(self, *args_, **kwargs_):
             return args_, kwargs_
 
         A = LazyMethodCall(get)(*args, **kwargs)
-
-    service_provider.register(Test)
 
     assert (args, kwargs) == Test().A
     assert (args, kwargs) == lazy_provider.provide(Test.A).instance
