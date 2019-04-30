@@ -4,3 +4,4 @@ from .provider import provider
 from .register import register
 from .constants import LazyConstantsMeta
 from .wire import wire
+from .implements import implements
