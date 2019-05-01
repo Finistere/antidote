@@ -1,5 +1,5 @@
-from enum import Flag
-from typing import Any, Dict, List, Optional
+from enum import Enum
+from typing import Any, Dict, Optional
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyInstance, DependencyProvider
@@ -13,12 +13,12 @@ class IndirectProvider(DependencyProvider):
 
     def __init__(self, container):
         super(IndirectProvider, self).__init__(container)
-        self._contextual_links: Dict[Any, ContextualLink] = dict()
-        self._links: Dict[Any, Any] = dict()
+        self._contextual_links = dict()  # type: Dict[Any, ContextualLink]
+        self._links = dict()  # type: Dict[Any, Any]
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
         try:
-            target_dependency = self._links[dependency]
+            target = self._links[dependency]
         except KeyError:
             try:
                 contextual_link = self._contextual_links[dependency]
@@ -29,19 +29,20 @@ class IndirectProvider(DependencyProvider):
                     contextual_link.context_dependency
                 )
 
-                target_dependency = contextual_link.get(current_context.instance)
-                if target_dependency is None:
+                try:
+                    target = contextual_link.targets[current_context.instance]
+                except KeyError:
                     raise UndefinedContextError(dependency, current_context.instance)
 
-                target = self._container.safe_provide(target_dependency)
+                t = self._container.safe_provide(target)
                 return DependencyInstance(
-                    target.instance,
-                    singleton=current_context.singleton & target.singleton
+                    t.instance,
+                    singleton=current_context.singleton & t.singleton
                 )
         else:
-            return self._container.safe_provide(target_dependency)
+            return self._container.safe_provide(target)
 
-    def register(self, dependency: Any, target_dependency: Any, context: Flag = None):
+    def register(self, dependency: Any, target_dependency: Any, context: Enum = None):
         if dependency in self._links:
             raise DuplicateDependencyError(dependency,
                                            self._links[dependency])
@@ -51,21 +52,21 @@ class IndirectProvider(DependencyProvider):
                 raise DuplicateDependencyError(dependency,
                                                self._contextual_links[dependency])
             self._links[dependency] = target_dependency
-        elif isinstance(context, Flag):
+        elif isinstance(context, Enum):
             try:
                 contextual_link = self._contextual_links[dependency]
             except KeyError:
                 contextual_link = ContextualLink(type(context))
                 self._contextual_links[dependency] = contextual_link
 
-            existing_target = contextual_link.get(context)
-            if existing_target is not None:
-                raise DuplicateDependencyError((dependency, context), existing_target)
+            if context in contextual_link.targets:
+                raise DuplicateDependencyError((dependency, context),
+                                               contextual_link.targets[context])
 
-            contextual_link.add(context, target_dependency)
+            contextual_link.targets[context] = target_dependency
         else:
-            raise TypeError(f"profile must be an instance of Flag or be None, "
-                            f"not a {type(context)!r}")
+            raise TypeError("profile must be an instance of Flag or be None, "
+                            "not a {!r}".format(type(context)))
 
 
 class ContextualTarget(SlotsReprMixin):
@@ -74,7 +75,7 @@ class ContextualTarget(SlotsReprMixin):
     """
     __slots__ = ('context', 'target_dependency')
 
-    def __init__(self, context: Flag, target_dependency: Any):
+    def __init__(self, context: Enum, target_dependency: Any):
         self.context = context
         self.target_dependency = target_dependency
 
@@ -83,18 +84,8 @@ class ContextualLink(SlotsReprMixin):
     """
     Internal API
     """
-    __slots__ = ('context_dependency', '_targets')
+    __slots__ = ('context_dependency', 'targets')
 
     def __init__(self, context_dependency: Any):
         self.context_dependency = context_dependency
-        self._targets: List[ContextualTarget] = list()
-
-    def add(self, context: Flag, target_dependency: Any):
-        self._targets.append(ContextualTarget(context, target_dependency))
-
-    def get(self, context: Flag) -> Optional[Any]:
-        for implementation in self._targets:
-            if context in implementation.context:
-                return implementation.target_dependency
-
-        return None
+        self.targets = dict()  # type: Dict[Enum, Any]

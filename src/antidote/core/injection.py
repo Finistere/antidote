@@ -39,14 +39,14 @@ def inject(*,  # noqa: E704
            ) -> Callable[[F], F]: ...
 
 
-def inject(func: F = None,
+def inject(func=None,
            *,
            arguments: Arguments = None,
            dependencies: DEPENDENCIES_TYPE = None,
            use_names: Union[bool, Iterable[str]] = None,
            use_type_hints: Union[bool, Iterable[str]] = None,
            container: DependencyContainer = None
-           ) -> F:
+           ):
     """
     Inject the dependencies into the function lazily, they are only retrieved
     upon execution. Can be used as a decorator.
@@ -164,7 +164,7 @@ def _build_arg_to_dependency(arguments: Arguments,
     elif isinstance(dependencies, c_abc.Mapping):
         for name in dependencies.keys():
             if name not in arguments:
-                raise ValueError(f"Unknown argument {name!r}")
+                raise ValueError("Unknown argument {!r}".format(name))
 
         arg_to_dependency = dependencies
     elif isinstance(dependencies, c_abc.Iterable):
@@ -176,8 +176,8 @@ def _build_arg_to_dependency(arguments: Arguments,
                              for arg, dependency
                              in zip(arguments, dependencies)}
     else:
-        raise ValueError(f'Only a mapping or a iterable is supported for '
-                         f'arg_map, not {type(dependencies)!r}')
+        raise ValueError('Only a mapping or a iterable is supported for '
+                         'arg_map, not {!r}'.format(type(dependencies)))
 
     # Remove any None as they would hide type_hints and use_names.
     return {
@@ -197,13 +197,13 @@ def _build_type_hints(arguments: Arguments,
         use_type_hints = tuple(use_type_hints)
         for name in use_type_hints:
             if name not in arguments:
-                raise ValueError(f"Unknown argument {name!r}")
+                raise ValueError("Unknown argument {!r}".format(name))
 
         type_hints = {name: arguments[name].type_hint for name in use_type_hints}
 
     else:
-        raise ValueError(f'Only an iterable or a boolean is supported for '
-                         f'use_type_hints, not {type(use_type_hints)!r}')
+        raise ValueError('Only an iterable or a boolean is supported for '
+                         'use_type_hints, not {!r}'.format(type(use_type_hints)))
 
     # Any object from builtins or typing do not carry any useful information
     # and thus must not be used as dependency IDs. So they might as well be
@@ -227,9 +227,9 @@ def _build_dependency_names(arguments: Arguments,
         use_names = tuple(use_names)
         for name in use_names:
             if name not in arguments:
-                raise ValueError(f"Unknown argument {name!r}")
+                raise ValueError("Unknown argument {!r}".format(name))
 
         return set(use_names)
     else:
-        raise ValueError(f'Only an iterable or a boolean is supported for '
-                         f'use_names, not {type(use_names)!r}')
+        raise ValueError('Only an iterable or a boolean is supported for '
+                         'use_names, not {!r}'.format(type(use_names)))

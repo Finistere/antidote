@@ -1,4 +1,4 @@
-from enum import auto, Flag
+from enum import Enum
 
 import pytest
 
@@ -43,9 +43,9 @@ class ServiceB(IService):
     pass
 
 
-class Profile(Flag):
-    A = auto()
-    B = auto()
+class Profile(Enum):
+    A = 'A'
+    B = 'B'
 
 
 def test_none(interface_provider: IndirectProvider):
@@ -129,27 +129,6 @@ def test_singleton_profile_instance_2(container: DependencyContainer,
     container.update_singletons({Profile: Profile.B})
     assert service_b is not interface_provider.provide(IService).instance
     assert isinstance(interface_provider.provide(IService).instance, ServiceB)
-    assert interface_provider.provide(IService).singleton is False
-
-
-def test_multi_profile_instance(container: DependencyContainer,
-                                interface_provider: IndirectProvider,
-                                service_provider: ServiceProvider):
-    service_provider.register(ServiceA)
-    interface_provider.register(IService, ServiceA, Profile.A | Profile.B)
-    service_a = container.get(ServiceA)
-    current_profile = Profile.A
-
-    def get_profile():
-        return current_profile
-
-    service_provider.register(Profile, singleton=False, factory=get_profile)
-
-    assert service_a is interface_provider.provide(IService).instance
-    assert interface_provider.provide(IService).singleton is False
-
-    current_profile = Profile.B
-    assert service_a is interface_provider.provide(IService).instance
     assert interface_provider.provide(IService).singleton is False
 
 

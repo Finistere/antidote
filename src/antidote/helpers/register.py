@@ -117,7 +117,7 @@ def register(class_: type = None,
         nonlocal factory
 
         if not inspect.isclass(cls):
-            raise TypeError(f"Expected a class, got {cls!r}")
+            raise TypeError("Expected a class, got {!r}".format(cls))
 
         takes_dependency = True
 
@@ -149,8 +149,8 @@ def register(class_: type = None,
                                  use_type_hints=use_type_hints,
                                  container=container)
         else:
-            raise TypeError(f"factory must be either a method name, a function, or a "
-                            f"lazy dependency, not {type(factory)!r}")
+            raise TypeError("factory must be either a method name, a function, or a "
+                            "lazy dependency, not {!r}".format(type(factory)))
 
         service_provider = cast(ServiceProvider, container.providers[ServiceProvider])
         service_provider.register(service=cls,
