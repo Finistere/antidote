@@ -32,6 +32,9 @@ Helpers
 .. automodule:: antidote.helpers.wire
     :members:
 
+.. automodule:: antidote.helpers.implements
+    :members:
+
 
 Providers
 ---------

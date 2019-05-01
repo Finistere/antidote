@@ -13,8 +13,10 @@ Table of Content
 ================
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
 
     why
     tutorial
-    api
+    how_to
+    reference
+

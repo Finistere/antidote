@@ -117,7 +117,7 @@ class ServiceProvider(DependencyProvider):
                  singleton: bool = True,
                  takes_dependency: bool = False):
         """
-        Register a factory for a dependency.
+        Registers a factory for a dependency.
 
         Args:
             service: dependency to register.
