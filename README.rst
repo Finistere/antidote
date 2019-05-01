@@ -80,84 +80,106 @@ Quick Start
 ===========
 
 
-Let's suppose you have database class from an external library and you wrap it
-with a custom class for easier usage. Antidote can do all the wiring for you:
+Hereafter is an example which tries to show most of Antidote's features:
 
 
 .. code-block:: python
 
+    """
+    Simple example where a MovieDB interface is defined which can be used
+    to retrieve the best movies. In our case the implementation uses IMDB
+    to dot it.
+    """
+    from abc import ABC, abstractmethod
+    from functools import reduce
+
     import antidote
 
 
-    class Database:
+    class MovieDB(ABC):
+        @abstractmethod
+        def get_best_movies(self):
+            pass
+
+
+    class ImdbAPI:
         """
         Class from an external library.
         """
+
         def __init__(self, *args, **kwargs):
-            """ Initializes the database. """
+            """ Initializes the IMDB API. """
+
 
     # Usage of constants for configuration makes refactoring easier and is
     # less error-prone. Moreover Conf will only be instantiated if necessary.
     class Conf(metaclass=antidote.LazyConstantsMeta):
-        DB_HOST = 'db.host'
-        DB_USER = 'db.user'
-        DB_PORT = 'db.port'
-        DB_PASSWORD = 'db.password'
+        IMDB_HOST = 'imdb.host'
+        IMDB_API_KEY = 'imdb.api_key'
 
         def __init__(self):
             # Load configuration from somewhere
             self._raw_conf = {
-                'db.host': 'host',
-                'db.user': 'user',
-                'db.port': 5432,
-                'db.password': 'password'
+                'imdb': {
+                    'host': 'dummy_host',
+                    'api_key': 'dummy_api_key'
+                }
             }
 
-        def __call__(self, key):
-            return self._raw_conf[key]
+        def get(self, key):
+            """ 'a.b' -> self._raw_conf['a']['b'] """
+            return reduce(dict.get, key.split('.'), self._raw_conf)
 
 
     # Declare a factory which should be called to instantiate Database.
     # The order of the arguments is here used to map the dependencies.
     # A dictionary mapping arguments name to their dependency could also
     # have been used.
-    @antidote.factory(dependencies=(Conf.DB_HOST, Conf.DB_PORT,
-                                    Conf.DB_USER, Conf.DB_PASSWORD))
-    def database_factory(host: str, port: int, user: str, password: str) -> Database:
+    @antidote.factory(dependencies=(Conf.IMDB_HOST, Conf.IMDB_API_KEY))
+    def imdb_factory(host: str, api_key: str) -> ImdbAPI:
         """
         Configure your database.
         """
-        return Database(host=host, port=port, user=user, password=password)
+        return ImdbAPI(host=host, api_key=api_key)
 
-    # Declare DatabaseWrapper as a service to be injected.
+
+    # implements specifies that IMDBMovieDB should be used whenever MovieDB is requested.
+    @antidote.implements(MovieDB)
+    # Registering IMDBMovieDB makes it available in Antidote. (required for @implements)
     @antidote.register
-    class DatabaseWrapper:
-        """
-        Your class to manage the database.
-        """
-
+    class IMDBMovieDB(MovieDB):
         # Dependencies of __init__() are injected by default when
         # registering a service.
-        def __init__(self, db: Database):
-            self.db = db
+        # Note that IMDBMovieDB does not build itself ImdbAPI, which makes testing
+        # easier.
+        def __init__(self, imdb_api: ImdbAPI):
+            self._imdb_api = imdb_api
+
+        def get_best_movies(self):
+            pass
 
 
+    # Inject dependencies in f(), by default only type annotations are used. But
+    # arguments name, explicit mapping, etc.. can also be used.
     @antidote.inject
-    def f(db: DatabaseWrapper):
+    def f(movie_db: MovieDB):
         """ Do something with your database. """
+
 
     # Can be called without arguments now.
     f()
 
+    assert antidote.world.get(MovieDB) is antidote.world.get(IMDBMovieDB)
+
     # You can still explicitly pass the arguments to override
     # injection.
     conf = Conf()
-    f(DatabaseWrapper(database_factory(
-        host=conf.DB_HOST,  # equivalent to conf._raw_conf['db.host']
-        port=conf._raw_conf['db.port'],
-        user=conf._raw_conf['db.user'],
-        password=conf._raw_conf['db.password']
+    f(IMDBMovieDB(imdb_factory(
+        # equivalent to conf._raw_conf['db.host'], mainly to make your tests easier.
+        host=conf.IMDB_HOST,
+        api_key=conf._raw_conf['imdb']['api_key'],
     )))
+
 
 
 Documentation

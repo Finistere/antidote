@@ -4,12 +4,30 @@ Changelog
 
 0.6.0-dev
 ---------
+  
+### Features
+
+- Add `@implements` to define service implementing an interface. 
+- Add `IndirectProvider()` which supports `@implements`.
+- Add `DependencyContainer.safe_provide()` which does the same as 
+  `DependencyContainer.safe_provide()` except that it raises an error if
+  the dependency cannot be found instead of returning None.
+
 
 ### Breaking changes
 
+- Removed Python 3.5 support. `enum.Flag` is not available and no 
+  backport exists.
 - `DependencyContainer.provide()` returns a `DependencyInstance` not the 
   instance itself anymore.
 - Rename `LazyConfigurationMeta` to `LazyConstantsMeta`.
+- `LazyConfigurationMeta` default method is `get()`.
+
+
+### Changes
+
+- Moved `is_compiled` to `antidote.utils`.
+- Add better type hints for `@inject()`
 
 
 0.5.1 (2019-04-27)
