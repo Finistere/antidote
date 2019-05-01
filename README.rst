@@ -21,7 +21,7 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-Antidotes is a declarative dependency injection micro-framework for Python 3.6+
+Antidotes is a declarative dependency injection micro-framework for Python 3.5+
 which tries to do the following:
 
 - Injection can applied on any existing code easily.

@@ -47,14 +47,14 @@ class Tag(SlotsReprMixin):
 
     def __str__(self):
         if not self._attrs:
-            return f"{type(self).__name__}({self.name!r})"
+            return "{}({!r})".format(type(self).__name__, self.name)
         return repr(self)
 
     def __repr__(self):
         return "{}(name={!r}, {})".format(
             type(self).__name__,
             self.name,
-            ", ".join(f"{k}={v!r}" for k, v in self._attrs.items())
+            ", ".join("{}={!r}".format(k, v) for k, v in self._attrs.items())
         )
 
     def __getattr__(self, item):
@@ -99,11 +99,13 @@ class TagProvider(DependencyProvider):
 
     def __init__(self, container: DependencyContainer):
         super().__init__(container)
-        self._dependency_to_tag_by_tag_name: Dict[str, Dict[Any, Tag]] = {}
+        self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Any, Tag]]
 
     def __repr__(self):
-        return (f"{type(self).__name__}("
-                f"tagged_dependencies={self._dependency_to_tag_by_tag_name!r})")
+        return "{}(tagged_dependencies={!r})".format(
+            type(self).__name__,
+            self._dependency_to_tag_by_tag_name
+        )
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
         """
@@ -158,7 +160,7 @@ class TagProvider(DependencyProvider):
                 tag = Tag(tag)
 
             if not isinstance(tag, Tag):
-                raise ValueError(f"Expecting tag of type Tag, not {type(tag)}")
+                raise ValueError("Expecting tag of type Tag, not {}".format(type(tag)))
 
             if tag.name not in self._dependency_to_tag_by_tag_name:
                 self._dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
@@ -184,7 +186,7 @@ class TaggedDependencies:
         self._container = container
         self._dependencies = dependencies
         self._tags = tags
-        self._instances: List[Any] = []
+        self._instances = []  # type: List[Any]
 
     def __len__(self):
         return len(self._tags)

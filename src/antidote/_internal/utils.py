@@ -13,5 +13,8 @@ class SlotsReprMixin:
                                     for cls in type(self).__mro__)
         return "{type}({slots})".format(
             type=type(self).__name__,
-            slots=', '.join(f'{name}={getattr(self, name)!r}' for name in slots)
+            slots=', '.join((
+                '{}={!r}'.format(name, getattr(self, name))
+                for name in slots
+            ))
         )

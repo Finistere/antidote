@@ -71,7 +71,7 @@ def test_tagged_dependencies_instantiation_safety(container: DependencyContainer
     n_dependencies = 40
 
     for i in range(n_dependencies):
-        factory(make_delayed_factory(type(f'Service{i}', (object,), {})),
+        factory(make_delayed_factory(type('Service{}'.format(i), (object,), {})),
                 singleton=False,
                 tags=['test'],
                 container=container)

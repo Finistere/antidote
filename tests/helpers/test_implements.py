@@ -1,4 +1,4 @@
-from enum import auto, Flag
+from enum import Enum
 
 import pytest
 
@@ -20,9 +20,9 @@ class IService:
     pass
 
 
-class Profile(Flag):
-    A = auto()
-    B = auto()
+class Profile(Enum):
+    A = 'A'
+    B = 'B'
 
 
 def test_implements(container: DependencyContainer):

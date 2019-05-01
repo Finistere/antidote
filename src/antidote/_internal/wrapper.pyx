@@ -21,8 +21,12 @@ cdef class Injection:
         readonly object dependency
 
     def __repr__(self):
-        return (f"{type(self).__name__}(arg_name={self.arg_name!r}, "
-                f"required={self.required!r}, dependency={self.dependency!r})")
+        return "{}(arg_name={!r}, required={!r}, dependency={!r})".format(
+            type(self).__name__,
+            self.arg_name,
+            self.required,
+            self.dependency
+        )
 
     def __init__(self, str arg_name, bint required, object dependency):
         self.arg_name = arg_name

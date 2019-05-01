@@ -27,23 +27,28 @@ class DependencyContainer:
     Instantiates the dependencies through the registered providers and handles
     their scope.
     """
-
     def __init__(self):
-        self._providers: List[DependencyProvider] = list()
-        self._type_to_provider: Dict[type, DependencyProvider] = dict()
-        self._singletons: Dict[Any, DependencyInstance] = dict()
+        self._providers = list()  # type: List[DependencyProvider]
+        self._type_to_provider = dict()  # type: Dict[type, DependencyProvider]
+        self._singletons = dict()  # type: Dict[Any, DependencyInstance]
         self._singletons[DependencyContainer] = DependencyInstance(self, singleton=True)
         self._dependency_stack = DependencyStack()
         self._instantiation_lock = threading.RLock()
 
     def __str__(self):
-        return (f"{type(self).__name__}(providers={self._providers}, "
-                f"type_to_provider={self._type_to_provider})")
+        return "{}(providers=({}))".format(
+            type(self).__name__,
+            ", ".join("{}={}".format(name, p)
+                      for name, p in self.providers.items()),
+        )
 
     def __repr__(self):
-        return (f"{type(self).__name__}(providers={self._providers!r}, "
-                f"type_to_provider={self._type_to_provider!r}, "
-                f"singletons={self._singletons!r})")
+        return "{}(providers=({}), singletons={!r})".format(
+            type(self).__name__,
+            ", ".join("{!r}={!r}".format(name, p)
+                      for name, p in self.providers.items()),
+            self._singletons
+        )
 
     @property
     def providers(self) -> Mapping[type, 'DependencyProvider']:
@@ -72,9 +77,11 @@ class DependencyContainer:
 
         for bound_type in provider.bound_dependency_types:
             if bound_type in self._type_to_provider:
-                raise RuntimeError(f"Cannot bind {bound_type!r} to provider, "
-                                   f"already bound to "
-                                   f"{self._type_to_provider[bound_type]!r}")
+                raise RuntimeError(
+                    "Cannot bind {!r} to provider, already bound to {!r}".format(
+                        bound_type, self._type_to_provider[bound_type]
+                    )
+                )
 
         for bound_type in provider.bound_dependency_types:
             self._type_to_provider[bound_type] = provider
@@ -175,7 +182,7 @@ class DependencyProvider:
     bound_dependency_types = cast(Tuple[type], ())  # type: Tuple[type, ...]
 
     def __init__(self, container: DependencyContainer):
-        self._container: DependencyContainer = container
+        self._container = container  # type: DependencyContainer
 
     def provide(self, dependency: Any) -> Optional[DependencyInstance]:
         """
