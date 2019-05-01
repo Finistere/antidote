@@ -31,7 +31,7 @@ try:
 except ImportError:
     pass
 else:
-    ext_modules = cythonize(generate_extensions(), annotate=True)
+    ext_modules = cythonize(generate_extensions())
     requires.append('fastrlock>=0.4,<0.5')
     setup_requires.append('fastrlock>=0.4,<0.5')
 
