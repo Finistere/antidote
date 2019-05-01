@@ -2,7 +2,9 @@ Tutorial
 ========
 
 This tutorial is a quick lesson on how to use Antidote features to write better
-code. It is a series of steps to show what can be done easily.
+code. It is a series of steps to show what can be done easily. It will focus on
+how to declare services and configuration. Note that Antidote can do a lot more
+than presented here, don't hesitate to check out the
 
 
 1. Overview
@@ -255,7 +257,7 @@ Let's give Antidote a shot and see what we can do:
             # Load anything you need and/or use dependencies.
             self._data = dict(domain='example.com', port=3000)
 
-        def __call__(self, key):
+        def get(self, key):
             return self._data[key]
 
     @inject(dependencies=(None, Conf.DOMAIN, Conf.PORT))
@@ -282,14 +284,14 @@ but it is much more flexible:
 
     from antidote import LazyConstantsMeta
 
-    class CustomizedConf(metaclass=LazyConstantsMeta, lazy_method='get', auto_wire=False):
+    class CustomizedConf(metaclass=LazyConstantsMeta, lazy_method='__call__', auto_wire=False):
         DOMAIN = 'domain'
         PORT = 'port'
 
         def __init__(self):
             self._data = dict(domain='example.com', port=3000)
 
-        def get(self, key):
+        def __call__(self, key):
             return self._data[key]
 
 .. note::
@@ -297,127 +299,3 @@ but it is much more flexible:
     Only public uppercase class attributes will be converted to dependencies.
     This means that :code:`A` will be changed, but not :code:`_A` neither
     :code:`a`.
-
-
-4. Lazy function calls
-----------------------
-
-Sometimes a dependency can be the output of a function call, which could fetch remote
-configuration with a network call. To avoid multiple round trips you would cache the
-results, like this:
-
-.. testsetup:: tutorial_lazy
-
-    import sys
-
-    class DummyRequests:
-        def get(url):
-            return dict()
-
-    sys.modules['requests'] = DummyRequests()
-
-.. testcode:: tutorial_lazy
-
-    import requests
-    from functools import lru_cache
-
-    @lru_cache(maxsize=32)
-    def fetch_remote_conf(name):
-        return requests.get(f"https://example.com/conf/{name}")
-
-    def f(conf = None):
-        conf = conf if conf is not None else fetch_remote_conf("conf_1")
-
-This has one downside, it requires :code:`f()` to be aware of how to call
-:code:`fetch_remote_conf` and with which arguments. Now with Antidote:
-
-.. testcode:: tutorial_lazy
-
-    from antidote import LazyCall, inject
-
-    def fetch_remote_conf(name):
-        return requests.get(f"https://example.com/conf/{name}")
-
-    CONF_1 = LazyCall(fetch_remote_conf)("conf_1")
-
-    @inject(dependencies=(CONF_1,))
-    def f(conf):
-        pass
-
-
-5. Tags
--------
-
-Tags are a way to retrieve a list of services, such as plugins, extensions, etc...
-
-.. testcode:: tutorial_tags
-
-    from antidote import register, Tag
-
-    @register(tags=['dummies', Tag('extension', version=1)])
-    class Service:
-        pass
-
-    @register(tags=['dummies', Tag('extension', version=2)])
-    class Service2:
-        pass
-
-.. doctest:: tutorial_tags
-
-    >>> from antidote import world, Tagged
-    >>> services = world.get(Tagged('extension'))
-    >>> list(zip(services.tags(), services.dependencies(), services.instances()))
-    [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
-
-
-5. Providers
-------------
-
-While Antidote provides several ways to handle your dependencies out of the box, it may
-not be enough. But don't worry, Antidote got you covered ! It is designed from the ground
-up to have an easily extendable core mechanism. Services, resources and tags are all
-handled in the same way, through a custom :py:class:`.DependencyProvider` ::
-
-                    +-------------+
-      tag=... +-----> TagProvider +----+
-                    +-------------+    |
-                                       |
-                 +------------------+  |    +----------+    +-----------+
-    @resource +--> ResourceProvider +-------> Provider +----> Container +---> @inject
-                 +------------------+  |    +----------+    +-----------+
-                                       |
-                  +-----------------+  |
-    @register +---> ServiceProvider +--+
-                  +-----------------+
-
-The container never handles the instantiation of the dependencies itself, it mostly
-handles their scope. Let's suppose you want to inject a random number through Antidote,
-without passing through a Service. You could do it the following way:
-
-
-.. testcode:: tutorial_tags
-
-    import random
-    from typing import Any, Optional
-
-    import antidote
-    from antidote.core import DependencyProvider, DependencyInstance
-
-    @antidote.provider
-    class RandomProvider(DependencyProvider):
-        def provide(self, dependency: Any) -> Optional[DependencyInstance]:
-            if dependency == 'random':
-                return DependencyInstance(random.random(), singleton=False)
-
-.. doctest:: tutorial_tags
-
-    >>> from antidote import world
-    >>> world.get('random')
-    0...
-    >>> world.get('random')
-    0...
-
-Provider are in most cases tried sequentially. So if a provider returns nothing,
-it is simply ignored and another provider is tried. For the same reason it is not
-recommended to have a lot of different :py:class:`.DependencyProvider`\ s as this
-implies a performance penalty.

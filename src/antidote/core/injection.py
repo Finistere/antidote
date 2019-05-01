@@ -52,6 +52,7 @@ def inject(func: F = None,
     upon execution. Can be used as a decorator.
 
     Dependency CAN NOT be:
+
     - part of the builtins
     - part of typing
     - None
