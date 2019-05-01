@@ -18,8 +18,3 @@ class SlotsReprMixin:
                 for name in slots
             ))
         )
-
-
-def is_compiled() -> bool:
-    from antidote._internal.wrapper import compiled
-    return compiled

@@ -1,32 +1,36 @@
-from ._internal.utils import is_compiled
 from .core import inject
-from .helpers import (factory, LazyConstantsMeta, new_container, provider, register,
-                      wire, implements)
+from .helpers import (factory, implements, LazyConstantsMeta, new_container, provider,
+                      register, wire)
 from .providers.lazy import LazyCall, LazyMethodCall
 from .providers.service import Build
 from .providers.tag import Tag, Tagged, TaggedDependencies
+from .utils import is_compiled
 
 
-def __version__():  # pragma: no cover
-    import pkg_resources as _pkg_resources
+def __version__() -> str:  # pragma: no cover
+    import pkg_resources
     try:
-        return _pkg_resources.get_distribution(__name__).version
-    except _pkg_resources.DistributionNotFound:  # pragma: no cover
+        return pkg_resources.get_distribution(__name__).version
+    except pkg_resources.DistributionNotFound:  # pragma: no cover
         # package is not installed
-        pass
+        return ''
 
 
-__all__ = [
-    'Build',
-    'LazyCall',
-    'LazyMethodCall',
-    'LazyConstantsMeta',
-    'Tag',
-    'Tagged',
-    'factory',
-    'inject',
-    'new_container',
-    'wire'
-]
+__all__ = ['Build',
+           'factory',
+           'implements',
+           'inject',
+           'is_compiled',
+           'LazyCall',
+           'LazyConstantsMeta',
+           'LazyMethodCall',
+           'new_container',
+           'provider',
+           'register',
+           'Tag',
+           'Tagged',
+           'TaggedDependencies',
+           'wire',
+           'world']
 
 world = new_container()

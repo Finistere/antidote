@@ -108,7 +108,7 @@ class LazyConstantsMeta(type):
                 also be specified to restrict this to those. Any type hints from
                 the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
                 ...) are ignored. Defaults to :code:`True`.
-            container: :py:class:`~.core.base.DependencyContainer` to which the
+            container: :py:class:`~.core.container.DependencyContainer` to which the
                 dependency should be attached. Defaults to the global container,
                 :code:`antidote.world`.
         """
