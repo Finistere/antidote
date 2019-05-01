@@ -85,11 +85,17 @@ cdef class DependencyContainer:
         })
         unlock_fastrlock(self._instantiation_lock)
 
-    def get(self, dependency):
+    cpdef object get(self, dependency):
+        return self.safe_provide(dependency).instance
+
+    cpdef DependencyInstance safe_provide(self, object dependency):
+        cdef:
+            DependencyInstance dependency_instance
+
         dependency_instance = self.provide(dependency)
         if dependency_instance is None:
             raise DependencyNotFoundError(dependency)
-        return dependency_instance.instance
+        return dependency_instance
 
     cpdef DependencyInstance provide(self, object dependency):
         cdef:

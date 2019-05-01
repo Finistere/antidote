@@ -1,18 +1,19 @@
 from .core.exceptions import (AntidoteError, DependencyCycleError,
-                              DependencyInstantiationError, DependencyNotFoundError)
-
-
-class DuplicateDependencyError(AntidoteError):
-    """
-    A dependency already exists with the same id.
-    *May* be raised by providers.
-    """
+                              DependencyInstantiationError, DependencyNotFoundError,
+                              DuplicateDependencyError)
 
 
 class DuplicateTagError(AntidoteError):
     """
     A dependency has multiple times the same tag.
-    Raised by the TagProvider.
+    Raised by the :py:class:`~.providers.tag.TagProvider`.
+    """
+
+
+class UndefinedContextError(AntidoteError):
+    """
+    A context does not have any target associated.
+    Raised by the :py:class:`~.providers.indirect.IndirectProvider`.
     """
 
 
@@ -23,4 +24,5 @@ __all__ = [
     'DependencyNotFoundError',
     'DuplicateDependencyError',
     'DuplicateTagError',
+    'UndefinedContextError'
 ]

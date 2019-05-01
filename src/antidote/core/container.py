@@ -110,10 +110,13 @@ class DependencyContainer:
         Returns:
             instance for the given dependency
         """
+        return self.safe_provide(dependency).instance
+
+    def safe_provide(self, dependency) -> DependencyInstance:
         dependency_instance = self.provide(dependency)
         if dependency_instance is None:
             raise DependencyNotFoundError(dependency)
-        return dependency_instance.instance
+        return dependency_instance
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
         """

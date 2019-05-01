@@ -4,14 +4,14 @@ import pytest
 
 from antidote import implements, register
 from antidote.core import DependencyContainer
-from antidote.providers import InterfaceProvider, ServiceProvider
+from antidote.providers import IndirectProvider, ServiceProvider
 
 
 @pytest.fixture()
 def container():
     c = DependencyContainer()
     c.register_provider(ServiceProvider(container=c))
-    c.register_provider(InterfaceProvider(container=c))
+    c.register_provider(IndirectProvider(container=c))
 
     return c
 
@@ -47,3 +47,13 @@ def test_implements_profile(container: DependencyContainer):
 
     container.update_singletons({Profile: Profile.A})
     assert container.get(IService) is container.get(ServiceA)
+
+
+def test_invalid_implements(container: DependencyContainer):
+    with pytest.raises(TypeError):
+        @implements(IService, container=container)
+        class A:
+            pass
+
+    with pytest.raises(TypeError):
+        implements(IService, container=container)(1)

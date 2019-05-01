@@ -1,4 +1,5 @@
-from antidote.exceptions import DependencyCycleError, DependencyNotFoundError
+from antidote.exceptions import (DependencyCycleError, DependencyNotFoundError,
+                                 DuplicateDependencyError)
 
 
 class Service:
@@ -22,3 +23,13 @@ def test_dependency_not_found():
 
     for f in [str, repr]:
         assert repr(o) in f(error)
+
+
+def test_duplicate_dependency_error():
+    dependency = object()
+    existing_dependency = object()
+    error = DuplicateDependencyError(dependency, existing_dependency)
+
+    for f in [str, repr]:
+        assert f(dependency) in f(error)
+        assert f(existing_dependency) in f(error)

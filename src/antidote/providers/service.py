@@ -105,7 +105,6 @@ class ServiceProvider(DependencyProvider):
             args = (service,) + args
 
         if factory.func is None:
-            assert factory.lazy_dependency is not None
             factory.func = self._container.get(factory.lazy_dependency)
             factory.lazy_dependency = None
 
@@ -150,13 +149,14 @@ class ServiceProvider(DependencyProvider):
             raise TypeError("factory must be callable or be a Lazy dependency.")
 
         if service in self._service_to_factory:
-            raise DuplicateDependencyError(service)
+            raise DuplicateDependencyError(service, self._service_to_factory[service])
 
         self._service_to_factory[service] = service_factory
 
         return service
 
 
+# TODO: define better __str__()
 class ServiceFactory(SlotsReprMixin):
     """
     Not part of the public API.

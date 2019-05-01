@@ -18,6 +18,8 @@ cdef class DependencyContainer:
         DependencyStack _dependency_stack
         object _instantiation_lock
 
+    cpdef object get(self, object dependency)
+    cpdef DependencyInstance safe_provide(self, object dependency)
     cpdef DependencyInstance provide(self, object dependency)
 
 cdef class DependencyProvider:

@@ -10,7 +10,7 @@ from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 from antidote.core.container cimport (DependencyContainer, DependencyInstance,
                                       DependencyProvider)
 # @formatter:on
-from ..exceptions import DependencyNotFoundError, DuplicateTagError
+from ..exceptions import DuplicateTagError
 
 cdef class Tag:
     def __init__(self, str name, **attrs):
@@ -183,11 +183,7 @@ cdef class TaggedDependencies:
                     if i < len(self._instances):
                         instance = self._instances[i]
                     else:
-                        dependency_instance = self._container.provide(self._dependencies[i])
-                        if dependency_instance is None:
-                            raise DependencyNotFoundError(self._dependencies[i])
-
-                        instance = dependency_instance.instance
+                        instance = self._container.get(self._dependencies[i])
                         self._instances.append(instance)
                     n += 1
                 finally:

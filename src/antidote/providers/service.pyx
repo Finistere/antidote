@@ -1,7 +1,7 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False
 import inspect
-from typing import Any, Callable, Dict, Tuple, Optional, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
@@ -9,14 +9,13 @@ from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyContainer, DependencyInstance,
                                      DependencyProvider)
-from ..exceptions import DuplicateDependencyError, DependencyNotFoundError
+from ..exceptions import DuplicateDependencyError
 # @formatter:on
 
 
 cdef class LazyFactory:
     def __init__(self, dependency):
         self.dependency = dependency
-
 
 cdef class Build:
     def __init__(self, *args, **kwargs):
@@ -72,47 +71,41 @@ cdef class ServiceProvider(DependencyProvider):
             DependencyInstance dependency_instance
             object instance
 
-        if isinstance(dependency, Build):
+        ptr = PyDict_GetItem(self._service_to_factory, dependency)
+        if ptr != NULL:
+            factory = <ServiceFactory> ptr
+            if factory.lazy_dependency is not None:
+                factory.func = self._container.get(factory.lazy_dependency)
+                factory.lazy_dependency = None
+
+            if factory.takes_dependency:
+                instance = factory.func(dependency)
+            else:
+                instance = factory.func()
+
+            return DependencyInstance.__new__(DependencyInstance,
+                                              instance,
+                                              factory.singleton)
+        elif isinstance(dependency, Build):
             build = <Build> dependency
             ptr = PyDict_GetItem(self._service_to_factory, build.wrapped)
+
             if ptr != NULL:
                 factory = <ServiceFactory> ptr
-
                 if factory.lazy_dependency is not None:
-                    dependency_instance = self._container.provide(factory.lazy_dependency)
-                    if dependency_instance is None:
-                        raise DependencyNotFoundError(factory.lazy_dependency)
+                    factory.func = self._container.get(factory.lazy_dependency)
                     factory.lazy_dependency = None
-                    factory.func = dependency_instance.instance
 
                 if factory.takes_dependency:
                     instance = factory.func(build.wrapped, *build.args, **build.kwargs)
                 else:
                     instance = factory.func(*build.args, **build.kwargs)
-            else:
-                return
-        else:
-            ptr = PyDict_GetItem(self._service_to_factory, dependency)
-            if ptr != NULL:
-                factory = <ServiceFactory> ptr
 
-                if factory.lazy_dependency is not None:
-                    dependency_instance = self._container.provide(factory.lazy_dependency)
-                    if dependency_instance is None:
-                        raise DependencyNotFoundError(factory.lazy_dependency)
-                    factory.lazy_dependency = None
-                    factory.func = dependency_instance.instance
+            return DependencyInstance.__new__(DependencyInstance,
+                                              instance,
+                                              factory.singleton)
 
-                if factory.takes_dependency:
-                    instance = factory.func(dependency)
-                else:
-                    instance = factory.func()
-            else:
-                return
-
-        return DependencyInstance.__new__(DependencyInstance,
-                                          instance,
-                                          factory.singleton)
+        return None
 
     def register(self,
                  service,
@@ -140,10 +133,11 @@ cdef class ServiceProvider(DependencyProvider):
             raise TypeError("factory must be callable or be a Lazy dependency.")
 
         if service in self._service_to_factory:
-            raise DuplicateDependencyError(service)
+            raise DuplicateDependencyError(service, self._service_to_factory[service])
 
         self._service_to_factory[service] = service_factory
 
+        return service
 
 cdef class ServiceFactory:
     cdef:
