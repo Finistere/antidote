@@ -159,8 +159,7 @@ def _prepare_callable(
 
         func = obj
     else:
-        raise TypeError("Must be either a function "
-                        "or a class implementing __call__(), "
-                        "not {!r}".format(type(obj)))
+        raise TypeError(f"Must be either a function or a class implementing "
+                        f"__call__(), not {type(obj)!r}")
 
     return obj, func, type_hints.get('return')

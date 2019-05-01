@@ -113,9 +113,7 @@ class LazyConstantsMeta(type):
                 :code:`antidote.world`.
         """
         if lazy_method not in namespace:
-            raise ValueError(
-                "Lazy method {} is no defined in {}".format(lazy_method, cls)
-            )
+            raise ValueError(f"Lazy method {lazy_method} is no defined in {cls}")
 
         resource_class = super().__new__(metacls, cls, bases, namespace)
 

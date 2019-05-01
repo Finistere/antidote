@@ -84,8 +84,8 @@ def wire(class_: type = None,
     wire_super = _validate_wire_super(wire_super, methods)
 
     if not isinstance(raise_on_missing, bool):
-        raise TypeError("raise_on_missing must be a boolean, "
-                        "not a {!r}".format(type(raise_on_missing)))
+        raise TypeError(f"raise_on_missing must be a boolean, "
+                        f"not a {type(raise_on_missing)!r}")
 
     if isinstance(dependencies, c_abc.Iterable) \
             and not isinstance(dependencies, c_abc.Mapping) \
@@ -95,7 +95,7 @@ def wire(class_: type = None,
 
     def wire_methods(cls):
         if not inspect.isclass(cls):
-            raise TypeError("Expecting a class, got a {}".format(type(cls)))
+            raise TypeError(f"Expecting a class, got a {type(cls)}")
 
         for method_name in methods:
             method = _get_method(cls, method_name,
@@ -103,8 +103,8 @@ def wire(class_: type = None,
 
             if method is None:
                 if raise_on_missing:
-                    raise TypeError("{!r} does not have a method "
-                                    "named {!r}".format(cls, method_name))
+                    raise TypeError(f"{cls!r} does not have a method "
+                                    f"named {method_name!r}")
                 else:
                     continue  # pragma: no cover
 
@@ -157,8 +157,8 @@ def _validate_wire_super(wire_super: Optional[Union[bool, Iterable[str]]],
         wire_super = set(wire_super)
         if not wire_super.issubset(methods):
             raise ValueError(
-                "Method names {!r} are not specified "
-                "not specified in methods".format(wire_super - methods)
+                f"Method names {(wire_super - methods)!r} are not specified "
+                f"not specified in methods"
             )
         return wire_super
 

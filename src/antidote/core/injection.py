@@ -140,7 +140,7 @@ def _build_arg_to_dependency(arguments: Arguments,
     elif isinstance(dependencies, c_abc.Mapping):
         for name in dependencies.keys():
             if name not in arguments:
-                raise ValueError("Unknown argument {!r}".format(name))
+                raise ValueError(f"Unknown argument {name!r}")
 
         arg_to_dependency = dependencies
     elif isinstance(dependencies, c_abc.Iterable):
@@ -152,8 +152,8 @@ def _build_arg_to_dependency(arguments: Arguments,
                              for arg, dependency
                              in zip(arguments, dependencies)}
     else:
-        raise ValueError('Only a mapping or a iterable is supported for '
-                         'arg_map, not {!r}'.format(type(dependencies)))
+        raise ValueError(f'Only a mapping or a iterable is supported for '
+                         f'arg_map, not {type(dependencies)!r}')
 
     # Remove any None as they would hide type_hints and use_names.
     return {
@@ -173,13 +173,13 @@ def _build_type_hints(arguments: Arguments,
         use_type_hints = tuple(use_type_hints)
         for name in use_type_hints:
             if name not in arguments:
-                raise ValueError("Unknown argument {!r}".format(name))
+                raise ValueError(f"Unknown argument {name!r}")
 
         type_hints = {name: arguments[name].type_hint for name in use_type_hints}
 
     else:
-        raise ValueError('Only an iterable or a boolean is supported for '
-                         'use_type_hints, not {!r}'.format(type(use_type_hints)))
+        raise ValueError(f'Only an iterable or a boolean is supported for '
+                         f'use_type_hints, not {type(use_type_hints)!r}')
 
     # Any object from builtins or typing do not carry any useful information
     # and thus must not be used as dependency IDs. So they might as well be
@@ -203,9 +203,9 @@ def _build_dependency_names(arguments: Arguments,
         use_names = tuple(use_names)
         for name in use_names:
             if name not in arguments:
-                raise ValueError("Unknown argument {!r}".format(name))
+                raise ValueError(f"Unknown argument {name!r}")
 
         return set(use_names)
     else:
-        raise ValueError('Only an iterable or a boolean is supported for '
-                         'use_names, not {!r}'.format(type(use_names)))
+        raise ValueError(f'Only an iterable or a boolean is supported for '
+                         f'use_names, not {type(use_names)!r}')

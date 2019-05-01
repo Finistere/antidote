@@ -6,7 +6,7 @@ class AntidoteError(Exception):
     """ Base class of all errors of antidote. """
 
     def __repr__(self):
-        return "{}({})".format(type(self).__name__, str(self))
+        return f"{type(self).__name__}({self})"
 
 
 class DuplicateDependencyError(AntidoteError):
@@ -20,12 +20,12 @@ class DuplicateDependencyError(AntidoteError):
         self.existing_definition = existing_definition
 
     def __repr__(self):
-        return f"DuplicateDependencyError(dependency={self.dependency!r}, " \
-            f"existing_definition={self.existing_definition!r})"
+        return (f"DuplicateDependencyError(dependency={self.dependency!r}, "
+                f"existing_definition={self.existing_definition!r})")
 
     def __str__(self):
-        return f"The dependency {self.dependency} already exists. " \
-            f"It points to {self.existing_definition}."
+        return (f"The dependency {self.dependency} already exists. "
+                f"It points to {self.existing_definition}.")
 
 
 class DependencyInstantiationError(AntidoteError):
@@ -50,7 +50,7 @@ class DependencyCycleError(AntidoteError):
     @staticmethod
     def _repr(obj) -> str:
         if inspect.isclass(obj):
-            return "{}.{}".format(obj.__module__, obj.__name__)
+            return f"{obj.__module__}.{obj.__name__}"
 
         return repr(obj)
 

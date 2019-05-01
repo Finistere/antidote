@@ -24,7 +24,7 @@ cdef class Tag:
         return "{}(name={!r}, {})".format(
             type(self).__name__,
             self.name,
-            ", ".join("{}={!r}".format(k, v) for k, v in self._attrs.items())
+            ", ".join(f"{k}={v!r}" for k, v in self._attrs.items())
         )
 
     def __getattr__(self, item):
@@ -38,7 +38,7 @@ cdef class Tagged:
         self.name = name
 
     def __repr__(self):
-        return "{}(name={!r})".format(type(self).__name__, self.name)
+        return f"{type(self).__name__}(name={self.name!r})"
 
 cdef class TagProvider(DependencyProvider):
     """
@@ -52,10 +52,8 @@ cdef class TagProvider(DependencyProvider):
         self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Any, Tag]]
 
     def __repr__(self):
-        return "{}(tagged_dependencies={!r})".format(
-            type(self).__name__,
-            self._dependency_to_tag_by_tag_name
-        )
+        return (f"{type(self).__name__}("
+                f"tagged_dependencies={self._dependency_to_tag_by_tag_name!r})")
 
     cpdef DependencyInstance provide(self, dependency):
         """
@@ -120,7 +118,7 @@ cdef class TagProvider(DependencyProvider):
                 tag = Tag(tag)
 
             if not isinstance(tag, Tag):
-                raise ValueError("Expecting tag of type Tag, not {}".format(type(tag)))
+                raise ValueError(f"Expecting tag of type Tag, not {type(tag)}")
 
             if tag.name not in self._dependency_to_tag_by_tag_name:
                 self._dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
