@@ -1,7 +1,7 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
@@ -37,11 +37,11 @@ cdef class IndirectProvider(DependencyProvider):
                 contextual_link.context_dependency
             )
 
-            service = contextual_link.get(current_context.instance)
-            if service is None:
+            ptr = PyDict_GetItem(contextual_link.targets, current_context.instance)
+            if ptr == NULL:
                 raise UndefinedContextError(dependency, current_context.instance)
 
-            target = self._container.safe_provide(service)
+            target = self._container.safe_provide(<object> ptr)
             return DependencyInstance.__new__(
                 DependencyInstance,
                 target.instance,
@@ -70,50 +70,23 @@ cdef class IndirectProvider(DependencyProvider):
                 contextual_link = ContextualLink(type(context))
                 self._contextual_links[dependency] = contextual_link
 
-            existing_target = contextual_link.get(context)
-            if existing_target is not None:
-                raise DuplicateDependencyError((dependency, context), existing_target)
+            if context in contextual_link.targets:
+                raise DuplicateDependencyError((dependency, context),
+                                               contextual_link.targets[context])
 
-            contextual_link.add(context, target_dependency)
+            contextual_link.targets[context] = target_dependency
         else:
             raise TypeError("profile must be an instance of Flag or be None, "
                             "not a {!r}".format(type(context)))
 
-cdef class ContextualTarget:
-    cdef:
-        object context
-        object target_dependency
-
-    def __init__(self, context: Enum, target_dependency: Any):
-        self.context = context
-        self.target_dependency = target_dependency
-
-    def __repr__(self):
-        return "{}(context={!r}, target_dependency={!r})".format(
-            type(self).__name__,
-            self.context,
-            self.target_dependency
-        )
-
 cdef class ContextualLink:
     cdef:
         object context_dependency
-        list targets
+        dict targets
 
     def __init__(self, context_dependency):
         self.context_dependency = context_dependency
-        self.targets = list()  # type: List[ContextualTarget]
-
-    cdef object add(self, context: Enum, target_dependency: Any):
-        self.targets.append(ContextualTarget(context, target_dependency))
-
-    cdef object get(self, context: Enum):
-        cdef:
-            ContextualTarget target
-
-        for target in self.targets:
-            if context in target.context:
-                return target.target_dependency
+        self.targets = dict()  # type: Dict[Enum, Any]
 
     def __repr__(self):
         return "{}(context_dependency={!r}, targets={!r})".format(

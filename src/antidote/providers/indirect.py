@@ -69,17 +69,6 @@ class IndirectProvider(DependencyProvider):
                             "not a {!r}".format(type(context)))
 
 
-class ContextualTarget(SlotsReprMixin):
-    """
-    Internal API
-    """
-    __slots__ = ('context', 'target_dependency')
-
-    def __init__(self, context: Enum, target_dependency: Any):
-        self.context = context
-        self.target_dependency = target_dependency
-
-
 class ContextualLink(SlotsReprMixin):
     """
     Internal API
