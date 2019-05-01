@@ -1,11 +1,13 @@
 import builtins
 import collections.abc as c_abc
-from typing import Any, Callable, Dict, Iterable, Mapping, Set, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, overload, Set, TypeVar, Union
 
 from .._internal.argspec import Arguments
 from .._internal.default_container import get_default_container
 from .._internal.wrapper import InjectedWrapper, Injection, InjectionBlueprint
 from ..core import DependencyContainer
+
+F = TypeVar('F', Callable, staticmethod, classmethod)
 
 _BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 DEPENDENCIES_TYPE = Union[
@@ -16,14 +18,35 @@ DEPENDENCIES_TYPE = Union[
 ]
 
 
-def inject(func: Union[Callable, staticmethod, classmethod] = None,
+@overload
+def inject(func: F,  # noqa: E704
            *,
            arguments: Arguments = None,
            dependencies: DEPENDENCIES_TYPE = None,
            use_names: Union[bool, Iterable[str]] = None,
            use_type_hints: Union[bool, Iterable[str]] = None,
            container: DependencyContainer = None
-           ) -> Callable:
+           ) -> F: ...
+
+
+@overload
+def inject(*,  # noqa: E704
+           arguments: Arguments = None,
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None,
+           container: DependencyContainer = None
+           ) -> Callable[[F], F]: ...
+
+
+def inject(func: F = None,
+           *,
+           arguments: Arguments = None,
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None,
+           container: DependencyContainer = None
+           ) -> F:
     """
     Inject the dependencies into the function lazily, they are only retrieved
     upon execution. Can be used as a decorator.

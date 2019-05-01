@@ -8,7 +8,7 @@ from ..providers.lazy import LazyMethodCall
 
 class LazyConstantsMeta(type):
     def __new__(metacls, cls, bases, namespace,
-                lazy_method: str = '__call__',
+                lazy_method: str = 'get',
                 auto_wire: Union[bool, Iterable[str]] = None,
                 dependencies: DEPENDENCIES_TYPE = None,
                 use_names: Union[bool, Iterable[str]] = None,
@@ -31,7 +31,7 @@ class LazyConstantsMeta(type):
             ...     def __init__(self):
             ...         self._data = {'domain': 'example.com'}
             ...
-            ...     def __call__(self, key):
+            ...     def get(self, key):
             ...         return self._data[key]
             ...
             >>> Conf._A
@@ -151,6 +151,3 @@ class LazyConstantsMeta(type):
                 setattr(resource_class, name, LazyMethodCall(func, singleton=True)(v))
 
         return resource_class
-
-    def __init__(metacls, cls, bases, namespace, **kwargs):  # pypy35 compatibility
-        super().__init__(cls, bases, namespace)

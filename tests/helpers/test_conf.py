@@ -19,7 +19,7 @@ def test_resource_meta(container: DependencyContainer):
         A = 'a'
         B = 'b'
 
-        def __call__(self, key):
+        def get(self, key):
             return key * 2
 
     assert 'aa' == container.get(Conf.A)
@@ -43,7 +43,7 @@ def test_private(container: DependencyContainer):
 
         b = 'b'
 
-        def __call__(self, key):
+        def get(self, key):
             return key * 2
 
     conf = Conf()
