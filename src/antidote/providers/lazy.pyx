@@ -40,7 +40,7 @@ cdef class LazyMethodCall:
         if instance is None:
             if self._singleton:
                 if self._key is None:
-                    self._key = "{}_dependency".format(self._get_attribute_name(owner))
+                    self._key = f"{self._get_attribute_name(owner)}_dependency"
                     setattr(owner, self._key, LazyMethodCallDependency(self, owner))
                 return getattr(owner, self._key)
             return LazyMethodCallDependency(self, owner)
@@ -55,10 +55,7 @@ cdef class LazyMethodCall:
             self._method_name
         )
         if <PyObject*> method == NULL:
-            raise RuntimeError("{} does not have a method {}".format(
-                instance,
-                self._method_name
-            ))
+            raise RuntimeError(f"{instance} does not have a method {self._method_name}")
 
         return PyObject_Call(method, self._args, self._kwargs)
 

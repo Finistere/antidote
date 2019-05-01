@@ -21,8 +21,8 @@ cdef class ContextualTarget:
         self.target_dependency = target_dependency
 
     def __repr__(self):
-        return f"ContextualTarget(context={self.context!r}, " \
-            f"target_dependency={self.target_dependency!r})"
+        return (f"ContextualTarget(context={self.context!r}, "
+                f"target_dependency={self.target_dependency!r})")
 
 cdef class ContextualLink:
     cdef:
@@ -45,9 +45,9 @@ cdef class ContextualLink:
                 return target.target_dependency
 
     def __repr__(self):
-        return ("ContextualLinkPool(context_dependency={!r}, "
-                "ContextualLink={!r})").format(self.context_dependency,
-                                               self.targets)
+        return (f"{type(self).__name__}("
+                f"context_dependency={self.context_dependency!r}, "
+                f"ContextualLink={self.targets!r})")
 
 cdef class IndirectProvider(DependencyProvider):
     def __init__(self, container):

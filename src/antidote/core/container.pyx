@@ -13,7 +13,6 @@ from antidote._internal.stack cimport DependencyStack
 from ..exceptions import (DependencyCycleError, DependencyInstantiationError,
                           DependencyNotFoundError)
 
-
 @cython.freelist(32)
 cdef class DependencyInstance:
     def __cinit__(self, object instance, bint singleton = False):
@@ -21,9 +20,8 @@ cdef class DependencyInstance:
         self.singleton = singleton
 
     def __repr__(self):
-        return "{}(item={!r}, singleton={!r})".format(type(self).__name__,
-                                                      self.instance,
-                                                      self.singleton)
+        return (f"DependencyInstance(instance={self.instance!r}, "
+                f"singleton={self.singleton!r})")
 
 cdef class DependencyContainer:
     def __init__(self):
@@ -35,19 +33,13 @@ cdef class DependencyContainer:
         self._instantiation_lock = create_fastrlock()
 
     def __str__(self):
-        return "{}(providers={!r}, type_to_provider={!r})".format(
-            type(self).__name__,
-            self._providers,
-            self._type_to_provider
-        )
+        return (f"{type(self).__name__}(providers={self._providers}, "
+                f"type_to_provider={self._type_to_provider})")
 
     def __repr__(self):
-        return "{}(providers={!r}, type_to_provider={!r}, singletons={!r})".format(
-            type(self).__name__,
-            self._providers,
-            self._type_to_provider,
-            self._singletons
-        )
+        return (f"{type(self).__name__}(providers={self._providers!r}, "
+                f"type_to_provider={self._type_to_provider!r}, "
+                f"singletons={self._singletons!r})")
 
     @property
     def providers(self):
@@ -63,11 +55,9 @@ cdef class DependencyContainer:
 
         for bound_type in provider.bound_dependency_types:
             if bound_type in self._type_to_provider:
-                raise RuntimeError(
-                    "Cannot bind {!r} to provider, already bound to {!r}".format(
-                        bound_type, self._type_to_provider[bound_type]
-                    )
-                )
+                raise RuntimeError(f"Cannot bind {bound_type!r} to provider, "
+                                   f"already bound to "
+                                   f"{self._type_to_provider[bound_type]!r}")
 
         for bound_type in provider.bound_dependency_types:
             self._type_to_provider[bound_type] = provider

@@ -48,8 +48,8 @@ class Build(SlotsReprMixin):
                             "are mandatory.")
 
         self.wrapped = args[0]
-        self.args = args[1:]  # type: Tuple
-        self.kwargs = kwargs  # type: Dict
+        self.args: Tuple = args[1:]
+        self.kwargs: Dict = kwargs
 
         if not self.args and not self.kwargs:
             raise TypeError("Without additional arguments, Build must not be used.")
@@ -77,11 +77,11 @@ class ServiceProvider(DependencyProvider):
 
     def __init__(self, container: DependencyContainer):
         super().__init__(container)
-        self._service_to_factory = dict()  # type: Dict[Any, ServiceFactory]
+        self._service_to_factory: Dict[Any, ServiceFactory] = dict()
 
     def __repr__(self):
-        return "{}(factories={!r})".format(type(self).__name__,
-                                           tuple(self._service_to_factory.keys()))
+        return (f"{type(self).__name__}("
+                f"factories={tuple(self._service_to_factory.keys())!r})")
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
         if isinstance(dependency, Build):
@@ -129,7 +129,7 @@ class ServiceProvider(DependencyProvider):
                 same factory for different dependencies.
         """
         if not inspect.isclass(service):
-            raise TypeError("A service must be a class, not a {!r}".format(service))
+            raise TypeError(f"A service must be a class, not a {service!r}")
 
         if isinstance(factory, LazyFactory):
             service_factory = ServiceFactory(

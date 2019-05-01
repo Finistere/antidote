@@ -4,7 +4,7 @@ from typing import (Any, Dict, Iterable, Iterator, List,
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
-from ..exceptions import DependencyNotFoundError, DuplicateTagError
+from ..exceptions import DuplicateTagError
 
 T = TypeVar('T')
 
@@ -47,14 +47,14 @@ class Tag(SlotsReprMixin):
 
     def __str__(self):
         if not self._attrs:
-            return "{}({!r})".format(type(self).__name__, self.name)
+            return f"{type(self).__name__}({self.name!r})"
         return repr(self)
 
     def __repr__(self):
         return "{}(name={!r}, {})".format(
             type(self).__name__,
             self.name,
-            ", ".join("{}={!r}".format(k, v) for k, v in self._attrs.items())
+            ", ".join(f"{k}={v!r}" for k, v in self._attrs.items())
         )
 
     def __getattr__(self, item):
@@ -99,13 +99,11 @@ class TagProvider(DependencyProvider):
 
     def __init__(self, container: DependencyContainer):
         super().__init__(container)
-        self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Any, Tag]]
+        self._dependency_to_tag_by_tag_name: Dict[str, Dict[Any, Tag]] = {}
 
     def __repr__(self):
-        return "{}(tagged_dependencies={!r})".format(
-            type(self).__name__,
-            self._dependency_to_tag_by_tag_name
-        )
+        return (f"{type(self).__name__}("
+                f"tagged_dependencies={self._dependency_to_tag_by_tag_name!r})")
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
         """
@@ -160,7 +158,7 @@ class TagProvider(DependencyProvider):
                 tag = Tag(tag)
 
             if not isinstance(tag, Tag):
-                raise ValueError("Expecting tag of type Tag, not {}".format(type(tag)))
+                raise ValueError(f"Expecting tag of type Tag, not {type(tag)}")
 
             if tag.name not in self._dependency_to_tag_by_tag_name:
                 self._dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
@@ -186,7 +184,7 @@ class TaggedDependencies:
         self._container = container
         self._dependencies = dependencies
         self._tags = tags
-        self._instances = []  # type: List[Any]
+        self._instances: List[Any] = []
 
     def __len__(self):
         return len(self._tags)

@@ -9,7 +9,7 @@ class Service:
 def test_dependency_cycle_error():
     error = DependencyCycleError([Service, 'test', 1, Service])
 
-    service_info = "{}.{}".format(Service.__module__, Service.__name__)
+    service_info = f"{Service.__module__}.{Service.__name__}"
 
     for f in [str, repr]:
         assert service_info in f(error)

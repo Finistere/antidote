@@ -31,10 +31,8 @@ cdef class Build:
             raise TypeError("Without additional arguments, Build must not be used.")
 
     def __repr__(self):
-        return "{}(id={!r}, args={!r}, kwargs={!r})".format(type(self).__name__,
-                                                            self.wrapped,
-                                                            self.args,
-                                                            self.kwargs)
+        return (f"{type(self).__name__}(id={self.wrapped!r}, "
+                f"args={self.args!r}, kwargs={self.kwargs!r})")
 
     __str__ = __repr__
 
@@ -60,8 +58,8 @@ cdef class ServiceProvider(DependencyProvider):
         self._service_to_factory = dict()  # type: Dict[Any, ServiceFactory]
 
     def __repr__(self):
-        return "{}(factories={!r})".format(type(self).__name__,
-                                           tuple(self._service_to_factory.keys()))
+        return (f"{type(self).__name__}("
+                f"factories={tuple(self._service_to_factory.keys())!r})")
 
     cpdef DependencyInstance provide(self, object dependency):
         cdef:
@@ -113,7 +111,7 @@ cdef class ServiceProvider(DependencyProvider):
                  bint singleton: bool = True,
                  bint takes_dependency: bool = False):
         if not inspect.isclass(service):
-            raise TypeError("A service must be a class, not a {!r}".format(service))
+            raise TypeError(f"A service must be a class, not a {service!r}")
 
         if isinstance(factory, LazyFactory):
             service_factory = ServiceFactory(
@@ -158,11 +156,7 @@ cdef class ServiceFactory:
         self.takes_dependency = takes_dependency
 
     def __repr__(self):
-        return "{}(func={!r}, singleton={!r}, takes_dependency={!r}," \
-               "lazy_dependency={!r})".format(
-            type(self).__name__,
-            self.func,
-            self.singleton,
-            self.takes_dependency,
-            self.lazy_dependency,
-        )
+        return (f"{type(self).__name__}(func={self.func!r}, "
+                f"singleton={self.singleton!r}, "
+                f"takes_dependency={self.takes_dependency!r}, "
+                f"lazy_dependency={self.lazy_dependency!r})")

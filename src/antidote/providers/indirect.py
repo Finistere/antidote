@@ -25,7 +25,7 @@ class ContextualLink(SlotsReprMixin):
 
     def __init__(self, context_dependency: Any):
         self.context_dependency = context_dependency
-        self._targets = list()  # type: List[ContextualTarget]
+        self._targets: List[ContextualTarget] = list()
 
     def add(self, context: Flag, target_dependency: Any):
         self._targets.append(ContextualTarget(context, target_dependency))
@@ -41,8 +41,8 @@ class ContextualLink(SlotsReprMixin):
 class IndirectProvider(DependencyProvider):
     def __init__(self, container):
         super(IndirectProvider, self).__init__(container)
-        self._contextual_links = dict()  # type: Dict[Any, ContextualLink]
-        self._links = dict()  # type: Dict[Any, Any]
+        self._contextual_links: Dict[Any, ContextualLink] = dict()
+        self._links: Dict[Any, Any] = dict()
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
         try:

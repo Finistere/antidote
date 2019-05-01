@@ -31,8 +31,8 @@ class LazyCall(SlotsReprMixin):
         """
         self._singleton = singleton
         self._func = func
-        self._args = ()  # type: Tuple
-        self._kwargs = {}  # type: Dict
+        self._args: Tuple = ()
+        self._kwargs: Dict = {}
 
     def __call__(self, *args, **kwargs):
         """
@@ -87,8 +87,8 @@ class LazyMethodCall(SlotsReprMixin):
         # Retrieve the name of the method, as injection can be done after the class
         # creation which is typically the case with @register.
         self._method_name = method if isinstance(method, str) else method.__name__
-        self._args = ()  # type: Tuple
-        self._kwargs = {}  # type: Dict
+        self._args: Tuple = ()
+        self._kwargs: Dict = {}
         self._key = None
 
     def __call__(self, *args, **kwargs):
@@ -103,7 +103,7 @@ class LazyMethodCall(SlotsReprMixin):
         if instance is None:
             if self._singleton:
                 if self._key is None:
-                    self._key = "{}_dependency".format(self._get_attribute_name(owner))
+                    self._key = f"{self._get_attribute_name(owner)}_dependency"
                     setattr(owner, self._key, LazyMethodCallDependency(self, owner))
                 return getattr(owner, self._key)
             return LazyMethodCallDependency(self, owner)
