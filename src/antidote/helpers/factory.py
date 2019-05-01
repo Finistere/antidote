@@ -81,7 +81,7 @@ def factory(func: Union[Callable, type] = None,
             (the tag name) or :py:class:`~.providers.tag.Tag`. All
             dependencies with a specific tag can then be retrieved with
             a :py:class:`~.providers.tag.Tagged`.
-        container: :py:class:`~.core.base.DependencyContainer` to which the
+        container: :py:class:`~.core.container.DependencyContainer` to which the
             dependency should be attached. Defaults to the global container,
             :code:`antidote.world`.
 
