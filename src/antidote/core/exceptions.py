@@ -15,6 +15,18 @@ class DuplicateDependencyError(AntidoteError):
     *May* be raised by providers.
     """
 
+    def __init__(self, dependency, existing_definition):
+        self.dependency = dependency
+        self.existing_definition = existing_definition
+
+    def __repr__(self):
+        return f"DuplicateDependencyError(dependency={self.dependency!r}, " \
+            f"existing_definition={self.existing_definition!r})"
+
+    def __str__(self):
+        return f"The dependency {self.dependency} already exists. " \
+            f"It points to {self.existing_definition}."
+
 
 class DependencyInstantiationError(AntidoteError):
     """

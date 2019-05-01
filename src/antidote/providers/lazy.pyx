@@ -6,7 +6,6 @@ from typing import Callable, Dict, Tuple, Union
 from cpython.object cimport PyObject, PyObject_Call, PyObject_GetAttr
 
 from antidote.core.container cimport DependencyInstance, DependencyProvider
-from ..exceptions import  DependencyNotFoundError
 # @formatter:on
 
 
@@ -88,14 +87,10 @@ cdef class LazyCallProvider(DependencyProvider):
 
         if isinstance(dependency, LazyMethodCallDependency):
             lazy_method_dependency = <LazyMethodCallDependency> dependency
-            dependency_instance = self._container.provide(lazy_method_dependency.owner)
-            if dependency_instance is None:
-                raise DependencyNotFoundError(lazy_method_dependency.owner)
-
             return DependencyInstance.__new__(
                 DependencyInstance,
                 lazy_method_dependency.lazy_method_call._call(
-                    dependency_instance.instance
+                    self._container.get(lazy_method_dependency.owner)
                 ),
                 lazy_method_dependency.lazy_method_call._singleton
             )
