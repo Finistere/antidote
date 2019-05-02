@@ -35,12 +35,12 @@ def test_implements(container: DependencyContainer):
 
 
 def test_implements_profile(container: DependencyContainer):
-    @implements(IService, context=Profile.A, container=container)
+    @implements(IService, state=Profile.A, container=container)
     @register(container=container)
     class ServiceA(IService):
         pass
 
-    @implements(IService, context=Profile.B, container=container)
+    @implements(IService, state=Profile.B, container=container)
     @register(container=container)
     class ServiceB(IService):
         pass

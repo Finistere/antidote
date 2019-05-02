@@ -15,82 +15,82 @@ from ..exceptions import DuplicateDependencyError, UndefinedContextError
 cdef class IndirectProvider(DependencyProvider):
     def __init__(self, container):
         super(IndirectProvider, self).__init__(container)
-        self._contextual_links = dict()  # type: Dict[Any, ContextualLink]
+        self._stateful_links = dict()  # type: Dict[Any, StatefulLink]
         self._links = dict()  # type: Dict[Any, Any]
 
     cpdef DependencyInstance provide(self, object dependency):
         cdef:
             PyObject*ptr
             object service
-            ContextualLink contextual_link
-            DependencyInstance current_context
+            StatefulLink stateful_link
+            DependencyInstance state
             DependencyInstance ContextualTarget_dependency
 
         ptr = PyDict_GetItem(self._links, dependency)
         if ptr != NULL:
             return self._container.safe_provide(<object> ptr)
 
-        ptr = PyDict_GetItem(self._contextual_links, dependency)
+        ptr = PyDict_GetItem(self._stateful_links, dependency)
         if ptr != NULL:
-            contextual_link = <ContextualLink> ptr
-            current_context = self._container.safe_provide(
-                contextual_link.context_dependency
+            stateful_link = <StatefulLink> ptr
+            state = self._container.safe_provide(
+                stateful_link.state_dependency
             )
 
-            ptr = PyDict_GetItem(contextual_link.targets, current_context.instance)
+            ptr = PyDict_GetItem(stateful_link.targets, state.instance)
             if ptr == NULL:
-                raise UndefinedContextError(dependency, current_context.instance)
+                raise UndefinedContextError(dependency, state.instance)
 
             target = self._container.safe_provide(<object> ptr)
             return DependencyInstance.__new__(
                 DependencyInstance,
                 target.instance,
-                current_context.singleton & target.singleton
+                state.singleton & target.singleton
             )
 
         return None
 
-    def register(self, dependency: Any, target_dependency: Any, context: Enum = None):
+    def register(self, dependency: Any, target_dependency: Any, state: Enum = None):
         cdef:
-            ContextualLink contextual_link
+            StatefulLink stateful_link
 
         if dependency in self._links:
             raise DuplicateDependencyError(dependency,
                                            self._links[dependency])
 
-        if context is None:
-            if dependency in self._contextual_links:
+        if state is None:
+            if dependency in self._stateful_links:
                 raise DuplicateDependencyError(dependency,
-                                               self._contextual_links[dependency])
+                                               self._stateful_links[dependency])
             self._links[dependency] = target_dependency
-        elif isinstance(context, Enum):
+        elif isinstance(state, Enum):
             try:
-                contextual_link = self._contextual_links[dependency]
+                stateful_link = self._stateful_links[dependency]
             except KeyError:
-                contextual_link = ContextualLink(type(context))
-                self._contextual_links[dependency] = contextual_link
+                stateful_link = StatefulLink(type(state))
+                self._stateful_links[dependency] = stateful_link
 
-            if context in contextual_link.targets:
-                raise DuplicateDependencyError((dependency, context),
-                                               contextual_link.targets[context])
+            if state in stateful_link.targets:
+                raise DuplicateDependencyError((dependency, state),
+                                               stateful_link.targets[state])
 
-            contextual_link.targets[context] = target_dependency
+            stateful_link.targets[state] = target_dependency
         else:
             raise TypeError("profile must be an instance of Flag or be None, "
-                            "not a {!r}".format(type(context)))
+                            "not a {!r}".format(type(state)))
 
-cdef class ContextualLink:
+cdef class StatefulLink:
     cdef:
-        object context_dependency
+        object state_dependency
         dict targets
 
-    def __init__(self, context_dependency):
-        self.context_dependency = context_dependency
+    def __init__(self, state_dependency):
+        self.state_dependency = state_dependency
         self.targets = dict()  # type: Dict[Enum, Any]
 
     def __repr__(self):
-        return "{}(context_dependency={!r}, targets={!r})".format(
+        return "{}(state_dependency={!r}, targets={!r})".format(
             type(self).__name__,
-            self.context_dependency,
+            self.state_dependency,
             self.targets
         )
