@@ -2,7 +2,7 @@ from .core import inject
 from .helpers import (factory, implements, LazyConstantsMeta, new_container, provider,
                       register, wire)
 from .providers.lazy import LazyCall, LazyMethodCall
-from .providers.service import Build
+from .providers.factory import Build
 from .providers.tag import Tag, Tagged, TaggedDependencies
 from .utils import is_compiled
 

@@ -42,8 +42,8 @@ Providers
 Service
 ^^^^^^^
 
-.. automodule:: antidote.providers.service
-    :members: ServiceProvider,Build
+.. automodule:: antidote.providers.factory
+    :members: FactoryProvider,Build
 
 Lazy
 ^^^^

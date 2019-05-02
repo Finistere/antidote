@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Hashable, Optional, Tuple, Union
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyInstance, DependencyProvider
@@ -129,7 +129,7 @@ class LazyCallProvider(DependencyProvider):
     bound_dependency_types = (LazyMethodCallDependency, LazyCall)
 
     def provide(self,
-                dependency: Union[LazyMethodCallDependency, LazyCall]
+                dependency: Hashable
                 ) -> Optional[DependencyInstance]:
         if isinstance(dependency, LazyMethodCallDependency):
             return DependencyInstance(
@@ -144,3 +144,4 @@ class LazyCallProvider(DependencyProvider):
                 dependency._func(*dependency._args, **dependency._kwargs),
                 singleton=dependency._singleton
             )
+        return None

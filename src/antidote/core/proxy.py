@@ -1,5 +1,5 @@
 import collections.abc as c_abc
-from typing import Any, Iterable, Mapping, Set, Dict
+from typing import Any, Iterable, Mapping, Set, Dict, Hashable
 
 from .container import DependencyContainer, DependencyInstance
 from .exceptions import DependencyNotFoundError
@@ -55,7 +55,7 @@ class ProxyContainer(DependencyContainer):
         elif dependencies is not None:
             raise ValueError("dependencies must be either a mapping or None")
 
-    def provide(self, dependency):
+    def provide(self, dependency: Hashable):
         if dependency in self._missing:
             raise DependencyNotFoundError(dependency)
 

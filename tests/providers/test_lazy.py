@@ -2,7 +2,7 @@ import pytest
 
 from antidote.core import DependencyContainer
 from antidote.providers.lazy import LazyCall, LazyCallProvider, LazyMethodCall
-from antidote.providers.service import ServiceProvider
+from antidote.providers.factory import FactoryProvider
 
 
 @pytest.fixture
@@ -12,7 +12,7 @@ def container():
 
 @pytest.fixture
 def service_provider(container):
-    provider = ServiceProvider(container=container)
+    provider = FactoryProvider(container=container)
     container.register_provider(provider)
     return provider
 
@@ -24,7 +24,7 @@ def lazy_provider(container):
     return provider
 
 
-def test_lazy(lazy_provider: LazyCallProvider, service_provider: ServiceProvider):
+def test_lazy(lazy_provider: LazyCallProvider, service_provider: FactoryProvider):
     def func(x):
         return x
 
@@ -35,7 +35,7 @@ def test_lazy(lazy_provider: LazyCallProvider, service_provider: ServiceProvider
 
 
 def test_lazy_singleton(lazy_provider: LazyCallProvider,
-                        service_provider: ServiceProvider):
+                        service_provider: FactoryProvider):
     def func(x):
         return x
 
@@ -55,7 +55,7 @@ def test_lazy_singleton(lazy_provider: LazyCallProvider,
     ]
 )
 def test_args_kwargs(lazy_provider: LazyCallProvider,
-                     service_provider: ServiceProvider,
+                     service_provider: FactoryProvider,
                      args, kwargs):
     def func(*args_, **kwargs_):
         return args_, kwargs_
@@ -66,10 +66,10 @@ def test_args_kwargs(lazy_provider: LazyCallProvider,
 
 
 def test_method_call(lazy_provider: LazyCallProvider,
-                     service_provider: ServiceProvider):
+                     service_provider: FactoryProvider):
     x = object()
 
-    @service_provider.register
+    @service_provider.register_class
     class Test:
         def get(self, s):
             return id(s)
@@ -82,8 +82,8 @@ def test_method_call(lazy_provider: LazyCallProvider,
 
 
 def test_method_same_instance(lazy_provider: LazyCallProvider,
-                              service_provider: ServiceProvider):
-    @service_provider.register
+                              service_provider: FactoryProvider):
+    @service_provider.register_class
     class Test:
         def get(self):
             return self
@@ -97,8 +97,8 @@ def test_method_same_instance(lazy_provider: LazyCallProvider,
 
 
 def test_method_singleton(lazy_provider: LazyCallProvider,
-                          service_provider: ServiceProvider):
-    @service_provider.register
+                          service_provider: FactoryProvider):
+    @service_provider.register_class
     class Test:
         def get(self):
             return self
@@ -113,8 +113,8 @@ def test_method_singleton(lazy_provider: LazyCallProvider,
 
 
 def test_method_direct_call(lazy_provider: LazyCallProvider,
-                            service_provider: ServiceProvider):
-    @service_provider.register
+                            service_provider: FactoryProvider):
+    @service_provider.register_class
     class Test:
         def get(self):
             return self
@@ -137,9 +137,9 @@ def test_method_direct_call(lazy_provider: LazyCallProvider,
     ]
 )
 def test_method_args_kwargs(lazy_provider: LazyCallProvider,
-                            service_provider: ServiceProvider,
+                            service_provider: FactoryProvider,
                             args, kwargs):
-    @service_provider.register
+    @service_provider.register_class
     class Test:
         def get(self, *args_, **kwargs_):
             return args_, kwargs_

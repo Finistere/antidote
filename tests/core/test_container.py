@@ -135,7 +135,7 @@ def test_repr_str(container: DependencyContainer):
 
 
 def test_invalid_provider(container: DependencyContainer):
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         container.register_provider(object())
 
 

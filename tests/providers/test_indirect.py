@@ -5,7 +5,7 @@ import pytest
 from antidote.core import DependencyContainer
 from antidote.exceptions import DuplicateDependencyError, UndefinedContextError
 from antidote.providers.indirect import IndirectProvider
-from antidote.providers.service import ServiceProvider
+from antidote.providers.factory import FactoryProvider
 
 
 @pytest.fixture
@@ -14,8 +14,8 @@ def container():
 
 
 @pytest.fixture
-def service_provider(container):
-    provider = ServiceProvider(container=container)
+def factory_provider(container):
+    provider = FactoryProvider(container=container)
     container.register_provider(provider)
     return provider
 
@@ -54,8 +54,8 @@ def test_none(interface_provider: IndirectProvider):
 
 def test_interface(container: DependencyContainer,
                    interface_provider: IndirectProvider,
-                   service_provider: ServiceProvider):
-    service_provider.register(Service)
+                   factory_provider: FactoryProvider):
+    factory_provider.register_class(Service)
     interface_provider.register(IService, Service)
 
     expected = container.get(Service)
@@ -65,8 +65,8 @@ def test_interface(container: DependencyContainer,
 
 def test_not_singleton_interface(container: DependencyContainer,
                                  interface_provider: IndirectProvider,
-                                 service_provider: ServiceProvider):
-    service_provider.register(Service, singleton=False)
+                                 factory_provider: FactoryProvider):
+    factory_provider.register_class(Service, singleton=False)
     interface_provider.register(IService, Service)
 
     service = container.get(Service)
@@ -77,9 +77,9 @@ def test_not_singleton_interface(container: DependencyContainer,
 
 def test_profile_instance(container: DependencyContainer,
                           interface_provider: IndirectProvider,
-                          service_provider: ServiceProvider):
-    service_provider.register(ServiceA)
-    service_provider.register(ServiceB, singleton=False)
+                          factory_provider: FactoryProvider):
+    factory_provider.register_class(ServiceA)
+    factory_provider.register_class(ServiceB, singleton=False)
     interface_provider.register(IService, ServiceA, Profile.A)
     interface_provider.register(IService, ServiceB, Profile.B)
     current_profile = Profile.A
@@ -87,7 +87,7 @@ def test_profile_instance(container: DependencyContainer,
     def get_profile():
         return current_profile
 
-    service_provider.register(Profile, singleton=False, factory=get_profile)
+    factory_provider.register_factory(Profile, singleton=False, factory=get_profile)
 
     service_a = container.get(ServiceA)
     service_b = container.get(ServiceB)
@@ -103,9 +103,9 @@ def test_profile_instance(container: DependencyContainer,
 
 def test_singleton_profile_instance(container: DependencyContainer,
                                     interface_provider: IndirectProvider,
-                                    service_provider: ServiceProvider):
-    service_provider.register(ServiceA)
-    service_provider.register(ServiceB, singleton=False)
+                                    factory_provider: FactoryProvider):
+    factory_provider.register_class(ServiceA)
+    factory_provider.register_class(ServiceB, singleton=False)
     interface_provider.register(IService, ServiceA, Profile.A)
     interface_provider.register(IService, ServiceB, Profile.B)
 
@@ -118,9 +118,9 @@ def test_singleton_profile_instance(container: DependencyContainer,
 
 def test_singleton_profile_instance_2(container: DependencyContainer,
                                       interface_provider: IndirectProvider,
-                                      service_provider: ServiceProvider):
-    service_provider.register(ServiceA)
-    service_provider.register(ServiceB, singleton=False)
+                                      factory_provider: FactoryProvider):
+    factory_provider.register_class(ServiceA)
+    factory_provider.register_class(ServiceB, singleton=False)
     interface_provider.register(IService, ServiceA, Profile.A)
     interface_provider.register(IService, ServiceB, Profile.B)
 
@@ -155,9 +155,9 @@ def test_duplicate(interface_provider: IndirectProvider, first: tuple, second: t
 
 def test_undefined_context(container: DependencyContainer,
                            interface_provider: IndirectProvider,
-                           service_provider: ServiceProvider):
-    service_provider.register(ServiceA)
-    service_provider.register(ServiceB)
+                           factory_provider: FactoryProvider):
+    factory_provider.register_class(ServiceA)
+    factory_provider.register_class(ServiceB)
     interface_provider.register(IService, ServiceA, Profile.A)
     container.update_singletons({Profile: Profile.B})
 

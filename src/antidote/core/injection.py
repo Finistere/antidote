@@ -1,6 +1,7 @@
 import builtins
 import collections.abc as c_abc
-from typing import Any, Callable, Dict, Iterable, Mapping, overload, Set, TypeVar, Union
+from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, overload, Set,
+                    TypeVar, Union)
 
 from .._internal.argspec import Arguments
 from .._internal.default_container import get_default_container
@@ -11,9 +12,9 @@ F = TypeVar('F', Callable, staticmethod, classmethod)
 
 _BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 DEPENDENCIES_TYPE = Union[
-    Mapping[str, Any],  # {arg_name: dependency, ...}
-    Iterable[Any],  # (dependency for arg 1, ...)
-    Callable[[str], Any],  # arg_name -> dependency
+    Mapping[str, Hashable],  # {arg_name: dependency, ...}
+    Iterable[Hashable],  # (dependency for arg 1, ...)
+    Callable[[str], Hashable],  # arg_name -> dependency
     str  # str.format(arg_name=arg_name) -> dependency
 ]
 

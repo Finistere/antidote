@@ -1,5 +1,6 @@
 import threading
-from typing import Any, cast, Dict, Generic, List, Mapping, Optional, Tuple, TypeVar
+from typing import (Any, cast, Dict, Generic, Hashable, List, Mapping, Optional, Tuple,
+                    TypeVar)
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError)
@@ -27,6 +28,7 @@ class DependencyContainer:
     Instantiates the dependencies through the registered providers and handles
     their scope.
     """
+
     def __init__(self):
         self._providers = list()  # type: List[DependencyProvider]
         self._type_to_provider = dict()  # type: Dict[type, DependencyProvider]
@@ -52,16 +54,12 @@ class DependencyContainer:
 
     @property
     def providers(self) -> Mapping[type, 'DependencyProvider']:
-        """
-        Returns: A mapping of all the registered providers by their type.
-        """
+        """ Returns a mapping of all the registered providers by their type. """
         return {type(p): p for p in self._providers}
 
     @property
     def singletons(self) -> dict:
-        """
-        Returns: All the defined singletons
-        """
+        """ Returns all the defined singletons """
         return self._singletons.copy()
 
     def register_provider(self, provider: 'DependencyProvider'):
@@ -73,15 +71,16 @@ class DependencyContainer:
 
         """
         if not isinstance(provider, DependencyProvider):
-            raise ValueError("Not a provider")
+            raise TypeError("provider must be a DependencyProvider, not a {!r}".format(
+                type(provider)
+            ))
 
         for bound_type in provider.bound_dependency_types:
             if bound_type in self._type_to_provider:
                 raise RuntimeError(
                     "Cannot bind {!r} to provider, already bound to {!r}".format(
                         bound_type, self._type_to_provider[bound_type]
-                    )
-                )
+                    ))
 
         for bound_type in provider.bound_dependency_types:
             self._type_to_provider[bound_type] = provider
@@ -98,7 +97,7 @@ class DependencyContainer:
                 for k, v in dependencies.items()
             })
 
-    def get(self, dependency):
+    def get(self, dependency: Hashable):
         """
         Returns an instance for the given dependency. All registered providers
         are called sequentially until one returns an instance.  If none is
@@ -112,13 +111,13 @@ class DependencyContainer:
         """
         return self.safe_provide(dependency).instance
 
-    def safe_provide(self, dependency) -> DependencyInstance:
+    def safe_provide(self, dependency: Hashable) -> DependencyInstance:
         dependency_instance = self.provide(dependency)
         if dependency_instance is None:
             raise DependencyNotFoundError(dependency)
         return dependency_instance
 
-    def provide(self, dependency) -> Optional[DependencyInstance]:
+    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         """
         Internal method which should not be directly called. Prefer
         :py:meth:`~.core.core.DependencyContainer.get`.
@@ -184,7 +183,7 @@ class DependencyProvider:
     def __init__(self, container: DependencyContainer):
         self._container = container  # type: DependencyContainer
 
-    def provide(self, dependency: Any) -> Optional[DependencyInstance]:
+    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         """
         Method called by the :py:class:`~.core.DependencyContainer` when
         searching for a dependency.

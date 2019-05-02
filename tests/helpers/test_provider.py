@@ -2,7 +2,7 @@ import pytest
 
 from antidote import new_container, provider
 from antidote.core import DependencyInstance, DependencyProvider
-from antidote.providers import (IndirectProvider, LazyCallProvider, ServiceProvider,
+from antidote.providers import (IndirectProvider, LazyCallProvider, FactoryProvider,
                                 TagProvider)
 
 
@@ -32,7 +32,7 @@ def test_invalid_provider(cls):
 
 def test_providers(container):
     assert 4 == len(container.providers)
-    assert ServiceProvider in container.providers
+    assert FactoryProvider in container.providers
     assert TagProvider in container.providers
     assert LazyCallProvider in container.providers
     assert IndirectProvider in container.providers

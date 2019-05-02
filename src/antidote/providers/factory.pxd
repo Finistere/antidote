@@ -2,9 +2,9 @@
 # cython: boundscheck=False, wraparound=False
 from antidote.core.container cimport DependencyInstance, DependencyProvider
 
-cdef class ServiceProvider(DependencyProvider):
+cdef class FactoryProvider(DependencyProvider):
     cdef:
-        dict _service_to_factory
+        dict _builders
 
     cpdef DependencyInstance provide(self, object dependency)
 
@@ -13,8 +13,4 @@ cdef class Build:
         readonly object wrapped
         readonly tuple args
         readonly dict kwargs
-
-
-cdef class LazyFactory:
-    cdef:
-        readonly object dependency
+        int _hash
