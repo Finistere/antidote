@@ -10,7 +10,7 @@ Changelog
 - Add `@implements` to define service implementing an interface. 
 - Add `IndirectProvider()` which supports `@implements`.
 - Add `DependencyContainer.safe_provide()` which does the same as 
-  `DependencyContainer.safe_provide()` except that it raises an error if
+  `DependencyContainer.provide()` except that it raises an error if
   the dependency cannot be found instead of returning None.
 
 
@@ -27,7 +27,7 @@ Changelog
 ### Changes
 
 - Moved `is_compiled` to `antidote.utils`.
-- Add better type hints for `@inject()`
+- Add better type hints.
 
 
 0.5.1 (2019-04-27)
