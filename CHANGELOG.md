@@ -16,8 +16,6 @@ Changelog
 
 ### Breaking changes
 
-- Removed Python 3.5 support. `enum.Flag` is not available and no 
-  backport exists.
 - `DependencyContainer.provide()` returns a `DependencyInstance` not the 
   instance itself anymore.
 - Rename `LazyConfigurationMeta` to `LazyConstantsMeta`.

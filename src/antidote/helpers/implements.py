@@ -11,7 +11,7 @@ T = TypeVar('T', bound=type)
 
 def implements(interface: type,
                *,
-               context: Enum = None,
+               state: Enum = None,
                container: DependencyContainer = None) -> Callable[[T], T]:
     """
     Class decorator declaring the underlying class as a (possible) implementation
@@ -19,14 +19,14 @@ def implements(interface: type,
 
     Args:
         interface: Interface implemented by the decorated class.
-        context: If multiple implementations exist for an interface, a custom
-            :py:class:`~enum.Enum` should be used to identify all the different
-            possible contexts. Each implementation should be associated with one
-            context or a combination of them. At runtime Antidote will retrieve
-            the current context through the custom :py:class:`~enum.Enum` class.
+        state: If multiple implementations exist for an interface, an
+            :py:class:`~enum.Enum` should be used to identify all the possible
+            states the application may be. Each state should be associated with
+            one implementation. At runtime Antidote will retrieve the state
+            (the :py:class:`~enum.Enum`) class to determine the current state.
         container: :py:class:`~.core.container.DependencyContainer` from which
             the dependencies should be retrieved. Defaults to the global
-            core if it is defined.
+            container if it is defined.
 
     Returns:
         The decorated class, unmodified.
@@ -43,7 +43,7 @@ def implements(interface: type,
 
         interface_provider = cast(IndirectProvider,
                                   container.providers[IndirectProvider])
-        interface_provider.register(interface, cls, context)
+        interface_provider.register(interface, cls, state)
 
         return cls
 

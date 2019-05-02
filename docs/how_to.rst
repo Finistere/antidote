@@ -38,12 +38,12 @@ Multiple implementations can also be declared:
     class Database:
         pass
 
-    @implements(Database, context=Profile.POSTGRES)
+    @implements(Database, state=Profile.POSTGRES)
     @register
     class PostgresDB(Database):
         pass
 
-    @implements(Database, context=Profile.MYSQL)
+    @implements(Database, state=Profile.MYSQL)
     @register
     class MySQLDB(Database):
         pass

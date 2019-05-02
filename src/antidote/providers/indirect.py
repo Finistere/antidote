@@ -13,7 +13,7 @@ class IndirectProvider(DependencyProvider):
 
     def __init__(self, container):
         super(IndirectProvider, self).__init__(container)
-        self._contextual_links = dict()  # type: Dict[Any, ContextualLink]
+        self._stateful_links = dict()  # type: Dict[Any, StatefulLink]
         self._links = dict()  # type: Dict[Any, Any]
 
     def provide(self, dependency) -> Optional[DependencyInstance]:
@@ -21,60 +21,60 @@ class IndirectProvider(DependencyProvider):
             target = self._links[dependency]
         except KeyError:
             try:
-                contextual_link = self._contextual_links[dependency]
+                stateful_link = self._stateful_links[dependency]
             except KeyError:
                 return None
             else:
-                current_context = self._container.safe_provide(
-                    contextual_link.context_dependency
+                state = self._container.safe_provide(
+                    stateful_link.state_dependency
                 )
 
                 try:
-                    target = contextual_link.targets[current_context.instance]
+                    target = stateful_link.targets[state.instance]
                 except KeyError:
-                    raise UndefinedContextError(dependency, current_context.instance)
+                    raise UndefinedContextError(dependency, state.instance)
 
                 t = self._container.safe_provide(target)
                 return DependencyInstance(
                     t.instance,
-                    singleton=current_context.singleton & t.singleton
+                    singleton=state.singleton & t.singleton
                 )
         else:
             return self._container.safe_provide(target)
 
-    def register(self, dependency: Any, target_dependency: Any, context: Enum = None):
+    def register(self, dependency: Any, target_dependency: Any, state: Enum = None):
         if dependency in self._links:
             raise DuplicateDependencyError(dependency,
                                            self._links[dependency])
 
-        if context is None:
-            if dependency in self._contextual_links:
+        if state is None:
+            if dependency in self._stateful_links:
                 raise DuplicateDependencyError(dependency,
-                                               self._contextual_links[dependency])
+                                               self._stateful_links[dependency])
             self._links[dependency] = target_dependency
-        elif isinstance(context, Enum):
+        elif isinstance(state, Enum):
             try:
-                contextual_link = self._contextual_links[dependency]
+                stateful_link = self._stateful_links[dependency]
             except KeyError:
-                contextual_link = ContextualLink(type(context))
-                self._contextual_links[dependency] = contextual_link
+                stateful_link = StatefulLink(type(state))
+                self._stateful_links[dependency] = stateful_link
 
-            if context in contextual_link.targets:
-                raise DuplicateDependencyError((dependency, context),
-                                               contextual_link.targets[context])
+            if state in stateful_link.targets:
+                raise DuplicateDependencyError((dependency, state),
+                                               stateful_link.targets[state])
 
-            contextual_link.targets[context] = target_dependency
+            stateful_link.targets[state] = target_dependency
         else:
             raise TypeError("profile must be an instance of Flag or be None, "
-                            "not a {!r}".format(type(context)))
+                            "not a {!r}".format(type(state)))
 
 
-class ContextualLink(SlotsReprMixin):
+class StatefulLink(SlotsReprMixin):
     """
     Internal API
     """
-    __slots__ = ('context_dependency', 'targets')
+    __slots__ = ('state_dependency', 'targets')
 
-    def __init__(self, context_dependency: Any):
-        self.context_dependency = context_dependency
+    def __init__(self, state_dependency: Any):
+        self.state_dependency = state_dependency
         self.targets = dict()  # type: Dict[Enum, Any]
