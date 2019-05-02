@@ -2,16 +2,14 @@ import pytest
 
 from antidote import register
 from antidote.core import DependencyContainer
-from antidote.providers.service import LazyFactory
-from antidote.providers import ServiceProvider, TagProvider
+from antidote.providers import FactoryProvider, TagProvider
 
 
 @pytest.fixture()
 def container():
     container = DependencyContainer()
-    container.register_provider(ServiceProvider(container=container))
+    container.register_provider(FactoryProvider(container=container))
     container.register_provider(TagProvider(container=container))
-    container.update_singletons({'instantiate': lambda cls: cls()})
 
     return container
 
@@ -46,7 +44,6 @@ def test_singleton(container):
         lambda cls: cls(),
         'class_build',
         'static_build',
-        LazyFactory('instantiate'),
         None
     ]
 )

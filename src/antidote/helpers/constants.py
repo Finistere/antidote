@@ -143,8 +143,8 @@ class LazyConstantsMeta(type):
         resource_class = register(
             resource_class,
             auto_wire=False,
-            container=container,
-            singleton=True
+            singleton=True,
+            container=container
         )
 
         func = resource_class.__dict__[lazy_method]

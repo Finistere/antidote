@@ -20,6 +20,8 @@ Changelog
   instance itself anymore.
 - Rename `LazyConfigurationMeta` to `LazyConstantsMeta`.
 - `LazyConfigurationMeta` default method is `get()`.
+- `ServiceProvider` renamed to `FactoryProvider` and reworked 
+  `ServiceProvider.register()`.
 
 
 ### Changes

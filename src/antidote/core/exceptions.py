@@ -1,5 +1,5 @@
 import inspect
-from typing import List
+from typing import Any, Hashable, List
 
 
 class AntidoteError(Exception):
@@ -15,7 +15,7 @@ class DuplicateDependencyError(AntidoteError):
     *May* be raised by providers.
     """
 
-    def __init__(self, dependency, existing_definition):
+    def __init__(self, dependency: Hashable, existing_definition: Any):
         self.dependency = dependency
         self.existing_definition = existing_definition
 
@@ -45,18 +45,19 @@ class DependencyCycleError(AntidoteError):
     Raised by the core.
     """
 
-    def __init__(self, stack: List):
-        self.stack = stack
+    def __init__(self, dependencies: List):
+        self.dependencies = dependencies
 
     def __str__(self):
-        return ' => '.join(map(self._repr, self.stack))
+        return ' => '.join(map(self._repr, self.dependencies))
 
     @staticmethod
-    def _repr(obj) -> str:
-        if inspect.isclass(obj):
-            return "{}.{}".format(obj.__module__, obj.__name__)
+    def _repr(dependency: Hashable) -> str:
+        if inspect.isclass(dependency):
+            return "{}.{}".format(dependency.__module__,
+                                  getattr(dependency, '__name__', dependency))
 
-        return repr(obj)
+        return repr(dependency)
 
 
 class DependencyNotFoundError(AntidoteError):
@@ -65,7 +66,7 @@ class DependencyNotFoundError(AntidoteError):
     Raised by the core.
     """
 
-    def __init__(self, dependency):
+    def __init__(self, dependency: Hashable):
         self.missing_dependency = dependency
 
     def __str__(self):

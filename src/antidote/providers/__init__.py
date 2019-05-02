@@ -1,4 +1,4 @@
 from .indirect import IndirectProvider
 from .lazy import LazyCallProvider
-from .service import ServiceProvider
+from .factory import FactoryProvider
 from .tag import TagProvider

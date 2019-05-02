@@ -2,14 +2,14 @@ import pytest
 
 from antidote.core import DependencyContainer
 from antidote.helpers.constants import LazyConstantsMeta
-from antidote.providers import LazyCallProvider, ServiceProvider
+from antidote.providers import LazyCallProvider, FactoryProvider
 
 
 @pytest.fixture()
 def container():
     c = DependencyContainer()
     c.register_provider(LazyCallProvider(container=c))
-    c.register_provider(ServiceProvider(container=c))
+    c.register_provider(FactoryProvider(container=c))
 
     return c
 

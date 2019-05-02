@@ -1,7 +1,7 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
 from enum import Enum
-from typing import Any, Dict
+from typing import Hashable, Dict
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
@@ -15,8 +15,8 @@ from ..exceptions import DuplicateDependencyError, UndefinedContextError
 cdef class IndirectProvider(DependencyProvider):
     def __init__(self, container):
         super(IndirectProvider, self).__init__(container)
-        self._stateful_links = dict()  # type: Dict[Any, StatefulLink]
-        self._links = dict()  # type: Dict[Any, Any]
+        self._stateful_links = dict()  # type: Dict[Hashable, StatefulLink]
+        self._links = dict()  # type: Dict[Hashable, Hashable]
 
     cpdef DependencyInstance provide(self, object dependency):
         cdef:
@@ -50,7 +50,7 @@ cdef class IndirectProvider(DependencyProvider):
 
         return None
 
-    def register(self, dependency: Any, target_dependency: Any, state: Enum = None):
+    def register(self, dependency: Hashable, target_dependency: Hashable, state: Enum = None):
         cdef:
             StatefulLink stateful_link
 
@@ -86,7 +86,7 @@ cdef class StatefulLink:
 
     def __init__(self, state_dependency):
         self.state_dependency = state_dependency
-        self.targets = dict()  # type: Dict[Enum, Any]
+        self.targets = dict()  # type: Dict[Enum, Hashable]
 
     def __repr__(self):
         return "{}(state_dependency={!r}, targets={!r})".format(

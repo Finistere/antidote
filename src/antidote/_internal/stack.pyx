@@ -1,6 +1,7 @@
 # cython: language_level=3
-# cython: boundscheck=False, wraparound=False
+# cython: boundscheck=False, wraparound=False, annotation_typing=False
 from contextlib import contextmanager
+from typing import Hashable
 
 # @formatter:off
 cimport cython
@@ -18,7 +19,7 @@ cdef class DependencyStack:
         self._seen = set()
 
     @contextmanager
-    def instantiating(self, dependency):
+    def instantiating(self, dependency: Hashable):
         if 1 != self.push(dependency):
             raise DependencyCycleError(self._stack.copy() + [dependency])
         try:

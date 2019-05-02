@@ -1,6 +1,6 @@
 # cython: language_level=3
-# cython: boundscheck=False, wraparound=False
-from typing import Any, Dict, Iterable, Iterator, List, Union
+# cython: boundscheck=False, wraparound=False, annotation_typing=False
+from typing import Any, Dict, Iterable, Iterator, List, Union, Optional
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
@@ -13,7 +13,30 @@ from antidote.core.container cimport (DependencyContainer, DependencyInstance,
 from ..exceptions import DuplicateTagError
 
 cdef class Tag:
-    def __init__(self, str name, **attrs):
+    """
+    Tags are a way to expose a dependency indirectly. Instead of explicitly
+    defining a list of dependencies to retrieve, one can just mark those with
+    tags and retrieve them. This helps decoupling dependencies, and may be used
+    to add extensions to another service typically.
+
+    The tag itself has a name (string) attribute, with which it is identified.
+    One may add others attributes to pass additional information to the services
+    retrieving it.
+
+    .. doctest::
+
+        >>> from antidote import Tag
+        >>> t = Tag('dep', info=1)
+        >>> t.info
+        1
+
+    """
+    def __init__(self, str name: str, **attrs):
+        """
+        Args:
+            name: Name which identifies the tag.
+            **attrs: Any other parameters will be accessible as an attribute.
+        """
         if len(name) == 0:
             raise ValueError("name must be a non empty string")
 
@@ -31,7 +54,15 @@ cdef class Tag:
         return self._attrs.get(item)
 
 cdef class Tagged:
+    """
+    Custom dependency used to retrieve all dependencies tagged with by with the
+    name.
+    """
     def __init__(self, str name):
+        """
+        Args:
+            name: Name of the tags which shall be retrieved.
+        """
         if len(name) == 0:
             raise ValueError("name must be a non empty string")
 

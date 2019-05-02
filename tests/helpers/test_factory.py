@@ -2,13 +2,13 @@ import pytest
 
 from antidote import factory
 from antidote.core import DependencyContainer
-from antidote.providers import ServiceProvider, TagProvider
+from antidote.providers import FactoryProvider, TagProvider
 
 
 @pytest.fixture()
 def container():
     c = DependencyContainer()
-    c.register_provider(ServiceProvider(container=c))
+    c.register_provider(FactoryProvider(container=c))
     c.register_provider(TagProvider(container=c))
 
     return c

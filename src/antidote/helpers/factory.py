@@ -1,9 +1,12 @@
-from typing import (Any, Callable, cast, get_type_hints, Iterable, overload, Tuple,
-                    TypeVar, Union)
+import inspect
+from typing import (Callable, cast, get_type_hints, Iterable, overload, TypeVar, Union)
 
+from .register import register
+from .wire import wire
 from .._internal.default_container import get_default_container
 from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
-from ..providers.service import LazyFactory, ServiceProvider
+from ..exceptions import DuplicateDependencyError
+from ..providers.factory import FactoryProvider
 from ..providers.tag import Tag, TagProvider
 
 F = TypeVar('F', Callable, type)
@@ -92,75 +95,80 @@ def factory(func: Union[Callable, type] = None,
     container = container or get_default_container()
 
     def register_factory(obj):
-        obj, factory_, return_type_hint = _prepare_callable(
-            obj,
-            auto_wire=auto_wire,
-            wire_super=wire_super,
-            container=container,
-            dependencies=dependencies,
-            use_names=use_names,
-            use_type_hints=use_type_hints
-        )
+        factory_provider = cast(FactoryProvider,
+                                container.providers[FactoryProvider])
 
-        if return_type_hint is None:
-            raise ValueError("No dependency defined.")
+        if inspect.isclass(obj):
+            if '__call__' not in dir(obj):
+                raise TypeError("The class must implement __call__()")
 
-        service_provider = cast(ServiceProvider,
-                                container.providers[ServiceProvider])
-        service_provider.register(factory=factory_,
-                                  singleton=singleton,
-                                  service=return_type_hint,
-                                  takes_dependency=False)
+            try:
+                obj = register(obj, auto_wire=False, singleton=True,
+                               container=container)
+            except DuplicateDependencyError:
+                # @formatter:off
+                if {auto_wire, dependencies, use_names, use_type_hints,
+                        wire_super} != {None}:
+                    # @formatter:on
+                    raise ValueError(("{!r} is already a known dependency, "
+                                      "it cannot be wired differently.").format(obj))
+            else:
+                wire_raise_on_missing = True
+                if auto_wire is None or isinstance(auto_wire, bool):
+                    if auto_wire is False:
+                        methods = ()  # type: Iterable[str]
+                    else:
+                        methods = ('__call__', '__init__')
+                        wire_raise_on_missing = False
+                else:
+                    methods = auto_wire
+
+                if methods:
+                    obj = wire(obj,
+                               methods=methods,
+                               wire_super=wire_super,
+                               raise_on_missing=wire_raise_on_missing,
+                               dependencies=dependencies,
+                               use_names=use_names,
+                               use_type_hints=use_type_hints,
+                               container=container)
+
+            dependency = get_type_hints(obj.__call__).get('return')
+            if dependency is None:
+                raise ValueError("The return annotation is necessary on __call__."
+                                 "It is used a the dependency.")
+            factory_provider.register_lazy_factory(
+                dependency=dependency,
+                singleton=singleton,
+                takes_dependency=False,
+                factory_dependency=obj
+            )
+        elif callable(obj):
+            if auto_wire:
+                obj = inject(obj,
+                             dependencies=dependencies,
+                             use_names=use_names,
+                             use_type_hints=use_type_hints,
+                             container=container)
+
+            dependency = get_type_hints(obj).get('return')
+            if dependency is None:
+                raise ValueError("A return annotation is necessary."
+                                 "It is used a the dependency.")
+            factory_provider.register_factory(factory=obj,
+                                              singleton=singleton,
+                                              dependency=dependency,
+                                              takes_dependency=False)
+        else:
+            raise TypeError("Must be either a function "
+                            "or a class implementing __call__(), "
+                            "not {!r}".format(type(obj)))
 
         if tags is not None:
             tag_provider = cast(TagProvider, container.providers[TagProvider])
-            tag_provider.register(dependency=return_type_hint,
+            tag_provider.register(dependency=dependency,
                                   tags=tags)
 
         return obj
 
     return func and register_factory(func) or register_factory
-
-
-def _prepare_callable(
-        obj: F,
-        auto_wire: Union[bool, Iterable[str]],
-        wire_super: Union[bool, Iterable[str]],
-        container: DependencyContainer,
-        **inject_kwargs) -> Tuple[F, Union[F, LazyFactory], Any]:
-    if isinstance(obj, type):
-        if '__call__' not in dir(obj):
-            raise TypeError("The class must implement __call__()")
-        from ..helpers import register, wire
-
-        type_hints = get_type_hints(obj.__call__)
-
-        if auto_wire:
-            if auto_wire is True:
-                methods = ('__init__', '__call__')  # type: Tuple[str, ...]
-            else:
-                methods = tuple(cast(Iterable[str], auto_wire))
-
-            obj = wire(obj,
-                       methods=methods,
-                       wire_super=wire_super,
-                       container=container,
-                       raise_on_missing=auto_wire is not True,
-                       **inject_kwargs)
-
-        obj = register(obj, auto_wire=False, container=container)
-        func = LazyFactory(obj)  # type: Union[F, LazyFactory]
-    elif callable(obj):
-        type_hints = get_type_hints(obj)
-        if auto_wire:
-            obj = inject(obj,
-                         container=container,
-                         **inject_kwargs)
-
-        func = obj
-    else:
-        raise TypeError("Must be either a function "
-                        "or a class implementing __call__(), "
-                        "not {!r}".format(type(obj)))
-
-    return obj, func, type_hints.get('return')

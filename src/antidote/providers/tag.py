@@ -1,12 +1,9 @@
 import threading
-from typing import (Any, Dict, Iterable, Iterator, List,
-                    Optional, TypeVar, Union)
+from typing import (Any, Dict, Hashable, Iterable, Iterator, List, Optional, Union)
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
 from ..exceptions import DuplicateTagError
-
-T = TypeVar('T')
 
 
 class Tag(SlotsReprMixin):
@@ -99,7 +96,7 @@ class TagProvider(DependencyProvider):
 
     def __init__(self, container: DependencyContainer):
         super().__init__(container)
-        self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Any, Tag]]
+        self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Hashable, Tag]]
 
     def __repr__(self):
         return "{}(tagged_dependencies={!r})".format(
@@ -107,7 +104,7 @@ class TagProvider(DependencyProvider):
             self._dependency_to_tag_by_tag_name
         )
 
-    def provide(self, dependency) -> Optional[DependencyInstance]:
+    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         """
         Returns all dependencies matching the tag name specified with a
         :py:class:`~.dependency.Tagged`. For every other case, :obj:`None` is
@@ -144,7 +141,7 @@ class TagProvider(DependencyProvider):
 
         return None
 
-    def register(self, dependency, tags: Iterable[Union[str, Tag]]):
+    def register(self, dependency: Hashable, tags: Iterable[Union[str, Tag]]):
         """
         Mark a dependency with all the supplied tags. Raises
         :py:exc:`~.exceptions.DuplicateTagError` if the tag has already been
@@ -180,7 +177,7 @@ class TaggedDependencies:
 
     def __init__(self,
                  container: DependencyContainer,
-                 dependencies: List[Any],
+                 dependencies: List[Hashable],
                  tags: List[Tag]):
         self._lock = threading.Lock()
         self._container = container
@@ -191,7 +188,7 @@ class TaggedDependencies:
     def __len__(self):
         return len(self._tags)
 
-    def dependencies(self) -> Iterable[Any]:
+    def dependencies(self) -> Iterable[Hashable]:
         """
         Returns all the dependencies retrieved. This does not instantiate them.
         """
@@ -204,7 +201,7 @@ class TaggedDependencies:
         """
         return iter(self._tags)
 
-    def instances(self) -> Iterator[T]:
+    def instances(self) -> Iterator:
         """
         Returns the dependencies, in a stable order for multi-threaded
         environments.

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Dict, Hashable, Optional
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyInstance, DependencyProvider
@@ -13,10 +13,10 @@ class IndirectProvider(DependencyProvider):
 
     def __init__(self, container):
         super(IndirectProvider, self).__init__(container)
-        self._stateful_links = dict()  # type: Dict[Any, StatefulLink]
-        self._links = dict()  # type: Dict[Any, Any]
+        self._stateful_links = dict()  # type: Dict[Hashable, StatefulLink]
+        self._links = dict()  # type: Dict[Hashable, Hashable]
 
-    def provide(self, dependency) -> Optional[DependencyInstance]:
+    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         try:
             target = self._links[dependency]
         except KeyError:
@@ -42,7 +42,8 @@ class IndirectProvider(DependencyProvider):
         else:
             return self._container.safe_provide(target)
 
-    def register(self, dependency: Any, target_dependency: Any, state: Enum = None):
+    def register(self, dependency: Hashable, target_dependency: Hashable,
+                 state: Enum = None):
         if dependency in self._links:
             raise DuplicateDependencyError(dependency,
                                            self._links[dependency])
@@ -75,6 +76,6 @@ class StatefulLink(SlotsReprMixin):
     """
     __slots__ = ('state_dependency', 'targets')
 
-    def __init__(self, state_dependency: Any):
+    def __init__(self, state_dependency: Hashable):
         self.state_dependency = state_dependency
-        self.targets = dict()  # type: Dict[Enum, Any]
+        self.targets = dict()  # type: Dict[Enum, Hashable]

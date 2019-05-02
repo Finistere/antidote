@@ -1,10 +1,10 @@
 import inspect
-from typing import Callable, cast, Iterable, overload, TypeVar, Union
+from typing import Any, Callable, cast, Iterable, overload, TypeVar, Union
 
 from .wire import wire
 from .._internal.default_container import get_default_container
 from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
-from ..providers.service import LazyFactory, ServiceProvider
+from ..providers.factory import FactoryProvider
 from ..providers.tag import Tag, TagProvider
 
 C = TypeVar('C', bound=type)
@@ -15,6 +15,7 @@ def register(class_: C,  # noqa: E704
              *,
              singleton: bool = True,
              factory: Union[Callable, str] = None,
+             factory_dependency: Any = None,
              auto_wire: Union[bool, Iterable[str]] = None,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
@@ -29,6 +30,7 @@ def register(class_: C,  # noqa: E704
 def register(*,  # noqa: E704
              singleton: bool = True,
              factory: Union[Callable, str] = None,
+             factory_dependency: Any = None,
              auto_wire: Union[bool, Iterable[str]] = None,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
@@ -39,18 +41,18 @@ def register(*,  # noqa: E704
              ) -> Callable[[C], C]: ...
 
 
-def register(class_: type = None,
+def register(class_=None,
              *,
              singleton: bool = True,
              factory: Union[Callable, str] = None,
+             factory_dependency: Any = None,
              auto_wire: Union[bool, Iterable[str]] = None,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
              wire_super: Union[bool, Iterable[str]] = None,
              tags: Iterable[Union[str, Tag]] = None,
-             container: DependencyContainer = None
-             ):
+             container: DependencyContainer = None):
     """Register a dependency by its class.
 
     Args:
@@ -62,8 +64,12 @@ def register(class_: type = None,
             re-use the same factory for subclasses for example. The dependency
             is given as first argument. If a string is specified, it is
             interpreted as the name of the method which has to be used to build
-            the class. The dependency is given as first argument for static
-            methods but not for class methods.
+            the class. The class is given as first argument for static methods
+            but not for class methods. Cannot be used together with
+            :code:`factory_dependency`.
+        factory_dependency: If specified Antidote will retrieve the factory in
+            the container with it. The class is given as first argument. Cannot
+            be used together with :code:`factory`.
         auto_wire: Injects automatically the dependencies of the methods
             specified, or only of :code:`__init__()` if True.
         dependencies: Can be either a mapping of arguments name to their
@@ -96,6 +102,8 @@ def register(class_: type = None,
         The class or the class decorator.
 
     """
+    if factory is not None and factory_dependency is not None:
+        raise ValueError("factory and factory_dependency cannot be used together.")
     container = container or get_default_container()
     auto_wire = auto_wire if auto_wire is not None else True
     methods = ()  # type: Iterable[str]
@@ -137,10 +145,12 @@ def register(class_: type = None,
                        container=container,
                        raise_on_missing=wire_raise_on_missing)
 
-        if factory is None or isinstance(factory, LazyFactory):
-            pass
-        elif isinstance(factory, str):
-            factory = getattr(cls, factory)
+        if isinstance(factory, str):
+            method = getattr(cls, factory)
+            if not callable(method):
+                raise TypeError(
+                    "attribute {!r} of {!r} is not callable".format(factory, cls))
+            factory = method
         elif inspect.isfunction(factory):
             if auto_wire:
                 factory = inject(factory,
@@ -148,15 +158,25 @@ def register(class_: type = None,
                                  use_names=use_names,
                                  use_type_hints=use_type_hints,
                                  container=container)
-        else:
+        elif factory is not None:
             raise TypeError("factory must be either a method name, a function, or a "
                             "lazy dependency, not {!r}".format(type(factory)))
 
-        service_provider = cast(ServiceProvider, container.providers[ServiceProvider])
-        service_provider.register(service=cls,
-                                  factory=factory,
-                                  singleton=singleton,
-                                  takes_dependency=takes_dependency)
+        factory_provider = cast(FactoryProvider, container.providers[FactoryProvider])
+        if factory is not None:
+            factory_provider.register_factory(
+                dependency=cls,
+                factory=factory,
+                singleton=singleton,
+                takes_dependency=takes_dependency)
+        elif factory_dependency is not None:
+            factory_provider.register_lazy_factory(
+                dependency=cls,
+                factory_dependency=factory_dependency,
+                singleton=singleton,
+                takes_dependency=True)
+        else:
+            factory_provider.register_class(cls, singleton=singleton)
 
         if tags is not None:
             tag_provider = cast(TagProvider, container.providers[TagProvider])
