@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Hashable, Optional, Tuple
+from typing import Callable, Dict, Hashable, Optional
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
@@ -24,42 +24,37 @@ class Build(SlotsReprMixin):
     With no arguments, that is to say :code:`Build(x)`, it is equivalent to
     :code:`x` for the :py:class:`~.core.DependencyContainer`.
     """
-    __slots__ = ('wrapped', 'args', 'kwargs', '_hash')
+    __slots__ = ('dependency', 'kwargs', '_hash')
 
     __str__ = SlotsReprMixin.__repr__
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, dependency: Hashable, **kwargs):
         """
         Args:
             *args: The first argument is the dependency, all others are passed
                 on to the factory.
             **kwargs: Passed on to the factory.
         """
-        if not args:
-            raise TypeError("At least the dependency and one additional argument "
-                            "are mandatory.")
-
-        self.wrapped = args[0]  # type: Hashable
-        self.args = args[1:]  # type: Tuple
+        self.dependency = dependency  # type: Hashable
         self.kwargs = kwargs  # type: Dict
 
-        if not self.args and not self.kwargs:
+        if not self.kwargs:
             raise TypeError("Without additional arguments, Build must not be used.")
 
         try:
             # Try most precise hash first
-            self._hash = hash((self.wrapped, self.args, tuple(self.kwargs.items())))
+            self._hash = hash((self.dependency, tuple(self.kwargs.items())))
         except TypeError:
             # If type error, return the best error-free hash possible
-            self._hash = hash((self.wrapped, len(self.args), tuple(self.kwargs.keys())))
+            self._hash = hash((self.dependency, tuple(self.kwargs.keys())))
 
     def __hash__(self):
         return self._hash
 
     def __eq__(self, other):
         return isinstance(other, Build) \
-               and (self.wrapped is other.wrapped or self.wrapped == other.wrapped) \
-               and self.args == other.args \
+               and (self.dependency is other.dependency
+                    or self.dependency == other.dependency) \
                and self.kwargs == self.kwargs  # noqa
 
 
@@ -79,49 +74,35 @@ class FactoryProvider(DependencyProvider):
 
     def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         try:
-            builder = self._builders[dependency]  # type: Builder
-        except KeyError:
             if isinstance(dependency, Build):
-                try:
-                    builder = self._builders[dependency.wrapped]
-                except KeyError:
-                    pass
-                else:
-                    if builder.factory_dependency is not None:
-                        f = self._container.safe_provide(builder.factory_dependency)
-                        factory = f.instance
-                        if f.singleton:
-                            builder.factory_dependency = None
-                            builder.factory = f.instance
-                    else:
-                        factory = builder.factory
-
-                    if builder.takes_dependency:
-                        instance = factory(dependency.wrapped, *dependency.args,
-                                           **dependency.kwargs)
-                    else:
-                        instance = factory(*dependency.args, **dependency.kwargs)
-
-                    return DependencyInstance(instance,
-                                              singleton=builder.singleton)
-        else:
-            if builder.factory_dependency is not None:
-                f = self._container.safe_provide(builder.factory_dependency)
-                factory = f.instance
-                if f.singleton:
-                    builder.factory_dependency = None
-                    builder.factory = f.instance
+                builder = self._builders[dependency.dependency]  # type: Builder
             else:
-                factory = builder.factory
+                builder = self._builders[dependency]
+        except KeyError:
+            return None
 
+        if builder.factory_dependency is not None:
+            f = self._container.safe_provide(builder.factory_dependency)
+            factory = f.instance
+            if f.singleton:
+                builder.factory_dependency = None
+                builder.factory = f.instance
+        else:
+            factory = builder.factory
+
+        if isinstance(dependency, Build):
+            if builder.takes_dependency:
+                instance = factory(dependency.dependency, **dependency.kwargs)
+            else:
+                instance = factory(**dependency.kwargs)
+        else:
             if builder.takes_dependency:
                 instance = factory(dependency)
             else:
                 instance = factory()
-            return DependencyInstance(instance,
-                                      singleton=builder.singleton)
 
-        return None
+        return DependencyInstance(instance,
+                                  singleton=builder.singleton)
 
     def register_class(self, class_: type, singleton: bool = True):
         """
@@ -164,11 +145,11 @@ class FactoryProvider(DependencyProvider):
         else:
             raise TypeError("factory must be callable, not {!r}.".format(type(factory)))
 
-    def register_lazy_factory(self,
-                              dependency: Hashable,
-                              factory_dependency: Hashable,
-                              singleton: bool = True,
-                              takes_dependency: bool = False):
+    def register_providable_factory(self,
+                                    dependency: Hashable,
+                                    factory_dependency: Hashable,
+                                    singleton: bool = True,
+                                    takes_dependency: bool = False):
         """
         Registers a lazy factory (retrieved only at the first instantiation) for
         a dependency.

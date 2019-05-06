@@ -170,7 +170,7 @@ def register(class_=None,
                 singleton=singleton,
                 takes_dependency=takes_dependency)
         elif factory_dependency is not None:
-            factory_provider.register_lazy_factory(
+            factory_provider.register_providable_factory(
                 dependency=cls,
                 factory_dependency=factory_dependency,
                 singleton=singleton,

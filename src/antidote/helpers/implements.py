@@ -17,6 +17,8 @@ def implements(interface: type,
     Class decorator declaring the underlying class as a (possible) implementation
     to be used by Antidote when requested the specified interface.
 
+    For now, the underlying class needs to be decorated with @register.
+
     Args:
         interface: Interface implemented by the decorated class.
         state: If multiple implementations exist for an interface, an

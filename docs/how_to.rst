@@ -5,7 +5,8 @@ How to
 Use interfaces
 --------------
 
-Exposing services through an interface can be done wth :py:func:`~.implements`:
+Exposing services through an interface can be done wth :py:func:`~.implements`
+(For now, the underlying class needs to be decorated with :py:func:`~.register` .) :
 
 .. testcode:: how_to_interface
 
