@@ -90,14 +90,12 @@ Hereafter is an example which tries to show most of Antidote's features:
     to retrieve the best movies. In our case the implementation uses IMDB
     to dot it.
     """
-    from abc import ABC, abstractmethod
     from functools import reduce
 
     import antidote
 
 
-    class MovieDB(ABC):
-        @abstractmethod
+    class MovieDB:
         def get_best_movies(self):
             pass
 
