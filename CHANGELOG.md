@@ -2,8 +2,8 @@ Changelog
 =========
 
 
-0.6.0-dev
----------
+0.6.0 (2019-05-06)
+------------------
   
 ### Features
 
@@ -21,7 +21,8 @@ Changelog
 - Rename `LazyConfigurationMeta` to `LazyConstantsMeta`.
 - `LazyConfigurationMeta` default method is `get()`.
 - `ServiceProvider` renamed to `FactoryProvider` and reworked 
-  `ServiceProvider.register()`.
+  `ServiceProvider.register()` with is split into `register_factory()`,
+  `register_class`, `register_providable_factory`.
 
 
 ### Changes
