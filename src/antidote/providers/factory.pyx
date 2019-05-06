@@ -1,6 +1,6 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
-from typing import Any, Callable, Dict, Hashable, Optional, Tuple
+from typing import Any, Callable, Dict, Hashable, Optional
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
@@ -31,47 +31,42 @@ cdef class Build:
     With no arguments, that is to say :code:`Build(x)`, it is equivalent to
     :code:`x` for the :py:class:`~.core.DependencyContainer`.
     """
-    def __init__(self, *args, **kwargs):
+
+    def __init__(self, dependency: Hashable, **kwargs):
         """
         Args:
             *args: The first argument is the dependency, all others are passed
                 on to the factory.
             **kwargs: Passed on to the factory.
         """
-        if not args:
-            raise TypeError("At least the dependency and one additional argument "
-                            "are mandatory.")
-
-        self.wrapped = args[0]  # type: Hashable
-        self.args = args[1:]  # type: Tuple
+        self.dependency = dependency  # type: Hashable
         self.kwargs = kwargs  # type: Dict
 
-        if not self.args and not self.kwargs:
+        if not self.kwargs:
             raise TypeError("Without additional arguments, Build must not be used.")
 
         try:
             # Try most precise hash first
-            self._hash = hash((self.wrapped, self.args, tuple(self.kwargs.items())))
+            self._hash = hash((self.dependency, tuple(self.kwargs.items())))
         except TypeError:
             # If type error, return the best error-free hash possible
-            self._hash = hash((self.wrapped, len(self.args), tuple(self.kwargs.keys())))
-
-    def __repr__(self):
-        return "{}(id={!r}, args={!r}, kwargs={!r})".format(type(self).__name__,
-                                                            self.wrapped,
-                                                            self.args,
-                                                            self.kwargs)
-
-    __str__ = __repr__
+            self._hash = hash((self.dependency, tuple(self.kwargs.keys())))
 
     def __hash__(self):
         return self._hash
 
-    def __eq__(self, object other):
+    def __repr__(self):
+        return "{}(id={!r}, kwargs={!r})".format(type(self).__name__,
+                                                 self.dependency,
+                                                 self.kwargs)
+
+    __str__ = __repr__
+
+    def __eq__(self, other):
         return isinstance(other, Build) \
-               and (self.wrapped is other.wrapped or self.wrapped == other.wrapped) \
-               and self.args == other.args \
-               and self.kwargs == self.kwargs
+               and (self.dependency is other.dependency
+                    or self.dependency == other.dependency) \
+               and self.kwargs == self.kwargs  # noqa
 
 cdef class FactoryProvider(DependencyProvider):
     """
@@ -96,50 +91,40 @@ cdef class FactoryProvider(DependencyProvider):
             object instance
             object factory
 
-        ptr = PyDict_GetItem(self._builders, dependency)
-        if ptr != NULL:
-            builder = <Builder> ptr
-            if builder.factory_dependency is not None:
-                f = self._container.safe_provide(builder.factory_dependency)
-                if f.singleton:
-                    builder.factory_dependency = None
-                    builder.factory = f.instance
-                factory = f.instance
-            else:
-                factory = builder.factory
+        if isinstance(dependency, Build):
+            build = <Build> dependency
+            ptr = PyDict_GetItem(self._builders, build.dependency)
+        else:
+            ptr = PyDict_GetItem(self._builders, dependency)
 
+        if ptr == NULL:
+            return None
+
+        builder = <Builder> ptr
+
+        if builder.factory_dependency is not None:
+            f = self._container.safe_provide(builder.factory_dependency)
+            if f.singleton:
+                builder.factory_dependency = None
+                builder.factory = f.instance
+            factory = f.instance
+        else:
+            factory = builder.factory
+
+        if isinstance(dependency, Build):
+            if builder.takes_dependency:
+                instance = factory(build.dependency, **build.kwargs)
+            else:
+                instance = factory(**build.kwargs)
+        else:
             if builder.takes_dependency:
                 instance = factory(dependency)
             else:
                 instance = factory()
 
-            return DependencyInstance.__new__(DependencyInstance,
-                                              instance,
-                                              builder.singleton)
-        elif isinstance(dependency, Build):
-            build = <Build> dependency
-            ptr = PyDict_GetItem(self._builders, build.wrapped)
-            if ptr != NULL:
-                builder = <Builder> ptr
-                if builder.factory_dependency is not None:
-                    f = self._container.safe_provide(builder.factory_dependency)
-                    if f.singleton:
-                        builder.factory_dependency = None
-                        builder.factory = f.instance
-                    factory = f.instance
-                else:
-                    factory = builder.factory
-
-                if builder.takes_dependency:
-                    instance = factory(build.wrapped, *build.args, **build.kwargs)
-                else:
-                    instance = factory(*build.args, **build.kwargs)
-
-            return DependencyInstance.__new__(DependencyInstance,
-                                              instance,
-                                              builder.singleton)
-
-        return None
+        return DependencyInstance.__new__(DependencyInstance,
+                                          instance,
+                                          builder.singleton)
 
     def register_class(self, class_: type, singleton: bool = True):
         """
@@ -182,11 +167,11 @@ cdef class FactoryProvider(DependencyProvider):
         else:
             raise TypeError("factory must be callable, not {!r}.".format(type(factory)))
 
-    def register_lazy_factory(self,
-                              dependency: Hashable,
-                              factory_dependency: Hashable,
-                              singleton: bool = True,
-                              takes_dependency: bool = False):
+    def register_providable_factory(self,
+                                    dependency: Hashable,
+                                    factory_dependency: Hashable,
+                                    singleton: bool = True,
+                                    takes_dependency: bool = False):
         """
         Registers a lazy factory (retrieved only at the first instantiation) for
         a dependency.

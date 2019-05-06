@@ -11,9 +11,8 @@ class Service:
         self.kwargs = kwargs
 
 
-class AnotherService:
-    def __init__(self, *args):
-        pass
+class AnotherService(Service):
+    pass
 
 
 @pytest.fixture()
@@ -25,27 +24,24 @@ def provider():
 
 
 @pytest.mark.parametrize(
-    'wrapped,args,kwargs',
+    'wrapped,kwargs',
     [
-        ('test', (1,), {}),
-        (1, tuple(), {'test': 1}),
-        (Service, (1, 'test'), {'another': 'no'}),
-        (Service, tuple(), {'not_hashable': {'hey': 'hey'}})
+        (1, {'test': 1}),
+        (Service, {'another': 'no'}),
+        (Service, {'not_hashable': {'hey': 'hey'}})
     ]
 )
-def test_build_eq_hash(wrapped, args, kwargs):
-    b = Build(wrapped, *args, **kwargs)
+def test_build_eq_hash(wrapped, kwargs):
+    b = Build(wrapped, **kwargs)
 
     # does not fail
     hash(b)
 
     for f in (lambda e: e, hash):
-        assert f(Build(wrapped, *args, **kwargs)) == f(b)
+        assert f(Build(wrapped, **kwargs)) == f(b)
 
     assert repr(wrapped) in repr(b)
-    if args or kwargs:
-        assert repr(args) in repr(b)
-        assert repr(kwargs) in repr(b)
+    assert repr(kwargs) in repr(b)
 
 
 @pytest.mark.parametrize(
@@ -89,20 +85,31 @@ def test_takes_dependency(provider: FactoryProvider):
 def test_build(provider: FactoryProvider):
     provider.register_class(Service)
 
-    s = provider.provide(Build(Service, 1, val=object)).instance
+    s = provider.provide(Build(Service, val=object)).instance
     assert isinstance(s, Service)
-    assert (1,) == s.args
     assert dict(val=object) == s.kwargs
-#
-#
-# def test_lazy(provider: FactoryProvider):
-#     sentinel = object()
-#     provider._container.update_singletons({
-#         'lazy_getter': lambda: sentinel
-#     })
-#     provider.register_factory(factory=LazyFactory('lazy_getter'), dependency=Service)
-#
-#     assert sentinel is provider.provide(Service).instance
+
+    provider.register_factory(AnotherService, factory=AnotherService,
+                              takes_dependency=True)
+
+    s = provider.provide(Build(AnotherService, val=object)).instance
+    assert isinstance(s, AnotherService)
+    assert (AnotherService,) == s.args
+    assert dict(val=object) == s.kwargs
+
+
+def test_non_singleton_factory(provider: FactoryProvider):
+    def factory_builder():
+        def factory(o=object()):
+            return o
+
+        return factory
+
+    provider.register_factory('factory', factory=factory_builder, singleton=False)
+    provider.register_providable_factory('service', factory_dependency='factory')
+
+    service = provider.provide('service').instance
+    assert provider.provide('service').instance is not service
 
 
 def test_duplicate_error(provider: FactoryProvider):
@@ -114,13 +121,15 @@ def test_duplicate_error(provider: FactoryProvider):
     with pytest.raises(DuplicateDependencyError):
         provider.register_factory(factory=lambda: Service(), dependency=Service)
 
+    with pytest.raises(DuplicateDependencyError):
+        provider.register_providable_factory(factory_dependency='dummy',
+                                             dependency=Service)
+
 
 @pytest.mark.parametrize(
     'kwargs',
-    [dict(service='test'),
-     dict(service=object()),
-     dict(factory='test', service=Service),
-     dict(factory=object(), service=Service)]
+    [dict(factory='test', dependency=Service),
+     dict(factory=object(), dependency=Service)]
 )
 def test_invalid_type(provider: FactoryProvider, kwargs):
     with pytest.raises(TypeError):

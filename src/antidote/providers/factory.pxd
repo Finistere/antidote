@@ -10,7 +10,6 @@ cdef class FactoryProvider(DependencyProvider):
 
 cdef class Build:
     cdef:
-        readonly object wrapped
-        readonly tuple args
+        readonly object dependency
         readonly dict kwargs
         int _hash

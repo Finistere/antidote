@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 
 from antidote import register
@@ -14,7 +16,7 @@ def container():
     return container
 
 
-def test_simple(container):
+def test_simple(container: DependencyContainer):
     @register(container=container)
     class Service:
         pass
@@ -24,7 +26,7 @@ def test_simple(container):
     assert container.get(Service) is container.get(Service)
 
 
-def test_singleton(container):
+def test_singleton(container: DependencyContainer):
     @register(container=container, singleton=True)
     class Singleton:
         pass
@@ -47,7 +49,7 @@ def test_singleton(container):
         None
     ]
 )
-def test_factory(container, factory):
+def test_factory(container: DependencyContainer, factory):
     @register(container=container, factory=factory)
     class Service:
         @classmethod
@@ -67,6 +69,16 @@ def test_factory(container, factory):
     assert isinstance(container.get(SubService), SubService)
 
 
+def test_factory_dependency(container: DependencyContainer):
+    @register(container=container, factory_dependency='factory')
+    class Service:
+        pass
+
+    container.update_singletons(dict(factory=lambda cls: dict(service=cls())))
+    assert isinstance(container.get(Service), dict)
+    assert isinstance(container.get(Service)['service'], Service)
+
+
 @pytest.mark.parametrize('cls', ['test', object(), lambda: None])
 def test_invalid_class(cls):
     with pytest.raises(TypeError):
@@ -74,17 +86,19 @@ def test_invalid_class(cls):
 
 
 @pytest.mark.parametrize(
-    'kwargs',
+    'error,kwargs',
     [
-        dict(factory=object()),
-        dict(auto_wire=object()),
+        (TypeError, dict(factory=object())),
+        (TypeError, dict(auto_wire=object())),
+        (ValueError, dict(factory=lambda: None, factory_dependency=object())),
+        (TypeError, dict(factory='method', auto_wire=False)),
     ]
 )
-def test_invalid_params(kwargs):
-    with pytest.raises(TypeError):
+def test_invalid_params(error, kwargs):
+    with pytest.raises(error):
         @register(**kwargs)
         class Dummy:
-            pass
+            method = None
 
 
 def test_invalid_factory_wiring():

@@ -102,42 +102,32 @@ def factory(func: Union[Callable, type] = None,
             if '__call__' not in dir(obj):
                 raise TypeError("The class must implement __call__()")
 
-            try:
-                obj = register(obj, auto_wire=False, singleton=True,
-                               container=container)
-            except DuplicateDependencyError:
-                # @formatter:off
-                if {auto_wire, dependencies, use_names, use_type_hints,
-                        wire_super} != {None}:
-                    # @formatter:on
-                    raise ValueError(("{!r} is already a known dependency, "
-                                      "it cannot be wired differently.").format(obj))
-            else:
-                wire_raise_on_missing = True
-                if auto_wire is None or isinstance(auto_wire, bool):
-                    if auto_wire is False:
-                        methods = ()  # type: Iterable[str]
-                    else:
-                        methods = ('__call__', '__init__')
-                        wire_raise_on_missing = False
+            wire_raise_on_missing = True
+            if auto_wire is None or isinstance(auto_wire, bool):
+                if auto_wire is False:
+                    methods = ()  # type: Iterable[str]
                 else:
-                    methods = auto_wire
+                    methods = ('__call__', '__init__')
+                    wire_raise_on_missing = False
+            else:
+                methods = auto_wire
 
-                if methods:
-                    obj = wire(obj,
-                               methods=methods,
-                               wire_super=wire_super,
-                               raise_on_missing=wire_raise_on_missing,
-                               dependencies=dependencies,
-                               use_names=use_names,
-                               use_type_hints=use_type_hints,
-                               container=container)
+            if methods:
+                obj = wire(obj,
+                           methods=methods,
+                           wire_super=wire_super,
+                           raise_on_missing=wire_raise_on_missing,
+                           dependencies=dependencies,
+                           use_names=use_names,
+                           use_type_hints=use_type_hints,
+                           container=container)
 
+            obj = register(obj, auto_wire=False, singleton=True, container=container)
             dependency = get_type_hints(obj.__call__).get('return')
             if dependency is None:
                 raise ValueError("The return annotation is necessary on __call__."
                                  "It is used a the dependency.")
-            factory_provider.register_lazy_factory(
+            factory_provider.register_providable_factory(
                 dependency=dependency,
                 singleton=singleton,
                 takes_dependency=False,
