@@ -11,3 +11,5 @@ python:
   version: 3.6
   install:
     - requirements: requirements/docs.txt
+    - method: pip
+      path: .
