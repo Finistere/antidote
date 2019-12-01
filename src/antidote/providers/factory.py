@@ -26,7 +26,7 @@ class Build(SlotsReprMixin):
     """
     __slots__ = ('dependency', 'kwargs', '_hash')
 
-    __str__ = SlotsReprMixin.__repr__
+    __str__ = SlotsReprMixin.__repr__  # type: Callable[['Build'], str]
 
     def __init__(self, dependency: Hashable, **kwargs):
         """

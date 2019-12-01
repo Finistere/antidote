@@ -11,7 +11,7 @@ C = TypeVar('C', bound=type)
 
 
 @overload
-def register(class_: C,  # noqa: E704
+def register(class_: C,  # noqa: E704  # pragma: no cover
              *,
              singleton: bool = True,
              factory: Union[Callable, str] = None,
@@ -27,7 +27,7 @@ def register(class_: C,  # noqa: E704
 
 
 @overload
-def register(*,  # noqa: E704
+def register(*,  # noqa: E704  # pragma: no cover
              singleton: bool = True,
              factory: Union[Callable, str] = None,
              factory_dependency: Any = None,

@@ -1,2 +1,2 @@
-cython==0.29.7
+cython==0.29.14
 fastrlock==0.4

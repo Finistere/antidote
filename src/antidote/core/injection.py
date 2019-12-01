@@ -20,7 +20,7 @@ DEPENDENCIES_TYPE = Union[
 
 
 @overload
-def inject(func: F,  # noqa: E704
+def inject(func: F,  # noqa: E704  # pragma: no cover
            *,
            arguments: Arguments = None,
            dependencies: DEPENDENCIES_TYPE = None,
@@ -31,7 +31,7 @@ def inject(func: F,  # noqa: E704
 
 
 @overload
-def inject(*,  # noqa: E704
+def inject(*,  # noqa: E704  # pragma: no cover
            arguments: Arguments = None,
            dependencies: DEPENDENCIES_TYPE = None,
            use_names: Union[bool, Iterable[str]] = None,
