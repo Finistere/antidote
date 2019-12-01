@@ -6,17 +6,21 @@ PROJECT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 rm -f "$PROJECT_DIR/wheelhouse/*" || true
 
-MANY_LINUX_DOCKER_IMAGES="\
-manylinux1_i686
+PLATFORMS="manylinux1_i686
 manylinux1_x86_64
-manylinux2010_x86_64"
+manylinux2010_i686
+manylinux2010_x86_64
+manylinux2014_i686
+manylinux2014_x86_64"
 
-while read -r DOCKER_IMAGE; do
-    docker run \
-        --rm -t \
-        -e PLAT="$DOCKER_IMAGE" \
-        -v "$PROJECT_DIR:/antidote" \
-        "quay.io/pypa/$DOCKER_IMAGE" \
-        $(if [ "$DOCKER_IMAGE" = "manylinux1_i686" ]; then echo "linux32"; fi) \
-        /antidote/bin/docker-build-wheels.sh
-done <<< "$MANY_LINUX_DOCKER_IMAGES"
+
+for PLATFORM in $PLATFORMS; do
+  DOCKER_IMAGE="quay.io/pypa/$PLATFORM"
+  docker pull "$DOCKER_IMAGE"
+  docker run --rm -t \
+    -e PLAT="$PLATFORM" \
+    -v "$PROJECT_DIR:/antidote" \
+    "$DOCKER_IMAGE" \
+    $(if [[ "$DOCKER_IMAGE" == "*_i686" ]]; then echo "linux32"; fi) \
+    /antidote/bin/docker-build-wheels.sh
+done

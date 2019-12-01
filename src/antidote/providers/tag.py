@@ -1,5 +1,6 @@
 import threading
-from typing import (Any, Dict, Hashable, Iterable, Iterator, List, Optional, Union)
+from typing import (Any, Callable, Dict, Hashable, Iterable, Iterator, List, Optional,
+                    Union)
 
 from .._internal.utils import SlotsReprMixin
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
@@ -78,7 +79,7 @@ class Tagged(SlotsReprMixin):
 
         self.name = name
 
-    __str__ = SlotsReprMixin.__repr__
+    __str__ = SlotsReprMixin.__repr__  # type: Callable[['Tagged'], str]
 
     def __hash__(self):
         return object.__hash__(self)

@@ -9,7 +9,7 @@ C = TypeVar('C', bound=type)
 
 
 @overload
-def wire(class_: C,  # noqa: E704
+def wire(class_: C,  # noqa: E704  # pragma: no cover
          *,
          methods: Iterable[str],
          dependencies: DEPENDENCIES_TYPE = None,
@@ -22,7 +22,7 @@ def wire(class_: C,  # noqa: E704
 
 
 @overload
-def wire(*,  # noqa: E704
+def wire(*,  # noqa: E704  # pragma: no cover
          methods: Iterable[str],
          dependencies: DEPENDENCIES_TYPE = None,
          use_names: Union[bool, Iterable[str]] = None,

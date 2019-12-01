@@ -13,7 +13,7 @@ F = TypeVar('F', Callable, type)
 
 
 @overload
-def factory(func: F,  # noqa: E704
+def factory(func: F,  # noqa: E704  # pragma: no cover
             *,
             auto_wire: Union[bool, Iterable[str]] = True,
             singleton: bool = True,
@@ -27,7 +27,7 @@ def factory(func: F,  # noqa: E704
 
 
 @overload
-def factory(*,  # noqa: E704
+def factory(*,  # noqa: E704  # pragma: no cover
             auto_wire: Union[bool, Iterable[str]] = True,
             singleton: bool = True,
             dependencies: DEPENDENCIES_TYPE = None,

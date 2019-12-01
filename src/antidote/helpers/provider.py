@@ -8,7 +8,7 @@ P = TypeVar('P', bound=Type[DependencyProvider])
 
 
 @overload
-def provider(class_: P,  # noqa: E704
+def provider(class_: P,  # noqa: E704  # pragma: no cover
              *,
              auto_wire: Union[bool, Iterable[str]] = True,
              dependencies: DEPENDENCIES_TYPE = None,
@@ -20,7 +20,7 @@ def provider(class_: P,  # noqa: E704
 
 
 @overload
-def provider(*,  # noqa: E704
+def provider(*,  # noqa: E704  # pragma: no cover
              auto_wire: Union[bool, Iterable[str]] = True,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
