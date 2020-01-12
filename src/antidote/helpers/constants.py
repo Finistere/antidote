@@ -148,7 +148,7 @@ class LazyConstantsMeta(type):
         )
 
         func = resource_class.__dict__[lazy_method]
-        for name, v in resource_class.__dict__.items():
+        for name, v in sorted(resource_class.__dict__.items()):
             if not name.startswith('_') and name.isupper():
                 setattr(resource_class, name, LazyMethodCall(func, singleton=True)(v))
 
