@@ -10,19 +10,23 @@ from antidote.exceptions import DependencyInstantiationError
 
 
 class Service:
-    pass
+    def __repr__(self):
+        return "Service"
 
 
 class AnotherService:
-    pass
+    def __repr__(self):
+        return "AnotherService"
 
 
 class YetAnotherService:
-    pass
+    def __repr__(self):
+        return "YetAnotherService"
 
 
 class SuperService:
-    pass
+    def __repr__(self):
+        return "SuperService"
 
 
 @pytest.fixture()
@@ -208,7 +212,7 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
                     wrapped = type("Sub" + wrapped.__name__,
                                    (wrapped,),
                                    {'__init__': __init__,
-                                    'build': lambda cls: cls()})
+                                    'build': classmethod(lambda cls: cls())})
                 else:
                     # helpers do modify the class, so a copy has to be made to
                     # avoid any conflict between the tests.
@@ -218,17 +222,6 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
 
             def create():
                 inj_kwargs = inject_kwargs.copy()
-
-                if wrapper == register_external_build:
-                    try:
-                        if isinstance(inj_kwargs['dependencies'], tuple):
-                            # @formatter:off
-                            inj_kwargs['dependencies'] = (
-                                [None] + list(inj_kwargs['dependencies'])
-                            )
-                            # @formatter:on
-                    except KeyError:
-                        pass
 
                 if wrapper == register_build:
                     try:

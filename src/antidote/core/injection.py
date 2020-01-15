@@ -1,5 +1,6 @@
 import builtins
 import collections.abc as c_abc
+import inspect
 from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, overload, Set,
                     TypeVar, Union)
 
@@ -67,7 +68,8 @@ def inject(func=None,
             the dependency given the arguments name. If an iterable is specified,
             the position of the arguments is used to determine their respective
             dependency. An argument may be skipped by using :code:`None` as a
-            placeholder. Type hints are overridden. Defaults to :code:`None`.
+            placeholder. The first argument is always ignored for methods (self)
+            and class methods (cls).Type hints are overridden. Defaults to :code:`None`.
         use_names: Whether or not the arguments' name should be used as their
             respective dependency. An iterable of argument names may also be
             supplied to restrict this to those. Defaults to :code:`False`.
@@ -87,6 +89,12 @@ def inject(func=None,
     """
 
     def _inject(wrapped):
+        if inspect.isclass(wrapped):
+            # @inject on a class would not return a class which is
+            # counter-intuitive.
+            raise TypeError("Classes cannot be wrapped with @inject. "
+                            "Consider using @wire")
+
         nonlocal arguments
         # if the function has already its dependencies injected, no need to do
         # it twice.
@@ -94,7 +102,7 @@ def inject(func=None,
             return wrapped
 
         if arguments is None:
-            arguments = Arguments.from_method(wrapped)
+            arguments = Arguments.from_callable(wrapped)
 
         blueprint = _build_injection_blueprint(
             arguments=arguments,
@@ -158,27 +166,25 @@ def _build_arg_to_dependency(arguments: Arguments,
         arg_to_dependency = {}  # type: Mapping
     elif isinstance(dependencies, str):
         arg_to_dependency = {arg.name: dependencies.format(arg_name=arg.name)
-                             for arg in arguments}
+                             for arg in arguments.without_self}
     elif callable(dependencies):
         arg_to_dependency = {arg.name: dependencies(arg.name)
-                             for arg in arguments}
+                             for arg in arguments.without_self}
     elif isinstance(dependencies, c_abc.Mapping):
-        for name in dependencies.keys():
-            if name not in arguments:
-                raise ValueError("Unknown argument {!r}".format(name))
-
+        _check_valid_arg_names(dependencies.keys(), arguments)
         arg_to_dependency = dependencies
     elif isinstance(dependencies, c_abc.Iterable):
+        # convert to Tuple in case we cannot iterate more than once.
         dependencies = tuple(dependencies)
-        if len(arguments) < len(dependencies):
-            raise ValueError("More dependencies were provided than arguments")
-
+        if len(arguments.without_self) < len(dependencies):
+            raise ValueError(("More dependencies ({}) were provided "
+                              "than arguments ({})").format(dependencies, arguments))
         arg_to_dependency = {arg.name: dependency
                              for arg, dependency
-                             in zip(arguments, dependencies)}
+                             in zip(arguments.without_self, dependencies)}
     else:
-        raise ValueError('Only a mapping or a iterable is supported for '
-                         'arg_map, not {!r}'.format(type(dependencies)))
+        raise TypeError('Only a mapping or a iterable is supported for '
+                        'arg_map, not {!r}'.format(type(dependencies)))
 
     # Remove any None as they would hide type_hints and use_names.
     return {
@@ -191,20 +197,19 @@ def _build_arg_to_dependency(arguments: Arguments,
 def _build_type_hints(arguments: Arguments,
                       use_type_hints: Union[bool, Iterable[str]]) -> Dict[str, Any]:
     if use_type_hints is True:
-        type_hints = {arg.name: arg.type_hint for arg in arguments}
+        type_hints = {arg.name: arg.type_hint for arg in arguments.without_self}
     elif use_type_hints is False:
         return {}
     elif isinstance(use_type_hints, c_abc.Iterable):
+        # convert to Tuple in case we cannot iterate more than once.
         use_type_hints = tuple(use_type_hints)
-        for name in use_type_hints:
-            if name not in arguments:
-                raise ValueError("Unknown argument {!r}".format(name))
+        _check_valid_arg_names(use_type_hints, arguments)
 
         type_hints = {name: arguments[name].type_hint for name in use_type_hints}
 
     else:
-        raise ValueError('Only an iterable or a boolean is supported for '
-                         'use_type_hints, not {!r}'.format(type(use_type_hints)))
+        raise TypeError('Only an iterable or a boolean is supported for '
+                        'use_type_hints, not {!r}'.format(type(use_type_hints)))
 
     # Any object from builtins or typing do not carry any useful information
     # and thus must not be used as dependency IDs. So they might as well be
@@ -223,14 +228,24 @@ def _build_dependency_names(arguments: Arguments,
     if use_names is False:
         return set()
     elif use_names is True:
-        return {arg.name for arg in arguments}
+        return {arg.name for arg in arguments.without_self}
     elif isinstance(use_names, c_abc.Iterable):
+        # convert to Tuple in case we cannot iterate more than once.
         use_names = tuple(use_names)
-        for name in use_names:
-            if name not in arguments:
-                raise ValueError("Unknown argument {!r}".format(name))
-
+        _check_valid_arg_names(use_names, arguments)
         return set(use_names)
     else:
-        raise ValueError('Only an iterable or a boolean is supported for '
-                         'use_names, not {!r}'.format(type(use_names)))
+        raise TypeError('Only an iterable or a boolean is supported for '
+                        'use_names, not {!r}'.format(type(use_names)))
+
+
+def _check_valid_arg_names(names: Iterable[str], arguments: Arguments):
+    for name in names:
+        if not isinstance(name, str):
+            raise TypeError("Expected argument name (string), "
+                            "got {!r}".format(name))
+        if name not in arguments:
+            raise ValueError("Unknown argument {!r}".format(name))
+        if arguments.has_self and name == arguments[0].name:
+            raise ValueError("Cannot inject first argument "
+                             "({}) of a method".format(arguments[0]))

@@ -1,3 +1,6 @@
+import itertools
+from inspect import getattr_static
+
 import pytest
 from pretend import raiser
 
@@ -33,7 +36,7 @@ class Dummy:
         pass
 
 
-d = Dummy()
+dummy = Dummy()
 
 
 def lazy(dummy: 'Dummy'):
@@ -53,6 +56,7 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='f'
         ),
@@ -64,6 +68,7 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=True,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='g'
         ),
@@ -75,6 +80,7 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=False,
                 has_var_keyword=True,
+                has_self=False
             ),
             id='h'
         ),
@@ -84,6 +90,7 @@ def lazy(dummy: 'Dummy'):
                 arguments=tuple([]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='k'
         ),
@@ -95,6 +102,7 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='lazy'
         ),
@@ -108,6 +116,7 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=True,
                 has_var_keyword=True,
+                has_self=True
             ),
             id='cls.f'
         ),
@@ -119,6 +128,20 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
+            ),
+            id='cls.g'
+        ),
+        pytest.param(
+            getattr_static(Dummy, 'g'),
+            Arguments(
+                arguments=tuple([
+                    Argument('cls', False, None),
+                    Argument('a', False, None),
+                ]),
+                has_var_positional=False,
+                has_var_keyword=False,
+                has_self=True
             ),
             id='cls.g'
         ),
@@ -128,11 +151,12 @@ def lazy(dummy: 'Dummy'):
                 arguments=tuple([]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='cls.h'
         ),
         pytest.param(
-            d.f,
+            dummy.f,
             Arguments(
                 arguments=tuple([
                     Argument('a', False, str),
@@ -140,26 +164,29 @@ def lazy(dummy: 'Dummy'):
                 ]),
                 has_var_positional=True,
                 has_var_keyword=True,
+                has_self=False
             ),
             id='instance.f'
         ),
         pytest.param(
-            d.g,
+            dummy.g,
             Arguments(
                 arguments=tuple([
                     Argument('a', False, None),
                 ]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='instance.g'
         ),
         pytest.param(
-            d.h,
+            dummy.h,
             Arguments(
                 arguments=tuple([]),
                 has_var_positional=False,
                 has_var_keyword=False,
+                has_self=False
             ),
             id='instance.h'
         ),
@@ -194,7 +221,7 @@ def test_from_methods(descriptor):
         pass
 
     expected = Arguments.from_callable(f)
-    result = Arguments.from_method(descriptor(f))
+    result = Arguments.from_callable(descriptor(f))
 
     for expected_arg, result_arg in zip(expected, result):
         assert expected_arg.name == result_arg.name
@@ -207,19 +234,82 @@ def test_broken_type_hints_cpy353(monkeypatch):
     Arguments.from_callable(k)
 
 
-def test_magic_methods_arguments():
-    arguments = tuple([
-        Argument('x', False, int),
-        Argument('y', True, str),
-        Argument('z', False, float),
-    ])
-    args = Arguments(
-        arguments=arguments,
-        has_var_keyword=True,
-        has_var_positional=True
-    )
+args = tuple([
+    Argument('x', False, int),
+    Argument('y', True, str),
+    Argument('z', False, float),
+])
 
-    assert 'x' in args
-    assert 'unknown' not in args
-    assert 3 == len(args)
-    assert arguments == tuple(args)
+
+def test_getitem():
+    arguments = Arguments(
+        arguments=args,
+        has_var_keyword=False,
+        has_var_positional=False,
+        has_self=False
+    )
+    assert arguments['x'] is args[0]
+    assert arguments[1] is args[1]
+
+    with pytest.raises(TypeError):
+        arguments[2.3]
+
+
+def test_without_self():
+    for has_var_keyword, has_var_positional in itertools.product([True, False],
+                                                                 [True, False]):
+        arguments = Arguments(
+            arguments=args,
+            has_var_keyword=has_var_keyword,
+            has_var_positional=has_var_positional,
+            has_self=True
+        )
+        assert tuple(arguments.without_self) == args[1:]
+        assert arguments.without_self.has_var_keyword == arguments.has_var_keyword
+        assert arguments.without_self.has_var_positional == arguments.has_var_positional
+
+    arguments = Arguments(
+        arguments=args,
+        has_var_keyword=False,
+        has_var_positional=False,
+        has_self=False
+    )
+    assert arguments.without_self is arguments
+
+
+def test_magic_methods_arguments():
+    arguments = Arguments(
+        arguments=args,
+        has_var_keyword=False,
+        has_var_positional=False,
+        has_self=False
+    )
+    assert 'x' in arguments
+    assert 'unknown' not in arguments
+    assert 3 == len(arguments)
+    assert args == tuple(arguments)
+    assert "x:int" in repr(arguments)
+    assert "y:str =" in repr(arguments)
+    assert "z:float" in repr(arguments)
+
+    arguments_var_args = Arguments(
+        arguments=args,
+        has_var_keyword=False,
+        has_var_positional=True,
+        has_self=False
+    )
+    assert "x:int" in repr(arguments_var_args)
+    assert "y:str =" in repr(arguments_var_args)
+    assert "z:float" in repr(arguments_var_args)
+    assert "*args" in repr(arguments_var_args)
+
+    arguments_var_kwargs = Arguments(
+        arguments=args,
+        has_var_keyword=True,
+        has_var_positional=False,
+        has_self=False
+    )
+    assert "x:int" in repr(arguments_var_kwargs)
+    assert "y:str =" in repr(arguments_var_kwargs)
+    assert "z:float" in repr(arguments_var_kwargs)
+    assert "**kwargs" in repr(arguments_var_kwargs)

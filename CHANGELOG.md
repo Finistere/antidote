@@ -1,6 +1,58 @@
 Changelog
 =========
 
+0.7.0  (2020-01-15)
+-------------------
+
+### Breaking changes
+
+- `@register` does not wire `__init__()` anymore if a function is provided as a factory.
+  This didn't make a lot of sense, `__init__()` is wrapped automatically if and only if 
+  it is treated as the "factory" that creates the object.
+- Now when using `dependencies` argument with a sequence (matching dependencies with arguments 
+  through their position), the first argument will be ignored for methods (`self`) and 
+  classmethod (`cls`). So now you can write:
+  ```python
+  from antidote import inject, register
+  
+  class Service:
+      @inject(dependencies=('dependency',))
+      def method(self, arg1):
+          ...
+  
+      @inject(dependencies=('dependency',))
+      @classmethod
+      def method(cls, arg1):
+          ...
+  
+  @register(dependencies=('dependency',))
+  class Service2:
+      def __init__(self, arg1):
+          ...
+  ```
+  Hence all other decorators profit from this. No need anymore to explicitly ignore `self`.
+
+### Bug fixes
+
+- Prevent double `LazyMethodCall` wrapping in `LazyConstantsMeta` (Thanks @keelerm84)
+- `@inject` cannot be applied on classes. This was never intended as it would not
+  return a class. Use `@wire` instead if you relied on this.
+- `@inject` returned `ValueError` instead of `TypeError` in with erroneous types.
+- `@register` now raises an error when using a method as a factory that is neither a
+  classmethod nor a staticmethod. It was never intended to use methods, as it would not
+  make sense.
+
+### Changes
+
+- When wrapping multiple methods, `@wire` used to raise an error if a sequence was 
+  provided for `dependencies`. This limitation has been removed.
+
+
+0.6.1  (2019-12-01)
+-------------------
+
+- Add support for Python 3.8
+
 
 0.6.0 (2019-05-06)
 ------------------
