@@ -42,11 +42,18 @@ class InjectedWrapper:
                  container: DependencyContainer,
                  blueprint: InjectionBlueprint,
                  wrapped: Callable,
-                 skip_first: bool = False):
+                 skip_self: bool = False):
+        """
+        Args:
+            container: current DependencyContainer
+            blueprint: Injection blueprint for the underlying function
+            wrapped:  real function to be called
+            skip_self:  whether the first argument must be skipped. Used internally
+        """
         self.__wrapped__ = wrapped
         self.__container = container
         self.__blueprint = blueprint
-        self.__injection_offset = 1 if skip_first else 0
+        self.__injection_offset = 1 if skip_self else 0
         functools.wraps(wrapped, updated=())(self)
 
     def __call__(self, *args, **kwargs):

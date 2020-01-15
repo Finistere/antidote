@@ -1,5 +1,6 @@
-import pytest
 import typing
+
+import pytest
 
 from antidote._internal.argspec import Arguments
 from antidote.core import DependencyContainer, inject
@@ -72,14 +73,35 @@ def test_without_type_hints(expected, kwargs):
     def f(first=default, second=default):
         return first, second
 
+    class A:
+        @inject(container=container, **kwargs)
+        def method(self, first=default, second=default):
+            return first, second
+
+        @inject(container=container, **kwargs)
+        @classmethod
+        def class_method(cls, first=default, second=default):
+            return first, second
+
+        @inject(container=container, **kwargs)
+        @staticmethod
+        def static_method(first=default, second=default):
+            return first, second
+
     expected = tuple((
         container.get(d) if d is not None else default
         for d in expected
     ))
     assert expected == f()
+    assert expected == A().method()
+    assert expected == A.class_method()
+    assert expected == A.static_method()
 
     a, b = object(), object()
     assert (a, b) == f(a, b)
+    assert (a, b) == A().method(a, b)
+    assert (a, b) == A.class_method(a, b)
+    assert (a, b) == A.static_method(a, b)
 
 
 @pytest.mark.parametrize(
@@ -152,26 +174,47 @@ def test_without_type_hints(expected, kwargs):
 )
 def test_with_type_hints(expected, kwargs):
     container = DependencyContainer()
-    container.update_singletons({Service: Service()})
-    container.update_singletons({AnotherService: AnotherService()})
-    container.update_singletons({'first': object()})
-    container.update_singletons({'second': object()})
-    container.update_singletons({'prefix:first': object()})
-    container.update_singletons({'prefix:second': object()})
+    container.update_singletons({Service: Service(),
+                                 AnotherService: AnotherService(),
+                                 'first': object(),
+                                 'second': object(),
+                                 'prefix:first': object(),
+                                 'prefix:second': object()})
     default = object()
 
     @inject(container=container, **kwargs)
     def f(first: Service = default, second: str = default):
         return first, second
 
+    class A:
+        @inject(container=container, **kwargs)
+        def method(self, first: Service = default, second: str = default):
+            return first, second
+
+        @inject(container=container, **kwargs)
+        @classmethod
+        def class_method(cls, first: Service = default, second: str = default):
+            return first, second
+
+        @inject(container=container, **kwargs)
+        @staticmethod
+        def static_method(first: Service = default, second: str = default):
+            return first, second
+
     expected = tuple((
         container.get(d) if d is not None else default
         for d in expected
     ))
     assert expected == f()
+    assert expected == A().method()
+    assert expected == A.class_method()
+    assert expected == A.static_method()
 
     a, b = object(), object()
     assert (a, b) == f(a, b)
+    assert (a, b) == A().method(a, b)
+    assert (a, b) == A.class_method(a, b)
+    assert (a, b) == A.static_method(a, b)
 
 
 @pytest.mark.parametrize(
@@ -207,28 +250,6 @@ def test_arguments():
     assert dict(a=12, b=24) == g()
 
 
-def test_class_static_method():
-    container = DependencyContainer()
-    sentinel = object()
-    container.update_singletons(dict(x=sentinel))
-
-    class Dummy:
-        @inject(container=container, use_names=True)
-        @staticmethod
-        def static_method(x):
-            return x
-
-        @inject(container=container, use_names=True)
-        @classmethod
-        def class_method(cls, x):
-            return x
-
-    assert sentinel == Dummy.static_method()
-    assert sentinel == Dummy.class_method()
-    assert sentinel == Dummy().static_method()
-    assert sentinel == Dummy().class_method()
-
-
 @pytest.mark.parametrize(
     'error,kwargs',
     [
@@ -247,12 +268,15 @@ def test_class_static_method():
         pytest.param(DependencyNotFoundError,
                      dict(dependencies="unknown:{arg_name}"),
                      id="dependencies:unknown-dependency-str"),
-        pytest.param(ValueError,
+        pytest.param((ValueError, TypeError),
                      dict(dependencies=(None, None)),
                      id="dependencies:too-much-arguments"),
-        pytest.param(ValueError,
+        pytest.param(TypeError,
                      dict(dependencies=object()),
                      id="dependencies:unsupported-type"),
+        pytest.param(TypeError,
+                     dict(dependencies={1: 'x'}),
+                     id="dependencies:invalid-key-type"),
         pytest.param(ValueError,
                      dict(dependencies=dict(unknown=DependencyContainer)),
                      id="dependencies:unknown-argument-dict"),
@@ -274,12 +298,18 @@ def test_class_static_method():
         pytest.param(TypeError,
                      dict(use_names=[]),
                      id="use_names:empty"),
-        pytest.param(ValueError,
+        pytest.param(TypeError,
                      dict(use_names=object()),
                      id="use_names:unsupported-type"),
-        pytest.param(ValueError,
+        pytest.param(TypeError,
+                     dict(use_names=[1]),
+                     id="use_names:invalid-name-type"),
+        pytest.param(TypeError,
                      dict(use_type_hints=object()),
                      id="use_type_hints:unsupported-type"),
+        pytest.param(TypeError,
+                     dict(use_type_hints=[1]),
+                     id="use_type_hints:invalid-name-type"),
         pytest.param(ValueError,
                      dict(use_type_hints=['y']),
                      id="use_type_hints:unknown-arg"),
@@ -288,11 +318,72 @@ def test_class_static_method():
 def test_invalid(error, kwargs):
     container = DependencyContainer()
 
-    def f(x):
-        return x
+    with pytest.raises(error):
+        @inject(container=container, **kwargs)
+        def f(x):
+            return x
+
+        f()
 
     with pytest.raises(error):
-        inject(f, container=container, **kwargs)()
+        class A:
+            @inject(container=container, **kwargs)
+            def method(self, x):
+                return x
+
+        A().method()
+
+    with pytest.raises(error):
+        class A:
+            @inject(container=container, **kwargs)
+            @classmethod
+            def classmethod(cls, x):
+                return x
+
+        A.classmethod()
+
+    with pytest.raises(error):
+        class A:
+            @inject(container=container, **kwargs)
+            @staticmethod
+            def staticmethod(x):
+                return x
+
+        A.staticmethod()
+
+
+@pytest.mark.parametrize(
+    'error,kwargs',
+    [
+        pytest.param(ValueError,
+                     dict(dependencies=dict(self='x')),
+                     id="dependencies"),
+        pytest.param(ValueError,
+                     dict(use_names=('self',)),
+                     id="use_names"),
+        pytest.param(ValueError,
+                     dict(use_type_hints=('self',)),
+                     id="use_type_hints"),
+    ]
+)
+def test_cannot_inject_self(error, kwargs):
+    container = DependencyContainer()
+    container.update_singletons(dict(x=object(), y=object()))
+
+    with pytest.raises(error):
+        class A:
+            @inject(container=container, **kwargs)
+            def method(self, x=None):
+                return x
+        A()
+
+    with pytest.raises(error):
+        class A:
+            @inject(container=container, **kwargs)
+            @classmethod
+            def classmethod(self, x=None):
+                return x
+        A()
 
 
 def test_invalid_type_hint():
@@ -328,3 +419,11 @@ def test_already_injected():
     # When the function has already its arguments injected, the same function should
     # be returned
     assert injected_f is f
+
+
+def test_class_inject():
+    container = DependencyContainer()
+    with pytest.raises(TypeError):
+        @inject(container=container)
+        class Dummy:
+            pass

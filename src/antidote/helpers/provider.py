@@ -53,7 +53,8 @@ def provider(class_: Type[DependencyProvider] = None,
             the dependency given the arguments name. If an iterable is specified,
             the position of the arguments is used to determine their respective
             dependency. An argument may be skipped by using :code:`None` as a
-            placeholder. Type hints are overridden. Defaults to :code:`None`.
+            placeholder. The first argument is always ignored for methods (self)
+            and class methods (cls).Type hints are overridden. Defaults to :code:`None`.
         use_names: Whether or not the arguments' name should be used as their
             respective dependency. An iterable of argument names may also be
             supplied to restrict this to those. Defaults to :code:`False`.

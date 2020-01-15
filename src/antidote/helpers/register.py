@@ -1,3 +1,4 @@
+import collections.abc as c_abc
 import inspect
 from typing import Any, Callable, cast, Iterable, overload, TypeVar, Union
 
@@ -77,7 +78,8 @@ def register(class_=None,
             the dependency given the arguments name. If an iterable is specified,
             the position of the arguments is used to determine their respective
             dependency. An argument may be skipped by using :code:`None` as a
-            placeholder. Type hints are overridden. Defaults to :code:`None`.
+            placeholder. The first argument is always ignored for methods (self)
+            and class methods (cls).Type hints are overridden. Defaults to :code:`None`.
         use_names: Whether or not the arguments' name should be used as their
             respective dependency. An iterable of argument names may also be
             supplied to restrict this to those. Defaults to :code:`False`.
@@ -104,6 +106,11 @@ def register(class_=None,
     """
     if factory is not None and factory_dependency is not None:
         raise ValueError("factory and factory_dependency cannot be used together.")
+
+    if not (factory is None or isinstance(factory, str) or inspect.isfunction(factory)):
+        raise TypeError("factory must be either None, a method name or a function "
+                        "not {!r}".format(type(factory)))
+
     container = container or get_default_container()
     auto_wire = auto_wire if auto_wire is not None else True
     methods = ()  # type: Iterable[str]
@@ -115,7 +122,7 @@ def register(class_=None,
                 methods = (factory,)
                 if wire_super is None:
                     wire_super = (factory,)
-            else:
+            elif factory is None:
                 wire_raise_on_missing = False
                 methods = ('__init__',)
     else:
@@ -127,13 +134,15 @@ def register(class_=None,
         if not inspect.isclass(cls):
             raise TypeError("Expected a class, got {!r}".format(cls))
 
-        takes_dependency = True
-
-        # If the factory is the class itself or if it's a classmethod, it is
-        # not necessary to inject the dependency.
-        if factory is None or (isinstance(factory, str)
-                               and inspect.ismethod(getattr(cls, factory))):
-            takes_dependency = False
+        takes_dependency = False
+        if isinstance(factory, str):
+            static_factory = inspect.getattr_static(cls, factory)
+            if not isinstance(static_factory, (staticmethod, classmethod)):
+                raise TypeError("Only class methods and static methods "
+                                "are supported as factories. Not "
+                                "{!r}".format(static_factory))
+            if isinstance(static_factory, staticmethod):
+                takes_dependency = True
 
         if auto_wire:
             cls = wire(cls,
@@ -146,21 +155,23 @@ def register(class_=None,
                        raise_on_missing=wire_raise_on_missing)
 
         if isinstance(factory, str):
-            method = getattr(cls, factory)
-            if not callable(method):
-                raise TypeError(
-                    "attribute {!r} of {!r} is not callable".format(factory, cls))
-            factory = method
+            # Retrieve injected class/static method
+            factory = cast(Callable, getattr(cls, factory))
         elif inspect.isfunction(factory):
+            takes_dependency = True
+            if not isinstance(dependencies, c_abc.Mapping) \
+                    and isinstance(dependencies, c_abc.Iterable):
+                # takes dependency as first argument
+                factory_dependencies = (None,) + tuple(dependencies)
+            else:
+                factory_dependencies = dependencies
+
             if auto_wire:
                 factory = inject(factory,
-                                 dependencies=dependencies,
+                                 dependencies=factory_dependencies,
                                  use_names=use_names,
                                  use_type_hints=use_type_hints,
                                  container=container)
-        elif factory is not None:
-            raise TypeError("factory must be either a method name, a function, or a "
-                            "lazy dependency, not {!r}".format(type(factory)))
 
         factory_provider = cast(FactoryProvider, container.providers[FactoryProvider])
         if factory is not None:

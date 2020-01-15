@@ -16,6 +16,20 @@ def test_multi_wire(container: DependencyContainer):
     yy = container.get('y')
 
     @wire(methods=['f', 'g'],
+          dependencies=('x', 'y'),
+          container=container)
+    class Dummy:
+        def f(self, x):
+            return x
+
+        def g(self, x, y):
+            return x, y
+
+    d1 = Dummy()
+    assert xx == d1.f()
+    assert (xx, yy) == d1.g()
+
+    @wire(methods=['f', 'g'],
           dependencies=dict(x='x', y='y'),
           container=container)
     class Dummy:
@@ -124,7 +138,6 @@ def test_invalid_class(obj):
 @pytest.mark.parametrize(
     'kwargs',
     [
-        dict(methods=['__init__', '__call__'], dependencies=(None, None)),
         dict(methods=['__init__'], wire_super=['__call__']),
     ]
 )

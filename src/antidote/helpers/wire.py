@@ -45,6 +45,10 @@ def wire(class_: type = None,
          ) -> Union[Callable, type]:
     """Wire a class by injecting the dependencies in all specified methods.
 
+    Injection arguments (dependencies, use_names, use_type_hints) are adapted
+    for match the arguments of the method. Hence :code:`@inject` won't raise
+    an error that it has too much dependencies.
+
     Args:
         class_: class to wire.
         methods: Name of the methods for which dependencies should be
@@ -54,7 +58,8 @@ def wire(class_: type = None,
             the dependency given the arguments name. If an iterable is specified,
             the position of the arguments is used to determine their respective
             dependency. An argument may be skipped by using :code:`None` as a
-            placeholder. Type hints are overridden. Defaults to :code:`None`.
+            placeholder. The first argument is always ignored for methods (self)
+            and class methods (cls).Type hints are overridden. Defaults to :code:`None`.
         use_names: Whether or not the arguments' name should be used as their
             respective dependency. An iterable of argument names may also be
             supplied to restrict this to those. Defaults to :code:`False`.
@@ -88,10 +93,9 @@ def wire(class_: type = None,
                         "not a {!r}".format(type(raise_on_missing)))
 
     if isinstance(dependencies, c_abc.Iterable) \
-            and not isinstance(dependencies, c_abc.Mapping) \
-            and len(methods) > 1:
-        raise ValueError("wire does not support an iterable for `dependencies` "
-                         "when multiple methods are injected.")
+            and not isinstance(dependencies, c_abc.Mapping):
+        # convert to Tuple in case we cannot iterate more than once.
+        dependencies = tuple(dependencies)
 
     def wire_methods(cls):
         if not inspect.isclass(cls):
@@ -108,17 +112,20 @@ def wire(class_: type = None,
                 else:
                     continue  # pragma: no cover
 
-            arguments = Arguments.from_method(method)
+            arguments = Arguments.from_callable(method)
             _dependencies = dependencies
             _use_names = use_names
             _use_type_hints = use_type_hints
 
+            # Restrict injection parameters to those really needed by the method.
             if isinstance(dependencies, c_abc.Mapping):
                 _dependencies = {
                     arg_name: dependency
                     for arg_name, dependency in dependencies.items()
-                    if arg_name in arguments
+                    if arg_name in arguments.without_self
                 }
+            elif isinstance(dependencies, c_abc.Iterable):
+                _dependencies = dependencies[:len(arguments.without_self)]
 
             if isinstance(use_names, c_abc.Iterable):
                 _use_names = [name
