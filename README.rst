@@ -67,6 +67,7 @@ really convinced me. Most of them did not satisfy all of those requirements:
 And for the rare ones that were close to those requirements, I didn't like their API for
 different reasons. Which is obviously a matter of taste.
 
+
 Features Highlight
 ==================
 
@@ -107,36 +108,34 @@ To install Antidote, simply run this command:
 Quick Start
 ===========
 
-How does injection looks like ? Here are some dummy examples:
+How does injection looks like ? Here is a simple example:
 
 .. code-block:: python
 
-   from antidote import inject
+   from antidote import inject, register
+
+   # Declare Service as a dependency that can be injected
+   @register
+   class Service:
+       pass
 
     # uses the type hint
     @inject
-    def f(x: Service):
-        ...
+    def f(service: Service):
+        pass
 
     f()  # Service will be automatically injected if not provided
     f(Service())  # Want to override injection for tests ? easy
 
     # Explicitly provide the dependency
-    # Here 'conf.host' is the ID of the dependency.
-    # Previously the type hint served as one.
-    @inject(dependencies=dict(host='conf.host'))
-    def f(host: str):
-        ...
+    @inject(dependencies=dict(service=Service))
+    def f(service):
+        pass
 
     # uses the position of the arguments
-    @inject(dependencies=('conf.host',))
-    def f(host: str):
-        ...
-
-    # uses the name of the argument as the dependency.
-    @inject(use_names=True)
-    def f(host: str):
-        ...
+    @inject(dependencies=(Service,))
+    def f(service):
+        pass
 
 
 Want more ? Here is a more complete example with configurations, services, factories:
@@ -243,9 +242,9 @@ Want more ? Here is a more complete example with configurations, services, facto
 Interested ? Check out the documentation or try it directly ! There are still features
 left such as tags or custom kinds of dependencies.
 
+
 Documentation
 =============
-
 
 The documentation is available at
 `<https://antidote.readthedocs.io/en/stable>`_.
@@ -257,7 +256,6 @@ Injection benchmark is available at
 Bug Reports / Feature Requests
 ==============================
 
-
 Any feedback is always welcome, feel free to submit issues and enhancement
 requests ! :)
 For any questions, open an issue on Github.
@@ -265,7 +263,6 @@ For any questions, open an issue on Github.
 
 How to Contribute
 =================
-
 
 1. Check for open issues or open a fresh issue to start a discussion around a
    feature or a bug.
