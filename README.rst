@@ -25,13 +25,18 @@ Antidotes is a declarative dependency injection micro-framework for Python 3.5+
 which tries to do the following:
 
 - Injection can applied on any existing code easily.
-- Finding the source and the usage of a dependency is straightforward (through
-  an IDE's "Go to definition" / "Find usage").
-- Core functionality is flexible and extendable to support any custom dependencies.
+- Avoids as much magic as possible. Finding the source and the usage of a dependency
+  is straightforward (through an IDE's "Go to definition" / "Find usage").
+- Core functionality is flexible and extendable to support any custom injection/dependencies.
+  So while Antidote does not use magic, you can.
 - Limit performance impact of injection.
+- Provide a rich set of ways for handling dependencies. (factories, tags,
+  interfaces, configuration, etc...).
+- Handle all the different edge cases with methods, bound methods, class methods, etc...
 
-Why ?
-=====
+
+Why Dependency Injection ?
+==========================
 
 In short antidote avoids you the hassle of instantiating and managing your
 services. You declare them at their definition, and inject them wherever
@@ -43,6 +48,25 @@ dependencies easily.
 For the longer version: `<https://antidote.readthedocs.io/en/stable/why.html>`_
 
 
+Why Antidote ?
+==============
+
+While there are several dependency injection libraries, there was none which
+really convinced me. Most of them did not satisfy all of those requirements:
+
+- Use of type hints: *Be consistent* with type hints as supported by mypy and *use them*
+  to inject dependencies. Other means to inject dependencies should be possible.
+- Maturity: Support different kind of dependencies, proper test coverage,
+- Easy to integrate with existing code: Ideally it means just adding decorators to
+  your class/functions and that's it.
+- Avoid magic: It should be straightforward for someone, unaware of the dependency
+  injection library, to know what is injected and from where it comes. Typically using
+  the arguments name implicitly to find dependencies *is* magic. How can you know from
+  where it comes ? Hence type hints are for example a lot better.
+
+And for the rare ones that were close to those requirements, I didn't like their API for
+different reasons. Which is obviously a matter of taste.
+
 Features Highlight
 ==================
 
@@ -53,10 +77,15 @@ Core functionalities:
 - Dependency cycle detection
 - Thread-safety and limited performace impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
-- Easily extendable, through dependency providers. All aftermetioned dependencies are
-  implemented with it.
+- Antidote is declarative and does not do any magic out of the box. Reading the decorators
+  is enough to understand what it does and from where dependencies are coming from.
+- Is easy to work with an IDE: no **kwargs which makes arguments impossible to guess and
+  has type hints everywhere.
+- Easily extendable, through dependency providers. All after-mentioned kind of dependencies
+  are implemented with it. It is designed to support custom kind of dependencies from the ground up.
+  So if you want custom magic or whatever, you can have it !
 
-Dependencies:
+Kind of dependencies:
 
 - Services and factories: provides an instance of a class.
 - Tags: Dependencies can be tagged, and as such all of them matching a specific tag can be
@@ -68,7 +97,6 @@ Dependencies:
 Installation
 ============
 
-
 To install Antidote, simply run this command:
 
 .. code-block:: bash
@@ -79,9 +107,33 @@ To install Antidote, simply run this command:
 Quick Start
 ===========
 
+How does injection looks like ? Here are some dummy examples:
 
-Hereafter is an example which tries to show most of Antidote's features:
+.. code-block:: python
 
+   from antidote import inject
+
+    # uses the type hint
+    @inject
+    def f(x: Service):
+        ...
+
+    @inject(dependencies=dict(host='conf.host'))
+    def f(host: str):
+        ...
+
+    # uses the position of the arguments
+    @inject(dependencies=('conf.host',)))
+    def f(host: str):
+        ...
+
+    # uses the name of the argument as the dependency.
+    @inject(use_names=True))
+    def f(host: str):
+        ...
+
+
+Want more ? Here is a more complete example with configurations, services, factories:
 
 .. code-block:: python
 
@@ -179,6 +231,8 @@ Hereafter is an example which tries to show most of Antidote's features:
     )))
 
 
+Interested ? Check out the documentation or try it directly ! There are still features
+left such as tags or custom kinds of dependencies.
 
 Documentation
 =============

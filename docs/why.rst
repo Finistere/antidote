@@ -1,8 +1,5 @@
-Why do I need ...
-=================
-
-... Dependency Injection ?
---------------------------
+Why do I need  Dependency Injection ?
+=====================================
 
 Dependency injection is a technique where objects do not instantiate themselves
 their dependencies, it is up to its user to supply them. A simple example
@@ -56,25 +53,3 @@ projects with a limited number of dependencies, it doesn't scale at all.
 The wiring and managing of all your dependencies, is what antidote is for. You
 define your dependency in one place, let antidote know it exists and how to
 instantiate it and you're done !
-
-
-... Antidote ?
---------------
-
-While there are several dependency injection libraries, there was none which
-really convinced me. At the minimum it should have:
-
-- Use of type hints to inject dependencies. And provide other means to specify
-  dependencies as configuration parameters cannot be injected this way for
-  example.
-- Flexible enough to have standard dependency injection features: services,
-  factories, auto-wiring, tags, parameter injection, etc...
-- It has be easy to integrate with existing code.
-
-The closest I am aware of is `Injector <https://github.com/alecthomas/injector>`_.
-But I don't really like the design of :code:`Injector`. It may be just a matter of
-taste, but I think a dependency injection framework should be the most declarative
-possible. Antidote only works with decorators out of the box, it does not require
-of you to be aware of a global instance managing your dependencies. You only
-declare what should and can be injected. Behind the scene all the wiring is done
-automatically.
