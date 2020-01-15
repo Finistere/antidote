@@ -4,7 +4,15 @@
 set -euxo pipefail
 
 cd /antidote
-bin/clean.sh
+
+clean() {
+  rm -rf build/*
+  for DIR in src tests; do
+    for EXTENSION in cpp so html pyc; do
+      find "$DIR" -name "*.$EXTENSION" -exec rm -f {} \;
+    done
+  done
+}
 
 PYTHON_VERSIONS="35 36 37 38"
 
@@ -22,14 +30,14 @@ pybin() {
 
 # Compile wheels
 for PYTHON_VERSION in $PYTHON_VERSIONS; do
+  clean
   PYBIN="$(pybin "$PYTHON_VERSION")"
   "${PYBIN}/pip" install -r requirements/bindist.txt
-  "${PYBIN}/python" setup.py bdist_wheel --dist-dir /wheelhouse/
-  bin/clean.sh
+  "${PYBIN}/python" setup.py bdist_wheel --dist-dir wheelhouse/
 done
 
 # Bundle external shared libraries into the wheels
-for whl in /wheelhouse/*.whl; do
+for whl in wheelhouse/*.whl; do
   auditwheel repair "$whl" --plat "$PLAT" -w wheelhouse/
 done
 

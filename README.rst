@@ -118,17 +118,23 @@ How does injection looks like ? Here are some dummy examples:
     def f(x: Service):
         ...
 
+    f()  # Service will be automatically injected if not provided
+    f(Service())  # Want to override injection for tests ? easy
+
+    # Explicitly provide the dependency
+    # Here 'conf.host' is the ID of the dependency.
+    # Previously the type hint served as one.
     @inject(dependencies=dict(host='conf.host'))
     def f(host: str):
         ...
 
     # uses the position of the arguments
-    @inject(dependencies=('conf.host',)))
+    @inject(dependencies=('conf.host',))
     def f(host: str):
         ...
 
     # uses the name of the argument as the dependency.
-    @inject(use_names=True))
+    @inject(use_names=True)
     def f(host: str):
         ...
 
@@ -164,6 +170,9 @@ Want more ? Here is a more complete example with configurations, services, facto
     # Usage of constants for configuration makes refactoring easier and is
     # less error-prone. Moreover Conf will only be instantiated if necessary.
     class Conf(metaclass=antidote.LazyConstantsMeta):
+        # The metaclass adds custom behavior for constants (upper case attributes).
+        # Conf.IMDB_HOST is a dependency id
+        # but Conf().IMDB_HOST is the actual value making it easy to work with.
         IMDB_HOST = 'imdb.host'
         IMDB_API_KEY = 'imdb.api_key'
 
@@ -198,8 +207,8 @@ Want more ? Here is a more complete example with configurations, services, facto
     # Registering IMDBMovieDB makes it available in Antidote. (required for @implements)
     @antidote.register
     class IMDBMovieDB(MovieDB):
-        # Dependencies of __init__() are injected by default when
-        # registering a service.
+        # Here the dependencies of __init__() are injected by default as @register treats
+        # it as the factory of the service.
         # Note that IMDBMovieDB does not build itself ImdbAPI, which makes testing
         # easier.
         def __init__(self, imdb_api: ImdbAPI):
