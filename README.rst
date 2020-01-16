@@ -80,7 +80,7 @@ Core functionalities:
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
 - Antidote is declarative and does not do any magic out of the box. Reading the decorators
   is enough to understand what it does and from where dependencies are coming from.
-- Is easy to work with an IDE: no **kwargs which makes arguments impossible to guess and
+- Is easy to work with an IDE: no :code:`**kwargs` which makes arguments impossible to guess and
   has type hints everywhere.
 - Easily extendable, through dependency providers. All after-mentioned kind of dependencies
   are implemented with it. It is designed to support custom kind of dependencies from the ground up.
