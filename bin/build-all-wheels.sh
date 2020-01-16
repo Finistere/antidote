@@ -17,7 +17,7 @@ manylinux2014_x86_64"
 for PLATFORM in $PLATFORMS; do
   DOCKER_IMAGE="quay.io/pypa/$PLATFORM"
   docker pull "$DOCKER_IMAGE"
-  docker run --rm -t \
+  docker run --rm -it \
     -e PLAT="$PLATFORM" \
     -v "$PROJECT_DIR:/antidote" \
     "$DOCKER_IMAGE" \

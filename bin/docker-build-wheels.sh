@@ -28,18 +28,24 @@ pybin() {
   esac
 }
 
+TMP_WHEELHOUSE="/tmp/$PLAT"
+mkdir "$TMP_WHEELHOUSE"
+
 # Compile wheels
 for PYTHON_VERSION in $PYTHON_VERSIONS; do
   clean
   PYBIN="$(pybin "$PYTHON_VERSION")"
   "${PYBIN}/pip" install -r requirements/bindist.txt
-  "${PYBIN}/python" setup.py bdist_wheel --dist-dir wheelhouse/
+  "${PYBIN}/python" setup.py bdist_wheel --dist-dir "$TMP_WHEELHOUSE"
 done
 
 # Bundle external shared libraries into the wheels
-for whl in wheelhouse/*.whl; do
-  auditwheel repair "$whl" --plat "$PLAT" -w wheelhouse/
+for whl in "$TMP_WHEELHOUSE"/*.whl; do
+  auditwheel repair "$whl" --plat "$PLAT" -w "$TMP_WHEELHOUSE"
 done
+
+mkdir -p wheelhouse
+mv "$TMP_WHEELHOUSE"/* wheelhouse/
 
 # Install packages and test
 for PYTHON_VERSION in $PYTHON_VERSIONS; do
