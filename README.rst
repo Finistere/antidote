@@ -21,18 +21,8 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-Antidotes is a declarative dependency injection micro-framework for Python 3.5+
-which tries to do the following:
-
-- Injection can applied on any existing code easily.
-- Avoids as much magic as possible. Finding the source and the usage of a dependency
-  is straightforward (through an IDE's "Go to definition" / "Find usage").
-- Core functionality is flexible and extendable to support any custom injection/dependencies.
-  So while Antidote does not use magic, you can.
-- Limit performance impact of injection.
-- Provide a rich set of ways for handling dependencies. (factories, tags,
-  interfaces, configuration, etc...).
-- Handle all the different edge cases with methods, bound methods, class methods, etc...
+Antidotes is a declarative dependency injection micro-framework for Python 3.5+ 
+designed for ease of use.
 
 
 Why Dependency Injection ?
@@ -56,16 +46,17 @@ really convinced me. Most of them did not satisfy all of those requirements:
 
 - Use of type hints: *Be consistent* with type hints as supported by mypy and *use them*
   to inject dependencies. Other means to inject dependencies should be possible.
-- Maturity: Support different kind of dependencies, proper test coverage,
-- Easy to integrate with existing code: Ideally it means just adding decorators to
-  your class/functions and that's it.
-- Avoid magic: It should be straightforward for someone, unaware of the dependency
-  injection library, to know what is injected and from where it comes. Typically using
-  the arguments name implicitly to find dependencies *is* magic. How can you know from
-  where it comes ? Hence type hints are for example a lot better.
-
-And for the rare ones that were close to those requirements, I didn't like their API for
-different reasons. Which is obviously a matter of taste.
+- Maturity: Support different kind of dependencies, decent test coverage.
+- Easy to integrate with existing code: Introducing the library in a existing application
+  implies changing the whole wiring of the services/configuration. It should be as easy
+  as possible.
+- Not encourage magic: For example, using the arguments name *implicitly*, so by default,
+  to find dependencies is magic. While having this possibility is good, as it can make
+  sense in some cases, the library shouldn't do this by default.
+- Be nice with developers and their IDE: Use of type hints in the library, no
+  :code:`**kwargs` for function arguments (= no auto-completion), should be as easy as
+  possible to find definition of dependencies with a right click and "Go to definition",
+  etc...
 
 
 Features Highlight
@@ -73,15 +64,12 @@ Features Highlight
 
 Core functionalities:
 
-- Injection done through type hints and optionally from argument's name and/or
-  with explicitly specified dependencies.
+- Injection of all kinds of functions (method, classmethod, bound or not, ...) through
+  type hints and optionally from argument's name and/or with explicitly specified
+  dependencies.
 - Dependency cycle detection
 - Thread-safety and limited performace impact (see
   `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
-- Antidote is declarative and does not do any magic out of the box. Reading the decorators
-  is enough to understand what it does and from where dependencies are coming from.
-- Is easy to work with an IDE: no :code:`**kwargs` which makes arguments impossible to guess and
-  has type hints everywhere.
 - Easily extendable, through dependency providers. All after-mentioned kind of dependencies
   are implemented with it. It is designed to support custom kind of dependencies from the ground up.
   So if you want custom magic or whatever, you can have it !
@@ -93,7 +81,7 @@ Kind of dependencies:
   retrieved.
 - Configuration: Constants which are lazily evaluated.
 - Lazy function calls: Results of a function call is lazily provided.
-
+- Defintion of interface and services implementing those.
 
 Installation
 ============
