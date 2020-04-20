@@ -221,7 +221,7 @@ class G:
         pytest.param(G.original, G.wrapped, id='staticmethod')
     ]
 )
-def test_wrap(original, wrapped):
+def test_wrap_python_base_attributes(original, wrapped):
     assert original.__module__ is wrapped.__module__
     assert original.__name__ is wrapped.__name__
     assert original.__qualname__ is wrapped.__qualname__
@@ -243,3 +243,18 @@ def test_wrap(original, wrapped):
             wrapped.__self__
     else:
         assert func is wrapped.__self__
+
+
+def test_wrap_custom_attributes():
+    def f():
+        pass
+
+    f.__test__ = "test"
+    wrapped = easy_wrap(f)
+    assert "test" == wrapped.__test__
+
+    wrapped.__test2__ = "test2"
+    assert "test2" == wrapped.__test2__
+
+    wrapped.__test__ = "overridden test"
+    assert "overridden test" == wrapped.__test__

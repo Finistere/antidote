@@ -75,15 +75,8 @@ class InjectedWrapper:
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
         ))
 
-    @property
-    def __func__(self):
-        """ Imitate classmethod & staticmethod descriptors """
-        return self.__wrapped__.__func__
-
-    @property
-    def __self__(self):
-        """ Imitate classmethod & staticmethod descriptors """
-        return self.__wrapped__.__self__
+    def __getattr__(self, item):
+        return getattr(self.__wrapped__, item)
 
 
 class InjectedBoundWrapper(InjectedWrapper):

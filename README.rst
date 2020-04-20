@@ -21,7 +21,7 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-Antidotes is a declarative dependency injection micro-framework for Python 3.5+ 
+Antidotes is a declarative dependency injection micro-framework for Python 3.5+
 designed for ease of use.
 
 
@@ -54,7 +54,7 @@ really convinced me. Most of them did not satisfy all of those requirements:
   to find dependencies is magic. While having this possibility is good, as it can make
   sense in some cases, the library shouldn't do this by default.
 - Be nice with developers and their IDE: Use of type hints in the library, no
-  :code:`**kwargs` for function arguments (= no auto-completion), should be as easy as
+  :code:`**kwargs` for function arguments (so auto-completion works), should be as easy as
   possible to find definition of dependencies with a right click and "Go to definition",
   etc...
 

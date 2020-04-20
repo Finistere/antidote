@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, get_type_hints, Iterator, Sequence, Union
+from typing import Callable, get_type_hints, Iterator, List, Sequence, Union
 
 
 class Argument:
@@ -28,7 +28,7 @@ class Arguments:
 
     @classmethod
     def _build(cls, func: Callable, unbound_method: bool) -> 'Arguments':
-        arguments = []
+        arguments = []  # type: List[Argument]
         has_var_positional = False
         has_var_keyword = False
 

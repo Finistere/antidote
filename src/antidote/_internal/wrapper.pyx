@@ -42,12 +42,11 @@ cdef class InjectionBlueprint:
 
 cdef class InjectedWrapper:
     cdef:
-        # public attributes as those are going to be overwritten by
-        # functools.wraps()
         readonly object __wrapped__
         DependencyContainer __container
         InjectionBlueprint __blueprint
         int __injection_offset
+        dict __dict
 
     def __cinit__(self,
                   DependencyContainer container,
@@ -58,6 +57,9 @@ cdef class InjectedWrapper:
         self.__container = container
         self.__blueprint = blueprint
         self.__injection_offset = 1 if skip_first else 0
+        # allocate a dictionary only if necessary, it's not that common
+        # to add attributes to a function.
+        self.__dict = None
 
     def __call__(self, *args, **kwargs):
         kwargs = _inject_kwargs(
@@ -78,33 +80,18 @@ cdef class InjectedWrapper:
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
         )
 
-    @property
-    def __name__(self):
-        return self.__wrapped__.__name__
+    def __getattr__(self, item):
+        if self.__dict is not None:
+            try:
+                return self.__dict[item]
+            except KeyError:
+                pass
+        return getattr(self.__wrapped__, item)
 
-    @property
-    def __qualname__(self):
-        return self.__wrapped__.__qualname__
-
-    @property
-    def __doc__(self):
-        return self.__wrapped__.__doc__
-
-    @property
-    def __annotations__(self):
-        return self.__wrapped__.__annotations__
-
-    @property
-    def __module__(self):
-        return self.__wrapped__.__module__
-
-    @property
-    def __func__(self):
-        return self.__wrapped__.__func__
-
-    @property
-    def __self__(self):
-        return self.__wrapped__.__self__
+    def __setattr__(self, key, value):
+        if self.__dict is None:
+            self.__dict = dict()
+        self.__dict[key] = value
 
 cdef class InjectedBoundWrapper(InjectedWrapper):
     def __get__(self, instance, owner):
