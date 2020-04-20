@@ -255,6 +255,8 @@ def test_wrap_custom_attributes():
 
     wrapped.__test2__ = "test2"
     assert "test2" == wrapped.__test2__
+    # After setting a new attribute, original ones should still be accessible.
+    assert "test" == wrapped.__test__
 
     wrapped.__test__ = "overridden test"
     assert "overridden test" == wrapped.__test__
