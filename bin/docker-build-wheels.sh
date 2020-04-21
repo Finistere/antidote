@@ -39,13 +39,12 @@ for PYTHON_VERSION in $PYTHON_VERSIONS; do
   "${PYBIN}/python" setup.py bdist_wheel --dist-dir "$TMP_WHEELHOUSE"
 done
 
+mkdir -p wheelhouse
+
 # Bundle external shared libraries into the wheels
 for whl in "$TMP_WHEELHOUSE"/*.whl; do
-  auditwheel repair "$whl" --plat "$PLAT" -w "$TMP_WHEELHOUSE"
+  auditwheel repair "$whl" --plat "$PLAT" -w wheelhouse/
 done
-
-mkdir -p wheelhouse
-mv "$TMP_WHEELHOUSE"/* wheelhouse/
 
 # Install packages and test
 for PYTHON_VERSION in $PYTHON_VERSIONS; do

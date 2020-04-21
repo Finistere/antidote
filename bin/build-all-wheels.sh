@@ -6,11 +6,7 @@ PROJECT_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 rm -f "$PROJECT_DIR/wheelhouse/*" || true
 
-PLATFORMS="manylinux1_i686
-manylinux1_x86_64
-manylinux2010_i686
-manylinux2010_x86_64
-manylinux2014_i686
+PLATFORMS="manylinux2014_i686
 manylinux2014_x86_64"
 
 
