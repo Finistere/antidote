@@ -1,6 +1,14 @@
 Changelog
 =========
 
+v0.7.2 (2020-04-21)
+-------------------
+
+### Bug fixes
+- The wrapper of the injection function didn't behave exactly like a proxy for the 
+  all of the wrapped functions attributes. Furthermore the Cython version didn't 
+  support setting dynamically attributes at all.
+
 0.7.0  (2020-01-15)
 -------------------
 
