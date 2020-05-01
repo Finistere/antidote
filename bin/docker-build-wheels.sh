@@ -35,6 +35,7 @@ mkdir "$TMP_WHEELHOUSE"
 for PYTHON_VERSION in $PYTHON_VERSIONS; do
   clean
   PYBIN="$(pybin "$PYTHON_VERSION")"
+  "${PYBIN}/pip" install -U pip setuptools wheel
   "${PYBIN}/pip" install -r requirements/bindist.txt
   "${PYBIN}/python" setup.py bdist_wheel --dist-dir "$TMP_WHEELHOUSE"
 done
