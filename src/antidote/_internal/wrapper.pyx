@@ -80,18 +80,25 @@ cdef class InjectedWrapper:
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
         )
 
-    def __getattr__(self, item):
+    def __getattr__(self, name):
         if self.__dict is not None:
             try:
-                return self.__dict[item]
+                return self.__dict[name]
             except KeyError:
                 pass
-        return getattr(self.__wrapped__, item)
+        return getattr(self.__wrapped__, name)
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, name, value):
         if self.__dict is None:
             self.__dict = dict()
-        self.__dict[key] = value
+        self.__dict[name] = value
+
+    def __delattr__(self, name):
+        if self.__dict is not None:
+            try:
+                del self.__dict[name]
+            except KeyError:
+                raise AttributeError(name)
 
 cdef class InjectedBoundWrapper(InjectedWrapper):
     def __get__(self, instance, owner):
