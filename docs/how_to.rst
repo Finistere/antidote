@@ -206,7 +206,7 @@ them through :code:`__call__()`. Obviously you can change that behavior through 
 You might be thinking that one could avoid the use of the class :code:`ID`, but it provides
 a nice feature that isn't obvious in this example: it's easy to find its definition. And
 more often than not, the factory will be relatively close to it. Had we used a string as a
-dependency id, it would have been a lot harder.
+dependency id, finding the factory would be a lot harder.
 
 Stateful factories can also be used to provide dependencies that have a more complex scope
 than Antidote provides (singleton or different each time). Although, if you need to handle
