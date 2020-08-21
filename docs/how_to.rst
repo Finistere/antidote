@@ -160,6 +160,60 @@ Tags are a way to retrieve a list of services, such as plugins, extensions, etc.
     [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
 
 
+Create a stateful factory
+-------------------------
+
+Factories created with :py:func:`.factory` can be more complex than a function:
+
+.. testcode:: how_to_stateful_factory
+
+    from antidote import factory
+
+    class ID:
+        def __init__(self, id: str):
+            self.id = id
+
+        def __repr__(self):
+            return "ID(id='{}')".format(self.id)
+
+    @factory(dependencies=dict(prefix='id_prefix'), singleton=False)
+    class IDFactory:
+        def __init__(self, prefix: str):
+            self._prefix = prefix
+            self._next = 1
+
+        def __call__(self) -> ID:
+            id = ID("{}_{}".format(self._prefix, self._next))
+            self._next += 1
+            return id
+
+.. doctest:: how_to_stateful_factory
+
+    >>> from antidote import world
+    >>> world.update_singletons({'id_prefix': "example"})
+    >>> world.get(ID)
+    ID(id='example_1')
+    >>> world.get(ID)
+    ID(id='example_2')
+
+In this example we choose to inject :code:`id_prefix` in the :code:`__init__()`, but we
+also could have done it in the :code:`__call__()`. Both are injected by default, bu they
+have different use cases. The factory itself is always a singleton, so static dependencies
+should be injected through :code:`__init__()`. If you need dependencies that changes, get
+them through :code:`__call__()`. Obviously you can change that behavior through the
+:code:`auto_wire` argument.
+
+You might be thinking that one could avoid the use of the class :code:`ID`, but it provides
+a nice feature that isn't obvious in this example: it's easy to find its definition. And
+more often than not, the factory will be relatively close to it. Had we used a string as a
+dependency id, it would have been a lot harder.
+
+Stateful factories can also be used to provide dependencies that have a more complex scope
+than Antidote provides (singleton or different each time). Although, if you need to handle
+some scope for multiples dependencies it might be worth just extending Antidote through a
+:py:class:`.DependencyProvider`.
+
+
 Extend Antidote through a Provider
 ----------------------------------
 
