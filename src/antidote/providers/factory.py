@@ -53,8 +53,7 @@ class Build(SlotsReprMixin):
 
     def __eq__(self, other):
         return isinstance(other, Build) \
-               and (self.dependency is other.dependency
-                    or self.dependency == other.dependency) \
+               and (self.dependency is other.dependency or self.dependency == other.dependency) \
                and self.kwargs == self.kwargs  # noqa
 
 

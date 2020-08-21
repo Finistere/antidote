@@ -103,6 +103,11 @@ def factory(func: Union[Callable, type] = None,
             if '__call__' not in dir(obj):
                 raise TypeError("The class must implement __call__()")
 
+            dependency = get_type_hints(obj.__call__).get('return')
+            if dependency is None:
+                raise ValueError("The return annotation is necessary on __call__."
+                                 "It is used a the dependency.")
+
             wire_raise_on_missing = True
             if auto_wire is None or isinstance(auto_wire, bool):
                 if auto_wire is False:
@@ -124,10 +129,6 @@ def factory(func: Union[Callable, type] = None,
                            container=container)
 
             obj = register(obj, auto_wire=False, singleton=True, container=container)
-            dependency = get_type_hints(obj.__call__).get('return')
-            if dependency is None:
-                raise ValueError("The return annotation is necessary on __call__."
-                                 "It is used a the dependency.")
             factory_provider.register_providable_factory(
                 dependency=dependency,
                 singleton=singleton,
@@ -135,6 +136,10 @@ def factory(func: Union[Callable, type] = None,
                 factory_dependency=obj
             )
         elif callable(obj):
+            dependency = get_type_hints(obj).get('return')
+            if dependency is None:
+                raise ValueError("A return annotation is necessary."
+                                 "It is used a the dependency.")
             if auto_wire:
                 obj = inject(obj,
                              dependencies=dependencies,
@@ -142,10 +147,6 @@ def factory(func: Union[Callable, type] = None,
                              use_type_hints=use_type_hints,
                              container=container)
 
-            dependency = get_type_hints(obj).get('return')
-            if dependency is None:
-                raise ValueError("A return annotation is necessary."
-                                 "It is used a the dependency.")
             factory_provider.register_factory(factory=obj,
                                               singleton=singleton,
                                               dependency=dependency,
