@@ -1,8 +1,10 @@
+from ._internal.utils import API
 from .core.exceptions import (AntidoteError, DependencyCycleError,
                               DependencyInstantiationError, DependencyNotFoundError,
-                              DuplicateDependencyError)
+                              DuplicateDependencyError, FrozenWorldError)
 
 
+@API.public
 class DuplicateTagError(AntidoteError):
     """
     A dependency has multiple times the same tag.
@@ -10,6 +12,7 @@ class DuplicateTagError(AntidoteError):
     """
 
 
+@API.public
 class UndefinedContextError(AntidoteError):
     """
     A context does not have any target associated.
@@ -24,5 +27,6 @@ __all__ = [
     'DependencyNotFoundError',
     'DuplicateDependencyError',
     'DuplicateTagError',
-    'UndefinedContextError'
+    'UndefinedContextError',
+    'FrozenWorldError'
 ]

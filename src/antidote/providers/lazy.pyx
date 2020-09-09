@@ -4,9 +4,15 @@ from typing import Callable, Dict, Tuple, Union
 
 # @formatter:off
 from cpython.object cimport PyObject, PyObject_Call, PyObject_GetAttr
+from antidote.core.container cimport (DependencyInstance, FastDependencyProvider,
+                                      DependencyContainer, DependencyResult, PyObjectBox,
+                                      FLAG_SINGLETON, FLAG_DEFINED)
 
-from antidote.core.container cimport DependencyInstance, DependencyProvider
 # @formatter:on
+from ..core.exceptions import DependencyNotFoundError
+
+cdef extern from "Python.h":
+    int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
 
 
 cdef class LazyCall:
@@ -25,6 +31,12 @@ cdef class LazyCall:
         Computing 2 + 3
         5
     """
+    cdef:
+        object _func
+        tuple _args
+        dict _kwargs
+        int _flags
+
     def __init__(self, func: Callable, singleton: bool = True):
         """
         Args:
@@ -32,7 +44,7 @@ cdef class LazyCall:
                 to the instance of :py:class:`~.LazyCall` will be passed on.
             singleton: Whether or not this is a singleton or not.
         """
-        self._singleton = singleton
+        self._flags = FLAG_SINGLETON if singleton else 0
         self._func = func
         self._args = ()  # type: Tuple
         self._kwargs = {}  # type: Dict
@@ -76,8 +88,15 @@ cdef class LazyMethodCall:
     Check out :py:class:`~.helpers.conf.LazyConstantsMeta` for simple way
     to declare multiple constants.
     """
+    cdef:
+        str _method_name
+        int _flags
+        tuple _args
+        dict _kwargs
+        str _key
+
     def __init__(self, method: Union[Callable, str], singleton: bool = True):
-        self._singleton = singleton
+        self._flags = FLAG_SINGLETON if singleton else 0
         # Retrieve the name of the method, as injection can be done after the class
         # creation which is typically the case with @register.
         self._method_name = method if isinstance(method, str) else method.__name__
@@ -92,27 +111,25 @@ cdef class LazyMethodCall:
 
     def __get__(self, instance, owner):
         if instance is None:
-            if self._singleton:
+            if self._flags == FLAG_SINGLETON:
                 if self._key is None:
-                    self._key = "{}_dependency".format(self._get_attribute_name(owner))
-                    setattr(owner, self._key, LazyMethodCallDependency(self, owner))
+                    self._key = f"{self._get_attribute_name(owner)}_dependency"
+                    setattr(owner,
+                            self._key,
+                            LazyMethodCallDependency.__new__(LazyMethodCallDependency,
+                                                             self,
+                                                             owner))
                 return getattr(owner, self._key)
-            return LazyMethodCallDependency(self, owner)
+            return LazyMethodCallDependency.__new__(LazyMethodCallDependency, self, owner)
         return self._call(instance)
 
     cdef object _call(self, object instance):
         cdef:
             object method
 
-        method = PyObject_GetAttr(
-            instance,
-            self._method_name
-        )
+        method = PyObject_GetAttr(instance, self._method_name)
         if <PyObject*> method == NULL:
-            raise RuntimeError("{} does not have a method {}".format(
-                instance,
-                self._method_name
-            ))
+            raise RuntimeError(f"{instance} does not have a method {self._method_name}")
 
         return PyObject_Call(method, self._args, self._kwargs)
 
@@ -130,28 +147,36 @@ cdef class LazyMethodCallDependency:
         self.lazy_method_call = lazy_method_call
         self.owner = owner
 
-cdef class LazyCallProvider(DependencyProvider):
-    bound_dependency_types = (LazyMethodCallDependency, LazyCall)
+cdef class LazyCallProvider(FastDependencyProvider):
+    def clone(self) -> FastDependencyProvider:
+        return self
 
-    cpdef DependencyInstance provide(self, object dependency):
+    def freeze(self):
+        pass
+
+    cdef fast_provide(self,
+                      PyObject* dependency,
+                      PyObject* container,
+                      DependencyResult* result):
         cdef:
-            LazyCall lazy_call
-            LazyMethodCallDependency lazy_method_dependency
+            LazyMethodCall lazy_method_call
             DependencyInstance dependency_instance
 
-        if isinstance(dependency, LazyMethodCallDependency):
-            lazy_method_dependency = <LazyMethodCallDependency> dependency
-            return DependencyInstance.__new__(
-                DependencyInstance,
-                lazy_method_dependency.lazy_method_call._call(
-                    self._container.get(lazy_method_dependency.owner)
-                ),
-                lazy_method_dependency.lazy_method_call._singleton
+        if PyObject_IsInstance(dependency, <PyObject*> LazyMethodCallDependency):
+            (<DependencyContainer> container).fast_get(
+                <PyObject*> (<LazyMethodCallDependency> dependency).owner,
+                result
             )
-        elif isinstance(dependency, LazyCall):
-            lazy_call = <LazyCall> dependency
-            return DependencyInstance.__new__(
-                DependencyInstance,
-                PyObject_Call(lazy_call._func, lazy_call._args, lazy_call._kwargs),
-                lazy_call._singleton
+            if result.flags == 0:
+                raise DependencyNotFoundError(<object> dependency)
+            lazy_method_call = (<LazyMethodCallDependency> dependency).lazy_method_call
+            result.flags = FLAG_DEFINED | lazy_method_call._flags
+            (<PyObjectBox> result.box).obj = lazy_method_call._call((<PyObjectBox> result.box).obj)
+
+        elif PyObject_IsInstance(dependency, <PyObject*> LazyCall):
+            result.flags = FLAG_DEFINED | (<LazyCall> dependency)._flags
+            (<PyObjectBox> result.box).obj = PyObject_Call(
+                (<LazyCall> dependency)._func,
+                (<LazyCall> dependency)._args,
+                (<LazyCall> dependency)._kwargs
             )

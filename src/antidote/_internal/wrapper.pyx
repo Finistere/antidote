@@ -3,13 +3,20 @@
 
 # @formatter:off
 cimport cython
-from cpython.dict cimport PyDict_Contains, PyDict_Copy, PyDict_SetItem
+from cpython.dict cimport PyDict_Copy, PyDict_New
 from cpython.object cimport PyObject_Call
-from cpython.tuple cimport PyTuple_GET_ITEM,  PyTuple_Size
+from cpython.ref cimport PyObject
 
-from antidote.core.container cimport DependencyContainer, DependencyInstance
-from ..exceptions import DependencyNotFoundError
+from antidote._internal.state cimport get_container
+from antidote.core.container cimport DependencyContainer, DependencyResult, PyObjectBox
+from ..core.exceptions import DependencyNotFoundError
 # @formatter:on
+
+cdef extern from "Python.h":
+    PyObject* PyTuple_GetItem(PyObject *p, Py_ssize_t pos)
+    Py_ssize_t PyTuple_GET_SIZE(PyObject *p)
+    int PyDict_Contains(PyObject *p, PyObject *key) except -1
+    int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
 
 compiled = True
 
@@ -21,12 +28,8 @@ cdef class Injection:
         readonly object dependency
 
     def __repr__(self):
-        return "{}(arg_name={!r}, required={!r}, dependency={!r})".format(
-            type(self).__name__,
-            self.arg_name,
-            self.required,
-            self.dependency
-        )
+        return f"{type(self).__name__}(arg_name={self.arg_name!r}, " \
+               f"required={self.required!r}, dependency={self.dependency!r})"
 
     def __init__(self, str arg_name, bint required, object dependency):
         self.arg_name = arg_name
@@ -43,41 +46,78 @@ cdef class InjectionBlueprint:
 cdef class InjectedWrapper:
     cdef:
         readonly object __wrapped__
-        DependencyContainer __container
         InjectionBlueprint __blueprint
         int __injection_offset
         dict __dict
+        bint __is_classmethod
+        bint __is_staticmethod
 
     def __cinit__(self,
-                  DependencyContainer container,
                   InjectionBlueprint blueprint,
                   object wrapped,
                   bint skip_first = False):
         self.__wrapped__ = wrapped
-        self.__container = container
         self.__blueprint = blueprint
         self.__injection_offset = 1 if skip_first else 0
         # allocate a dictionary only if necessary, it's not that common
         # to add attributes to a function.
         self.__dict = None
+        self.__is_classmethod = isinstance(wrapped, classmethod)
+        self.__is_staticmethod = isinstance(wrapped, staticmethod)
 
     def __call__(self, *args, **kwargs):
-        kwargs = _inject_kwargs(
-            self.__container,
-            self.__blueprint,
-            self.__injection_offset + len(args),
-            kwargs
-        )
+        cdef:
+            DependencyContainer container = get_container()
+            DependencyResult result
+            PyObject* injection_ptr
+            PyObject* arg_name
+            PyObjectBox box = PyObjectBox.__new__(PyObjectBox)
+            PyObject* injections = <PyObject*> self.__blueprint.injections
+            bint dirty_kwargs = False
+            Py_ssize_t i
+            Py_ssize_t offset = self.__injection_offset + PyTuple_GET_SIZE(<PyObject*> args)
+            Py_ssize_t n = PyTuple_GET_SIZE(injections)
+        result.box = <PyObject*> box
+
+        if kwargs:
+            for i in range(offset, n):
+                injection_ptr = PyTuple_GetItem(injections, i)
+                if (<Injection> injection_ptr).dependency is not None:
+                    arg_name = <PyObject*>(<Injection> injection_ptr).arg_name
+                    if PyDict_Contains(<PyObject*> kwargs, arg_name) == 0:
+                        container.fast_get(<PyObject*> (<Injection> injection_ptr).dependency, &result)
+                        if result.flags != 0:
+                            if not dirty_kwargs:
+                                kwargs = PyDict_Copy(kwargs)
+                                dirty_kwargs = True
+                            PyDict_SetItem(<PyObject*>kwargs, arg_name, <PyObject*> box.obj)
+                        elif (<Injection> injection_ptr).required:
+                            raise DependencyNotFoundError((<Injection> injection_ptr).dependency)
+        else:
+            for i in range(offset, n):
+                injection_ptr = PyTuple_GetItem(injections, i)
+                if (<Injection> injection_ptr).dependency is not None:
+                    container.fast_get(<PyObject*> (<Injection> injection_ptr).dependency, &result)
+                    if result.flags != 0:
+                        if not dirty_kwargs:
+                            kwargs = PyDict_New()
+                            dirty_kwargs = True
+                        PyDict_SetItem(
+                            <PyObject*> kwargs,
+                            <PyObject*> (<Injection> injection_ptr).arg_name,
+                            <PyObject*> box.obj
+                        )
+                    elif (<Injection> injection_ptr).required:
+                        raise DependencyNotFoundError((<Injection> injection_ptr).dependency)
+
         return PyObject_Call(self.__wrapped__, args, kwargs)
 
     def __get__(self, instance, owner):
         return InjectedBoundWrapper.__new__(
             InjectedBoundWrapper,
-            self.__container,
             self.__blueprint,
             self.__wrapped__.__get__(instance, owner),
-            isinstance(self.__wrapped__, classmethod)
-            or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
+            self.__is_classmethod or (not self.__is_staticmethod and instance is not None)
         )
 
     def __getattr__(self, name):
@@ -103,28 +143,3 @@ cdef class InjectedWrapper:
 cdef class InjectedBoundWrapper(InjectedWrapper):
     def __get__(self, instance, owner):
         return self
-
-cdef inline dict _inject_kwargs(DependencyContainer container,
-                                InjectionBlueprint blueprint,
-                                int offset,
-                                dict kwargs):
-    cdef:
-        Injection injection
-        DependencyInstance dependency_instance
-        bint dirty_kwargs = False
-        int i
-
-    for i in range(offset, PyTuple_Size(blueprint.injections)):
-        injection = <Injection> PyTuple_GET_ITEM(blueprint.injections, i)
-        if injection.dependency is not None \
-                and PyDict_Contains(kwargs, injection.arg_name) == 0:
-            dependency_instance = container.provide(injection.dependency)
-            if dependency_instance is not None:
-                if not dirty_kwargs:
-                    kwargs = PyDict_Copy(kwargs)
-                    dirty_kwargs = True
-                PyDict_SetItem(kwargs, injection.arg_name, dependency_instance.instance)
-            elif injection.required:
-                raise DependencyNotFoundError(injection.dependency)
-
-    return kwargs

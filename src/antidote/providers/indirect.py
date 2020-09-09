@@ -1,81 +1,94 @@
-from enum import Enum
-from typing import Dict, Hashable, Optional
+import threading
+from typing import Callable, Dict, Hashable, Optional
 
-from .._internal.utils import SlotsReprMixin
-from ..core import DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateDependencyError, UndefinedContextError
+from .._internal.utils import API, SlotsReprMixin
+from ..core import DependencyContainer, DependencyInstance, DependencyProvider
+from ..exceptions import DuplicateDependencyError, FrozenWorldError
 
 
+@API.private
 class IndirectProvider(DependencyProvider):
     """
     IndirectProvider
     """
 
-    def __init__(self, container):
-        super(IndirectProvider, self).__init__(container)
-        self._stateful_links = dict()  # type: Dict[Hashable, StatefulLink]
-        self._links = dict()  # type: Dict[Hashable, Hashable]
+    def __init__(self):
+        super(IndirectProvider, self).__init__()
+        self.__links: Dict[Hashable, Link] = dict()
+        self.__static_links: Dict[Hashable, Hashable] = dict()
+        self.__freeze_lock = threading.RLock()
+        self.__frozen = False
 
-    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+    def __repr__(self):
+        return f"{type(self).__name__}(links={self.__links}, " \
+               f"static_links={self.__static_links})"
+
+    def freeze(self):
+        with self.__freeze_lock:
+            self.__frozen = True
+
+    def clone(self) -> DependencyProvider:
+        p = IndirectProvider()
+        p.__static_links = self.__static_links.copy()
+        p.__links = self.__links.copy()
+        return p
+
+    def provide(self, dependency: Hashable, container: DependencyContainer
+                ) -> Optional[DependencyInstance]:
         try:
-            target = self._links[dependency]
+            target = self.__static_links[dependency]
         except KeyError:
-            try:
-                stateful_link = self._stateful_links[dependency]
-            except KeyError:
-                return None
-            else:
-                state = self._container.safe_provide(
-                    stateful_link.state_dependency
-                )
-
-                try:
-                    target = stateful_link.targets[state.instance]
-                except KeyError:
-                    raise UndefinedContextError(dependency, state.instance)
-
-                t = self._container.safe_provide(target)
-                return DependencyInstance(
-                    t.instance,
-                    singleton=state.singleton & t.singleton
-                )
+            pass
         else:
-            return self._container.safe_provide(target)
+            return container.provide(target)
 
-    def register(self, dependency: Hashable, target_dependency: Hashable,
-                 state: Enum = None):
-        if dependency in self._links:
+        try:
+            link = self.__links[dependency]
+        except KeyError:
+            pass
+        else:
+            target = link.linker()
+            if link.static:
+                self.__static_links[dependency] = target
+                del self.__links[dependency]
+            t = container.provide(target)
+            return DependencyInstance(
+                t.instance,
+                singleton=t.singleton and link.static
+            )
+
+        return None
+
+    def register_static(self, dependency: Hashable, target_dependency: Hashable):
+        self.__check_no_duplicate(dependency)
+
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+            self.__static_links[dependency] = target_dependency
+
+    def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
+                      static: bool = True):
+        self.__check_no_duplicate(dependency)
+
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+            self.__links[dependency] = Link(linker, static)
+
+    def __check_no_duplicate(self, dependency):
+        if dependency in self.__static_links:
             raise DuplicateDependencyError(dependency,
-                                           self._links[dependency])
-
-        if state is None:
-            if dependency in self._stateful_links:
-                raise DuplicateDependencyError(dependency,
-                                               self._stateful_links[dependency])
-            self._links[dependency] = target_dependency
-        elif isinstance(state, Enum):
-            try:
-                stateful_link = self._stateful_links[dependency]
-            except KeyError:
-                stateful_link = StatefulLink(type(state))
-                self._stateful_links[dependency] = stateful_link
-
-            if state in stateful_link.targets:
-                raise DuplicateDependencyError((dependency, state),
-                                               stateful_link.targets[state])
-
-            stateful_link.targets[state] = target_dependency
-        else:
-            raise TypeError("profile must be an instance of Flag or be None, "
-                            "not a {!r}".format(type(state)))
+                                           self.__static_links[dependency])
+        if dependency in self.__links:
+            raise DuplicateDependencyError(dependency,
+                                           self.__links[dependency])
 
 
-class StatefulLink(SlotsReprMixin):
-    """
-    Internal API
-    """
-    __slots__ = ('state_dependency', 'targets')
+@API.private
+class Link(SlotsReprMixin):
+    __slots__ = ('linker', 'static')
 
-    def __init__(self, state_dependency: Hashable):
-        self.state_dependency = state_dependency
-        self.targets = dict()  # type: Dict[Enum, Hashable]
+    def __init__(self, linker: Callable[[], Hashable], static: bool):
+        self.linker = linker
+        self.static = static

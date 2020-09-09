@@ -3,7 +3,8 @@ import inspect
 from typing import Callable, Iterable, Optional, overload, Set, TypeVar, Union
 
 from .._internal.argspec import Arguments
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
+from .._internal.utils import API
+from ..core import DEPENDENCIES_TYPE, raw_inject
 
 C = TypeVar('C', bound=type)
 
@@ -16,7 +17,6 @@ def wire(class_: C,  # noqa: E704  # pragma: no cover
          use_names: Union[bool, Iterable[str]] = None,
          use_type_hints: Union[bool, Iterable[str]] = None,
          wire_super: Union[bool, Iterable[str]] = None,
-         container: DependencyContainer = None,
          raise_on_missing: bool = True
          ) -> C: ...
 
@@ -28,11 +28,11 @@ def wire(*,  # noqa: E704  # pragma: no cover
          use_names: Union[bool, Iterable[str]] = None,
          use_type_hints: Union[bool, Iterable[str]] = None,
          wire_super: Union[bool, Iterable[str]] = None,
-         container: DependencyContainer = None,
          raise_on_missing: bool = True
          ) -> Callable[[C], C]: ...
 
 
+@API.public
 def wire(class_: type = None,
          *,
          methods: Iterable[str],
@@ -40,7 +40,6 @@ def wire(class_: type = None,
          use_names: Union[bool, Iterable[str]] = None,
          use_type_hints: Union[bool, Iterable[str]] = None,
          wire_super: Union[bool, Iterable[str]] = None,
-         container: DependencyContainer = None,
          raise_on_missing: bool = True
          ) -> Union[Callable, type]:
     """Wire a class by injecting the dependencies in all specified methods.
@@ -86,11 +85,11 @@ def wire(class_: type = None,
         raise TypeError("methods must be either None or an iterable.")
 
     methods = set(methods)
-    wire_super = _validate_wire_super(wire_super, methods)
+    wire_super = __validate_wire_super(wire_super, methods)
 
     if not isinstance(raise_on_missing, bool):
-        raise TypeError("raise_on_missing must be a boolean, "
-                        "not a {!r}".format(type(raise_on_missing)))
+        raise TypeError(f"raise_on_missing must be a boolean, "
+                        f"not a {type(raise_on_missing)!r}")
 
     if isinstance(dependencies, c_abc.Iterable) \
             and not isinstance(dependencies, c_abc.Mapping):
@@ -99,16 +98,15 @@ def wire(class_: type = None,
 
     def wire_methods(cls):
         if not inspect.isclass(cls):
-            raise TypeError("Expecting a class, got a {}".format(type(cls)))
+            raise TypeError(f"Expecting a class, got a {type(cls)}")
 
         for method_name in methods:
-            method = _get_method(cls, method_name,
-                                 with_super=method_name in wire_super)
+            method = __get_method(cls, method_name, with_super=method_name in wire_super)
 
             if method is None:
                 if raise_on_missing:
-                    raise TypeError("{!r} does not have a method "
-                                    "named {!r}".format(cls, method_name))
+                    raise TypeError(
+                        f"{cls!r} does not have a method named {method_name!r}")
                 else:
                     continue  # pragma: no cover
 
@@ -137,12 +135,11 @@ def wire(class_: type = None,
                                    for name in use_type_hints
                                    if name in arguments]
 
-            injected_method = inject(method,
-                                     arguments=arguments,
-                                     dependencies=_dependencies,
-                                     use_names=_use_names,
-                                     use_type_hints=_use_type_hints,
-                                     container=container)
+            injected_method = raw_inject(method,
+                                         arguments=arguments,
+                                         dependencies=_dependencies,
+                                         use_names=_use_names,
+                                         use_type_hints=_use_type_hints)
 
             if injected_method is not method:  # If something has changed
                 setattr(cls, method_name, injected_method)
@@ -152,8 +149,8 @@ def wire(class_: type = None,
     return class_ and wire_methods(class_) or wire_methods
 
 
-def _validate_wire_super(wire_super: Optional[Union[bool, Iterable[str]]],
-                         methods: Set[str]) -> Set[str]:
+def __validate_wire_super(wire_super: Optional[Union[bool, Iterable[str]]],
+                          methods: Set[str]) -> Set[str]:
     if wire_super is None:
         return set()
 
@@ -163,17 +160,16 @@ def _validate_wire_super(wire_super: Optional[Union[bool, Iterable[str]]],
     if isinstance(wire_super, c_abc.Iterable):
         wire_super = set(wire_super)
         if not wire_super.issubset(methods):
-            raise ValueError(
-                "Method names {!r} are not specified "
-                "not specified in methods".format(wire_super - methods)
-            )
+            raise ValueError(f"Method names {wire_super - methods!r} are not specified "
+                             f"not specified in methods")
+
         return wire_super
 
     raise TypeError("wire_super must be either a boolean "
                     "or an iterable of method names.")
 
 
-def _get_method(cls: type, name: str, with_super: bool) -> Optional[Callable]:
+def __get_method(cls: type, name: str, with_super: bool) -> Optional[Callable]:
     if with_super:
         for c in cls.__mro__:
             wrapped = c.__dict__.get(name)

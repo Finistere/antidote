@@ -1,5 +1,5 @@
 from antidote.exceptions import (DependencyCycleError, DependencyNotFoundError,
-                                 DuplicateDependencyError)
+                                 DuplicateDependencyError, FrozenWorldError)
 
 
 class Service:
@@ -9,7 +9,7 @@ class Service:
 def test_dependency_cycle_error():
     error = DependencyCycleError([Service, 'test', 1, Service])
 
-    service_info = "{}.{}".format(Service.__module__, Service.__name__)
+    service_info = f"{Service.__module__}.{Service.__name__}"
 
     for f in [str, repr]:
         assert service_info in f(error)
@@ -33,3 +33,10 @@ def test_duplicate_dependency_error():
     for f in [str, repr]:
         assert f(dependency) in f(error)
         assert f(existing_dependency) in f(error)
+
+
+def test_frozen_world():
+    message = "my message"
+    error = FrozenWorldError(message)
+    assert message in str(error)
+    assert message in repr(error)

@@ -3,9 +3,9 @@ from typing import Callable
 
 import pytest
 
-from antidote import (factory, inject, LazyConstantsMeta, new_container, provider,
-                      register, wire)
-from antidote.core import DependencyContainer, DependencyProvider
+from antidote import (factory, inject, LazyConstantsMeta, provider,
+                      register, wire, world)
+from antidote.core import DependencyProvider
 from antidote.exceptions import DependencyInstantiationError
 
 
@@ -29,14 +29,14 @@ class SuperService:
         return "SuperService"
 
 
-@pytest.fixture()
-def container():
-    c = new_container()
-    c.update_singletons({cls: cls() for cls in [Service, AnotherService,
-                                                YetAnotherService]})
-    c.update_singletons(dict(service=object(),
-                             another_service=object()))
-    return c
+@pytest.fixture(autouse=True)
+def test_world():
+    with world.test.new():
+        world.singletons.update({cls: cls() for cls in [Service, AnotherService,
+                                                        YetAnotherService]})
+        world.singletons.update(dict(service=object(),
+                                     another_service=object()))
+        yield
 
 
 class MyService:
@@ -105,14 +105,12 @@ class B1:
 
 class MyProvider(DependencyProvider):
     def __init__(self,
-                 container: DependencyContainer,
                  service: Service,
                  another_service=None):
-        self._container = container
         self.service = service
         self.another_service = another_service
 
-    def provide(self, dependency):
+    def provide(self, dependency, container):
         return
 
     def method(self, yet_another_service: YetAnotherService):
@@ -202,7 +200,7 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
                           **inject_kwargs):
     def decorator(test):
         @pytest.mark.parametrize('wrapper,wrapped', tests)
-        def f(container, wrapper, wrapped):
+        def f(wrapper, wrapped):
             if isinstance(wrapped, type):
                 if create_subclass:
                     def __init__(*args, **kwargs):
@@ -232,23 +230,23 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
                     except KeyError:
                         pass
 
-                wrapped_ = wrapper(wrapped, container=container, **inj_kwargs)
+                wrapped_ = wrapper(wrapped, **inj_kwargs)
 
                 if return_wrapped:
                     if wrapper in {register_build, register_external_build}:
                         try:
-                            return container.get(wrapped_)
+                            return world.get(wrapped_)
                         except DependencyInstantiationError as e:
                             raise TypeError() from e
                     else:
                         return wrapped_()
 
                 if wrapper in {register, register_build, register_external_build}:
-                    return container.get(wrapped_)
+                    return world.get(wrapped_)
                 elif wrapper == factory:
-                    return container.get(MyService)
+                    return world.get(MyService)
                 elif wrapper == provider:
-                    return container.providers[wrapped_]
+                    return world.get(wrapped_)
                 elif wrapper in {inject, wire_}:
                     return wrapped_()
                 elif wrapper is resource:
@@ -257,9 +255,9 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
                     raise RuntimeError("Unsupported helper")
 
             if lazy:
-                return test(container, create_instance=create)
+                return test(create_instance=create)
 
-            return test(container, instance=create())
+            return test(instance=create())
 
         return f
 
@@ -267,15 +265,15 @@ def parametrize_injection(tests, lazy=False, return_wrapped=False,  # noqa: C901
 
 
 @parametrize_injection(all_tests)
-def test_basic_wiring(container, instance: MyService):
-    assert instance.service is container.get(Service)
+def test_basic_wiring(instance: MyService):
+    assert instance.service is world.get(Service)
     assert instance.another_service is None
 
 
 @parametrize_injection(metaclass_tests + class_tests, return_wrapped=True,
                        auto_wire=['__init__', 'method'])
-def test_complex_wiring(container, instance: MyService):
-    assert instance.method() is container.get(YetAnotherService)
+def test_complex_wiring(instance: MyService):
+    assert instance.method() is world.get(YetAnotherService)
 
 
 @parametrize_injection(class_tests,
@@ -283,8 +281,8 @@ def test_complex_wiring(container, instance: MyService):
                        create_subclass=True,
                        auto_wire=['__init__', 'method'],
                        wire_super=True)
-def test_subclass_wire_super(container, instance: MyService):
-    assert instance.method() is container.get(YetAnotherService)
+def test_subclass_wire_super(instance: MyService):
+    assert instance.method() is world.get(YetAnotherService)
 
 
 @parametrize_injection(class_tests,
@@ -293,14 +291,14 @@ def test_subclass_wire_super(container, instance: MyService):
                        create_subclass=True,
                        auto_wire=['method'],
                        wire_super=False)
-def test_subclass_no_wire_super(container, create_instance: Callable):
+def test_subclass_no_wire_super(create_instance: Callable):
     with pytest.raises(TypeError):
         create_instance()
 
 
 @parametrize_injection(all_tests, lazy=True, return_wrapped=True,
                        auto_wire=False)
-def test_no_wiring(container, create_instance: Callable):
+def test_no_wiring(create_instance: Callable):
     with pytest.raises(TypeError):
         instance = create_instance()
         if callable(instance):
@@ -309,7 +307,7 @@ def test_no_wiring(container, create_instance: Callable):
 
 @parametrize_injection(all_tests, lazy=True, return_wrapped=True,
                        use_type_hints=False)
-def test_no_type_hints(container, create_instance: Callable):
+def test_no_type_hints(create_instance: Callable):
     with pytest.raises(TypeError):
         instance = create_instance()
         if callable(instance):
@@ -317,14 +315,14 @@ def test_no_type_hints(container, create_instance: Callable):
 
 
 @parametrize_injection(all_tests, use_type_hints=['service'])
-def test_type_hints_only_service(container, instance):
-    assert instance.service is container.get(Service)
+def test_type_hints_only_service(instance):
+    assert instance.service is world.get(Service)
     assert instance.another_service is None
 
 
 @parametrize_injection(all_tests, lazy=True, return_wrapped=True,
                        use_type_hints=['another_service'])
-def test_type_hints_only_another_service(container, create_instance: Callable):
+def test_type_hints_only_another_service(create_instance: Callable):
     with pytest.raises(TypeError):
         instance = create_instance()
         if callable(instance):
@@ -335,8 +333,8 @@ def test_type_hints_only_another_service(container, create_instance: Callable):
     all_tests,
     dependencies=lambda s: AnotherService if s == 'service' else None
 )
-def test_dependencies_func_override(container, instance: MyService):
-    assert instance.service is container.get(AnotherService)
+def test_dependencies_func_override(instance: MyService):
+    assert instance.service is world.get(AnotherService)
     assert instance.another_service is None
 
 
@@ -344,50 +342,50 @@ def test_dependencies_func_override(container, instance: MyService):
     all_tests,
     dependencies=lambda s: AnotherService if s == 'another_service' else None
 )
-def test_dependencies_func(container, instance: MyService):
-    assert instance.service is container.get(Service)
-    assert instance.another_service is container.get(AnotherService)
+def test_dependencies_func(instance: MyService):
+    assert instance.service is world.get(Service)
+    assert instance.another_service is world.get(AnotherService)
 
 
 @parametrize_injection(all_tests,
                        dependencies=dict(service=AnotherService))
-def test_dependencies_dict_override(container, instance: MyService):
-    assert instance.service is container.get(AnotherService)
+def test_dependencies_dict_override(instance: MyService):
+    assert instance.service is world.get(AnotherService)
     assert instance.another_service is None
 
 
 @parametrize_injection(all_tests,
                        dependencies=dict(another_service=AnotherService))
-def test_dependencies_dict(container, instance: MyService):
-    assert instance.service is container.get(Service)
-    assert instance.another_service is container.get(AnotherService)
+def test_dependencies_dict(instance: MyService):
+    assert instance.service is world.get(Service)
+    assert instance.another_service is world.get(AnotherService)
 
 
 @parametrize_injection(function_tests, dependencies=(AnotherService,))
-def test_function_dependencies_tuple_override(container, instance: MyService):
-    assert instance.service is container.get(AnotherService)
+def test_function_dependencies_tuple_override(instance: MyService):
+    assert instance.service is world.get(AnotherService)
     assert instance.another_service is None
 
 
 @parametrize_injection(function_tests, dependencies=(None, AnotherService))
-def test_function_dependencies_tuple(container, instance: MyService):
-    assert instance.service is container.get(Service)
-    assert instance.another_service is container.get(AnotherService)
+def test_function_dependencies_tuple(instance: MyService):
+    assert instance.service is world.get(Service)
+    assert instance.another_service is world.get(AnotherService)
 
 
 @parametrize_injection(all_tests, use_names=True)
-def test_use_names_activated(container, instance: MyService):
-    assert instance.service is container.get(Service)
-    assert instance.another_service is container.get('another_service')
+def test_use_names_activated(instance: MyService):
+    assert instance.service is world.get(Service)
+    assert instance.another_service is world.get('another_service')
 
 
 @parametrize_injection(all_tests, use_names=['another_service'])
-def test_use_names_only_another_service(container, instance: MyService):
-    assert instance.service is container.get(Service)
-    assert instance.another_service is container.get('another_service')
+def test_use_names_only_another_service(instance: MyService):
+    assert instance.service is world.get(Service)
+    assert instance.another_service is world.get('another_service')
 
 
 @parametrize_injection(all_tests, use_names=['service'])
-def test_use_names_only_service(container, instance: MyService):
-    assert instance.service is container.get(Service)
+def test_use_names_only_service(instance: MyService):
+    assert instance.service is world.get(Service)
     assert instance.another_service is None

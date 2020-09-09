@@ -45,15 +45,15 @@ If you need to retrieve :code:`Service` directly you can use the global
 
 .. doctest:: tutorial_overview
 
-    >>> from antidote import world
-    >>> world.get(Service)
+    >>> from antidote import World
+    >>> World.get(Service)
     <Service object at ...>
 
 By default, it will return same instance every time:
 
 .. doctest:: tutorial_overview
 
-    >>> world.get(Service) is world.get(Service)
+    >>> World.get(Service) is World.get(Service)
     True
 
 Let's take a quick look on how this works. It can be simplified to three
@@ -133,8 +133,8 @@ service for this:
 
 .. doctest:: tutorial_services
 
-    >>> from antidote import world
-    >>> world.get(DatabaseStatistics).get_user_count()
+    >>> from antidote import World
+    >>> World.get(DatabaseStatistics).get_user_count()
     1
 
 No need to use :py:func:`.inject` on :code:`__init__`, :py:func`.register` will
@@ -168,7 +168,7 @@ need, a factory:
 
 .. doctest:: tutorial_services
 
-    >>> world.get(User)
+    >>> World.get(User)
     User(name='Bob')
 
 :py:func:`factory` uses the return type hint as the dependency ID.
@@ -177,17 +177,17 @@ But what happens if we modify the database now ?
 
 .. doctest:: tutorial_services
 
-    >>> world.get(Database).users = [dict(name='Alice'), dict(name='John')]
+    >>> World.get(Database).users = [dict(name='Alice'), dict(name='John')]
     >>> get_user_count()
     2
-    >>> world.get(DatabaseStatistics).get_user_count()
+    >>> World.get(DatabaseStatistics).get_user_count()
     2
 
 Perfect ! What about our first user ?
 
 .. doctest:: tutorial_services
 
-    >>> world.get(User)
+    >>> World.get(User)
     User(name='Bob')
 
 But... :code:`'Bob'` is not even in our database anymore ! We just missed an
@@ -207,7 +207,7 @@ once during the application lifetime.
 
 .. doctest:: tutorial_services
 
-    >>> world.get(FirstUser)
+    >>> World.get(FirstUser)
     User(name='Alice')
 
 Here we created another type as Antidote does not accept any duplicate

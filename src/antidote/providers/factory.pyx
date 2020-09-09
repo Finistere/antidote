@@ -1,16 +1,24 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
+import threading
 from typing import Any, Callable, Dict, Hashable, Optional
 
 # @formatter:off
-from cpython.dict cimport PyDict_GetItem
 from cpython.ref cimport PyObject
+from cpython.tuple cimport PyTuple_Pack
+from cpython.object cimport PyObject_Call, PyObject_CallObject
 
-from antidote.core.container cimport (DependencyContainer, DependencyInstance,
-                                     DependencyProvider)
+from antidote.core.container cimport (DependencyContainer, FastDependencyProvider,
+                                      DependencyResult, PyObjectBox, FLAG_DEFINED,
+                                      FLAG_SINGLETON)
+from ..core.exceptions import DependencyNotFoundError, FrozenWorldError
 from ..exceptions import DuplicateDependencyError
+
 # @formatter:on
 
+cdef extern from "Python.h":
+    int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
+    PyObject* PyDict_GetItem(PyObject *p, PyObject *key)
 
 cdef class Build:
     """
@@ -31,6 +39,10 @@ cdef class Build:
     With no arguments, that is to say :code:`Build(x)`, it is equivalent to
     :code:`x` for the :py:class:`~.core.DependencyContainer`.
     """
+    cdef:
+        readonly object dependency
+        readonly dict kwargs
+        int _hash
 
     def __init__(self, dependency: Hashable, **kwargs):
         """
@@ -68,63 +80,77 @@ cdef class Build:
                     or self.dependency == other.dependency) \
                and self.kwargs == self.kwargs  # noqa
 
-cdef class FactoryProvider(DependencyProvider):
+cdef class FactoryProvider(FastDependencyProvider):
     """
     Provider managing factories. Also used to register classes directly.
     """
-    bound_dependency_types = (Build,)
+    cdef:
+        dict __builders
+        tuple __empty_tuple
+        bint __frozen
+        object __freeze_lock
 
-    def __init__(self, DependencyContainer container):
-        super().__init__(container)
-        self._builders = dict()  # type: Dict[Any, Builder]
+    def __init__(self):
+        self.__builders = dict()  # type: Dict[Any, Builder]
+        self.__empty_tuple = tuple()
+        self.__freeze_lock = threading.RLock()
+        self.__frozen = False
 
     def __repr__(self):
         return "{}(factories={!r})".format(type(self).__name__,
-                                           tuple(self._builders.keys()))
+                                           tuple(self.__builders.keys()))
 
-    cpdef DependencyInstance provide(self, object dependency: Hashable):
+    def freeze(self):
+        with self.__freeze_lock:
+            self.__frozen = True
+
+    def clone(self):
+        p = FactoryProvider()
+        p.__builders = self.__builders.copy()
+        return p
+
+    cdef fast_provide(self,
+                      PyObject* dependency,
+                      PyObject* container,
+                      DependencyResult* result):
         cdef:
-            Builder builder
-            Build build
-            PyObject*ptr
-            DependencyInstance f
-            object instance
+            PyObject*builder
+            tuple args
             object factory
+            bint is_build_dependency = PyObject_IsInstance(dependency, <PyObject*> Build)
 
-        if isinstance(dependency, Build):
-            build = <Build> dependency
-            ptr = PyDict_GetItem(self._builders, build.dependency)
+        if is_build_dependency:
+            builder = PyDict_GetItem(<PyObject*> self.__builders, <PyObject*> (<Build> dependency).dependency)
         else:
-            ptr = PyDict_GetItem(self._builders, dependency)
+            builder = PyDict_GetItem(<PyObject*> self.__builders, dependency)
 
-        if ptr == NULL:
-            return None
+        if builder == NULL:
+            return
 
-        builder = <Builder> ptr
-
-        if builder.factory_dependency is not None:
-            f = self._container.safe_provide(builder.factory_dependency)
-            if f.singleton:
-                builder.factory_dependency = None
-                builder.factory = f.instance
-            factory = f.instance
+        if (<Builder> builder).factory_dependency is not None:
+            (<DependencyContainer> container).fast_get(<PyObject*> (<Builder> builder).factory_dependency, result)
+            if result.flags == 0:
+                raise DependencyNotFoundError(<object> dependency)
+            elif (result.flags & FLAG_SINGLETON) != 0:
+                (<Builder> builder).factory_dependency = None
+                (<Builder> builder).factory = (<PyObjectBox> result.box).obj
+            factory = (<PyObjectBox> result.box).obj
         else:
-            factory = builder.factory
+            factory = (<Builder> builder).factory
 
-        if isinstance(dependency, Build):
-            if builder.takes_dependency:
-                instance = factory(build.dependency, **build.kwargs)
+        result.flags = FLAG_DEFINED | (<Builder> builder).flags
+        if is_build_dependency:
+            if (<Builder> builder).takes_dependency:
+                args = PyTuple_Pack(1, <PyObject*> (<Build> dependency).dependency)
+                (<PyObjectBox> result.box).obj = PyObject_Call(factory, args, (<Build> dependency).kwargs)
             else:
-                instance = factory(**build.kwargs)
+                (<PyObjectBox> result.box).obj = PyObject_Call(factory, self.__empty_tuple, (<Build> dependency).kwargs)
         else:
-            if builder.takes_dependency:
-                instance = factory(dependency)
+            if (<Builder> builder).takes_dependency:
+                args = PyTuple_Pack(1, <PyObject*> dependency)
+                (<PyObjectBox> result.box).obj = PyObject_CallObject(factory, args)
             else:
-                instance = factory()
-
-        return DependencyInstance.__new__(DependencyInstance,
-                                          instance,
-                                          builder.singleton)
+                (<PyObjectBox> result.box).obj = PyObject_CallObject(factory, <object> NULL)
 
     def register_class(self, class_: type, singleton: bool = True):
         """
@@ -135,8 +161,11 @@ cdef class FactoryProvider(DependencyProvider):
             singleton: Whether the dependency should be mark as singleton or
                 not for the :py:class:`~..core.DependencyContainer`.
         """
-        self.register_factory(dependency=class_, factory=class_,
-                              singleton=singleton, takes_dependency=False)
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {class_} to a frozen world.")
+            self.register_factory(dependency=class_, factory=class_,
+                                  singleton=singleton, takes_dependency=False)
         return class_
 
     def register_factory(self,
@@ -156,16 +185,19 @@ cdef class FactoryProvider(DependencyProvider):
                 dependency as its first arguments. This allows re-using the
                 same factory for different dependencies.
         """
-        if dependency in self._builders:
+        if dependency in self.__builders:
             raise DuplicateDependencyError(dependency,
-                                           self._builders[dependency])
+                                           self.__builders[dependency])
 
         if callable(factory):
-            self._builders[dependency] = Builder(singleton=singleton,
-                                                 takes_dependency=takes_dependency,
-                                                 factory=factory)
+            with self.__freeze_lock:
+                if self.__frozen:
+                    raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+                self.__builders[dependency] = Builder(singleton=singleton,
+                                                      takes_dependency=takes_dependency,
+                                                      factory=factory)
         else:
-            raise TypeError("factory must be callable, not {!r}.".format(type(factory)))
+            raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
     def register_providable_factory(self,
                                     dependency: Hashable,
@@ -185,13 +217,16 @@ cdef class FactoryProvider(DependencyProvider):
                 dependency as its first arguments. This allows re-using the
                 same factory for different dependencies.
         """
-        if dependency in self._builders:
+        if dependency in self.__builders:
             raise DuplicateDependencyError(dependency,
-                                           self._builders[dependency])
+                                           self.__builders[dependency])
 
-        self._builders[dependency] = Builder(singleton=singleton,
-                                             takes_dependency=takes_dependency,
-                                             factory_dependency=factory_dependency)
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+            self.__builders[dependency] = Builder(singleton=singleton,
+                                                  takes_dependency=takes_dependency,
+                                                  factory_dependency=factory_dependency)
 
 cdef class Builder:
     """
@@ -201,7 +236,7 @@ cdef class Builder:
     has to be used.
     """
     cdef:
-        bint singleton
+        int flags
         bint takes_dependency
         object factory
         object factory_dependency
@@ -212,7 +247,7 @@ cdef class Builder:
                  factory: Optional[Callable] = None,
                  factory_dependency: Optional[Hashable] = None):
         assert factory is not None or factory_dependency is not None
-        self.singleton = singleton
+        self.flags = FLAG_SINGLETON if singleton else 0
         self.takes_dependency = takes_dependency
         self.factory = factory
         self.factory_dependency = factory_dependency
@@ -221,7 +256,7 @@ cdef class Builder:
         return ("{}(singleton={!r}, takes_dependency={!r}, factory={!r},"
                 "factory_dependency={!r})").format(
             type(self).__name__,
-            self.singleton,
+            self.flags == FLAG_SINGLETON,
             self.takes_dependency,
             self.factory,
             self.factory_dependency)

@@ -2,11 +2,12 @@ import threading
 from typing import (Any, Callable, Dict, Hashable, Iterable, Iterator, List, Optional,
                     Union)
 
-from .._internal.utils import SlotsReprMixin
+from .._internal.utils import SlotsReprMixin, API
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateTagError
+from ..exceptions import DuplicateTagError, FrozenWorldError
 
 
+@API.public
 class Tag(SlotsReprMixin):
     """
     Tags are a way to expose a dependency indirectly. Instead of explicitly
@@ -45,20 +46,18 @@ class Tag(SlotsReprMixin):
 
     def __str__(self):
         if not self._attrs:
-            return "{}({!r})".format(type(self).__name__, self.name)
+            return f"{type(self).__name__}({self.name!r})"
         return repr(self)
 
     def __repr__(self):
-        return "{}(name={!r}, {})".format(
-            type(self).__name__,
-            self.name,
-            ", ".join("{}={!r}".format(k, v) for k, v in self._attrs.items())
-        )
+        attrs = ", ".join(f"{k}={v!r}" for k, v in self._attrs.items())
+        return f"{type(self).__name__}(name={self.name!r}, {attrs})"
 
     def __getattr__(self, item):
         return self._attrs.get(item)
 
 
+@API.public
 class Tagged(SlotsReprMixin):
     """
     Custom dependency used to retrieve all dependencies tagged with by with the
@@ -79,7 +78,7 @@ class Tagged(SlotsReprMixin):
 
         self.name = name
 
-    __str__ = SlotsReprMixin.__repr__  # type: Callable[['Tagged'], str]
+    __str__: Callable[['Tagged'], str] = SlotsReprMixin.__repr__
 
     def __hash__(self):
         return object.__hash__(self)
@@ -88,24 +87,33 @@ class Tagged(SlotsReprMixin):
         return object.__eq__(self, other)
 
 
+@API.private
 class TagProvider(DependencyProvider):
     """
     Provider managing string tag. Tags allows one to retrieve a collection of
     dependencies marked by their creator.
     """
-    bound_dependency_types = (Tagged,)
 
-    def __init__(self, container: DependencyContainer):
-        super().__init__(container)
-        self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Hashable, Tag]]
+    def __init__(self):
+        super().__init__()
+        self.__dependency_to_tag_by_tag_name: Dict[str, Dict[Hashable, Tag]] = {}
+        self.__freeze_lock = threading.RLock()
+        self.__frozen = False
+
+    def freeze(self):
+        with self.__freeze_lock:
+            self.__frozen = True
 
     def __repr__(self):
-        return "{}(tagged_dependencies={!r})".format(
-            type(self).__name__,
-            self._dependency_to_tag_by_tag_name
-        )
+        return f"{type(self).__name__}(tagged_dependencies={self.__dependency_to_tag_by_tag_name!r})"
 
-    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+    def clone(self) -> DependencyProvider:
+        p = TagProvider()
+        p.__dependency_to_tag_by_tag_name = self.__dependency_to_tag_by_tag_name.copy()
+        return p
+
+    def provide(self, dependency: Hashable, container: DependencyContainer
+                ) -> Optional[DependencyInstance]:
         """
         Returns all dependencies matching the tag name specified with a
         :py:class:`~.dependency.Tagged`. For every other case, :obj:`None` is
@@ -122,8 +130,8 @@ class TagProvider(DependencyProvider):
         if isinstance(dependency, Tagged):
             dependencies = []
             tags = []
-            dependency_to_tag = self._dependency_to_tag_by_tag_name.get(dependency.name,
-                                                                        {})
+            dependency_to_tag = self.__dependency_to_tag_by_tag_name.get(dependency.name,
+                                                                         {})
 
             for dependency_, tag in dependency_to_tag.items():
                 dependencies.append(dependency_)
@@ -131,7 +139,7 @@ class TagProvider(DependencyProvider):
 
             return DependencyInstance(
                 TaggedDependencies(
-                    container=self._container,
+                    container=container,
                     dependencies=dependencies,
                     tags=tags
                 ),
@@ -153,21 +161,25 @@ class TagProvider(DependencyProvider):
             tags: Iterable of tags which should be associated with the
                 dependency
         """
+        tags = [Tag(t) if isinstance(t, str) else t for t in tags]
         for tag in tags:
-            if isinstance(tag, str):
-                tag = Tag(tag)
-
             if not isinstance(tag, Tag):
-                raise ValueError("Expecting tag of type Tag, not {}".format(type(tag)))
+                raise ValueError(f"Expecting tag of type Tag, not {type(tag)}")
 
-            if tag.name not in self._dependency_to_tag_by_tag_name:
-                self._dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
-            elif dependency not in self._dependency_to_tag_by_tag_name[tag.name]:
-                self._dependency_to_tag_by_tag_name[tag.name][dependency] = tag
-            else:
-                raise DuplicateTagError(tag.name)
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add tags {tags} to {dependency} "
+                                       f"in a frozen world.")
+            for tag in tags:
+                if tag.name not in self.__dependency_to_tag_by_tag_name:
+                    self.__dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
+                elif dependency not in self.__dependency_to_tag_by_tag_name[tag.name]:
+                    self.__dependency_to_tag_by_tag_name[tag.name][dependency] = tag
+                else:
+                    raise DuplicateTagError(tag.name)
 
 
+@API.public
 class TaggedDependencies:
     """
     Collection containing dependencies and their tags. Dependencies are lazily
@@ -176,6 +188,7 @@ class TaggedDependencies:
     Used by :py:class:`~.TagProvider` to return the dependencies matching a tag.
     """
 
+    @API.private  # You're not supposed to create it yourself
     def __init__(self,
                  container: DependencyContainer,
                  dependencies: List[Hashable],
@@ -184,7 +197,7 @@ class TaggedDependencies:
         self._container = container
         self._dependencies = dependencies
         self._tags = tags
-        self._instances = []  # type: List[Any]
+        self._instances: List[Any] = []
 
     def __len__(self):
         return len(self._tags)

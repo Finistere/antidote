@@ -1,8 +1,8 @@
 from typing import Callable, Iterable, overload, TypeVar, Union, Type
 
 from .wire import wire
-from .._internal.default_container import get_default_container
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, DependencyProvider
+from .._internal.utils import API
+from ..core import DEPENDENCIES_TYPE, DependencyProvider
 
 P = TypeVar('P', bound=Type[DependencyProvider])
 
@@ -14,8 +14,7 @@ def provider(class_: P,  # noqa: E704  # pragma: no cover
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
-             wire_super: Union[bool, Iterable[str]] = None,
-             container: DependencyContainer = None
+             wire_super: Union[bool, Iterable[str]] = None
              ) -> P: ...
 
 
@@ -25,19 +24,18 @@ def provider(*,  # noqa: E704  # pragma: no cover
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
-             wire_super: Union[bool, Iterable[str]] = None,
-             container: DependencyContainer = None
+             wire_super: Union[bool, Iterable[str]] = None
              ) -> Callable[[P], P]: ...
 
 
+@API.public
 def provider(class_: Type[DependencyProvider] = None,
              *,
              auto_wire: Union[bool, Iterable[str]] = True,
              dependencies: DEPENDENCIES_TYPE = None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
-             wire_super: Union[bool, Iterable[str]] = None,
-             container: DependencyContainer = None):
+             wire_super: Union[bool, Iterable[str]] = None):
     """Register a providers by its class.
 
     Args:
@@ -67,16 +65,13 @@ def provider(class_: Type[DependencyProvider] = None,
             either a list of method names or :code:`True` to enable it for
             all methods. Defaults to :code:`False`, only methods defined in the
             class itself can be wired.
-        container: :py:class:`~.core.container.DependencyContainer` to which the
-            dependency should be attached. Defaults to the global container,
-            :code:`antidote.world`.
 
     Returns:
         the providers's class or the class decorator.
     """
-    container = container or get_default_container()
 
     def register_provider(cls):
+        from .._internal.state import get_container
         if not issubclass(cls, DependencyProvider):
             raise TypeError("A provider must be subclass of Provider.")
 
@@ -89,10 +84,9 @@ def provider(class_: Type[DependencyProvider] = None,
                        wire_super=wire_super,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
-                       container=container,
                        raise_on_missing=auto_wire is not True)
 
-        container.register_provider(cls(container=container))
+        get_container().register_provider(cls())
 
         return cls
 

@@ -2,7 +2,8 @@ import itertools
 
 import pytest
 
-from antidote import factory, new_container, register, Tag, Tagged, TaggedDependencies
+from antidote import factory, register, Tag, Tagged, TaggedDependencies, world
+from antidote.core import DependencyContainer
 
 
 class Service:
@@ -26,9 +27,10 @@ def conf(key):
     return dict(test=object())[key]
 
 
-@pytest.fixture()
-def container():
-    return new_container()
+@pytest.fixture(autouse=True)
+def test_world():
+    with world.test.new():
+        yield
 
 
 tag_tests = [
@@ -43,32 +45,32 @@ def parametrize_tagging(tags):
         @pytest.mark.parametrize(
             'wrapper,wrapped,tags',
             [
-                pytest.param(wrapper, wrapped, tags_,
-                             id="{}-{}-{}".format(
-                                 wrapper.__name__,
-                                 wrapped.__name__,
-                                 "+".join(map(str, tags_))
-                             ))
+                pytest.param(
+                    wrapper,
+                    wrapped,
+                    tags_,
+                    id=f"{wrapper.__name__}-{wrapped.__name__}-{'+'.join(map(str, tags_))}"
+                )
                 for (wrapper, wrapped), tags_
                 in itertools.product(tag_tests, tags)
             ]
 
         )
-        def f(container, wrapper, wrapped, tags):
+        def f(wrapper, wrapped, tags):
             if isinstance(wrapped, type):
                 # helpers do modify the class, so a copy has to be made to
                 # avoid any conflict between the tests.
                 wrapped = type(wrapped.__name__,
                                wrapped.__bases__,
                                wrapped.__dict__.copy())
-            wrapped = wrapper(container=container, tags=tags)(wrapped)
+            wrapped = wrapper(tags=tags)(wrapped)
 
             if wrapper == register:
                 dependency = wrapped
             else:
                 dependency = Service
 
-            return test(container, dependency=dependency, tags=tags)
+            return test(dependency=dependency, tags=tags)
 
         return f
 
@@ -81,14 +83,13 @@ def parametrize_tagging(tags):
     [Tag('test'), 'test2'],
     ['test'],
 ])
-def test_multi_tags(container, dependency, tags):
+def test_multi_tags(dependency, tags):
     for tag in tags:
         tag_name = tag if isinstance(tag, str) else tag.name
-        tagged_dependencies = container.get(
-            Tagged(tag_name))  # type: TaggedDependencies  # noqa
+        tagged_dependencies: TaggedDependencies = world.get(Tagged(tag_name))
 
         assert 1 == len(tagged_dependencies)
-        assert [container.get(dependency) == list(tagged_dependencies.instances())]
+        assert [world.get(dependency)] == list(tagged_dependencies.instances())
         assert [dependency] == list(tagged_dependencies.dependencies())
 
         bound_tag, = list(tagged_dependencies.tags())

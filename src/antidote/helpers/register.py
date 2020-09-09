@@ -3,8 +3,8 @@ import inspect
 from typing import Any, Callable, cast, Iterable, overload, TypeVar, Union
 
 from .wire import wire
-from .._internal.default_container import get_default_container
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
+from .inject import inject, DEPENDENCIES_TYPE
+from .._internal.utils import API
 from ..providers.factory import FactoryProvider
 from ..providers.tag import Tag, TagProvider
 
@@ -22,8 +22,7 @@ def register(class_: C,  # noqa: E704  # pragma: no cover
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
              wire_super: Union[bool, Iterable[str]] = None,
-             tags: Iterable[Union[str, Tag]] = None,
-             container: DependencyContainer = None
+             tags: Iterable[Union[str, Tag]] = None
              ) -> C: ...
 
 
@@ -37,11 +36,11 @@ def register(*,  # noqa: E704  # pragma: no cover
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
              wire_super: Union[bool, Iterable[str]] = None,
-             tags: Iterable[Union[str, Tag]] = None,
-             container: DependencyContainer = None
+             tags: Iterable[Union[str, Tag]] = None
              ) -> Callable[[C], C]: ...
 
 
+@API.public
 def register(class_=None,
              *,
              singleton: bool = True,
@@ -52,8 +51,7 @@ def register(class_=None,
              use_names: Union[bool, Iterable[str]] = None,
              use_type_hints: Union[bool, Iterable[str]] = None,
              wire_super: Union[bool, Iterable[str]] = None,
-             tags: Iterable[Union[str, Tag]] = None,
-             container: DependencyContainer = None):
+             tags: Iterable[Union[str, Tag]] = None):
     """Register a dependency by its class.
 
     Args:
@@ -96,9 +94,6 @@ def register(class_=None,
             (the tag name) or :py:class:`~.providers.tag.Tag`. All
             dependencies with a specific tag can then be retrieved with
             a :py:class:`~.providers.tag.Tagged`.
-        container: :py:class:`~.core.container.DependencyContainer` to which the
-            dependency should be attached. Defaults to the global container,
-            :code:`antidote.world`.
 
     Returns:
         The class or the class decorator.
@@ -108,12 +103,11 @@ def register(class_=None,
         raise ValueError("factory and factory_dependency cannot be used together.")
 
     if not (factory is None or isinstance(factory, str) or inspect.isfunction(factory)):
-        raise TypeError("factory must be either None, a method name or a function "
-                        "not {!r}".format(type(factory)))
+        raise TypeError(f"factory must be either None, a method name or a function "
+                        f"not {type(factory)!r}")
 
-    container = container or get_default_container()
     auto_wire = auto_wire if auto_wire is not None else True
-    methods = ()  # type: Iterable[str]
+    methods: Iterable[str] = ()
     wire_raise_on_missing = True
 
     if isinstance(auto_wire, bool):  # for Mypy
@@ -128,19 +122,21 @@ def register(class_=None,
     else:
         methods = auto_wire
 
-    def register_service(cls):
+    @inject
+    def register_service(cls,
+                         factory_provider: FactoryProvider,
+                         tag_provider: TagProvider = None):
         nonlocal factory
 
         if not inspect.isclass(cls):
-            raise TypeError("Expected a class, got {!r}".format(cls))
+            raise TypeError(f"Expected a class, got {cls!r}")
 
         takes_dependency = False
         if isinstance(factory, str):
             static_factory = inspect.getattr_static(cls, factory)
             if not isinstance(static_factory, (staticmethod, classmethod)):
-                raise TypeError("Only class methods and static methods "
-                                "are supported as factories. Not "
-                                "{!r}".format(static_factory))
+                raise TypeError(f"Only class methods and static methods are supported "
+                                f"as factories. Not {static_factory!r}")
             if isinstance(static_factory, staticmethod):
                 takes_dependency = True
 
@@ -151,7 +147,6 @@ def register(class_=None,
                        dependencies=dependencies,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
-                       container=container,
                        raise_on_missing=wire_raise_on_missing)
 
         if isinstance(factory, str):
@@ -170,10 +165,8 @@ def register(class_=None,
                 factory = inject(factory,
                                  dependencies=factory_dependencies,
                                  use_names=use_names,
-                                 use_type_hints=use_type_hints,
-                                 container=container)
+                                 use_type_hints=use_type_hints)
 
-        factory_provider = cast(FactoryProvider, container.providers[FactoryProvider])
         if factory is not None:
             factory_provider.register_factory(
                 dependency=cls,
@@ -190,7 +183,8 @@ def register(class_=None,
             factory_provider.register_class(cls, singleton=singleton)
 
         if tags is not None:
-            tag_provider = cast(TagProvider, container.providers[TagProvider])
+            if tag_provider is None:
+                raise RuntimeError("No TagProvider registered, cannot use tags.")
             tag_provider.register(cls, tags)
 
         return cls

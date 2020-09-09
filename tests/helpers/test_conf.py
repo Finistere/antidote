@@ -1,29 +1,30 @@
 import pytest
 
+from antidote import world
 from antidote.core import DependencyContainer
 from antidote.helpers.constants import LazyConstantsMeta
 from antidote.providers import LazyCallProvider, FactoryProvider
 
 
-@pytest.fixture()
-def container():
-    c = DependencyContainer()
-    c.register_provider(LazyCallProvider(container=c))
-    c.register_provider(FactoryProvider(container=c))
+@pytest.fixture(autouse=True)
+def test_world():
+    with world.test.empty():
+        c = world.get(DependencyContainer)
+        c.register_provider(LazyCallProvider())
+        c.register_provider(FactoryProvider())
+        yield
 
-    return c
 
-
-def test_resource_meta(container: DependencyContainer):
-    class Conf(metaclass=LazyConstantsMeta, container=container):
+def test_resource_meta():
+    class Conf(metaclass=LazyConstantsMeta):
         A = 'a'
         B = 'b'
 
         def get(self, key):
             return key * 2
 
-    assert 'aa' == container.get(Conf.A)
-    assert 'bb' == container.get(Conf.B)
+    assert 'aa' == world.get(Conf.A)
+    assert 'bb' == world.get(Conf.B)
 
     conf = Conf()
 
@@ -31,14 +32,14 @@ def test_resource_meta(container: DependencyContainer):
     assert 'bb' == conf.B
 
 
-def test_missing_get(container: DependencyContainer):
+def test_missing_get():
     with pytest.raises(ValueError):
-        class Conf(metaclass=LazyConstantsMeta, container=container):
+        class Conf(metaclass=LazyConstantsMeta):
             A = 'a'
 
 
-def test_private(container: DependencyContainer):
-    class Conf(metaclass=LazyConstantsMeta, container=container):
+def test_private():
+    class Conf(metaclass=LazyConstantsMeta):
         _A = 'a'
 
         b = 'b'

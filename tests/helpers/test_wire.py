@@ -1,23 +1,21 @@
 import pytest
 
-from antidote import wire
-from antidote.core import DependencyContainer
+from antidote import wire, world
 
 
-@pytest.fixture()
-def container():
-    container = DependencyContainer()
-    container.update_singletons(dict(x=object(), y=object()))
-    return container
+@pytest.fixture(autouse=True)
+def new_world():
+    with world.test.empty():
+        world.singletons.update(dict(x=object(), y=object()))
+        yield
 
 
-def test_multi_wire(container: DependencyContainer):
-    xx = container.get('x')
-    yy = container.get('y')
+def test_multi_wire():
+    xx = world.get('x')
+    yy = world.get('y')
 
     @wire(methods=['f', 'g'],
-          dependencies=('x', 'y'),
-          container=container)
+          dependencies=('x', 'y'))
     class Dummy:
         def f(self, x):
             return x
@@ -30,8 +28,7 @@ def test_multi_wire(container: DependencyContainer):
     assert (xx, yy) == d1.g()
 
     @wire(methods=['f', 'g'],
-          dependencies=dict(x='x', y='y'),
-          container=container)
+          dependencies=dict(x='x', y='y'))
     class Dummy:
         def f(self, x):
             return x
@@ -44,8 +41,7 @@ def test_multi_wire(container: DependencyContainer):
     assert (xx, yy) == d1.g()
 
     @wire(methods=['f', 'g'],
-          use_names=['x', 'y'],
-          container=container)
+          use_names=['x', 'y'])
     class Dummy2:
         def f(self, x):
             return x
@@ -57,11 +53,10 @@ def test_multi_wire(container: DependencyContainer):
     assert xx == d2.f()
     assert (xx, yy) == d2.g()
 
-    container.update_singletons({Dummy: d1, Dummy2: d2})
+    world.singletons.update({Dummy: d1, Dummy2: d2})
 
     @wire(methods=['f', 'g'],
-          use_type_hints=['x', 'y'],
-          container=container)
+          use_type_hints=['x', 'y'])
     class Dummy3:
         def f(self, x: Dummy):
             return x
@@ -73,10 +68,10 @@ def test_multi_wire(container: DependencyContainer):
     assert (d1, d2) == Dummy3().g()
 
 
-def test_subclass_classmethod(container: DependencyContainer):
-    xx = container.get('x')
+def test_subclass_classmethod():
+    xx = world.get('x')
 
-    @wire(methods=['cls_method'], use_names=True, container=container)
+    @wire(methods=['cls_method'], use_names=True)
     class Dummy:
         @classmethod
         def cls_method(cls, x):
@@ -90,15 +85,15 @@ def test_subclass_classmethod(container: DependencyContainer):
     assert (SubDummy, xx) == SubDummy.cls_method()
 
 
-def test_wire_super(container: DependencyContainer):
-    xx = container.get('x')
+def test_wire_super():
+    xx = world.get('x')
     sentinel = object()
 
     class Dummy:
         def method(self, x):
             return self, x
 
-    @wire(wire_super=True, methods=['method'], use_names=True, container=container)
+    @wire(wire_super=True, methods=['method'], use_names=True)
     class SubDummy(Dummy):
         pass
 
@@ -111,17 +106,17 @@ def test_wire_super(container: DependencyContainer):
         Dummy().method()
 
 
-def test_do_not_change_for_nothing(container: DependencyContainer):
+def test_do_not_change_for_nothing():
     def original_method(self, something):
         pass
 
-    @wire(methods=['method'], container=container)
+    @wire(methods=['method'])
     class Dummy:
         method = original_method
 
     assert Dummy.__dict__['method'] is original_method
 
-    @wire(wire_super=True, methods=['method'], container=container)
+    @wire(wire_super=True, methods=['method'])
     class SubDummy(Dummy):
         pass
 
@@ -163,18 +158,18 @@ def test_invalid_type(kwargs):
             pass
 
 
-def test_raise_on_missing(container: DependencyContainer):
+def test_raise_on_missing():
     with pytest.raises(TypeError):
-        @wire(methods=['method'], container=container,
+        @wire(methods=['method'],
               raise_on_missing=True)
         class Dummy:
             pass
 
-    @wire(methods=['method'], container=container, raise_on_missing=False)
+    @wire(methods=['method'], raise_on_missing=False)
     class Dummy2:
         pass
 
-    @wire(wire_super=True, methods=['method'], container=container,
+    @wire(wire_super=True, methods=['method'],
           raise_on_missing=False)
     class Dummy3(Dummy2):
         pass

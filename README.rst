@@ -21,42 +21,36 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-Antidotes is a declarative dependency injection micro-framework for Python 3.5+
+Antidotes is a declarative dependency injection micro-framework for Python 3.6+
 designed for ease of use.
-
-
-Why Dependency Injection ?
-==========================
-
-In short antidote avoids you the hassle of instantiating and managing your
-services. You declare them at their definition, and inject them wherever
-needed with simple decorators, which
-*do not change how you interact with your objects*. Unit testing is not
-impacted as one can override any injection and control the available
-dependencies easily.
-
-For the longer version: `<https://antidote.readthedocs.io/en/stable/why.html>`_
 
 
 Why Antidote ?
 ==============
+
+In short antidote avoids you the hassle of instantiating and managing your
+services, configuration and so on. You declare them at their definition, and
+inject them wherever needed with simple decorators. Now when you only one
+service, typically a database, you could handle it through a module acting as a
+singleton. But as you start getting more and more services, relying on each other,
+you'll start having to maintain code for this, fixing bugs, etc... That's what
+Antidote is doing for you.
 
 While there are several dependency injection libraries, there was none which
 really convinced me. Most of them did not satisfy all of those requirements:
 
 - Use of type hints: *Be consistent* with type hints as supported by mypy and *use them*
   to inject dependencies. Other means to inject dependencies should be possible.
-- Maturity: Support different kind of dependencies, decent test coverage.
-- Easy to integrate with existing code: Introducing the library in a existing application
-  implies changing the whole wiring of the services/configuration. It should be as easy
-  as possible.
-- Not encourage magic: For example, using the arguments name *implicitly*, so by default,
-  to find dependencies is magic. While having this possibility is good, as it can make
-  sense in some cases, the library shouldn't do this by default.
+- Maturity: Support different kind of dependencies and decent tests.
+- Easy to integrate with existing code: Introducing a library in a existing application
+  shouldn't be a big bang migration whenever possible.
+- Not encourage magic: Using the arguments name *implicitly*, by default, to find
+  dependencies *is* magic. While magic can make sense in projects, it's rarely a friend
+  of maintainability.
 - Be nice with developers and their IDE: Use of type hints in the library, no
   :code:`**kwargs` for function arguments (so auto-completion works), should be as easy as
   possible to find definition of dependencies with a right click and "Go to definition",
-  etc...
+  etc... This is in the same spirit of avoiding magic.
 
 
 Features Highlight
@@ -67,9 +61,10 @@ Core functionalities:
 - Injection of all kinds of functions (method, classmethod, bound or not, ...) through
   type hints and optionally from argument's name and/or with explicitly specified
   dependencies.
-- Dependency cycle detection
-- Thread-safety and limited performace impact (see
-  `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_).
+- Dependency cycle detection and thread-safety
+- Cython implementation, roughly 10x faster the pure Python. With it, Antidote has a
+  limited impact on your code:
+  `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
 - Easily extendable, through dependency providers. All after-mentioned kind of dependencies
   are implemented with it. It is designed to support custom kind of dependencies from the ground up.
   So if you want custom magic or whatever, you can have it !
@@ -80,8 +75,8 @@ Kind of dependencies:
 - Tags: Dependencies can be tagged, and as such all of them matching a specific tag can be
   retrieved.
 - Configuration: Constants which are lazily evaluated.
-- Lazy function calls: Results of a function call is lazily provided.
-- Defintion of interface and services implementing those.
+- Definition of interface and services implementing those.
+
 
 Installation
 ============
@@ -217,6 +212,11 @@ Want more ? Here is a more complete example with configurations, services, facto
 
     assert antidote.world.get(MovieDB) is antidote.world.get(IMDBMovieDB)
 
+Looks good, no ? Now you should probably asking yourself, but how do I test all of
+that ???
+
+.. code-block:: python
+
     # You can still explicitly pass the arguments to override
     # injection.
     conf = Conf()
@@ -226,10 +226,27 @@ Want more ? Here is a more complete example with configurations, services, facto
         api_key=conf._raw_conf['imdb']['api_key'],
     )))
 
+    # Or you can create a new world for your tests
+    with world.test.clone():
+        f()
+
+        @register
+        class DummyService
+
 
 Interested ? Check out the documentation or try it directly ! There are still features
 left such as tags or custom kinds of dependencies.
 
+
+Cython
+======
+
+The cython implementation is roughly 10x faster than the Python one and has strictly the
+same API than the pure Python implementation. If you encounter any inconsistencies, please
+open an issue !
+
+This also implies that the Cython implementation is _not_ part of the public API, meaning
+you cannot rely on it in your own Cython code.
 
 Documentation
 =============

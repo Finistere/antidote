@@ -1,8 +1,9 @@
 import pytest
 from hypothesis import given, strategies as st
 
-from antidote import Tag, Tagged
+from antidote import Tag, Tagged, world
 from antidote.core import DependencyContainer, DependencyInstance
+from antidote.core.exceptions import FrozenWorldError
 from antidote.exceptions import DependencyNotFoundError, DuplicateTagError
 from antidote.providers.tag import TaggedDependencies, TagProvider
 
@@ -13,10 +14,10 @@ class Service:
 
 @pytest.fixture()
 def provider():
-    container = DependencyContainer()
-    provider = TagProvider(container=container)
-    container.register_provider(provider)
-    return provider
+    with world.test.empty():
+        provider = TagProvider()
+        world.get(DependencyContainer).register_provider(provider)
+        yield provider
 
 
 def test_tag():
@@ -52,8 +53,7 @@ def test_tagged_eq_hash(tagged):
     assert repr(tagged.name) in repr(tagged)
 
 
-@pytest.mark.parametrize('name,error', [('', ValueError),
-                                        (object(), TypeError)])
+@pytest.mark.parametrize('name,error', [('', ValueError), (object(), TypeError)])
 def test_invalid_tagged(name, error):
     with pytest.raises(error):
         Tagged(name)
@@ -83,10 +83,9 @@ def test_tagged_dependencies():
 
 def test_tagged_dependencies_invalid_dependency():
     tag = Tag('tag1')
-    c = DependencyContainer()
 
     t = TaggedDependencies(
-        container=c,
+        container=world.get(DependencyContainer),
         dependencies=['d'],
         tags=[tag]
     )
@@ -97,8 +96,6 @@ def test_tagged_dependencies_invalid_dependency():
 
 
 def test_repr(provider: TagProvider):
-    provider = TagProvider(DependencyContainer())
-
     x = object()
     provider.register(x, [Tag(name='tag')])
 
@@ -106,38 +103,37 @@ def test_repr(provider: TagProvider):
 
 
 def test_provide_tags(provider: TagProvider):
-    container = provider._container
-    container.update_singletons(dict(test=object(), test2=object()))
+    world.singletons.update(dict(test=object(), test2=object()))
     custom_tag = Tag('tag2', error=True)
     provider.register('test', ['tag1', custom_tag])
     provider.register('test2', ['tag2'])
 
-    result = provider.provide(Tagged('xxxxx'))
+    result = provider.world_provide(Tagged('xxxxx'))
     assert isinstance(result, DependencyInstance)
     assert result.singleton is False
     assert 0 == len(result.instance)
 
-    result = provider.provide(Tagged('tag1'))
+    result = provider.world_provide(Tagged('tag1'))
     assert isinstance(result, DependencyInstance)
     assert result.singleton is False
     #
-    tagged_dependencies = result.instance  # type: TaggedDependencies
+    tagged_dependencies: TaggedDependencies = result.instance
     assert 1 == len(tagged_dependencies)
     assert ['test'] == list(tagged_dependencies.dependencies())
     assert ['tag1'] == [tag.name for tag in tagged_dependencies.tags()]
-    assert [container.get('test') == list(tagged_dependencies.instances())]
+    assert [world.get('test') == list(tagged_dependencies.instances())]
 
-    result = provider.provide(Tagged('tag2'))
+    result = provider.world_provide(Tagged('tag2'))
     assert isinstance(result, DependencyInstance)
     assert result.singleton is False
 
-    tagged_dependencies = result.instance  # type: TaggedDependencies
+    tagged_dependencies: TaggedDependencies = result.instance
     assert 2 == len(tagged_dependencies)
     assert {'test', 'test2'} == set(tagged_dependencies.dependencies())
     tags = list(tagged_dependencies.tags())
     assert {'tag2', 'tag2'} == {tag.name for tag in tags}
     assert any(tag is custom_tag for tag in tags)
-    instances = {container.get('test'), container.get('test2')}
+    instances = {world.get('test'), world.get('test2')}
     assert instances == set(tagged_dependencies.instances())
 
 
@@ -166,6 +162,36 @@ def test_invalid_register(provider: TagProvider, tags):
         provider.register('test', tags)
 
 
+def test_all_must_be_valid_for_tag(provider: TagProvider):
+    with pytest.raises(ValueError):
+        provider.register('test', ['1', '2', 3])
+    assert len(provider.world_provide(Tagged('1')).instance) == 0
+
+
 @pytest.mark.parametrize('dependency', ['test', Service, object()])
 def test_unknown_dependency(provider: TagProvider, dependency):
-    assert provider.provide(dependency) is None
+    assert provider.world_provide(dependency) is None
+
+
+def test_clone(provider: TagProvider):
+    world.singletons.set('test', 'test')
+    provider.register('test', ['tag'])
+    cloned = provider.clone()
+
+    tagged = cloned.world_provide(Tagged('tag')).instance
+    assert len(tagged) == 1
+    assert next(tagged.dependencies()) == 'test'
+
+    cloned.register('test', ['tag2'])
+    tagged = cloned.world_provide(Tagged('tag2')).instance
+    assert len(tagged) == 1
+    assert next(tagged.dependencies()) == 'test'
+
+    assert len(provider.world_provide(Tagged('tag2')).instance) == 0
+
+
+def test_freeze(provider: TagProvider):
+    provider.freeze()
+
+    with pytest.raises(FrozenWorldError):
+        provider.register('test', ['tag'])
