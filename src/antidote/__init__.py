@@ -1,8 +1,8 @@
-from .core import inject
-from .helpers import (factory, implements, LazyConstantsMeta, new_container, provider,
-                      register, wire)
-from .providers.lazy import LazyCall, LazyMethodCall
+from antidote import world
+from .helpers import (implementation, factory, implements, inject,
+                      LazyConstantsMeta, provider, register, wire)
 from .providers.factory import Build
+from .providers.lazy import LazyCall, LazyMethodCall
 from .providers.tag import Tag, Tagged, TaggedDependencies
 from .utils import is_compiled
 
@@ -24,7 +24,6 @@ __all__ = ['Build',
            'LazyCall',
            'LazyConstantsMeta',
            'LazyMethodCall',
-           'new_container',
            'provider',
            'register',
            'Tag',
@@ -32,5 +31,3 @@ __all__ = ['Build',
            'TaggedDependencies',
            'wire',
            'world']
-
-world = new_container()

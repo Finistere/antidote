@@ -1,6 +1,36 @@
 Changelog
 =========
 
+0.8.0 (2020-09-08)
+------------------
+
+### Breaking changes
+- `@implements` does not support the `state` argument. It was intended to allow user to 
+  configure on start-up which implementation should be used. But it wasn't very clear and
+  the design wasn't great. Instead the function decorator `@implementation` has been
+  added:
+  ```python
+  from antidote import implementation, register
+  
+  class IService:
+      pass
+  
+  @register
+  class Service(IService):
+    pass
+  
+  @implementation(IService)
+  def get_service():
+      return Service
+  ```
+  `@implementation` is expected to return the dependency to be returned, it does not handle
+  the instantiation by itself. It supports the arguments `static`: If True, always the same
+  dependency is expected for `IService`. If False, it may change and `get_service` will be
+  called each time. Defaults to True. Obviously one can use `@inject` to provide any
+  necessary information to make the decision.
+- Drop support of Python 3.5.
+
+
 0.7.2 (2020-04-21)
 -------------------
 

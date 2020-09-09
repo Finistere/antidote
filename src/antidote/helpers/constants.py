@@ -2,18 +2,19 @@ from typing import Iterable, Union
 
 from .register import register
 from .wire import wire
-from ..core import DEPENDENCIES_TYPE, DependencyContainer
+from .._internal.utils import API
+from ..core import DEPENDENCIES_TYPE
 from ..providers.lazy import LazyMethodCall
 
 
+@API.public
 class LazyConstantsMeta(type):
     def __new__(metacls, cls, bases, namespace,
                 lazy_method: str = 'get',
                 auto_wire: Union[bool, Iterable[str]] = None,
                 dependencies: DEPENDENCIES_TYPE = None,
                 use_names: Union[bool, Iterable[str]] = None,
-                use_type_hints: Union[bool, Iterable[str]] = None,
-                container: DependencyContainer = None):
+                use_type_hints: Union[bool, Iterable[str]] = None):
         """
         Metaclass used to generate class with constant dependencies.
 
@@ -110,21 +111,16 @@ class LazyConstantsMeta(type):
                 also be specified to restrict this to those. Any type hints from
                 the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
                 ...) are ignored. Defaults to :code:`True`.
-            container: :py:class:`~.core.container.DependencyContainer` to which the
-                dependency should be attached. Defaults to the global container,
-                :code:`antidote.world`.
         """
         if lazy_method not in namespace:
-            raise ValueError(
-                "Lazy method {}() is no defined in {}".format(lazy_method, cls)
-            )
+            raise ValueError(f"Lazy method {use_type_hints}() is no defined in {cls}")
 
         resource_class = super().__new__(metacls, cls, bases, namespace)
 
         wire_raise_on_missing = True
         if auto_wire is None or isinstance(auto_wire, bool):
             if auto_wire is False:
-                methods = ()  # type: Iterable[str]
+                methods: Iterable[str] = ()
             else:
                 methods = (lazy_method, '__init__')
                 wire_raise_on_missing = False
@@ -138,16 +134,10 @@ class LazyConstantsMeta(type):
                 dependencies=dependencies,
                 use_names=use_names,
                 use_type_hints=use_type_hints,
-                container=container,
                 raise_on_missing=wire_raise_on_missing
             )
 
-        resource_class = register(
-            resource_class,
-            auto_wire=False,
-            singleton=True,
-            container=container
-        )
+        resource_class = register(resource_class, auto_wire=False, singleton=True)
 
         func = resource_class.__dict__[lazy_method]
         for name, v in list(resource_class.__dict__.items()):
@@ -155,7 +145,3 @@ class LazyConstantsMeta(type):
                 setattr(resource_class, name, LazyMethodCall(func, singleton=True)(v))
 
         return resource_class
-
-    # Python 3.5 compatibility
-    def __init__(metacls, cls, bases, namespace, **kwargs):
-        super().__init__(cls, bases, namespace)

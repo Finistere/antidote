@@ -1,96 +1,103 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
-from enum import Enum
-from typing import Hashable, Dict
+import threading
+from typing import Hashable, Dict, Callable
 
 # @formatter:off
-from cpython.dict cimport PyDict_GetItem
-from cpython.object cimport PyObject
+from cpython.object cimport PyObject, PyObject_CallObject
 
-from antidote.core.container cimport DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateDependencyError, UndefinedContextError
+from antidote.core.container cimport (DependencyContainer, FastDependencyProvider,
+                                      DependencyResult, FLAG_SINGLETON)
+from ..exceptions import DuplicateDependencyError, FrozenWorldError
+
 # @formatter:on
 
+cdef extern from "Python.h":
+    int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
+    PyObject* PyDict_GetItem(PyObject *p, PyObject *key)
+    int PyDict_DelItem(PyObject *p, PyObject *key) except -1
 
-cdef class IndirectProvider(DependencyProvider):
-    def __init__(self, container):
-        super(IndirectProvider, self).__init__(container)
-        self._stateful_links = dict()  # type: Dict[Hashable, StatefulLink]
-        self._links = dict()  # type: Dict[Hashable, Hashable]
 
-    cpdef DependencyInstance provide(self, object dependency):
-        cdef:
-            PyObject*ptr
-            object service
-            StatefulLink stateful_link
-            DependencyInstance state
-            DependencyInstance ContextualTarget_dependency
-
-        ptr = PyDict_GetItem(self._links, dependency)
-        if ptr != NULL:
-            return self._container.safe_provide(<object> ptr)
-
-        ptr = PyDict_GetItem(self._stateful_links, dependency)
-        if ptr != NULL:
-            stateful_link = <StatefulLink> ptr
-            state = self._container.safe_provide(
-                stateful_link.state_dependency
-            )
-
-            ptr = PyDict_GetItem(stateful_link.targets, state.instance)
-            if ptr == NULL:
-                raise UndefinedContextError(dependency, state.instance)
-
-            target = self._container.safe_provide(<object> ptr)
-            return DependencyInstance.__new__(
-                DependencyInstance,
-                target.instance,
-                state.singleton & target.singleton
-            )
-
-        return None
-
-    def register(self, dependency: Hashable, target_dependency: Hashable, state: Enum = None):
-        cdef:
-            StatefulLink stateful_link
-
-        if dependency in self._links:
-            raise DuplicateDependencyError(dependency,
-                                           self._links[dependency])
-
-        if state is None:
-            if dependency in self._stateful_links:
-                raise DuplicateDependencyError(dependency,
-                                               self._stateful_links[dependency])
-            self._links[dependency] = target_dependency
-        elif isinstance(state, Enum):
-            try:
-                stateful_link = self._stateful_links[dependency]
-            except KeyError:
-                stateful_link = StatefulLink(type(state))
-                self._stateful_links[dependency] = stateful_link
-
-            if state in stateful_link.targets:
-                raise DuplicateDependencyError((dependency, state),
-                                               stateful_link.targets[state])
-
-            stateful_link.targets[state] = target_dependency
-        else:
-            raise TypeError("profile must be an instance of Flag or be None, "
-                            "not a {!r}".format(type(state)))
-
-cdef class StatefulLink:
+cdef class IndirectProvider(FastDependencyProvider):
     cdef:
-        object state_dependency
-        dict targets
+        dict __static_links
+        dict __links
+        object __freeze_lock
+        bint __frozen
 
-    def __init__(self, state_dependency):
-        self.state_dependency = state_dependency
-        self.targets = dict()  # type: Dict[Enum, Hashable]
+    def __init__(self):
+        self.__links = dict()  # type: Dict[Hashable, Link]
+        self.__static_links = dict()  # type: Dict[Hashable, Hashable]
+        self.__freeze_lock = threading.RLock()
+        self.__frozen = False
 
     def __repr__(self):
-        return "{}(state_dependency={!r}, targets={!r})".format(
-            type(self).__name__,
-            self.state_dependency,
-            self.targets
-        )
+        return f"{type(self).__name__}(links={self.__links}, " \
+               f"static_links={self.__static_links})"
+
+    def freeze(self):
+        with self.__freeze_lock:
+            self.__frozen = True
+
+    def clone(self) -> FastDependencyProvider:
+        p = IndirectProvider()
+        p.__static_links = self.__static_links.copy()
+        p.__links = self.__links.copy()
+        return p
+
+    cdef fast_provide(self,
+                      PyObject* dependency,
+                      PyObject* container,
+                      DependencyResult*result):
+        cdef:
+            PyObject* ptr
+            object target
+
+        ptr = PyDict_GetItem(<PyObject*> self.__static_links, dependency)
+        if ptr != NULL:
+            (<DependencyContainer> container).fast_get(ptr, result)
+        else:
+            ptr = PyDict_GetItem(<PyObject*> self.__links, dependency)
+            if ptr != NULL:
+                target = PyObject_CallObject((<Link> ptr).linker, <object> NULL)
+                (<DependencyContainer> container).fast_get(<PyObject*> target, result)
+                result.flags &= (<Link> ptr).singleton_flag
+                if (<Link> ptr).static:
+                    PyDict_SetItem(<PyObject*> self.__static_links, dependency, <PyObject*> target)
+                    PyDict_DelItem(<PyObject*> self.__links, dependency)
+
+    def register_static(self, dependency: Hashable, target_dependency: Hashable):
+        self.__check_no_duplicate(dependency)
+
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+            self.__static_links[dependency] = target_dependency
+
+    def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
+                      static: bool = True):
+        self.__check_no_duplicate(dependency)
+
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+            self.__links[dependency] = Link(linker, static)
+
+    def __check_no_duplicate(self, dependency):
+        if dependency in self.__static_links:
+            raise DuplicateDependencyError(dependency,
+                                           self.__static_links[dependency])
+        if dependency in self.__links:
+            raise DuplicateDependencyError(dependency,
+                                           self.__links[dependency])
+
+cdef class Link:
+    cdef:
+        object linker
+        bint static
+        int singleton_flag
+
+    def __init__(self, linker: Callable[[], Hashable], static: bool):
+        self.linker = linker
+        self.static = static
+        self.singleton_flag = ~0 if static else ~FLAG_SINGLETON

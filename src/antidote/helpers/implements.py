@@ -1,18 +1,16 @@
 import inspect
-from enum import Enum
-from typing import Callable, cast, TypeVar
+from typing import Callable, TypeVar
 
-from .._internal.default_container import get_default_container
-from ..core import DependencyContainer
+from .inject import inject
+from .._internal.utils import API
 from ..providers import IndirectProvider
 
-T = TypeVar('T', bound=type)
+F = TypeVar('F', bound=Callable[[], type])
+C = TypeVar('C', bound=type)
 
 
-def implements(interface: type,
-               *,
-               state: Enum = None,
-               container: DependencyContainer = None) -> Callable[[T], T]:
+@API.public
+def implements(interface: type, *, override: bool) -> Callable[[C], C]:
     """
     Class decorator declaring the underlying class as a (possible) implementation
     to be used by Antidote when requested the specified interface.
@@ -21,32 +19,60 @@ def implements(interface: type,
 
     Args:
         interface: Interface implemented by the decorated class.
-        state: If multiple implementations exist for an interface, an
-            :py:class:`~enum.Enum` should be used to identify all the possible
-            states the application may be. Each state should be associated with
-            one implementation. At runtime Antidote will retrieve the state
-            (the :py:class:`~enum.Enum`) class to determine the current state.
-        container: :py:class:`~.core.container.DependencyContainer` from which
-            the dependencies should be retrieved. Defaults to the global
-            container if it is defined.
 
     Returns:
         The decorated class, unmodified.
     """
-    container = container or get_default_container()
+    if not inspect.isclass(interface):
+        raise TypeError(f"interface must be a class, not a {type(interface)}")
 
-    def register_implementation(cls):
-        if not inspect.isclass(cls):
-            raise TypeError("implements must be applied on a class, "
-                            "not a {}".format(type(cls)))
+    @inject
+    def register_link(obj, indirect_provider: IndirectProvider):
+        if inspect.isclass(obj):
+            if not issubclass(obj, interface):
+                raise TypeError(f"{obj} does not implement {interface}.")
 
-        if not issubclass(cls, interface):
-            raise TypeError("{} does not implement {}.".format(cls, interface))
+            indirect_provider.register_static(interface, obj)
+        else:
+            raise TypeError(f"implements must be applied on a class, not a {type(obj)}")
+        return obj
 
-        interface_provider = cast(IndirectProvider,
-                                  container.providers[IndirectProvider])
-        interface_provider.register(interface, cls, state)
+    return register_link
 
-        return cls
 
-    return register_implementation
+@API.experimental
+def implementation(interface: type, *, static=True) -> Callable[[F], F]:
+    """
+    Function decorator which is expected to return a class implementing the specified
+    interface. The class will be treated as a dependency itself and hence should be
+    known to Antidote through @register typically.
+
+    Args:
+        interface: Interface for which an implementation will be provided
+        static: Whether the returned implementation remains the same until the end.
+
+    Returns:
+        The decorated function, unmodified.
+    """
+    if not inspect.isclass(interface):
+        raise TypeError(f"interface must be a class, not a {type(interface)}")
+
+    @inject
+    def register(func, indirect_provider: IndirectProvider):
+        if inspect.isfunction(func):
+            def linker():
+                impl = func()
+                if not isinstance(impl, type):
+                    raise TypeError(f"{func!r} is expected to return a subclass "
+                                    f"of {interface!r}")
+                if not issubclass(impl, interface):
+                    raise ValueError(f"{func!r} is expected to return a subclass "
+                                     f"of {interface!r}")
+                return impl
+            indirect_provider.register_link(interface, linker=linker, static=static)
+        else:
+            raise TypeError(f"implements must be applied on a function, "
+                            f"not a {type(func)}")
+        return func
+
+    return register

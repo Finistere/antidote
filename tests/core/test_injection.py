@@ -2,8 +2,9 @@ import typing
 
 import pytest
 
+from antidote import world
 from antidote._internal.argspec import Arguments
-from antidote.core import DependencyContainer, inject
+from antidote.core import DependencyContainer, raw_inject
 from antidote.exceptions import DependencyNotFoundError
 
 
@@ -13,6 +14,17 @@ class Service:
 
 class AnotherService:
     pass
+
+
+def test_simple():
+    @raw_inject
+    def f(x: Service):
+        return x
+
+    with world.test.empty():
+        s = Service()
+        world.singletons.set(Service, s)
+        assert s == f()
 
 
 @pytest.mark.parametrize(
@@ -60,48 +72,51 @@ class AnotherService:
     ]
 )
 def test_without_type_hints(expected, kwargs):
-    container = DependencyContainer()
-    container.update_singletons({Service: Service()})
-    container.update_singletons({AnotherService: AnotherService()})
-    container.update_singletons({'first': object()})
-    container.update_singletons({'second': object()})
-    container.update_singletons({'prefix:first': object()})
-    container.update_singletons({'prefix:second': object()})
     default = object()
 
-    @inject(container=container, **kwargs)
+    @raw_inject(**kwargs)
     def f(first=default, second=default):
         return first, second
 
     class A:
-        @inject(container=container, **kwargs)
+        @raw_inject(**kwargs)
         def method(self, first=default, second=default):
             return first, second
 
-        @inject(container=container, **kwargs)
+        @raw_inject(**kwargs)
         @classmethod
         def class_method(cls, first=default, second=default):
             return first, second
 
-        @inject(container=container, **kwargs)
+        @raw_inject(**kwargs)
         @staticmethod
         def static_method(first=default, second=default):
             return first, second
 
-    expected = tuple((
-        container.get(d) if d is not None else default
-        for d in expected
-    ))
-    assert expected == f()
-    assert expected == A().method()
-    assert expected == A.class_method()
-    assert expected == A.static_method()
+    with world.test.empty():
+        world.singletons.update({
+            Service: Service(),
+            AnotherService: AnotherService(),
+            'first': object(),
+            'second': object(),
+            'prefix:first': object(),
+            'prefix:second': object()
+        })
 
-    a, b = object(), object()
-    assert (a, b) == f(a, b)
-    assert (a, b) == A().method(a, b)
-    assert (a, b) == A.class_method(a, b)
-    assert (a, b) == A.static_method(a, b)
+        expected = tuple((
+            world.get(d) if d is not None else default
+            for d in expected
+        ))
+        assert expected == f()
+        assert expected == A().method()
+        assert expected == A.class_method()
+        assert expected == A.static_method()
+
+        a, b = object(), object()
+        assert (a, b) == f(a, b)
+        assert (a, b) == A().method(a, b)
+        assert (a, b) == A.class_method(a, b)
+        assert (a, b) == A.static_method(a, b)
 
 
 @pytest.mark.parametrize(
@@ -173,48 +188,49 @@ def test_without_type_hints(expected, kwargs):
     ]
 )
 def test_with_type_hints(expected, kwargs):
-    container = DependencyContainer()
-    container.update_singletons({Service: Service(),
+    default = object()
+
+    @raw_inject(**kwargs)
+    def f(first: Service = default, second: str = default):
+        return first, second
+
+    class A:
+        @raw_inject(**kwargs)
+        def method(self, first: Service = default, second: str = default):
+            return first, second
+
+        @raw_inject(**kwargs)
+        @classmethod
+        def class_method(cls, first: Service = default, second: str = default):
+            return first, second
+
+        @raw_inject(**kwargs)
+        @staticmethod
+        def static_method(first: Service = default, second: str = default):
+            return first, second
+
+    with world.test.empty():
+        world.singletons.update({Service: Service(),
                                  AnotherService: AnotherService(),
                                  'first': object(),
                                  'second': object(),
                                  'prefix:first': object(),
                                  'prefix:second': object()})
-    default = object()
 
-    @inject(container=container, **kwargs)
-    def f(first: Service = default, second: str = default):
-        return first, second
+        expected = tuple((
+            world.get(d) if d is not None else default
+            for d in expected
+        ))
+        assert expected == f()
+        assert expected == A().method()
+        assert expected == A.class_method()
+        assert expected == A.static_method()
 
-    class A:
-        @inject(container=container, **kwargs)
-        def method(self, first: Service = default, second: str = default):
-            return first, second
-
-        @inject(container=container, **kwargs)
-        @classmethod
-        def class_method(cls, first: Service = default, second: str = default):
-            return first, second
-
-        @inject(container=container, **kwargs)
-        @staticmethod
-        def static_method(first: Service = default, second: str = default):
-            return first, second
-
-    expected = tuple((
-        container.get(d) if d is not None else default
-        for d in expected
-    ))
-    assert expected == f()
-    assert expected == A().method()
-    assert expected == A.class_method()
-    assert expected == A.static_method()
-
-    a, b = object(), object()
-    assert (a, b) == f(a, b)
-    assert (a, b) == A().method(a, b)
-    assert (a, b) == A.class_method(a, b)
-    assert (a, b) == A.static_method(a, b)
+        a, b = object(), object()
+        assert (a, b) == f(a, b)
+        assert (a, b) == A().method(a, b)
+        assert (a, b) == A.class_method(a, b)
+        assert (a, b) == A.static_method(a, b)
 
 
 @pytest.mark.parametrize(
@@ -223,31 +239,66 @@ def test_with_type_hints(expected, kwargs):
      typing.Optional, typing.Sequence]
 )
 def test_ignored_type_hints(type_hint):
-    container = DependencyContainer()
-    container.update_singletons({type_hint: object()})
-
-    @inject(container=container)
+    @raw_inject
     def f(x: type_hint):
         pass
 
-    with pytest.raises(TypeError):
-        f()
+    with world.test.empty():
+        world.singletons.set(type_hint, object())
+        with pytest.raises(TypeError):
+            f()
 
 
 def test_arguments():
-    container = DependencyContainer()
-    container.update_singletons(dict(a=12, b=24))
-
     def f(a, b):
         pass
 
     arguments = Arguments.from_callable(f)
 
-    @inject(arguments=arguments, use_names=True, container=container)
+    @raw_inject(arguments=arguments, use_names=True)
     def g(**kwargs):
         return kwargs
 
-    assert dict(a=12, b=24) == g()
+    with world.test.empty():
+        world.singletons.update(dict(a=12, b=24))
+        assert dict(a=12, b=24) == g()
+
+
+def test_none_optional_support():
+    class Dummy:
+        pass
+
+    @raw_inject
+    def f(x: Service = None):
+        return x
+
+    @raw_inject
+    def g(x: typing.Optional[Service] = None):
+        return x
+
+    @raw_inject
+    def h(x: Dummy, y: typing.Optional[Service] = None):
+        return y
+
+    @raw_inject
+    def f2(x: typing.Union[Service, Dummy]):
+        pass
+
+    with world.test.empty():
+        s = Service()
+        world.singletons.set(Dummy, Dummy())
+        world.singletons.set(Service, s)
+        assert s == f()
+        assert s == g()
+        assert s == h()
+        with pytest.raises(TypeError):
+            f2()
+
+    with world.test.empty():
+        world.singletons.set(Dummy, Dummy())
+        assert f() is None
+        assert g() is None
+        assert h() is None
 
 
 @pytest.mark.parametrize(
@@ -316,10 +367,8 @@ def test_arguments():
     ]
 )
 def test_invalid(error, kwargs):
-    container = DependencyContainer()
-
     with pytest.raises(error):
-        @inject(container=container, **kwargs)
+        @raw_inject(**kwargs)
         def f(x):
             return x
 
@@ -327,7 +376,7 @@ def test_invalid(error, kwargs):
 
     with pytest.raises(error):
         class A:
-            @inject(container=container, **kwargs)
+            @raw_inject(**kwargs)
             def method(self, x):
                 return x
 
@@ -335,7 +384,7 @@ def test_invalid(error, kwargs):
 
     with pytest.raises(error):
         class A:
-            @inject(container=container, **kwargs)
+            @raw_inject(**kwargs)
             @classmethod
             def classmethod(cls, x):
                 return x
@@ -344,7 +393,7 @@ def test_invalid(error, kwargs):
 
     with pytest.raises(error):
         class A:
-            @inject(container=container, **kwargs)
+            @raw_inject(**kwargs)
             @staticmethod
             def staticmethod(x):
                 return x
@@ -367,27 +416,26 @@ def test_invalid(error, kwargs):
     ]
 )
 def test_cannot_inject_self(error, kwargs):
-    container = DependencyContainer()
-    container.update_singletons(dict(x=object(), y=object()))
-
     with pytest.raises(error):
         class A:
-            @inject(container=container, **kwargs)
+            @raw_inject(**kwargs)
             def method(self, x=None):
                 return x
+
         A()
 
     with pytest.raises(error):
         class A:
-            @inject(container=container, **kwargs)
+            @raw_inject(**kwargs)
             @classmethod
             def classmethod(self, x=None):
                 return x
+
         A()
 
 
 def test_invalid_type_hint():
-    @inject(container=DependencyContainer())
+    @raw_inject
     def f(x: Service):
         return x
 
@@ -396,34 +444,25 @@ def test_invalid_type_hint():
 
 
 def test_no_injections():
-    container = DependencyContainer()
-
     def f(x):
         return x
 
-    injected_f = inject(f, container=container)
-
     # When nothing can be injected, the same function should be returned
-    assert injected_f is f
+    assert raw_inject(f) is f
 
 
 def test_already_injected():
-    container = DependencyContainer()
-
-    @inject(container=container, use_names=True)
+    @raw_inject(use_names=True)
     def f(x):
         return x
 
-    injected_f = inject(f, container=container)
-
     # When the function has already its arguments injected, the same function should
     # be returned
-    assert injected_f is f
+    assert raw_inject(f) is f
 
 
 def test_class_inject():
-    container = DependencyContainer()
     with pytest.raises(TypeError):
-        @inject(container=container)
+        @raw_inject
         class Dummy:
             pass

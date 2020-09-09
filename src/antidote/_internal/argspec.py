@@ -9,10 +9,7 @@ class Argument:
         self.type_hint = type_hint
 
     def __repr__(self):
-        common = "{}:{}".format(
-            self.name,
-            getattr(self.type_hint, "__name__", repr(self.type_hint))
-        )
+        common = f'{self.name}:{getattr(self.type_hint, "__name__", repr(self.type_hint))}'
         return common + " = ?" if self.has_default else common
 
 
@@ -28,7 +25,7 @@ class Arguments:
 
     @classmethod
     def _build(cls, func: Callable, unbound_method: bool) -> 'Arguments':
-        arguments = []  # type: List[Argument]
+        arguments: List[Argument] = []
         has_var_positional = False
         has_var_keyword = False
 
@@ -80,7 +77,7 @@ class Arguments:
         if self.has_var_keyword:
             args.append("**kwargs")
 
-        return "Arguments({})".format(", ".join(args))
+        return f"Arguments({', '.join(args)})"
 
     def __getitem__(self, index: Union[str, int]) -> Argument:
         if isinstance(index, str):
@@ -88,7 +85,7 @@ class Arguments:
         elif isinstance(index, int):
             return self.arguments[index]
         else:
-            raise TypeError("Unsupported index {!r}".format(index))
+            raise TypeError(f"Unsupported index {index!r}")
 
     def __contains__(self, name):
         return name in self.name_to_argument

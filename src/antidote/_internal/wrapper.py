@@ -39,26 +39,24 @@ class InjectedWrapper:
     """
 
     def __init__(self,
-                 container: DependencyContainer,
                  blueprint: InjectionBlueprint,
                  wrapped: Callable,
                  skip_self: bool = False):
         """
         Args:
-            container: current DependencyContainer
             blueprint: Injection blueprint for the underlying function
             wrapped:  real function to be called
             skip_self:  whether the first argument must be skipped. Used internally
         """
         self.__wrapped__ = wrapped
-        self.__container = container
         self.__blueprint = blueprint
         self.__injection_offset = 1 if skip_self else 0
         functools.wraps(wrapped, updated=())(self)
 
     def __call__(self, *args, **kwargs):
+        from .state import get_container
         kwargs = _inject_kwargs(
-            self.__container,
+            get_container(),
             self.__blueprint,
             self.__injection_offset + len(args),
             kwargs
@@ -66,14 +64,12 @@ class InjectedWrapper:
         return self.__wrapped__(*args, **kwargs)
 
     def __get__(self, instance, owner):
-        wrapped = self.__wrapped__.__get__(instance, owner)
-        return functools.wraps(wrapped, updated=())(InjectedBoundWrapper(
-            self.__container,
+        return InjectedBoundWrapper(
             self.__blueprint,
-            wrapped,
+            self.__wrapped__.__get__(instance, owner),
             isinstance(self.__wrapped__, classmethod)
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
-        ))
+        )
 
     def __getattr__(self, item):
         return getattr(self.__wrapped__, item)
@@ -99,13 +95,14 @@ def _inject_kwargs(container: DependencyContainer,
     dirty_kwargs = False
     for injection in blueprint.injections[offset:]:
         if injection.dependency is not None and injection.arg_name not in kwargs:
-            dependency_instance = container.provide(injection.dependency)
-            if dependency_instance is not None:
+            try:
+                arg = container.get(injection.dependency)
                 if not dirty_kwargs:
                     kwargs = kwargs.copy()
                     dirty_kwargs = True
-                kwargs[injection.arg_name] = dependency_instance.instance
-            elif injection.required:
-                raise DependencyNotFoundError(injection.dependency)
+                kwargs[injection.arg_name] = arg
+            except DependencyNotFoundError:
+                if injection.required:
+                    raise
 
     return kwargs

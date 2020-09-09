@@ -5,6 +5,14 @@ from setuptools import Extension, find_packages, setup
 
 here = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 
+import Cython.Compiler.Options
+Cython.Compiler.Options.annotate = True
+
+# from Cython.Compiler.Options import get_directive_defaults
+# directive_defaults = get_directive_defaults()
+# directive_defaults['linetrace'] = True
+# directive_defaults['binding'] = True
+
 with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
 
@@ -18,7 +26,9 @@ def generate_extensions():
                 module = path[4:].replace('/', '.').rsplit('.', 1)[0]
                 extensions.append(Extension(module,
                                             [path],
-                                            language='c++'))
+                                            language='c++',
+                                            # define_macros=[('CYTHON_TRACE', '1')]
+                                            ))
     return extensions
 
 
@@ -31,7 +41,10 @@ try:
 except ImportError:
     pass
 else:
-    ext_modules = cythonize(generate_extensions())
+    ext_modules = cythonize(generate_extensions(),
+                            annotate=True,
+                            # gdb_debug=True
+                            )
     requires.append('fastrlock>=0.5,<0.6')
     setup_requires.append('fastrlock>=0.5,<0.6')
 
@@ -48,24 +61,20 @@ setup(
     include_dirs=["src"],
     ext_modules=ext_modules,
     install_requires=requires,
-    extras_require={
-        ":python_version<'3.5'": ["typing"],
-    },
     license='MIT',
-    classifiers=(
+    classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
-    ),
+    ],
     keywords='dependency injection',
     zip_safe=False,
 )

@@ -1,8 +1,7 @@
-from typing import Any
-
 import pytest
 
-from antidote.core import DependencyContainer, DependencyInstance, DependencyProvider
+from antidote.core import DependencyContainer, DependencyInstance
+from antidote.core.exceptions import FrozenWorldError
 from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
                                  DependencyNotFoundError)
 from .utils import DummyFactoryProvider, DummyProvider
@@ -46,7 +45,7 @@ def test_setitem(container: DependencyContainer):
     container.update_singletons({'service': s})
 
     assert s is container.get('service')
-    assert repr(s) in repr(container)
+    assert s is container.provide('service').instance
 
 
 def test_update(container: DependencyContainer):
@@ -61,7 +60,7 @@ def test_update(container: DependencyContainer):
     })
 
     assert another_service is container.get(Service)
-    assert x is container.get('x')
+    assert x is container.provide('x').instance
 
 
 def test_register_provider(container: DependencyContainer):
@@ -69,7 +68,7 @@ def test_register_provider(container: DependencyContainer):
     container.register_provider(provider)
 
     # Can't check directly if the core is the same, as a proxy is used
-    assert provider is container.providers[DummyProvider]
+    assert provider is container.get(DummyProvider)
 
 
 def test_getitem(container: DependencyContainer):
@@ -79,16 +78,16 @@ def test_getitem(container: DependencyContainer):
     }))
     container.register_provider(DummyProvider({'name': 'Antidote'}))
 
+    assert isinstance(container.get(Service), Service)
+    assert isinstance(container.provide(Service), DependencyInstance)
+    assert 'Antidote' == container.get('name')
+    assert 'Antidote' == container.provide('name').instance
+
     with pytest.raises(DependencyNotFoundError):
         container.get(object)
 
     with pytest.raises(DependencyInstantiationError):
         container.get(ServiceWithNonMetDependency)
-
-    assert isinstance(container.get(Service), Service)
-    assert isinstance(container.provide(Service), DependencyInstance)
-    assert 'Antidote' == container.get('name')
-    assert 'Antidote' == container.provide('name').instance
 
 
 def test_singleton(container: DependencyContainer):
@@ -100,12 +99,12 @@ def test_singleton(container: DependencyContainer):
     service = container.get(Service)
     assert service is container.get(Service)
 
-    container.providers[DummyFactoryProvider].singleton = False
+    container.get(DummyFactoryProvider).singleton = False
     another_service = container.get(AnotherService)
     assert another_service is not container.get(AnotherService)
 
-    singletons = {k: v.instance for k, v in container.singletons.items()}
-    assert {Service: service, DependencyContainer: container} == singletons
+    assert container.get(Service) == service
+    assert container.get(DependencyContainer) == container
 
 
 def test_dependency_cycle_error(container: DependencyContainer):
@@ -130,8 +129,8 @@ def test_repr_str(container: DependencyContainer):
     container.update_singletons({'test': 1})
 
     assert 'test' in repr(container)
-    assert repr(container.providers[DummyProvider]) in repr(container)
-    assert str(container.providers[DummyProvider]) in str(container)
+    assert repr(container.get(DummyProvider)) in repr(container)
+    assert str(container.get(DummyProvider)) in str(container)
 
 
 def test_invalid_provider(container: DependencyContainer):
@@ -139,49 +138,38 @@ def test_invalid_provider(container: DependencyContainer):
         container.register_provider(object())
 
 
-def test_bound_dependency_types():
-    class CustomDependency:
-        pass
+def test_clone(container: DependencyContainer):
+    container.register_provider(DummyProvider({'name': 'Antidote'}))
+    container.update_singletons({'test': object()})
 
-    class DummyProvider1(DependencyProvider):
-        bound_dependency_types = (CustomDependency,)
+    cloned = container.clone(keep_singletons=True)
+    assert cloned.get('test') is container.get('test')
+    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
+    assert cloned.get(DependencyContainer) is cloned
 
-        def provide(self, dependency: Any) -> DependencyInstance:
-            return DependencyInstance(self)
+    cloned.update_singletons({'test2': 2})
+    with pytest.raises(DependencyNotFoundError):
+        container.get("test2")
 
-    class DummyProvider2(DependencyProvider):
-        def provide(self, dependency: Any) -> DependencyInstance:
-            raise Exception()
+    cloned = container.clone(keep_singletons=False)
+    with pytest.raises(DependencyNotFoundError):
+        cloned.get("test")
+    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
+    assert cloned.get(DependencyContainer) is cloned
 
-    container = DependencyContainer()
-    container.register_provider(DummyProvider2(container))
-    container.register_provider(DummyProvider1(container))
-    assert isinstance(container.get(CustomDependency()), DummyProvider1)
-
-    container = DependencyContainer()
-    container.register_provider(DummyProvider1(container))
-    container.register_provider(DummyProvider2(container))
-    assert isinstance(container.get(CustomDependency()), DummyProvider1)
+    cloned.update_singletons({'test2': 2})
+    with pytest.raises(DependencyNotFoundError):
+        container.get("test2")
 
 
-def test_bound_dependency_types_conflict():
-    class CustomDependency:
-        pass
+def test_freeze(container: DependencyContainer):
+    container.register_provider(DummyProvider({'name': 'Antidote'}))
+    container.freeze()
 
-    class DummyProvider1(DependencyProvider):
-        bound_dependency_types = (CustomDependency,)
+    with pytest.raises(FrozenWorldError):
+        container.register_provider(DummyFactoryProvider())
 
-        def provide(self, dependency: Any) -> DependencyInstance:
-            return DependencyInstance(self)
+    with pytest.raises(FrozenWorldError):
+        container.update_singletons({'test': object()})
 
-    class DummyProvider2(DependencyProvider):
-        bound_dependency_types = (CustomDependency,)
-
-        def provide(self, dependency: Any) -> DependencyInstance:
-            return DependencyInstance(self)
-
-    container = DependencyContainer()
-    container.register_provider(DummyProvider1(container))
-
-    with pytest.raises(RuntimeError):
-        container.register_provider(DummyProvider2(container))
+    assert container.get(DummyProvider).frozen is True

@@ -1,9 +1,10 @@
 from typing import Callable, Dict, Hashable, Optional, Tuple, Union
 
-from .._internal.utils import SlotsReprMixin
-from ..core import DependencyInstance, DependencyProvider
+from .._internal.utils import SlotsReprMixin, API
+from ..core import DependencyContainer, DependencyInstance, DependencyProvider
 
 
+@API.private
 class LazyCall(SlotsReprMixin):
     """
     Dependency which is the result of the call of the given function with the
@@ -31,8 +32,8 @@ class LazyCall(SlotsReprMixin):
         """
         self._singleton = singleton
         self._func = func
-        self._args = ()  # type: Tuple
-        self._kwargs = {}  # type: Dict
+        self._args: Tuple = ()
+        self._kwargs: Dict = {}
 
     def __call__(self, *args, **kwargs):
         """
@@ -43,6 +44,7 @@ class LazyCall(SlotsReprMixin):
         return self
 
 
+@API.private
 class LazyMethodCall(SlotsReprMixin):
     """
     Similar to :py:class:`~.LazyCall` but adapted to methods within a class
@@ -87,8 +89,8 @@ class LazyMethodCall(SlotsReprMixin):
         # Retrieve the name of the method, as injection can be done after the class
         # creation which is typically the case with @register.
         self._method_name = method if isinstance(method, str) else method.__name__
-        self._args = ()  # type: Tuple
-        self._kwargs = {}  # type: Dict
+        self._args: Tuple = ()
+        self._kwargs: Dict = {}
         self._key = None
 
     def __call__(self, *args, **kwargs):
@@ -103,7 +105,7 @@ class LazyMethodCall(SlotsReprMixin):
         if instance is None:
             if self._singleton:
                 if self._key is None:
-                    self._key = "{}_dependency".format(self._get_attribute_name(owner))
+                    self._key = f"{self._get_attribute_name(owner)}_dependency"
                     setattr(owner, self._key, LazyMethodCallDependency(self, owner))
                 return getattr(owner, self._key)
             return LazyMethodCallDependency(self, owner)
@@ -117,6 +119,7 @@ class LazyMethodCall(SlotsReprMixin):
                 return k
 
 
+@API.private
 class LazyMethodCallDependency(SlotsReprMixin):
     __slots__ = ('lazy_method_call', 'owner')
 
@@ -125,16 +128,20 @@ class LazyMethodCallDependency(SlotsReprMixin):
         self.owner = owner
 
 
+@API.private
 class LazyCallProvider(DependencyProvider):
-    bound_dependency_types = (LazyMethodCallDependency, LazyCall)
+    def clone(self) -> DependencyProvider:
+        return self
 
-    def provide(self,
-                dependency: Hashable
+    def freeze(self):
+        pass
+
+    def provide(self, dependency: Hashable, container: DependencyContainer
                 ) -> Optional[DependencyInstance]:
         if isinstance(dependency, LazyMethodCallDependency):
             return DependencyInstance(
                 dependency.lazy_method_call.__get__(
-                    self._container.get(dependency.owner),
+                    container.get(dependency.owner),
                     dependency.owner
                 ),
                 singleton=dependency.lazy_method_call._singleton

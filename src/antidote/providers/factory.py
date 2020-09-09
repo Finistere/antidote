@@ -1,10 +1,12 @@
+import threading
 from typing import Callable, Dict, Hashable, Optional
 
-from .._internal.utils import SlotsReprMixin
+from .._internal.utils import SlotsReprMixin, API
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateDependencyError
+from ..exceptions import DuplicateDependencyError, FrozenWorldError
 
 
+@API.public
 class Build(SlotsReprMixin):
     """
     Custom Dependency wrapper used to pass arguments to the factory used to
@@ -26,7 +28,7 @@ class Build(SlotsReprMixin):
     """
     __slots__ = ('dependency', 'kwargs', '_hash')
 
-    __str__ = SlotsReprMixin.__repr__  # type: Callable[['Build'], str]
+    __str__: Callable[['Build'], str] = SlotsReprMixin.__repr__
 
     def __init__(self, dependency: Hashable, **kwargs):
         """
@@ -35,8 +37,8 @@ class Build(SlotsReprMixin):
                 on to the factory.
             **kwargs: Passed on to the factory.
         """
-        self.dependency = dependency  # type: Hashable
-        self.kwargs = kwargs  # type: Dict
+        self.dependency: Hashable = dependency
+        self.kwargs: Dict = kwargs
 
         if not self.kwargs:
             raise TypeError("Without additional arguments, Build must not be used.")
@@ -57,31 +59,42 @@ class Build(SlotsReprMixin):
                and self.kwargs == self.kwargs  # noqa
 
 
+@API.private
 class FactoryProvider(DependencyProvider):
     """
     Provider managing factories. Also used to register classes directly.
     """
-    bound_dependency_types = (Build,)
 
-    def __init__(self, container: DependencyContainer):
-        super().__init__(container)
-        self._builders = dict()  # type: Dict[Hashable, Builder]
+    def __init__(self):
+        super().__init__()
+        self.__builders: Dict[Hashable, Builder] = dict()
+        self.__freeze_lock = threading.RLock()
+        self.__frozen = False
 
     def __repr__(self):
-        return "{}(factories={!r})".format(type(self).__name__,
-                                           tuple(self._builders.keys()))
+        return f"{type(self).__name__}(factories={tuple(self.__builders.keys())!r})"
 
-    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+    def freeze(self):
+        with self.__freeze_lock:
+            self.__frozen = True
+
+    def clone(self) -> DependencyProvider:
+        f = FactoryProvider()
+        f.__builders = self.__builders.copy()
+        return f
+
+    def provide(self, dependency: Hashable, container: DependencyContainer
+                ) -> Optional[DependencyInstance]:
         try:
             if isinstance(dependency, Build):
-                builder = self._builders[dependency.dependency]  # type: Builder
+                builder: Builder = self.__builders[dependency.dependency]
             else:
-                builder = self._builders[dependency]
+                builder = self.__builders[dependency]
         except KeyError:
             return None
 
         if builder.factory_dependency is not None:
-            f = self._container.safe_provide(builder.factory_dependency)
+            f = container.provide(builder.factory_dependency)
             factory = f.instance
             if f.singleton:
                 builder.factory_dependency = None
@@ -112,8 +125,11 @@ class FactoryProvider(DependencyProvider):
             singleton: Whether the dependency should be mark as singleton or
                 not for the :py:class:`~..core.DependencyContainer`.
         """
-        self.register_factory(dependency=class_, factory=class_,
-                              singleton=singleton, takes_dependency=False)
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {class_} to a frozen world.")
+            self.register_factory(dependency=class_, factory=class_,
+                                  singleton=singleton, takes_dependency=False)
         return class_
 
     def register_factory(self,
@@ -133,16 +149,19 @@ class FactoryProvider(DependencyProvider):
                 dependency as its first arguments. This allows re-using the
                 same factory for different dependencies.
         """
-        if dependency in self._builders:
+        if dependency in self.__builders:
             raise DuplicateDependencyError(dependency,
-                                           self._builders[dependency])
+                                           self.__builders[dependency])
 
         if callable(factory):
-            self._builders[dependency] = Builder(singleton=singleton,
-                                                 takes_dependency=takes_dependency,
-                                                 factory=factory)
+            with self.__freeze_lock:
+                if self.__frozen:
+                    raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+                self.__builders[dependency] = Builder(singleton=singleton,
+                                                      takes_dependency=takes_dependency,
+                                                      factory=factory)
         else:
-            raise TypeError("factory must be callable, not {!r}.".format(type(factory)))
+            raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
     def register_providable_factory(self,
                                     dependency: Hashable,
@@ -162,16 +181,19 @@ class FactoryProvider(DependencyProvider):
                 dependency as its first arguments. This allows re-using the
                 same factory for different dependencies.
         """
-        if dependency in self._builders:
+        if dependency in self.__builders:
             raise DuplicateDependencyError(dependency,
-                                           self._builders[dependency])
+                                           self.__builders[dependency])
 
-        self._builders[dependency] = Builder(singleton=singleton,
-                                             takes_dependency=takes_dependency,
-                                             factory_dependency=factory_dependency)
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
+            self.__builders[dependency] = Builder(singleton=singleton,
+                                                  takes_dependency=takes_dependency,
+                                                  factory_dependency=factory_dependency)
 
 
-# TODO: define better __str__()
+@API.private
 class Builder(SlotsReprMixin):
     """
     Not part of the public API.

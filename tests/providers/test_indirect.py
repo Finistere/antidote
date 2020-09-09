@@ -1,29 +1,29 @@
-from enum import Enum
-
 import pytest
 
+from antidote import world
 from antidote.core import DependencyContainer
-from antidote.exceptions import DuplicateDependencyError, UndefinedContextError
-from antidote.providers.indirect import IndirectProvider
+from antidote.core.exceptions import DuplicateDependencyError, FrozenWorldError
 from antidote.providers.factory import FactoryProvider
+from antidote.providers.indirect import IndirectProvider
+
+
+@pytest.fixture(autouse=True)
+def empty_world():
+    with world.test.empty():
+        yield
 
 
 @pytest.fixture
-def container():
-    return DependencyContainer()
-
-
-@pytest.fixture
-def factory_provider(container):
-    provider = FactoryProvider(container=container)
-    container.register_provider(provider)
+def factory():
+    provider = FactoryProvider()
+    world.get(DependencyContainer).register_provider(provider)
     return provider
 
 
 @pytest.fixture
-def interface_provider(container):
-    provider = IndirectProvider(container=container)
-    container.register_provider(provider)
+def indirect():
+    provider = IndirectProvider()
+    world.get(DependencyContainer).register_provider(provider)
     return provider
 
 
@@ -43,123 +43,119 @@ class ServiceB(IService):
     pass
 
 
-class Profile(Enum):
-    A = 'A'
-    B = 'B'
+def test_none(indirect: IndirectProvider):
+    assert indirect.world_provide(IService) is None
 
 
-def test_none(interface_provider: IndirectProvider):
-    assert interface_provider.provide(IService) is None
+def test_simple(indirect: IndirectProvider,
+                factory: FactoryProvider):
+    factory.register_class(Service)
+    indirect.register_static(IService, Service)
+
+    assert indirect.world_provide(IService).instance is world.get(Service)
+    assert indirect.world_provide(IService).singleton is True
+    assert str(IService) in repr(indirect)
 
 
-def test_interface(container: DependencyContainer,
-                   interface_provider: IndirectProvider,
-                   factory_provider: FactoryProvider):
-    factory_provider.register_class(Service)
-    interface_provider.register(IService, Service)
+def test_not_singleton_interface(indirect: IndirectProvider,
+                                 factory: FactoryProvider):
+    factory.register_class(Service, singleton=False)
+    indirect.register_static(IService, Service)
 
-    expected = container.get(Service)
-    assert interface_provider.provide(IService).instance is expected
-    assert interface_provider.provide(IService).singleton is True
-
-
-def test_not_singleton_interface(container: DependencyContainer,
-                                 interface_provider: IndirectProvider,
-                                 factory_provider: FactoryProvider):
-    factory_provider.register_class(Service, singleton=False)
-    interface_provider.register(IService, Service)
-
-    service = container.get(Service)
-    assert interface_provider.provide(IService).instance is not service
-    assert isinstance(interface_provider.provide(IService).instance, Service)
-    assert interface_provider.provide(IService).singleton is False
+    service = world.get(Service)
+    assert indirect.world_provide(IService).instance is not service
+    assert isinstance(indirect.world_provide(IService).instance, Service)
+    assert indirect.world_provide(IService).singleton is False
 
 
-def test_profile_instance(container: DependencyContainer,
-                          interface_provider: IndirectProvider,
-                          factory_provider: FactoryProvider):
-    factory_provider.register_class(ServiceA)
-    factory_provider.register_class(ServiceB, singleton=False)
-    interface_provider.register(IService, ServiceA, Profile.A)
-    interface_provider.register(IService, ServiceB, Profile.B)
-    current_profile = Profile.A
+@pytest.mark.parametrize('singleton,static',
+                         [(True, True), (True, False), (False, True), (False, False)])
+def test_implementation_static_singleton(indirect: IndirectProvider,
+                                         factory: FactoryProvider,
+                                         singleton: bool, static: bool):
+    choice = 'a'
 
-    def get_profile():
-        return current_profile
+    def implementation():
+        return dict(a=ServiceA, b=ServiceB)[choice]
 
-    factory_provider.register_factory(Profile, singleton=False, factory=get_profile)
+    factory.register_class(ServiceA, singleton=singleton)
+    factory.register_class(ServiceB, singleton=singleton)
+    indirect.register_link(IService, linker=implementation, static=static)
 
-    service_a = container.get(ServiceA)
-    service_b = container.get(ServiceB)
+    assert (indirect.world_provide(IService).instance is world.get(
+        ServiceA)) is singleton
+    assert isinstance(indirect.world_provide(IService).instance, ServiceA)
+    assert indirect.world_provide(IService).singleton is (singleton and static)
 
-    assert service_a is interface_provider.provide(IService).instance
-    assert interface_provider.provide(IService).singleton is False
-
-    current_profile = Profile.B
-    assert service_b is not interface_provider.provide(IService).instance
-    assert isinstance(interface_provider.provide(IService).instance, ServiceB)
-    assert interface_provider.provide(IService).singleton is False
-
-
-def test_singleton_profile_instance(container: DependencyContainer,
-                                    interface_provider: IndirectProvider,
-                                    factory_provider: FactoryProvider):
-    factory_provider.register_class(ServiceA)
-    factory_provider.register_class(ServiceB, singleton=False)
-    interface_provider.register(IService, ServiceA, Profile.A)
-    interface_provider.register(IService, ServiceB, Profile.B)
-
-    service_a = container.get(ServiceA)
-
-    container.update_singletons({Profile: Profile.A})
-    assert service_a is interface_provider.provide(IService).instance
-    assert interface_provider.provide(IService).singleton is True
+    choice = 'b'
+    assert implementation() == ServiceB
+    assert indirect.world_provide(IService).singleton is (singleton and static)
+    if static:
+        assert (indirect.world_provide(IService).instance is world.get(
+            ServiceA)) is singleton
+        assert isinstance(indirect.world_provide(IService).instance, ServiceA)
+    else:
+        assert (indirect.world_provide(IService).instance is world.get(
+            ServiceB)) is singleton
+        assert isinstance(indirect.world_provide(IService).instance, ServiceB)
 
 
-def test_singleton_profile_instance_2(container: DependencyContainer,
-                                      interface_provider: IndirectProvider,
-                                      factory_provider: FactoryProvider):
-    factory_provider.register_class(ServiceA)
-    factory_provider.register_class(ServiceB, singleton=False)
-    interface_provider.register(IService, ServiceA, Profile.A)
-    interface_provider.register(IService, ServiceB, Profile.B)
+def test_clone(indirect: IndirectProvider, factory: FactoryProvider):
+    class IService2:
+        pass
 
-    service_b = container.get(ServiceB)
+    class Service2(IService2):
+        pass
 
-    container.update_singletons({Profile: Profile.B})
-    assert service_b is not interface_provider.provide(IService).instance
-    assert isinstance(interface_provider.provide(IService).instance, ServiceB)
-    assert interface_provider.provide(IService).singleton is False
+    factory.register_class(Service2)
+    factory.register_class(Service)
 
+    indirect.register_link(IService, lambda: Service, static=False)
+    indirect.register_static(IService2, Service2)
 
-def test_invalid_profile(interface_provider: IndirectProvider):
-    with pytest.raises(TypeError):
-        interface_provider.register(IService, Service, 1)
+    clone = indirect.clone()
+    assert clone.world_provide(IService).instance is world.get(Service)
+    assert clone.world_provide(IService2).instance is world.get(Service2)
 
+    class IService3:
+        pass
 
-@pytest.mark.parametrize(
-    'first,second',
-    [
-        ((ServiceA,), (ServiceB,)),
-        ((ServiceA,), (ServiceB, Profile.B)),
-        ((ServiceA, Profile.A), (ServiceB,)),
-        ((ServiceA, Profile.A), (ServiceB, Profile.A)),
-    ]
-)
-def test_duplicate(interface_provider: IndirectProvider, first: tuple, second: tuple):
-    interface_provider.register(IService, *first)
+    class Service3(IService3):
+        pass
 
-    with pytest.raises(DuplicateDependencyError, match=str(IService)):
-        interface_provider.register(IService, *second)
+    factory.register_class(Service3)
+    clone.register_static(IService3, Service3)
+    assert clone.world_provide(IService3).instance is world.get(Service3)
+    assert indirect.world_provide(IService3) is None
 
 
-def test_undefined_context(container: DependencyContainer,
-                           interface_provider: IndirectProvider,
-                           factory_provider: FactoryProvider):
-    factory_provider.register_class(ServiceA)
-    factory_provider.register_class(ServiceB)
-    interface_provider.register(IService, ServiceA, Profile.A)
-    container.update_singletons({Profile: Profile.B})
+def test_freeze(indirect: IndirectProvider):
+    indirect.freeze()
 
-    with pytest.raises(UndefinedContextError):
-        interface_provider.provide(IService)
+    with pytest.raises(FrozenWorldError):
+        indirect.register_link(IService, lambda: Service, static=False)
+
+    with pytest.raises(FrozenWorldError):
+        indirect.register_static(IService, Service)
+
+    assert indirect.world_provide(IService) is None
+
+
+def test_register_static_duplicate_check(indirect: IndirectProvider):
+    indirect.register_static(IService, Service)
+
+    with pytest.raises(DuplicateDependencyError):
+        indirect.register_static(IService, Service)
+
+    with pytest.raises(DuplicateDependencyError):
+        indirect.register_link(IService, lambda: Service)
+
+
+def test_register_duplicate_check(indirect: IndirectProvider):
+    indirect.register_link(IService, lambda: Service)
+
+    with pytest.raises(DuplicateDependencyError):
+        indirect.register_static(IService, Service)
+
+    with pytest.raises(DuplicateDependencyError):
+        indirect.register_link(IService, lambda: Service)

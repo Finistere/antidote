@@ -7,23 +7,27 @@ from typing import Any, List, Tuple
 
 import pytest
 
+from antidote import world
 from antidote._internal.wrapper import InjectedWrapper, Injection, InjectionBlueprint
-from antidote.core import DependencyContainer
+from antidote.core import DependencyProvider
 from antidote.exceptions import DependencyNotFoundError
 
 A = object()
 B = object()
 C = object()
-default_container = DependencyContainer()
-default_container.update_singletons(dict(x=A))
+
+
+@pytest.fixture(autouse=True, scope='module')
+def empty_world():
+    with world.test.empty():
+        world.singletons.set('x', A)
+        yield
 
 
 def easy_wrap(func=None,
-              arg_dependency: List[Tuple[str, bool, Any]] = tuple(),
-              container: DependencyContainer = None):
+              arg_dependency: List[Tuple[str, bool, Any]] = tuple()):
     def wrapper(func):
         return InjectedWrapper(
-            container=container or default_container,
             blueprint=InjectionBlueprint(tuple([
                 Injection(arg_name, required, dependency)
                 for arg_name, required, dependency in arg_dependency
@@ -184,27 +188,26 @@ def test_dependency_not_found():
 
 
 def test_multiple_injections():
-    container = DependencyContainer()
     xx = object()
     yy = object()
     zz = object()
-    container.update_singletons(dict(xx=xx, yy=yy))
 
     @easy_wrap(arg_dependency=[('x', True, 'xx'),
                                ('y', True, 'yy'),
-                               ('z', False, 'zz')],
-               container=container)
+                               ('z', False, 'zz')])
     def f(x, y, z=zz):
         return x, y, z
 
-    assert (xx, yy, zz) == f()
-    assert (xx, A, zz) == f(y=A)
-    assert (xx, yy, A) == f(z=A)
-    assert (A, yy, zz) == f(x=A)
-    assert (A, yy, B) == f(A, z=B)
+    with world.test.clone():
+        world.singletons.update(dict(xx=xx, yy=yy))
+        assert (xx, yy, zz) == f()
+        assert (xx, A, zz) == f(y=A)
+        assert (xx, yy, A) == f(z=A)
+        assert (A, yy, zz) == f(x=A)
+        assert (A, yy, B) == f(A, z=B)
 
-    with pytest.raises(TypeError):
-        f(A, x=A)
+        with pytest.raises(TypeError):
+            f(A, x=A)
 
 
 def g():

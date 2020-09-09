@@ -5,51 +5,89 @@ from typing import Hashable
 
 # @formatter:off
 cimport cython
-from cpython.set cimport PySet_Contains
+from cpython.object cimport PyObject
+from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 
 from ..exceptions import DependencyCycleError
 # @formatter:on
+
+cdef extern from "Python.h":
+    Py_hash_t PyObject_Hash(PyObject *o)
 
 # Final class as its behavior can only be changed through a Cython class. The
 # DependencyContainer calls directly push() and pop()
 @cython.final
 cdef class DependencyStack:
     def __init__(self):
-        self._stack = list()
-        self._seen = set()
+        cdef:
+            size_t capacity = 32
+
+        self._trace = <PyObject**> PyMem_Malloc(capacity * sizeof(PyObject*))
+        self._hashes = <Py_hash_t*> PyMem_Malloc(capacity * sizeof(Py_hash_t))
+        self._depth = 0
+        self._capacity = capacity
+
+    def __dealloc__(self):
+        PyMem_Free(self._trace)
+        PyMem_Free(self._hashes)
 
     @contextmanager
     def instantiating(self, dependency: Hashable):
-        if 1 != self.push(dependency):
-            raise DependencyCycleError(self._stack.copy() + [dependency])
+        if 0 != self.push(<PyObject*> dependency):
+            raise self.reset_with_error(<PyObject*> dependency)
         try:
             yield
         finally:
             self.pop()
 
-    cdef bint push(self, object dependency):
+    cdef Exception reset_with_error(self, PyObject* dependency):
+        cdef:
+            list l = []
+            PyObject* t
+        for t in self._trace[:self._depth]:
+            l.append(<object> t)
+        l.append(<object> dependency)
+        return DependencyCycleError(l)
+
+    cdef bint push(self, PyObject* dependency):
         """
         Args:
             dependency: supposed to be hashable as the core tries to 
                 retrieves from a dictionary first. 
 
         Returns:
-            0 if present in the stack
-            1 OK
+            0 OK
+            1 if present in the stack
         """
         cdef:
-            list stack
-            bint seen
+            size_t depth = self._depth
+            PyObject** traces = self._trace
+            Py_hash_t* hashes = self._hashes
+            Py_hash_t* h
+            Py_hash_t dependency_hash = PyObject_Hash(dependency)
+            int i = 0
+            PyObject* t
 
-        if 1 == PySet_Contains(self._seen, dependency):
-            return 0
+        for h in hashes[:depth]:
+            if h[0] == dependency_hash:
+                t = traces[i]
+                if dependency == t or <object> dependency == <object> t:
+                    return 1
+            i += 1
 
-        self._stack.append(dependency)
-        self._seen.add(dependency)
-        return 1
+        if depth == self._capacity:
+            self._capacity *= 2
+            PyMem_Realloc(hashes, self._capacity * sizeof(Py_hash_t))
+            PyMem_Realloc(traces, self._capacity * sizeof(PyObject*))
+        hashes[depth] = dependency_hash
+        traces[depth] = dependency
 
-    cdef pop(self):
+        self._depth += 1
+
+        return 0
+
+    cdef void pop(self):
         """
         Latest elements of the stack is removed.
         """
-        self._seen.remove(self._stack.pop())
+        self._depth -= 1

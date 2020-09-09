@@ -1,10 +1,17 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False
+from cpython.object cimport PyObject
+
+cdef extern from "Python.h":
+    ctypedef long Py_hash_t
 
 cdef class DependencyStack:
     cdef:
-        list _stack
-        set _seen
+        PyObject** _trace
+        Py_hash_t* _hashes
+        size_t _depth
+        size_t _capacity
 
-    cdef bint push(self, object dependency)
-    cdef pop(self)
+    cdef Exception reset_with_error(self, PyObject* dependency)
+    cdef bint push(self, PyObject* dependency)
+    cdef void pop(self)

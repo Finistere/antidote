@@ -1,11 +1,10 @@
 import inspect
-from typing import (Callable, cast, get_type_hints, Iterable, overload, TypeVar, Union)
+from typing import (Callable, get_type_hints, Iterable, overload, TypeVar, Union)
 
 from .register import register
 from .wire import wire
-from .._internal.default_container import get_default_container
-from ..core import DEPENDENCIES_TYPE, DependencyContainer, inject
-from ..exceptions import DuplicateDependencyError
+from .._internal.utils import API
+from .inject import inject, DEPENDENCIES_TYPE
 from ..providers.factory import FactoryProvider
 from ..providers.tag import Tag, TagProvider
 
@@ -21,8 +20,7 @@ def factory(func: F,  # noqa: E704  # pragma: no cover
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
             wire_super: Union[bool, Iterable[str]] = None,
-            tags: Iterable[Union[str, Tag]] = None,
-            container: DependencyContainer = None
+            tags: Iterable[Union[str, Tag]] = None
             ) -> F: ...
 
 
@@ -34,11 +32,11 @@ def factory(*,  # noqa: E704  # pragma: no cover
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
             wire_super: Union[bool, Iterable[str]] = None,
-            tags: Iterable[Union[str, Tag]] = None,
-            container: DependencyContainer = None
+            tags: Iterable[Union[str, Tag]] = None
             ) -> Callable[[F], F]: ...
 
 
+@API.public
 def factory(func: Union[Callable, type] = None,
             *,
             auto_wire: Union[bool, Iterable[str]] = True,
@@ -47,8 +45,7 @@ def factory(func: Union[Callable, type] = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
             wire_super: Union[bool, Iterable[str]] = None,
-            tags: Iterable[Union[str, Tag]] = None,
-            container: DependencyContainer = None
+            tags: Iterable[Union[str, Tag]] = None
             ):
     """Register a dependency providers, a factory to build the dependency.
 
@@ -93,12 +90,11 @@ def factory(func: Union[Callable, type] = None,
         object: The dependency_provider
 
     """
-    container = container or get_default_container()
 
-    def register_factory(obj):
-        factory_provider = cast(FactoryProvider,
-                                container.providers[FactoryProvider])
-
+    @inject
+    def register_factory(obj,
+                         factory_provider: FactoryProvider,
+                         tag_provider: TagProvider = None):
         if inspect.isclass(obj):
             if '__call__' not in dir(obj):
                 raise TypeError("The class must implement __call__()")
@@ -111,7 +107,7 @@ def factory(func: Union[Callable, type] = None,
             wire_raise_on_missing = True
             if auto_wire is None or isinstance(auto_wire, bool):
                 if auto_wire is False:
-                    methods = ()  # type: Iterable[str]
+                    methods: Iterable[str] = ()
                 else:
                     methods = ('__call__', '__init__')
                     wire_raise_on_missing = False
@@ -125,10 +121,9 @@ def factory(func: Union[Callable, type] = None,
                            raise_on_missing=wire_raise_on_missing,
                            dependencies=dependencies,
                            use_names=use_names,
-                           use_type_hints=use_type_hints,
-                           container=container)
+                           use_type_hints=use_type_hints)
 
-            obj = register(obj, auto_wire=False, singleton=True, container=container)
+            obj = register(obj, auto_wire=False, singleton=True)
             factory_provider.register_providable_factory(
                 dependency=dependency,
                 singleton=singleton,
@@ -138,28 +133,25 @@ def factory(func: Union[Callable, type] = None,
         elif callable(obj):
             dependency = get_type_hints(obj).get('return')
             if dependency is None:
-                raise ValueError("A return annotation is necessary."
+                raise ValueError("A return annotation is necessary. "
                                  "It is used a the dependency.")
             if auto_wire:
                 obj = inject(obj,
                              dependencies=dependencies,
                              use_names=use_names,
-                             use_type_hints=use_type_hints,
-                             container=container)
-
+                             use_type_hints=use_type_hints)
             factory_provider.register_factory(factory=obj,
                                               singleton=singleton,
                                               dependency=dependency,
                                               takes_dependency=False)
         else:
-            raise TypeError("Must be either a function "
-                            "or a class implementing __call__(), "
-                            "not {!r}".format(type(obj)))
+            raise TypeError(f"Must be either a function or a class implementing "
+                            f"__call__(),  not {type(obj)!r}")
 
         if tags is not None:
-            tag_provider = cast(TagProvider, container.providers[TagProvider])
-            tag_provider.register(dependency=dependency,
-                                  tags=tags)
+            if tag_provider is None:
+                raise RuntimeError("No TagProvider registered, cannot use tags.")
+            tag_provider.register(dependency=dependency, tags=tags)
 
         return obj
 

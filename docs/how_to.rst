@@ -22,8 +22,8 @@ Exposing services through an interface can be done wth :py:func:`~.implements`
 
 .. doctest:: how_to_interface
 
-    >>> from antidote import world
-    >>> world.get(IService)
+    >>> from antidote import World
+    >>> World.get(IService)
     <Service ...>
 
 Multiple implementations can also be declared:
@@ -51,8 +51,8 @@ Multiple implementations can also be declared:
 
 .. doctest:: how_to_interface
 
-    >>> world.update_singletons({Profile: Profile.POSTGRES})
-    >>> world.get(Database)
+    >>> World.singletons.set(Profile, Profile.POSTGRES)
+    >>> World.get(Database)
     <PostgresDB ...>
 
 The selected implementation will be chosen based on the value of the
@@ -154,8 +154,8 @@ Tags are a way to retrieve a list of services, such as plugins, extensions, etc.
 
 .. doctest:: how_to_tags
 
-    >>> from antidote import world, Tagged
-    >>> services = world.get(Tagged('extension'))
+    >>> from antidote import World, Tagged
+    >>> services = World.get(Tagged('extension'))
     >>> list(zip(services.tags(), services.dependencies(), services.instances()))
     [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
 
@@ -189,11 +189,11 @@ Factories created with :py:func:`.factory` can be more complex than a function:
 
 .. doctest:: how_to_stateful_factory
 
-    >>> from antidote import world
-    >>> world.update_singletons({'id_prefix': "example"})
-    >>> world.get(ID)
+    >>> from antidote import World
+    >>> World.singletons.set('id_prefix', "example")
+    >>> World.get(ID)
     ID(id='example_1')
-    >>> world.get(ID)
+    >>> World.get(ID)
     ID(id='example_2')
 
 In this example we choose to inject :code:`id_prefix` in the :code:`__init__()`, but we
@@ -256,10 +256,10 @@ without passing through a Service. You could do it the following way:
 
 .. doctest:: how_to_provider
 
-    >>> from antidote import world
-    >>> world.get('random')
+    >>> from antidote import World
+    >>> World.get('random')
     0...
-    >>> world.get('random') is world.get('random')
+    >>> World.get('random') is World.get('random')
     False
 
 Provider are in most cases tried sequentially. So if a provider returns nothing,

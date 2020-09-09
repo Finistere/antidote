@@ -1,6 +1,7 @@
 # cython: language_level=3
 # cython: boundscheck=False, wraparound=False, annotation_typing=False
-from typing import Any, Dict, Iterable, Iterator, List, Union, Optional
+import threading
+from typing import Any, Dict, Iterable, Iterator, List, Union
 
 # @formatter:off
 from cpython.dict cimport PyDict_GetItem
@@ -10,6 +11,7 @@ from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 from antidote.core.container cimport (DependencyContainer, DependencyInstance,
                                       DependencyProvider)
 # @formatter:on
+from ..core.exceptions import FrozenWorldError
 from ..exceptions import DuplicateTagError
 
 cdef class Tag:
@@ -31,6 +33,10 @@ cdef class Tag:
         1
 
     """
+    cdef:
+        readonly str name
+        readonly dict _attrs
+
     def __init__(self, str name: str, **attrs):
         """
         Args:
@@ -58,6 +64,9 @@ cdef class Tagged:
     Custom dependency used to retrieve all dependencies tagged with by with the
     name.
     """
+    cdef:
+        readonly str name
+
     def __init__(self, str name):
         """
         Args:
@@ -76,32 +85,32 @@ cdef class TagProvider(DependencyProvider):
     Provider managing string tag. Tags allows one to retrieve a collection of
     dependencies marked by their creator.
     """
-    bound_dependency_types = (Tagged,)
+    cdef:
+        dict __dependency_to_tag_by_tag_name
+        object __freeze_lock
+        bint __frozen
 
-    def __init__(self, DependencyContainer container):
-        super().__init__(container)
-        self._dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Any, Tag]]
+    def __init__(self):
+        self.__dependency_to_tag_by_tag_name = {}  # type: Dict[str, Dict[Any, Tag]]
+        self.__freeze_lock = threading.RLock()
+        self.__frozen = False
 
     def __repr__(self):
         return "{}(tagged_dependencies={!r})".format(
             type(self).__name__,
-            self._dependency_to_tag_by_tag_name
+            self.__dependency_to_tag_by_tag_name
         )
 
-    cpdef DependencyInstance provide(self, dependency):
-        """
-        Returns all dependencies matching the tag name specified with a
-        :py:class:`~.dependency.Tagged`. For every other case, :obj:`None` is
-        returned.
+    def freeze(self):
+        with self.__freeze_lock:
+            self.__frozen = True
 
-        Args:
-            dependency: Only :py:class:`~.dependency.Tagged` is supported, all
-                others are ignored.
+    def clone(self):
+        p = TagProvider()
+        p.__dependency_to_tag_by_tag_name = self.__dependency_to_tag_by_tag_name.copy()
+        return p
 
-        Returns:
-            :py:class:`~.TaggedDependencies` wrapped in a
-            :py:class:`~..core.Instance`.
-        """
+    cpdef DependencyInstance provide(self, dependency, DependencyContainer container):
         cdef:
             list dependencies
             list tags
@@ -114,7 +123,7 @@ cdef class TagProvider(DependencyProvider):
             tagged = <Tagged> dependency
             dependencies = []
             tags = []
-            ptr = PyDict_GetItem(self._dependency_to_tag_by_tag_name,
+            ptr = PyDict_GetItem(self.__dependency_to_tag_by_tag_name,
                                  tagged.name)
 
             if ptr != NULL:
@@ -126,7 +135,7 @@ cdef class TagProvider(DependencyProvider):
                 DependencyInstance,
                 TaggedDependencies.__new__(
                     TaggedDependencies,
-                    container=self._container,
+                    container=container,
                     dependencies=dependencies,
                     tags=tags
                 ),
@@ -146,19 +155,22 @@ cdef class TagProvider(DependencyProvider):
             tags: Iterable of tags which should be associated with the
                 dependency
         """
+        tags = [Tag(t) if isinstance(t, str) else t for t in tags]
         for tag in tags:
-            if isinstance(tag, str):
-                tag = Tag(tag)
-
             if not isinstance(tag, Tag):
-                raise ValueError("Expecting tag of type Tag, not {}".format(type(tag)))
+                raise ValueError(f"Expecting tag of type Tag, not {type(tag)}")
 
-            if tag.name not in self._dependency_to_tag_by_tag_name:
-                self._dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
-            elif dependency not in self._dependency_to_tag_by_tag_name[tag.name]:
-                self._dependency_to_tag_by_tag_name[tag.name][dependency] = tag
-            else:
-                raise DuplicateTagError(tag.name)
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenWorldError(f"Cannot add tags {tags} to {dependency} "
+                                       f"in a frozen world.")
+            for tag in tags:
+                if tag.name not in self.__dependency_to_tag_by_tag_name:
+                    self.__dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
+                elif dependency not in self.__dependency_to_tag_by_tag_name[tag.name]:
+                    self.__dependency_to_tag_by_tag_name[tag.name][dependency] = tag
+                else:
+                    raise DuplicateTagError(tag.name)
 
 cdef class TaggedDependencies:
     """
@@ -167,6 +179,13 @@ cdef class TaggedDependencies:
 
     Used by :py:class:`~.TagProvider` to return the dependencies matching a tag.
     """
+    cdef:
+        DependencyContainer _container
+        object _lock
+        list _dependencies
+        list _tags
+        list _instances
+
     def __cinit__(self,
                   DependencyContainer container,
                   list dependencies,

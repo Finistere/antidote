@@ -1,17 +1,17 @@
 import pytest
 
-from antidote import factory
+from antidote import factory, world
 from antidote.core import DependencyContainer
 from antidote.providers import FactoryProvider, TagProvider
 
 
-@pytest.fixture()
-def container():
-    c = DependencyContainer()
-    c.register_provider(FactoryProvider(container=c))
-    c.register_provider(TagProvider(container=c))
-
-    return c
+@pytest.fixture(autouse=True)
+def test_world():
+    with world.test.new():
+        c = world.get(DependencyContainer)
+        c.register_provider(FactoryProvider())
+        c.register_provider(TagProvider())
+        yield
 
 
 class Service:
@@ -30,35 +30,35 @@ class SuperService:
     pass
 
 
-def test_function(container):
-    @factory(container=container)
+def test_function():
+    @factory
     def build() -> Service:
         return Service()
 
-    assert isinstance(container.get(Service), Service)
+    assert isinstance(world.get(Service), Service)
     # singleton by default
-    assert container.get(Service) is container.get(Service)
+    assert world.get(Service) is world.get(Service)
 
 
-def test_class(container):
-    @factory(container=container)
+def test_class():
+    @factory
     class ServiceFactory:
         def __call__(self) -> Service:
             return Service()
 
-    assert isinstance(container.get(Service), Service)
+    assert isinstance(world.get(Service), Service)
     # singleton by default
-    assert container.get(Service) is container.get(Service)
+    assert world.get(Service) is world.get(Service)
 
 
-def test_missing_return_type_hint(container):
+def test_missing_return_type_hint():
     with pytest.raises(ValueError):
-        @factory(container=container)
+        @factory
         def faulty_service_provider():
             return Service()
 
     with pytest.raises(ValueError):
-        @factory(container=container)
+        @factory
         class FaultyServiceFactory:
             def __call__(self):
                 return Service()
@@ -68,3 +68,23 @@ def test_missing_return_type_hint(container):
 def test_invalid_func(func):
     with pytest.raises(TypeError):
         factory(func)
+
+
+def test_not_tags():
+    with world.test.empty():
+        world.get(DependencyContainer).register_provider(FactoryProvider())
+
+        @factory
+        def build() -> Service:
+            return Service()
+
+        assert isinstance(world.get(Service), Service)
+        assert world.get(Service) is world.get(Service)
+
+    with world.test.empty():
+        world.get(DependencyContainer).register_provider(FactoryProvider())
+
+        with pytest.raises(RuntimeError):
+            @factory(tags=['tag'])
+            def build() -> Service:
+                return Service()
