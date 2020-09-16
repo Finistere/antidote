@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from ..exceptions import DependencyCycleError
+from ..core.exceptions import DependencyCycleError
 
 
 class DependencyStack:

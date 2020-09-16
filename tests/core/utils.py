@@ -6,13 +6,11 @@ from antidote.core import DependencyInstance, DependencyProvider
 class DummyProvider(DependencyProvider):
     singleton = True
 
-    def freeze(self):
-        self.frozen = True
-
-    def clone(self) -> 'DependencyProvider':
+    def clone(self, keep_singletons_cache: bool) -> DependencyProvider:
         return DummyProvider(self.data)
 
     def __init__(self, data: Dict = None):
+        super().__init__()
         self.frozen = False
         self.data = data
 
@@ -27,19 +25,17 @@ class DummyProvider(DependencyProvider):
 class DummyFactoryProvider(DependencyProvider):
     singleton = True
 
-    def freeze(self):
-        self.frozen = True
-
-    def clone(self) -> 'DependencyProvider':
+    def clone(self, keep_singletons_cache: bool) -> DependencyProvider:
         return DummyFactoryProvider(self.data)
 
     def __init__(self, data: Dict = None):
+        super().__init__()
         self.frozen = False
         self.data = data or dict()
 
     def provide(self, dependency, container):
         try:
-            return DependencyInstance(self.data[dependency](),
+            return DependencyInstance(self.data[dependency](container),
                                       singleton=self.singleton)
         except KeyError:
             pass

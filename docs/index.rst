@@ -17,6 +17,6 @@ Table of Content
 
     why
     tutorial
-    how_to
+    recipes
     reference
 

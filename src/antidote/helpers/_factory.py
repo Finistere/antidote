@@ -1,109 +1,119 @@
-from typing import (Any, Callable, Dict, get_type_hints, Iterable, TypeVar, Union)
+from __future__ import annotations
 
-from .inject import inject
-from .register import register
-from .wire import wire, Wiring
-from .._internal.utils import API, SlotsReprMixin
-from ..providers.factory import Build, FactoryProvider
-from ..providers.tag import Tag, TagProvider
+import functools
+import inspect
+from typing import Any, Callable, Dict, get_type_hints
 
-F = TypeVar('F', bound=Callable[..., Any])
+from .lazy import LazyCall
+from .service import register
+from .._internal import API
+from .._internal.utils import AbstractMeta, FinalImmutable
+from ..core import Dependency, inject
+from ..providers.factory import FactoryDependency, FactoryProvider
+from ..providers.service import Build
+from ..providers.tag import TagProvider
+
+_ABSTRACT_FLAG = '__antidote_abstract'
 
 
 @API.private
-class FactoryMeta(type):
+class FactoryMeta(AbstractMeta):
     def __new__(mcls, name, bases, namespace, **kwargs):
+        abstract = kwargs.get('abstract')
+
+        if '__call__' not in namespace and not abstract:
+            raise TypeError(f"The class {name} must implement __call__()")
+
         cls = super().__new__(mcls, name, bases, namespace, **kwargs)
-        mcls.__register_factory(cls)
+        if not abstract:
+            cls.__dependency_factory = _configure_factory(cls)
+
         return cls
 
-    def __rmatmul__(cls, dependency) -> Build:
-        return dependency @ PreBuild(cls, cls.__supported_dependency)
+    @API.public
+    def __rmatmul__(cls, dependency) -> Any:
+        assert cls.__dependency_factory is not None
+        if dependency != cls.__dependency_factory.dependency:
+            raise ValueError(f"Unsupported dependency {dependency}")
+        return cls.__dependency_factory
 
-    def with_kwargs(cls, **kwargs) -> 'PreBuild':
-        return PreBuild(cls, cls.__supported_dependency, kwargs)
-
-    @property
-    def __supported_dependency(cls):
-        return get_type_hints(cls.__call__).get('return')
-
-    @staticmethod
-    @inject
-    def __register_factory(cls,
-                           factory_provider: FactoryProvider,
-                           tag_provider: TagProvider = None):
-        if '__call__' not in dir(cls):
-            raise TypeError(f"The class {cls} must implement __call__()")
-
-        wiring: Wiring = cls.wiring
-        singleton: bool = cls.singleton
-        tags: Iterable[Union[str, Tag]] = cls.tags
-
-        dependency = get_type_hints(cls.__call__).get('return')
-        if dependency is None:
-            raise ValueError("The return annotation is necessary on __call__."
-                             "It is used a the dependency.")
-
-        wire_raise_on_missing = True
-        if wiring.is_auto():
-            wiring = Wiring(
-                methods=('__call__', '__init__'),
-                dependencies=wiring.dependencies,
-                use_names=wiring.use_names,
-                use_type_hints=wiring.use_type_hints,
-                wire_super=wiring.wire_super
-            )
-            wire_raise_on_missing = False
-
-        if wiring.methods:
-            wire(cls, wiring=wiring, raise_on_missing_method=wire_raise_on_missing)
-
-        obj = register(cls, auto_wire=False, singleton=True)
-        factory_provider.register_providable_factory(
-            dependency=dependency,
-            singleton=singleton,
-            takes_dependency=False,
-            factory_dependency=obj
-        )
-
-        if tags is not None:
-            if tag_provider is None:
-                raise RuntimeError("No TagProvider registered, cannot use tags.")
-            tag_provider.register(dependency=dependency, tags=tags)
+    @API.public
+    def with_kwargs(cls, **kwargs) -> PreBuild:
+        assert cls.__dependency_factory is not None
+        return PreBuild(cls.__dependency_factory, kwargs)
 
 
 @API.private
-class LambdaFactory(SlotsReprMixin):
-    __slots__ = ('__factory',)
+@inject
+def _configure_factory(cls,
+                       factory_provider: FactoryProvider,
+                       tag_provider: TagProvider = None):
+    from .factory import Factory
 
-    def __init__(self, factory: Callable):
+    conf = getattr(cls, '__antidote__', None)
+    if not isinstance(conf, Factory.Conf):
+        raise TypeError(f"Factory configuration (__antidote__) is expected to be "
+                        f"a {Factory.Conf}, not a {type(conf)}")
+
+    dependency = get_type_hints(cls.__call__).get('return')
+    if dependency is None:
+        raise ValueError("The return annotation is necessary on __call__."
+                         "It is used a the dependency.")
+    if not inspect.isclass(dependency):
+        raise TypeError(f"The return annotation is expected to be a class, "
+                        f"not {type(dependency)}.")
+
+    if conf.wiring is not None:
+        conf.wiring.wire(cls)
+
+    factory_id = factory_provider.register(
+        dependency=dependency,
+        singleton=conf.singleton,
+        factory=Dependency(register(cls, auto_wire=False, singleton=True)
+                           if conf.public else
+                           LazyCall(cls, singleton=True))
+    )
+
+    if conf.tags is not None:
+        if tag_provider is None:
+            raise RuntimeError("No TagProvider registered, cannot use tags.")
+        tag_provider.register(dependency=factory_id, tags=conf.tags)
+
+    return factory_id
+
+
+@API.private
+class LambdaFactory:
+    def __init__(self, factory: Callable, dependency_factory: FactoryDependency):
         self.__factory = factory
-
-    @property
-    def __supported_dependency(self):
-        return get_type_hints(self.__factory).get('return')
+        self.__dependency_factory = dependency_factory
+        functools.wraps(factory, updated=())(self)
 
     def __call__(self, *args, **kwargs):
         return self.__factory(*args, **kwargs)
 
-    def __rmatmul__(self, dependency) -> Build:
-        return dependency @ PreBuild(self, self.__supported_dependency)
+    def __rmatmul__(self, dependency) -> Any:
+        if dependency != self.__dependency_factory.dependency:
+            raise ValueError(f"Unsupported dependency {dependency}")
+        return self.__dependency_factory
 
     def with_kwargs(self, **kwargs) -> 'PreBuild':
-        return PreBuild(self, self.__supported_dependency, kwargs)
+        return PreBuild(self.__dependency_factory, kwargs)
 
 
 @API.private
-class PreBuild(SlotsReprMixin):
-    __slots__ = ('factory', 'supported_dependency', 'kwargs')
+class PreBuild(FinalImmutable):
+    __slots__ = ('dependency_factory', 'kwargs')
+    dependency_factory: FactoryDependency
+    kwargs: Dict
 
-    def __init__(self, factory, supported_dependency, kwargs: Dict = None):
-        self.factory = factory
-        self.supported_dependency = supported_dependency
-        self.kwargs = kwargs
+    def __init__(self, dependency_factory: FactoryDependency, kwargs: Dict):
+        if not kwargs:
+            raise ValueError("When calling with_kwargs, "
+                             "at least one argument must be provided.")
+        super().__init__(dependency_factory=dependency_factory, kwargs=kwargs)
 
-    def __rmatmul__(self, dependency) -> Build:
-        if dependency != self.supported_dependency:
-            raise ValueError(f"Factory {self.factory!r} cannot build {dependency!r}, "
-                             f"only {self.supported_dependency!r}.")
-        return Build(dependency, self.kwargs)
+    def __rmatmul__(self, dependency) -> Any:
+        if dependency != self.dependency_factory.dependency:
+            raise ValueError(f"Unsupported dependency {dependency}")
+        return Build(self.dependency_factory, self.kwargs)

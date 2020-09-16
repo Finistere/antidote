@@ -1,6 +1,8 @@
-How to
-======
+Recipes
+=======
 
+This is a collection of how to use certain features of Antidote or simply examples of
+what can be done.
 
 Use interfaces
 --------------
@@ -155,6 +157,9 @@ Tags are a way to retrieve a list of services, such as plugins, extensions, etc.
 .. doctest:: how_to_tags
 
     >>> from antidote import World, Tagged
+        >>> services = World.get(Tagged('extension'))
+        >>> list(zip(services.tags(), services.dependencies(), services.values()))
+        [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
     >>> services = World.get(Tagged('extension'))
     >>> list(zip(services.tags(), services.dependencies(), services.instances()))
     [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]

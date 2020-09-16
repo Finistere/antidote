@@ -1,180 +1,182 @@
 import pytest
 
 from antidote import world
-from antidote.core import DependencyContainer
-from antidote.core.exceptions import FrozenWorldError
-from antidote.exceptions import DuplicateDependencyError
-from antidote.providers.factory import Build, FactoryProvider
-
-
-class Service:
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-
-
-class AnotherService(Service):
-    pass
+from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
+from antidote.providers.factory import FactoryProvider
+from antidote.providers.service import Build
 
 
 @pytest.fixture()
 def provider():
     with world.test.empty():
-        provider = FactoryProvider()
-        world.get(DependencyContainer).register_provider(provider)
-        yield provider
+        world.provider(FactoryProvider)
+        yield world.get(FactoryProvider)
 
 
-@pytest.mark.parametrize(
-    'wrapped,kwargs',
-    [
-        (1, {'test': 1}),
-        (Service, {'another': 'no'}),
-        (Service, {'not_hashable': {'hey': 'hey'}})
-    ]
-)
-def test_build_eq_hash(wrapped, kwargs):
-    b = Build(wrapped, **kwargs)
-
-    # does not fail
-    hash(b)
-
-    for f in (lambda e: e, hash):
-        assert f(Build(wrapped, **kwargs)) == f(b)
-
-    assert repr(wrapped) in repr(b)
-    assert repr(kwargs) in repr(b)
+class A:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
 
 
-@pytest.mark.parametrize(
-    'args,kwargs',
-    [
-        [(), {}],
-        [(1,), {}],
-        [(), {'test': 1}],
-    ]
-)
-def test_invalid_build(args: tuple, kwargs: dict):
-    with pytest.raises(TypeError):
-        Build(*args, **kwargs)
+def build(**kwargs) -> A:
+    return A(**kwargs)
+
+
+def test_str(provider: FactoryProvider):
+    provider.register(A, build)
+    assert str(A) in str(provider)
+    assert str(build) in str(provider)
 
 
 def test_simple(provider: FactoryProvider):
-    provider.register_class(Service)
-
-    dependency = provider.world_provide(Service)
-    assert isinstance(dependency.instance, Service)
-    assert repr(Service) in repr(provider)
-
-
-def test_singleton(provider: FactoryProvider):
-    provider.register_class(Service, singleton=True)
-    provider.register_class(AnotherService, singleton=False)
-
-    assert provider.world_provide(Service).singleton is True
-    assert provider.world_provide(AnotherService).singleton is False
+    factory_id = provider.register(A, build)
+    assert isinstance(world.get(factory_id), A)
+    # singleton
+    assert world.get(factory_id) is world.get(factory_id)
 
 
-def test_takes_dependency(provider: FactoryProvider):
-    provider.register_factory(factory=lambda cls: cls(), dependency=Service,
-                              takes_dependency=True)
-
-    assert isinstance(provider.world_provide(Service).instance, Service)
-    assert provider.world_provide(AnotherService) is None
-
-
-def test_build(provider: FactoryProvider):
-    provider.register_class(Service)
-
-    s = provider.world_provide(Build(Service, val=object)).instance
-    assert isinstance(s, Service)
-    assert dict(val=object) == s.kwargs
-
-    provider.register_factory(AnotherService, factory=AnotherService,
-                              takes_dependency=True)
-
-    s = provider.world_provide(Build(AnotherService, val=object)).instance
-    assert isinstance(s, AnotherService)
-    assert (AnotherService,) == s.args
-    assert dict(val=object) == s.kwargs
+def test_lazy(provider: FactoryProvider):
+    world.singletons.set('A', build)
+    factory_id = provider.register(A, world.lazy('A'))
+    assert isinstance(world.get(factory_id), A)
+    # singleton
+    assert world.get(factory_id) is world.get(factory_id)
 
 
-def test_non_singleton_factory(provider: FactoryProvider):
-    def factory_builder():
-        def factory(o=object()):
-            return o
+@pytest.mark.parametrize('singleton', [True, False])
+def test_singleton(singleton: bool):
+    with world.test.empty():
+        world.singletons.set('A', build)
+        world.provider(FactoryProvider)
+        with world.test.clone():
+            provider = world.get(FactoryProvider)
+            factory_id = provider.register(A, build, singleton=singleton)
+            assert isinstance(world.get(factory_id), A)
+            assert (world.get(factory_id) is world.get(factory_id)) == singleton
 
-        return factory
-
-    provider.register_factory('factory', factory=factory_builder, singleton=False)
-    provider.register_providable_factory('service', factory_dependency='factory')
-
-    service = provider.world_provide('service').instance
-    assert provider.world_provide('service').instance is not service
+        with world.test.clone(keep_singletons=True):
+            provider = world.get(FactoryProvider)
+            factory_id = provider.register(A, world.lazy('A'), singleton=singleton)
+            assert isinstance(world.get(factory_id), A)
+            assert (world.get(factory_id) is world.get(factory_id)) == singleton
 
 
-def test_duplicate_error(provider: FactoryProvider):
-    provider.register_class(Service)
+@pytest.mark.parametrize('first', ['register', 'register_lazy'])
+@pytest.mark.parametrize('second', ['register', 'register_lazy'])
+def test_duplicate_dependency(provider: FactoryProvider, first: str, second: str):
+    world.singletons.set('A', build)
+
+    if first == 'register':
+        provider.register(A, build)
+    else:
+        provider.register(A, world.lazy('A'))
 
     with pytest.raises(DuplicateDependencyError):
-        provider.register_class(Service)
-
-    with pytest.raises(DuplicateDependencyError):
-        provider.register_factory(factory=lambda: Service(), dependency=Service)
-
-    with pytest.raises(DuplicateDependencyError):
-        provider.register_providable_factory(factory_dependency='dummy',
-                                             dependency=Service)
+        if second == 'register':
+            provider.register(A, build)
+        else:
+            provider.register(A, world.lazy('A'))
 
 
-@pytest.mark.parametrize(
-    'kwargs',
-    [dict(factory='test', dependency=Service),
-     dict(factory=object(), dependency=Service)]
-)
-def test_invalid_type(provider: FactoryProvider, kwargs):
+def test_invalid_register(provider: FactoryProvider):
     with pytest.raises(TypeError):
-        provider.register_factory(**kwargs)
+        provider.register(A, 1)
 
 
-@pytest.mark.parametrize('dependency', ['test', Service, object()])
-def test_unknown_dependency(provider: FactoryProvider, dependency):
-    assert provider.world_provide(dependency) is None
+def test_build_dependency(provider: FactoryProvider):
+    world.singletons.set('A', build)
+    kwargs = dict(test=object())
+
+    with world.test.clone():
+        provider = world.get(FactoryProvider)
+        factory_id = provider.register(A, build)
+        a = world.get(Build(factory_id, kwargs))
+        assert isinstance(a, A)
+        assert a.kwargs == kwargs
+
+    with world.test.clone(keep_singletons=True):
+        provider = world.get(FactoryProvider)
+        factory_id = provider.register(A, world.lazy('A'))
+        a = world.get(Build(factory_id, kwargs))
+        assert isinstance(a, A)
+        assert a.kwargs == kwargs
 
 
-def test_clone(provider: FactoryProvider):
-    class Service2:
+def test_copy():
+    class B:
         pass
 
-    class Service3:
+    class C:
         pass
 
-    provider.register_class(Service)
-    provider.register_factory(Service2, lambda: Service2())
-    world.singletons.set("factory", lambda: Service3())
-    provider.register_providable_factory(Service3, "factory")
+    def build2() -> A:
+        return A(build2=True)
 
-    cloned = provider.clone()
-    assert isinstance(cloned.world_provide(Service).instance, Service)
-    assert isinstance(cloned.world_provide(Service2).instance, Service2)
-    assert isinstance(cloned.world_provide(Service3).instance, Service3)
+    with world.test.empty():
+        original = FactoryProvider()
+        a_id = original.register(A, build)
 
-    class Service4:
-        pass
+        # cloned has the same dependencies
+        cloned = original.clone(keep_singletons_cache=False)
+        with pytest.raises(DuplicateDependencyError):
+            cloned.register(A, build)
+        assert isinstance(cloned.test_provide(a_id).instance, A)
 
-    cloned.register_class(Service4)
-    assert isinstance(cloned.world_provide(Service4).instance, Service4)
-    assert provider.world_provide(Service4) is None
+        # Adding dependencies to either original or cloned, should not impact the
+        # other one.
+        original_b_id = original.register(B, lambda: B())
+        cloned_b_id = cloned.register(B, lambda: B())
+
+        cloned.register(C, lambda: C())
+        original.register(C, lambda: C())
+
+    with world.test.empty():
+        world.singletons.set('build', build)
+        original = FactoryProvider()
+        a_id = original.register(A, world.lazy('build'))
+        a = original.test_provide(a_id).instance
+
+        assert isinstance(a, A)
+        assert a.kwargs == {}
+
+        cloned_with_singletons = original.clone(keep_singletons_cache=True)
+        cloned = original.clone(keep_singletons_cache=False)
+        with world.test.empty():
+            world.singletons.set('build', build2)
+            a2 = cloned.test_provide(a_id).instance
+
+            assert isinstance(a2, A)
+            assert a2.kwargs == dict(build2=True)
+
+            # We kept singletons, so previous dependency 'build' has been kept.
+            a3 = cloned_with_singletons.test_provide(a_id).instance
+            assert isinstance(a3, A)
+            assert a3.kwargs == {}
 
 
 def test_freeze(provider: FactoryProvider):
-    provider.freeze()
+    world.freeze()
 
     with pytest.raises(FrozenWorldError):
-        provider.register_class(Service)
+        provider.register(A, build)
 
-    with pytest.raises(FrozenWorldError):
-        provider.register_factory(Service, lambda: Service())
 
-    with pytest.raises(FrozenWorldError):
-        provider.register_providable_factory(Service, "dummy")
+def test_factory_id_repr(provider: FactoryProvider):
+    factory_id = provider.register(A, build)
+    assert repr(A) in repr(factory_id)
+    assert repr(build) in repr(factory_id)
+
+    class B:
+        pass
+
+    factory_id = provider.register(B, world.lazy(build))
+    assert repr(B) in repr(factory_id)
+    assert repr(build) in repr(factory_id)
+
+
+def test_invalid_dependency(provider: FactoryProvider):
+    assert provider.test_provide(object()) is None
+
+    p2 = FactoryProvider()
+    dependency = p2.register(A, build)
+    assert provider.test_provide(dependency) is None

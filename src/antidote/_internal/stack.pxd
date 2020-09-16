@@ -1,9 +1,6 @@
-# cython: language_level=3
-# cython: boundscheck=False, wraparound=False
 from cpython.object cimport PyObject
 
-cdef extern from "Python.h":
-    Py_hash_t
+ctypedef Py_ssize_t Py_hash_t
 
 cdef class DependencyStack:
     cdef:

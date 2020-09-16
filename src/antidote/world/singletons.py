@@ -1,7 +1,6 @@
-from typing import Hashable, Dict
+from typing import Dict, Hashable
 
-from .._internal import state
-from .._internal.utils import API
+from .._internal import API, state
 
 
 @API.public

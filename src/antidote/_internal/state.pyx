@@ -1,26 +1,24 @@
-# cython: language_level=3
-# cython: boundscheck=False, wraparound=False, annotation_typing=False
-
-# @formatter:off
+"""
+Similar to the pure Python, but used to have a cdef function for faster access.
+"""
 import threading
+from contextlib import contextmanager
 from typing import Callable
 
-from antidote.core.container cimport DependencyContainer
+# @formatter:off
+from antidote.core.container cimport RawDependencyContainer
 # @formatter:on
 
-from contextlib import contextmanager
-
 cdef:
-    DependencyContainer __container = None
+    RawDependencyContainer __container = None
     object __container_lock = threading.RLock()
-    unsigned int __overridden = 0
 
-cpdef DependencyContainer get_container():
+cdef RawDependencyContainer fast_get_container():
     assert __container is not None
     return __container
 
-def is_overridden():
-    return __overridden == 0
+def get_container() -> RawDependencyContainer:
+    return fast_get_container()
 
 def reset():
     global __container
@@ -31,18 +29,16 @@ def init():
     if __container is None:
         with __container_lock:
             if __container is None:
-                from . import defaults
-                __container = defaults.new_container()
+                from . import container_utils
+                __container = container_utils.new_container()
 
 @contextmanager
-def override(create: Callable[[DependencyContainer], DependencyContainer]):
-    global __container, __overridden
+def override(create: Callable[[RawDependencyContainer], RawDependencyContainer]):
+    global __container
     with __container_lock:
         old = __container
         try:
-            __overridden += 1
             __container = create(old)
             yield
         finally:
             __container = old
-            __overridden -= 1

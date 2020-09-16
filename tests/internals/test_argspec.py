@@ -2,7 +2,6 @@ import itertools
 from inspect import getattr_static
 
 import pytest
-from pretend import raiser
 
 from antidote._internal.argspec import Argument, Arguments
 
@@ -229,11 +228,6 @@ def test_from_methods(descriptor):
         assert expected_arg.type_hint == result_arg.type_hint
 
 
-def test_broken_type_hints_cpy353(monkeypatch):
-    monkeypatch.setattr('antidote._internal.argspec.get_type_hints', raiser(Exception))
-    Arguments.from_callable(k)
-
-
 args = tuple([
     Argument('x', False, int),
     Argument('y', True, str),
@@ -250,6 +244,7 @@ def test_getitem():
     )
     assert arguments['x'] is args[0]
     assert arguments[1] is args[1]
+    assert arguments.arg_names == {'x', 'y', 'z'}
 
     with pytest.raises(TypeError):
         arguments[2.3]
@@ -313,3 +308,8 @@ def test_magic_methods_arguments():
     assert "y:str =" in repr(arguments_var_kwargs)
     assert "z:float" in repr(arguments_var_kwargs)
     assert "**kwargs" in repr(arguments_var_kwargs)
+
+
+def test_invalid_callable():
+    with pytest.raises(TypeError):
+        Arguments.from_callable(object())

@@ -46,10 +46,17 @@ extensions = [
 
 # Python code that is treated like it were put in a testcleanup directive for
 # every file that is tested, and for every group.
-# doctest_global_cleanup = """
-# import antidote
-# antidote.global_container = antidote.new_container()
-# """
+doctest_global_setup = """
+from antidote._internal import state
+state.init()
+"""
+doctest_global_cleanup = """
+from antidote._internal import state
+state.reset()
+"""
+
+autodoc_member_order = 'bysource'
+autoclass_content = "both"
 
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
@@ -207,10 +214,10 @@ texinfo_documents = [
 ]
 
 
-def do_not_skip_init(app, what, name, obj, skip, options):
-    return (name != "__init__") and skip
+# def do_not_skip_antidote(app, what, name, obj, skip, options):
+#     return (name != "__antidote__") and skip
 
 
 def setup(app):
-    app.connect("autodoc-skip-member", do_not_skip_init)
-    app.add_stylesheet('css/style.css')  # may also be an URL
+    # app.connect("autodoc-skip-member", do_not_skip_antidote)
+    app.add_css_file('css/style.css')  # may also be an URL

@@ -8,8 +8,7 @@ from typing import Any, List, Tuple
 import pytest
 
 from antidote import world
-from antidote._internal.wrapper import InjectedWrapper, Injection, InjectionBlueprint
-from antidote.core import DependencyProvider
+from antidote._internal.wrapper import build_wrapper, Injection, InjectionBlueprint
 from antidote.exceptions import DependencyNotFoundError
 
 A = object()
@@ -27,7 +26,7 @@ def empty_world():
 def easy_wrap(func=None,
               arg_dependency: List[Tuple[str, bool, Any]] = tuple()):
     def wrapper(func):
-        return InjectedWrapper(
+        return build_wrapper(
             blueprint=InjectionBlueprint(tuple([
                 Injection(arg_name, required, dependency)
                 for arg_name, required, dependency in arg_dependency

@@ -1,4 +1,4 @@
-from ._internal.utils import API
+from ._internal import API
 
 
 @API.public

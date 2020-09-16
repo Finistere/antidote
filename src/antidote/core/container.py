@@ -1,91 +1,205 @@
+from __future__ import annotations
+
 import threading
-from typing import (Any, Dict, final, Generic, Hashable, List, Mapping, Optional, TypeVar)
+from contextlib import contextmanager
+from typing import (Any, Dict, final, Hashable, List, Mapping, Optional, Type)
+from weakref import ref, ReferenceType
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
-                         DependencyNotFoundError, FrozenWorldError)
+                         DependencyNotFoundError, DuplicateDependencyError,
+                         FrozenContainerError)
 from .._internal.stack import DependencyStack
-from .._internal.utils import API, FinalMeta, SlotsReprMixin
+from .._internal.utils import FinalImmutable, FinalMeta
+from .._internal import API
 
-T = TypeVar('T')
+# PRIVATE
+_CONTAINER_REF_ATTR = "_antidote__container_ref"
 
 
-@final
 @API.public
-class DependencyInstance(SlotsReprMixin, Generic[T], metaclass=FinalMeta):
+@final
+class DependencyInstance(FinalImmutable):
     """
-    Simple wrapper used by a :py:class:`~.core.Provider` when returning an
-    instance of a dependency so it can specify in which scope the instance
-    belongs to.
+    Simple wrapper of a dependency instance given by a
+    :py:class:`~.provider.DependencyProvider`.
     """
     __slots__ = ('instance', 'singleton')
+    instance: Any
+    singleton: bool
 
-    def __init__(self, instance: T, singleton: bool = False):
-        self.instance = instance
-        self.singleton = singleton
+    def __init__(self, instance: Any, singleton: bool = False):
+        super().__init__(instance, singleton)
 
 
-@final
 @API.public
-class DependencyContainer(metaclass=FinalMeta):
+class DependencyContainer:
     """
-    Instantiates the dependencies through the registered providers and handles
-    their scope.
+    Public interface of the container used by Antidote to handles all
+    dependencies. Used in a :py:class:`~.provider.DependencyProvider` to access other
+    dependencies.
+    """
+
+    def get(self, dependency: Hashable) -> Any:
+        """
+        Retrieves given dependency or raises a
+        :py:exc:`~..exceptions.DependencyNotFoundError`.
+
+        Args:
+            dependency: Dependency to be retrieved.
+
+        Returns:
+            The dependency instance.
+        """
+        raise NotImplementedError()  # pragma: no cover
+
+    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+        """
+        Similar to :py:meth:`~.get` it will retrieve a dependency. However it will
+        be wrapped in a :py:class:`~.DependencyInstance` if found. If not
+        :py:obj:`None` will be returned. This allows to get additional information such
+        as whether the dependency is a singleton or not.
+
+        Args:
+            dependency: Dependency to be retrieved.
+
+        Returns:
+            Optional[DependencyInstance]: wrapped dependency instance if found.
+
+        """
+        raise NotImplementedError()  # pragma: no cover
+
+    @contextmanager
+    def ensure_not_frozen(self):
+        raise NotImplementedError()  # pragma: no cover
+
+
+@API.private
+class RawDependencyProvider:
+    """
+    Abstract base class for a Provider.
+
+    Prefer using :py:class:`~.core.provider.DependencyProvider`
+    or :py:class:`~.core.provider.StatelessDependencyProvider` which are safer
+    to implement.
+
+    :meta private:
     """
 
     def __init__(self):
-        self.__providers: List[DependencyProvider] = list()
+        setattr(self, _CONTAINER_REF_ATTR, None)
+
+    @API.private
+    def provide(self, dependency: Hashable, container: DependencyContainer
+                ) -> Optional[DependencyInstance]:
+        raise NotImplementedError()  # pragma: no cover
+
+    @API.private
+    def clone(self, keep_singletons_cache: bool) -> 'RawDependencyProvider':
+        raise NotImplementedError()  # pragma: no cover
+
+    @final
+    @contextmanager
+    def _ensure_not_frozen(self):
+        container_ref: ReferenceType[DependencyContainer] = getattr(self,
+                                                                    _CONTAINER_REF_ATTR)
+        if container_ref is None:
+            yield
+        else:
+            container: DependencyContainer = container_ref()
+            assert container is not None, "Associated container does not exist anymore."
+            with container.ensure_not_frozen():
+                yield
+
+
+@final
+@API.private  # Not meant for direct use. You should go through world to manipulate it.
+class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
+    """
+    Reference implementation for the DependencyContainer. The Cython version is
+    considerably more complex for better performance.
+
+    :meta private:
+    """
+
+    def __init__(self):
+        self.__providers: List[RawDependencyProvider] = list()
         self.__singletons: Dict[Any, Any] = dict()
-        self.__singletons[DependencyContainer] = self
         self.__dependency_stack = DependencyStack()
-        self.__instantiation_lock = threading.RLock()
+        self.__singleton_lock = threading.RLock()
+        self.__freeze_lock = threading.RLock()
         self.__frozen = False
 
-    def __str__(self):
+    def __repr__(self):
         return f"{type(self).__name__}(providers={', '.join(map(str, self.__providers))})"
 
-    def __repr__(self):
-        return f"{type(self).__name__}(providers={', '.join(map(repr, self.__providers))})"
+    @property
+    def singletons(self):
+        return self.__singletons.copy()
 
-    @API.private  # Use world.freeze() instead
+    @property
+    def providers(self):
+        return self.__providers.copy()
+
+    @contextmanager
+    def ensure_not_frozen(self):
+        with self.__freeze_lock:
+            if self.__frozen:
+                raise FrozenContainerError()
+            yield
+
     def freeze(self):
-        with self.__instantiation_lock:
+        with self.__freeze_lock:
             self.__frozen = True
-            for provider in self.__providers:
-                provider.freeze()
 
-    @API.private  # Not to be used directly, only used by world to create test worlds
-    def clone(self, keep_singletons: bool = False) -> 'DependencyContainer':
-        c = DependencyContainer()
-        with self.__instantiation_lock:
-            c.__singletons = self.__singletons.copy() if keep_singletons else dict()
-            c.__providers = [p.clone() for p in self.__providers]
-            c.__singletons[DependencyContainer] = c
-            for p in c.__providers:
-                c.__singletons[type(p)] = p
+    def clone(self,
+              *,
+              keep_singletons: bool = False,
+              clone_providers: bool = True) -> 'RawDependencyContainer':
+        c = RawDependencyContainer()
+        with self.__singleton_lock:
+            if keep_singletons:
+                c.__singletons = self.__singletons.copy()
+            if clone_providers:
+                for p in self.__providers:
+                    clone = p.clone(keep_singletons_cache=keep_singletons)
+                    if clone is p \
+                            or getattr(clone, _CONTAINER_REF_ATTR, None) is not None:
+                        raise RuntimeError("A Provider should always return a fresh "
+                                           "instance when copy() is called.")
+
+                    setattr(clone, _CONTAINER_REF_ATTR, ref(c))
+                    c.__providers.append(clone)
+                    c.__singletons[type(p)] = clone
+            else:
+                for p in self.__providers:
+                    c.register_provider(type(p))
+
         return c
 
-    @API.private  # Use the @provider decorator
-    def register_provider(self, provider: 'DependencyProvider'):
-        if not isinstance(provider, DependencyProvider):
+    def register_provider(self, provider_cls: Type[RawDependencyProvider]):
+        if not isinstance(provider_cls, type) \
+                or not issubclass(provider_cls, RawDependencyProvider):
             raise TypeError(
-                f"provider must be a DependencyProvider, not a {type(provider)!r}")
+                f"provider must be a DependencyProvider, not a {provider_cls}")
 
-        with self.__instantiation_lock:
-            if self.__frozen:
-                raise FrozenWorldError(f"Cannot add provider {type(provider)} "
-                                       f"to a frozen container.")
+        with self.ensure_not_frozen(), self.__singleton_lock:
+            if any(provider_cls == type(p) for p in self.__providers):
+                raise ValueError(f"Provider {provider_cls} already exists")
+
+            provider = provider_cls()
+            setattr(provider, _CONTAINER_REF_ATTR, ref(self))
             self.__providers.append(provider)
-            self.__singletons[type(provider)] = provider
+            self.__singletons[provider_cls] = provider
 
-    @API.private  # Use world instead
     def update_singletons(self, dependencies: Mapping):
-        with self.__instantiation_lock:
-            if self.__frozen:
-                raise FrozenWorldError(f"Cannot add singletons to a frozen container. "
-                                       f"singletons = {dependencies}")
+        with self.ensure_not_frozen(), self.__singleton_lock:
+            for k, v in dependencies.items():
+                if k in self.__singletons:
+                    raise DuplicateDependencyError(
+                        f"Trying to overwrite singleton {k!r} with {v!r}, but it already "
+                        f"exists with the value {self.__singletons[k]!r}")
             self.__singletons.update(dependencies)
 
-    @API.public
     def get(self, dependency: Hashable) -> Any:
         try:
             return self.__singletons[dependency]
@@ -93,8 +207,7 @@ class DependencyContainer(metaclass=FinalMeta):
             pass
         return self.__safe_provide(dependency).instance
 
-    @API.public
-    def provide(self, dependency: Hashable) -> DependencyInstance:
+    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         try:
             return DependencyInstance(self.__singletons[dependency], singleton=True)
         except KeyError:
@@ -103,7 +216,7 @@ class DependencyContainer(metaclass=FinalMeta):
 
     def __safe_provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
         try:
-            with self.__instantiation_lock, \
+            with self.__singleton_lock, \
                  self.__dependency_stack.instantiating(dependency):
                 try:
                     return DependencyInstance(self.__singletons[dependency],
@@ -127,58 +240,3 @@ class DependencyContainer(metaclass=FinalMeta):
 
         else:
             raise DependencyNotFoundError(dependency)
-
-
-@API.public
-class DependencyProvider:
-    """
-    Abstract base class for a Provider.
-
-    Used by the :py:class:`~.core.DependencyContainer` to instantiate
-    dependencies. Several are used in a cooperative manner : the first instance
-    to be returned by one of them is used. Thus providers should ideally not
-    overlap and handle only one kind of dependencies such as strings or tag.
-
-    This should be used whenever one needs to introduce a new kind of dependency,
-    or control how certain dependencies are instantiated.
-    """
-
-    @API.private  # Should be used through world.freeze()
-    def freeze(self):
-        raise NotImplementedError()  # pragma: no cover
-
-    @API.public_for_tests
-    def world_provide(self, dependency: Hashable):
-        """
-        Method only used for tests to avoid the repeated injection of the current
-        DependencyContainer.
-        """
-        from antidote import world
-        return self.provide(dependency, world.get(DependencyContainer))
-
-    # Use world_provide for tests and you should go through world to get what you need
-    @API.private
-    def provide(self, dependency: Hashable, container: DependencyContainer
-                ) -> Optional[DependencyInstance]:
-        """
-        Method called by the :py:class:`~.core.DependencyContainer` when
-        searching for a dependency.
-
-        It is necessary to check quickly if the dependency can be provided or
-        not, as :py:class:`~.core.DependencyContainer` will try its
-        registered providers. A good practice is to subclass
-        :py:class:`~.core.Dependency` so custom dependencies be differentiated.
-
-        Args:
-            dependency: The dependency to be provided by the provider.
-            container: current container
-
-        Returns:
-            The requested instance wrapped in a :py:class:`~.core.Instance`
-            if available or :py:obj:`None`.
-        """
-        raise NotImplementedError()  # pragma: no cover
-
-    @API.private  # Only used for world.test.clone()
-    def clone(self) -> 'DependencyProvider':
-        raise NotImplementedError()  # pragma: no cover
