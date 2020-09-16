@@ -19,6 +19,8 @@ class SlotsReprMixin:
         )
         return f"{type(self).__name__}({', '.join(slots_attrs)})"
 
+    __str__ = __repr__
+
 
 class FinalMeta(type):
     def __new__(cls, name, bases, classdict):

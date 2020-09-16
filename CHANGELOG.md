@@ -29,6 +29,7 @@ Changelog
   called each time. Defaults to True. Obviously one can use `@inject` to provide any
   necessary information to make the decision.
 - Drop support of Python 3.5.
+- Removed `container` arguments on all helper decorators.
 
 
 0.7.2 (2020-04-21)

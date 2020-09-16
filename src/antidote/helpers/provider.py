@@ -84,7 +84,7 @@ def provider(class_: Type[DependencyProvider] = None,
                        wire_super=wire_super,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
-                       raise_on_missing=auto_wire is not True)
+                       raise_on_missing_method=auto_wire is not True)
 
         get_container().register_provider(cls())
 

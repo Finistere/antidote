@@ -3,6 +3,7 @@ import pytest
 from antidote import factory, world
 from antidote.core import DependencyContainer
 from antidote.providers import FactoryProvider, TagProvider
+from antidote.providers.factory import Factory
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +36,7 @@ def test_function():
     def build() -> Service:
         return Service()
 
-    assert isinstance(world.get(Service), Service)
+    assert isinstance(world.get(Service @ build), Service)
     # singleton by default
     assert world.get(Service) is world.get(Service)
 
@@ -46,7 +47,7 @@ def test_class():
         def __call__(self) -> Service:
             return Service()
 
-    assert isinstance(world.get(Service), Service)
+    assert isinstance(world.get(Service @ ServiceFactory), Service)
     # singleton by default
     assert world.get(Service) is world.get(Service)
 

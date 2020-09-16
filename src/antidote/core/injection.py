@@ -1,7 +1,8 @@
 import builtins
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, overload, Set,
+from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, overload, Sequence,
+                    Set,
                     TypeVar, Union)
 
 from .._internal.argspec import Arguments
@@ -13,10 +14,33 @@ F = TypeVar('F', Callable, staticmethod, classmethod)
 _BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 DEPENDENCIES_TYPE = Union[
     Mapping[str, Hashable],  # {arg_name: dependency, ...}
-    Iterable[Hashable],  # (dependency for arg 1, ...)
+    Sequence[Hashable],  # (dependency for arg 1, ...)
     Callable[[str], Hashable],  # arg_name -> dependency
     str  # str.format(arg_name=arg_name) -> dependency
 ]
+
+
+def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
+                       use_names: Union[bool, Iterable[str]] = None,
+                       use_type_hints: Union[bool, Iterable[str]] = None):
+    if not (dependencies is None
+            or isinstance(dependencies, (str, c_abc.Sequence, c_abc.Mapping))
+            or callable(dependencies)):
+        raise TypeError(
+            f"dependencies can be None, a mapping of arguments names to dependencies, "
+            f"a sequence of dependencies, a function or a string, "
+            f"not a {type(dependencies)!r}"
+        )
+
+    if not (use_names is None or isinstance(use_names, (bool, c_abc.Iterable))):
+        raise TypeError(
+            f"use_names must be either a boolean or a whitelist of argument names, "
+            f"not {type(use_names)!r}.")
+
+    if not (use_type_hints is None or isinstance(use_type_hints, (bool, c_abc.Iterable))):
+        raise TypeError(
+            f"use_type_hints must be either a boolean or a whitelist of argument names, "
+            f"not {type(use_names)!r}.")
 
 
 @overload

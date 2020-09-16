@@ -1,50 +1,62 @@
 import inspect
-from typing import (Callable, get_type_hints, Iterable, overload, TypeVar, Union)
+from typing import (Any, Callable, get_type_hints, Iterable, Optional, overload, Protocol,
+                    TypeVar,
+                    Union)
 
+from ._definitions import Dependency
+from ._factory import FactoryMeta, LambdaFactory, PreBuild
+from .inject import DEPENDENCIES_TYPE, inject
 from .register import register
-from .wire import wire
+from .wire import wire, Wiring
 from .._internal.utils import API
-from .inject import inject, DEPENDENCIES_TYPE
-from ..providers.factory import FactoryProvider
+from ..providers.factory import Build, FactoryProvider
 from ..providers.tag import Tag, TagProvider
 
-F = TypeVar('F', Callable, type)
+F = TypeVar('F', bound=Callable[..., Any])
+
+
+class FactoryProtocol(Protocol):
+    def __rmatmul__(self, dependency) -> Build:
+        pass
+
+    def with_kwargs(self, **kwargs) -> PreBuild:
+        pass
+
+    __call__: F
+
+
+@API.public
+class Factory(metaclass=FactoryMeta):
+    # Both __call__() and __init__() will be injected with default parameters.
+    wiring: Optional[Wiring] = Wiring.auto()
+    singleton: bool = True
+    tags: Iterable[Union[str, Tag]] = None
+
+    __antidote__ = Dependency(wiring=Wiring.auto(), singleton=True, tags=None)
 
 
 @overload
 def factory(func: F,  # noqa: E704  # pragma: no cover
-            *,
-            auto_wire: Union[bool, Iterable[str]] = True,
             singleton: bool = True,
-            dependencies: DEPENDENCIES_TYPE = None,
-            use_names: Union[bool, Iterable[str]] = None,
-            use_type_hints: Union[bool, Iterable[str]] = None,
-            wire_super: Union[bool, Iterable[str]] = None,
             tags: Iterable[Union[str, Tag]] = None
-            ) -> F: ...
+            ) -> FactoryProtocol[F]: ...
 
 
 @overload
 def factory(*,  # noqa: E704  # pragma: no cover
-            auto_wire: Union[bool, Iterable[str]] = True,
             singleton: bool = True,
-            dependencies: DEPENDENCIES_TYPE = None,
-            use_names: Union[bool, Iterable[str]] = None,
-            use_type_hints: Union[bool, Iterable[str]] = None,
-            wire_super: Union[bool, Iterable[str]] = None,
             tags: Iterable[Union[str, Tag]] = None
-            ) -> Callable[[F], F]: ...
+            ) -> Callable[[F], FactoryProtocol[F]]: ...
 
 
 @API.public
-def factory(func: Union[Callable, type] = None,
+def factory(func: F = None,
             *,
-            auto_wire: Union[bool, Iterable[str]] = True,
+            auto_wire: bool = True,
             singleton: bool = True,
             dependencies: DEPENDENCIES_TYPE = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
-            wire_super: Union[bool, Iterable[str]] = None,
             tags: Iterable[Union[str, Tag]] = None
             ):
     """Register a dependency providers, a factory to build the dependency.
@@ -74,17 +86,10 @@ def factory(func: Union[Callable, type] = None,
             also be specified to restrict this to those. Any type hints from
             the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
             ...) are ignored. Defaults to :code:`True`.
-        wire_super: If a method from a super-class needs to be wired, specify
-            either a list of method names or :code:`True` to enable it for
-            all methods. Defaults to :code:`False`, only methods defined in the
-            class itself can be wired.
         tags: Iterable of tag to be applied. Those must be either strings
             (the tag name) or :py:class:`~.providers.tag.Tag`. All
             dependencies with a specific tag can then be retrieved with
             a :py:class:`~.providers.tag.Tagged`.
-        container: :py:class:`~.core.container.DependencyContainer` to which the
-            dependency should be attached. Defaults to the global container,
-            :code:`antidote.world`.
 
     Returns:
         object: The dependency_provider
@@ -92,67 +97,33 @@ def factory(func: Union[Callable, type] = None,
     """
 
     @inject
-    def register_factory(obj,
+    def register_factory(func,
                          factory_provider: FactoryProvider,
                          tag_provider: TagProvider = None):
-        if inspect.isclass(obj):
-            if '__call__' not in dir(obj):
-                raise TypeError("The class must implement __call__()")
-
-            dependency = get_type_hints(obj.__call__).get('return')
-            if dependency is None:
-                raise ValueError("The return annotation is necessary on __call__."
-                                 "It is used a the dependency.")
-
-            wire_raise_on_missing = True
-            if auto_wire is None or isinstance(auto_wire, bool):
-                if auto_wire is False:
-                    methods: Iterable[str] = ()
-                else:
-                    methods = ('__call__', '__init__')
-                    wire_raise_on_missing = False
-            else:
-                methods = auto_wire
-
-            if methods:
-                obj = wire(obj,
-                           methods=methods,
-                           wire_super=wire_super,
-                           raise_on_missing=wire_raise_on_missing,
-                           dependencies=dependencies,
-                           use_names=use_names,
-                           use_type_hints=use_type_hints)
-
-            obj = register(obj, auto_wire=False, singleton=True)
-            factory_provider.register_providable_factory(
-                dependency=dependency,
-                singleton=singleton,
-                takes_dependency=False,
-                factory_dependency=obj
-            )
-        elif callable(obj):
-            dependency = get_type_hints(obj).get('return')
+        if inspect.isfunction(func):
+            dependency = get_type_hints(func).get('return')
             if dependency is None:
                 raise ValueError("A return annotation is necessary. "
                                  "It is used a the dependency.")
+
             if auto_wire:
-                obj = inject(obj,
-                             dependencies=dependencies,
-                             use_names=use_names,
-                             use_type_hints=use_type_hints)
-            factory_provider.register_factory(factory=obj,
+                func = inject(func,
+                              dependencies=dependencies,
+                              use_names=use_names,
+                              use_type_hints=use_type_hints)
+
+            factory_provider.register_factory(factory=LambdaFactory(func),
                                               singleton=singleton,
                                               dependency=dependency,
                                               takes_dependency=False)
         else:
-            raise TypeError(f"Must be either a function or a class implementing "
-                            f"__call__(),  not {type(obj)!r}")
+            raise TypeError(f"{func} is not a function")
 
         if tags is not None:
             if tag_provider is None:
                 raise RuntimeError("No TagProvider registered, cannot use tags.")
             tag_provider.register(dependency=dependency, tags=tags)
 
-        return obj
+        return func
 
     return func and register_factory(func) or register_factory

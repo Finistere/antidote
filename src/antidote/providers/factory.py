@@ -1,9 +1,85 @@
 import threading
-from typing import Callable, Dict, Hashable, Optional
+from typing import Callable, Dict, get_type_hints, Hashable, Optional, Protocol, TypeVar
 
-from .._internal.utils import SlotsReprMixin, API
+from .._internal.utils import API, SlotsReprMixin
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
 from ..exceptions import DuplicateDependencyError, FrozenWorldError
+
+F = TypeVar("F", bound=Callable[..., object])
+
+
+class FactoryProtocol(Protocol):
+    def __rmatmul__(self, dependency) -> 'Build':
+        pass
+
+    def with_kwargs(self, **kwargs) -> 'PreBuild':
+        pass
+
+    __call__: F
+
+
+@API.public
+class FactoryMeta(type):
+    def __new__(mcls, name, bases, namespace, **kwargs):
+        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+
+        if '__call__' not in dir(cls):
+            raise TypeError(f"The class {cls} must implement __call__()")
+
+        return cls
+
+    def __rmatmul__(cls, dependency) -> 'Build':
+        return dependency @ PreBuild(cls, cls.__supported_dependency)
+
+    def with_kwargs(cls, **kwargs) -> 'PreBuild':
+        return PreBuild(cls, cls.__supported_dependency, kwargs)
+
+    @API.private
+    @property
+    def __supported_dependency(cls):
+        return get_type_hints(cls.__call__).get('return')
+
+
+@API.public
+class Factory(metaclass=FactoryMeta):
+    pass
+
+
+@API.private
+class LambdaFactory(SlotsReprMixin):
+    __slots__ = ('__factory',)
+
+    def __init__(self, factory: Callable):
+        self.__factory = factory
+
+    @property
+    def __supported_dependency(self):
+        return get_type_hints(self.__factory).get('return')
+
+    def __call__(self, *args, **kwargs):
+        return self.__factory(*args, **kwargs)
+
+    def __rmatmul__(self, dependency) -> 'Build':
+        return dependency @ PreBuild(self, self.__supported_dependency)
+
+    def with_kwargs(self, **kwargs) -> 'PreBuild':
+        return PreBuild(self, self.__supported_dependency, kwargs)
+
+
+@API.private
+class PreBuild(SlotsReprMixin):
+    __slots__ = ('factory', 'supported_dependency', 'kwargs')
+
+    def __init__(self, factory, supported_dependency, kwargs: Dict = None):
+        self.factory = factory
+        self.supported_dependency = supported_dependency
+        self.kwargs = kwargs
+
+    def __rmatmul__(self, dependency) -> 'Build':
+        if dependency != self.supported_dependency:
+            raise ValueError(f"Factory {self.factory!r} cannot build {dependency!r}, "
+                             f"only {self.supported_dependency!r}.")
+        return Build(dependency, self.kwargs)
 
 
 @API.public
@@ -26,11 +102,9 @@ class Build(SlotsReprMixin):
     With no arguments, that is to say :code:`Build(x)`, it is equivalent to
     :code:`x` for the :py:class:`~.core.DependencyContainer`.
     """
-    __slots__ = ('dependency', 'kwargs', '_hash')
+    __slots__ = ('dependency', 'kwargs', '__hash')
 
-    __str__: Callable[['Build'], str] = SlotsReprMixin.__repr__
-
-    def __init__(self, dependency: Hashable, **kwargs):
+    def __init__(self, dependency: Hashable, kwargs: Dict = None):
         """
         Args:
             *args: The first argument is the dependency, all others are passed
@@ -38,24 +112,25 @@ class Build(SlotsReprMixin):
             **kwargs: Passed on to the factory.
         """
         self.dependency: Hashable = dependency
-        self.kwargs: Dict = kwargs
+        self.kwargs: Dict = kwargs or None
 
-        if not self.kwargs:
-            raise TypeError("Without additional arguments, Build must not be used.")
-
-        try:
-            # Try most precise hash first
-            self._hash = hash((self.dependency, tuple(self.kwargs.items())))
-        except TypeError:
-            # If type error, return the best error-free hash possible
-            self._hash = hash((self.dependency, tuple(self.kwargs.keys())))
+        if self.kwargs:
+            try:
+                # Try most precise hash first
+                self.__hash = hash((self.dependency, tuple(self.kwargs.items())))
+            except TypeError:
+                # If type error, return the best error-free hash possible
+                self.__hash = hash((self.dependency, tuple(self.kwargs.keys())))
+        else:
+            self.__hash = hash((Build, self.dependency))
 
     def __hash__(self):
-        return self._hash
+        return self.__hash
 
     def __eq__(self, other):
         return isinstance(other, Build) \
-               and (self.dependency is other.dependency or self.dependency == other.dependency) \
+               and (
+                       self.dependency is other.dependency or self.dependency == other.dependency) \
                and self.kwargs == self.kwargs  # noqa
 
 
@@ -83,38 +158,31 @@ class FactoryProvider(DependencyProvider):
         f.__builders = self.__builders.copy()
         return f
 
-    def provide(self, dependency: Hashable, container: DependencyContainer
+    def provide(self, build: Hashable, container: DependencyContainer
                 ) -> Optional[DependencyInstance]:
-        try:
-            if isinstance(dependency, Build):
-                builder: Builder = self.__builders[dependency.dependency]
+        if isinstance(build, Build):
+            try:
+                builder: Builder = self.__builders[build.dependency]
+            except KeyError:
+                return None
+
+            if builder.factory_dependency is not None:
+                f = container.provide(builder.factory_dependency)
+                factory = f.instance
+                if f.singleton:
+                    builder.factory_dependency = None
+                    builder.factory = f.instance
             else:
-                builder = self.__builders[dependency]
-        except KeyError:
-            return None
+                factory = builder.factory
 
-        if builder.factory_dependency is not None:
-            f = container.provide(builder.factory_dependency)
-            factory = f.instance
-            if f.singleton:
-                builder.factory_dependency = None
-                builder.factory = f.instance
-        else:
-            factory = builder.factory
-
-        if isinstance(dependency, Build):
             if builder.takes_dependency:
-                instance = factory(dependency.dependency, **dependency.kwargs)
+                instance = factory(build.dependency, **build.kwargs) \
+                    if build.kwargs else factory(build.dependency)
             else:
-                instance = factory(**dependency.kwargs)
-        else:
-            if builder.takes_dependency:
-                instance = factory(dependency)
-            else:
-                instance = factory()
+                instance = factory(**build.kwargs) if build.kwargs else factory()
 
-        return DependencyInstance(instance,
-                                  singleton=builder.singleton)
+            return DependencyInstance(instance,
+                                      singleton=builder.singleton)
 
     def register_class(self, class_: type, singleton: bool = True):
         """

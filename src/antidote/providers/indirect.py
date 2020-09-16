@@ -59,8 +59,11 @@ class IndirectProvider(DependencyProvider):
 
         return None
 
-    def register_static(self, dependency: Hashable, target_dependency: Hashable):
-        self.__check_no_duplicate(dependency)
+    def register_static(self, dependency: Hashable, target_dependency: Hashable,
+                        override: bool = False):
+        from antidote import world
+        if not (world.is_test() and override):
+            self.__check_no_duplicate(dependency)
 
         with self.__freeze_lock:
             if self.__frozen:
