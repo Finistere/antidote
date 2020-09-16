@@ -147,7 +147,7 @@ def register(class_=None,
                        dependencies=dependencies,
                        use_names=use_names,
                        use_type_hints=use_type_hints,
-                       raise_on_missing=wire_raise_on_missing)
+                       raise_on_missing_method=wire_raise_on_missing)
 
         if isinstance(factory, str):
             # Retrieve injected class/static method

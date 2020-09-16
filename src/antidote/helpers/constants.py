@@ -41,8 +41,6 @@ class LazyConstantsMeta(type):
             'unchanged'
             >>> Conf().DOMAIN
             'example.com'
-            >>> Conf.DOMAIN
-            LazyMethodCallDependency(...)
             >>> antidote.world.get(Conf.DOMAIN)
             'example.com'
             >>> @antidote.inject(dependencies=(Conf.DOMAIN,))
@@ -134,7 +132,7 @@ class LazyConstantsMeta(type):
                 dependencies=dependencies,
                 use_names=use_names,
                 use_type_hints=use_type_hints,
-                raise_on_missing=wire_raise_on_missing
+                raise_on_missing_method=wire_raise_on_missing
             )
 
         resource_class = register(resource_class, auto_wire=False, singleton=True)

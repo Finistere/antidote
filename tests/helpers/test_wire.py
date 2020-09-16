@@ -161,15 +161,15 @@ def test_invalid_type(kwargs):
 def test_raise_on_missing():
     with pytest.raises(TypeError):
         @wire(methods=['method'],
-              raise_on_missing=True)
+              raise_on_missing_method=True)
         class Dummy:
             pass
 
-    @wire(methods=['method'], raise_on_missing=False)
+    @wire(methods=['method'], raise_on_missing_method=False)
     class Dummy2:
         pass
 
     @wire(wire_super=True, methods=['method'],
-          raise_on_missing=False)
+          raise_on_missing_method=False)
     class Dummy3(Dummy2):
         pass

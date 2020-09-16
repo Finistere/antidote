@@ -3,7 +3,7 @@
 from cpython.object cimport PyObject
 
 cdef extern from "Python.h":
-    ctypedef long Py_hash_t
+    Py_hash_t
 
 cdef class DependencyStack:
     cdef:
