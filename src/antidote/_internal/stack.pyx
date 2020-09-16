@@ -1,23 +1,24 @@
-# cython: language_level=3
-# cython: boundscheck=False, wraparound=False, annotation_typing=False
 from contextlib import contextmanager
 from typing import Hashable
 
 # @formatter:off
 cimport cython
+from cpython.mem cimport PyMem_Free, PyMem_Malloc, PyMem_Realloc
 from cpython.object cimport PyObject
-from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
-
-from ..exceptions import DependencyCycleError
 # @formatter:on
 
 cdef extern from "Python.h":
     Py_hash_t PyObject_Hash(PyObject *o)
 
-# Final class as its behavior can only be changed through a Cython class. The
-# DependencyContainer calls directly push() and pop()
+
 @cython.final
 cdef class DependencyStack:
+    """
+    Cython implementation of the DependencyStack with the same Python API.
+
+    It relies on an array of hashes which is faster than a set for a low depth.
+    """
+
     def __init__(self):
         cdef:
             size_t capacity = 32
@@ -40,16 +41,19 @@ cdef class DependencyStack:
         finally:
             self.pop()
 
-    cdef Exception reset_with_error(self, PyObject* dependency):
+    cdef Exception reset_with_error(self, PyObject*dependency):
         cdef:
             list l = []
-            PyObject* t
+            PyObject*t
+
         for t in self._trace[:self._depth]:
             l.append(<object> t)
         l.append(<object> dependency)
+
+        from ..core.exceptions import DependencyCycleError
         return DependencyCycleError(l)
 
-    cdef bint push(self, PyObject* dependency):
+    cdef bint push(self, PyObject*dependency):
         """
         Args:
             dependency: supposed to be hashable as the core tries to 
@@ -62,11 +66,11 @@ cdef class DependencyStack:
         cdef:
             size_t depth = self._depth
             PyObject** traces = self._trace
-            Py_hash_t* hashes = self._hashes
-            Py_hash_t* h
+            Py_hash_t*hashes = self._hashes
+            Py_hash_t*h
             Py_hash_t dependency_hash = PyObject_Hash(dependency)
             int i = 0
-            PyObject* t
+            PyObject*t
 
         for h in hashes[:depth]:
             if h[0] == dependency_hash:

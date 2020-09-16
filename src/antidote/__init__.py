@@ -1,9 +1,8 @@
-from antidote import world
-from .helpers import (implementation, factory, implements, inject,
-                      LazyConstantsMeta, provider, register, wire)
-from .providers.factory import Build
-from .providers.lazy import LazyCall, LazyMethodCall
-from .providers.tag import Tag, Tagged, TaggedDependencies
+from . import world
+from .core import inject, wire, Wiring
+from .helpers import (const, factory, Factory, implementation, implements, Constants,
+                      register, Service, LazyCall, LazyMethodCall)
+from .providers.tag import Tag, TaggedDependencies
 from .utils import is_compiled
 
 
@@ -16,18 +15,15 @@ def __version__() -> str:  # pragma: no cover
         return ''
 
 
-__all__ = ['Build',
-           'factory',
+__all__ = ['factory',
            'implements',
            'inject',
            'is_compiled',
            'LazyCall',
-           'LazyConstantsMeta',
            'LazyMethodCall',
-           'provider',
            'register',
            'Tag',
-           'Tagged',
            'TaggedDependencies',
            'wire',
            'world']
+

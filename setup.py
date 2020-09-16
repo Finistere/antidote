@@ -5,32 +5,8 @@ from setuptools import Extension, find_packages, setup
 
 here = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 
-import Cython.Compiler.Options
-Cython.Compiler.Options.annotate = True
-
-# from Cython.Compiler.Options import get_directive_defaults
-# directive_defaults = get_directive_defaults()
-# directive_defaults['linetrace'] = True
-# directive_defaults['binding'] = True
-
 with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
-
-
-def generate_extensions():
-    extensions = []
-    for root, _, filenames in os.walk('src'):
-        for filename in filenames:
-            if filename.endswith('.pyx'):
-                path = os.path.join(root, filename)
-                module = path[4:].replace('/', '.').rsplit('.', 1)[0]
-                extensions.append(Extension(module,
-                                            [path],
-                                            language='c++',
-                                            # define_macros=[('CYTHON_TRACE', '1')]
-                                            ))
-    return extensions
-
 
 ext_modules = []
 requires = []
@@ -41,18 +17,55 @@ try:
 except ImportError:
     pass
 else:
+    from Cython.Compiler import Options
+
+    cython_options = set(os.environ.get("ANTIDOTE_CYTHON_OPTIONS", "").split(","))
+    extension_extras = {}
+    cythonize_extras = {}
+
+    if "annotate" in cython_options:
+        Options.annotate = True
+        cythonize_extras['annotate'] = True
+
+    if "debug" in cython_options:
+        cythonize_extras['gdb_debug'] = True
+
+    if "trace" in cython_options:
+        directive_defaults = Options.get_directive_defaults()
+        directive_defaults['linetrace'] = True
+        directive_defaults['binding'] = True
+        extension_extras['define_macros'] = [('CYTHON_TRACE', '1')]
+
+
+    def generate_extensions():
+        extensions = []
+        for root, _, filenames in os.walk('src'):
+            for filename in filenames:
+                if filename.endswith('.pyx'):
+                    path = os.path.join(root, filename)
+                    module = path[4:].replace('/', '.').rsplit('.', 1)[0]
+                    extensions.append(Extension(module, [path], language='c++',
+                                                **extension_extras))
+
+        return extensions
+
+
     ext_modules = cythonize(generate_extensions(),
-                            annotate=True,
-                            # gdb_debug=True
-                            )
-    requires.append('fastrlock>=0.5,<0.6')
-    setup_requires.append('fastrlock>=0.5,<0.6')
+                            compiler_directives=dict(language_level=3,
+                                                     boundscheck=False,
+                                                     wraparound=False,
+                                                     annotation_typing=False),
+                            **cythonize_extras)
+
+    fastrlock = 'fastrlock>=0.5,<0.6'
+    requires.append(fastrlock)
+    setup_requires.append(fastrlock)
 
 setup(
     name='antidote',
     use_scm_version=True,
     setup_requires=setup_requires,
-    description='Transparent dependency injection.',
+    description='Dependency injection.',
     long_description=readme,
     author='Benjamin Rabier',
     url='https://github.com/Finistere/antidote',

@@ -1,15 +1,9 @@
-from ._internal.utils import API
+from ._internal import API
 from .core.exceptions import (AntidoteError, DependencyCycleError,
                               DependencyInstantiationError, DependencyNotFoundError,
-                              DuplicateDependencyError, FrozenWorldError)
-
-
-@API.public
-class DuplicateTagError(AntidoteError):
-    """
-    A dependency has multiple times the same tag.
-    Raised by the :py:class:`~.providers.tag.TagProvider`.
-    """
+                              DuplicateDependencyError, FrozenContainerError,
+                              FrozenWorldError)
+from .providers.tag import DuplicateTagError
 
 
 @API.public
@@ -28,5 +22,6 @@ __all__ = [
     'DuplicateDependencyError',
     'DuplicateTagError',
     'UndefinedContextError',
-    'FrozenWorldError'
+    'FrozenWorldError',
+    'FrozenContainerError'
 ]

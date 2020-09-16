@@ -1,7 +1,5 @@
-from .constants import LazyConstantsMeta
-from .factory import factory
-from .implements import implements, implementation
-from .provider import provider
-from .register import register
-from .wire import wire
-from .inject import inject
+from .constants import const, Constants
+from .factory import factory, Factory
+from .implements import implementation, implements
+from .lazy import LazyCall, LazyMethodCall
+from .service import register, Service

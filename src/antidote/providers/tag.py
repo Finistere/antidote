@@ -1,225 +1,145 @@
-import threading
-from typing import (Any, Callable, Dict, Hashable, Iterable, Iterator, List, Optional,
-                    Union)
+from __future__ import annotations
 
-from .._internal.utils import SlotsReprMixin, API
+import threading
+from typing import (Any, Dict, final, Generic, Hashable, Iterable, Iterator, List,
+                    Optional, Tuple, TypeVar)
+
+from .._internal import API
+from .._internal.utils import FinalMeta
 from ..core import DependencyContainer, DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateTagError, FrozenWorldError
+from ..core.exceptions import AntidoteError
 
 
 @API.public
-class Tag(SlotsReprMixin):
+class Tag:
     """
     Tags are a way to expose a dependency indirectly. Instead of explicitly
     defining a list of dependencies to retrieve, one can just mark those with
-    tags and retrieve them. This helps decoupling dependencies, and may be used
-    to add extensions to another service typically.
+    tags and retrieve them.
 
-    The tag itself has a name (string) attribute, with which it is identified.
-    One may add others attributes to pass additional information to the services
-    retrieving it.
+    The only requirement for a tag is to be an instance of :py:class:`.Tag`.
 
     .. doctest::
 
-        >>> from antidote import Tag
-        >>> t = Tag('dep', info=1)
-        >>> t.info
-        1
+        >>> from antidote import Tag, Service, world
+        >>> tag = Tag()
+        >>> class Dummy(Service):
+        ...     __antidote__ = Service.Conf(tags=[tag])
+        >>> world.get(tag)
+        TaggedDependencies
+        >>> # You can retrieve the tags and/or dependencies. Here we take both.
+        ... (t, dummy) = list(world.get(tag).items())[0]
+        >>> t is tag
+        True
+        >>> dummy is world.get(Dummy)
+        True
+
+    You may create your own subclasses to add additional information on your services.
+    You can create Tags will be grouped by the output of :py:meth:`.group`. Retrieved
+    dependencies will have their associated tag provided, so you can store information
+    in it.
+
+    .. doctest::
+
+        >>> from antidote import Tag, Service, world
+        >>> class CustomTag(Tag):
+        ...     __slots__ = ('name',)  # __slots__ isn't necessary
+        ...     name: str  # For Mypy
+        ...
+        ...     def __init__(self, name: str):
+        ...         super().__init__(name=name)
+        ...
+        ...     def group(self):
+        ...         return self.name.split("_")[0]
+        ...
+        >>> class Dummy(Service):
+        ...     __antidote__ = Service.Conf(tags=[CustomTag(name="ref_dummy")])
+        >>> world.get[TaggedDependencies[CustomTag, object]](CustomTag("ref_any"))
+        TaggedDependencies
+        >>> (tag, dummy) = list(world.get(tag).items())[0]
+        >>> tag.name
+        ref_dummy
+        >>> dummy is world.get(Dummy)
+        True
+
+    Note that tags are immutables, well as far it goes in Python ! Tags should be used to
+    group dependencies and eventually provides some *constants* information on them. It
+    is not intended to store any state in it.
 
     """
-    __slots__ = ('name', '_attrs')
+    __slots__ = ()
 
-    def __init__(self, name: str, **attrs):
+    def __init__(self, **attrs):
         """
-        Args:
-            name: Name which identifies the tag.
-            **attrs: Any other parameters will be accessible as an attribute.
+        :py:meth:`.__init__` is the only way to actually set attributes, to be used by
+        subclasses.
         """
-        if not isinstance(name, str):
-            raise TypeError("name must be a string")
+        for attr, value in attrs.items():
+            object.__setattr__(self, attr, value)
 
-        if len(name) == 0:
-            raise ValueError("name must be a non empty string")
+    @final
+    def __setattr__(self, name, value):
+        raise AttributeError(f"{type(self)} is immutable")
 
-        self.name = name
-        self._attrs = attrs
+    def group(self):
+        """Tags will be grouped by this value. By default it's the tag instance itself."""
+        return self
+
+
+@API.public
+class DuplicateTagError(AntidoteError):
+    """
+    A dependency has multiple times the same tag.
+    """
+
+    def __init__(self, dependency: Hashable, existing_tag: Tag):
+        self.dependency = dependency
+        self.existing_tag = existing_tag
 
     def __str__(self):
-        if not self._attrs:
-            return f"{type(self).__name__}({self.name!r})"
-        return repr(self)
+        return f"Dependency {self.dependency} already has a tag {self.existing_tag}" \
+               f"with id={self.existing_tag.group()}"
 
-    def __repr__(self):
-        attrs = ", ".join(f"{k}={v!r}" for k, v in self._attrs.items())
-        return f"{type(self).__name__}(name={self.name!r}, {attrs})"
 
-    def __getattr__(self, item):
-        return self._attrs.get(item)
+T = TypeVar('T', bound=Tag)
+D = TypeVar('D')
 
 
 @API.public
-class Tagged(SlotsReprMixin):
-    """
-    Custom dependency used to retrieve all dependencies tagged with by with the
-    name.
-    """
-    __slots__ = ('name',)
-
-    def __init__(self, name: str):
-        """
-        Args:
-            name: Name of the tags which shall be retrieved.
-        """
-        if not isinstance(name, str):
-            raise TypeError("name must be a string")
-
-        if len(name) == 0:
-            raise ValueError("name must be a non empty string")
-
-        self.name = name
-
-    __str__: Callable[['Tagged'], str] = SlotsReprMixin.__repr__
-
-    def __hash__(self):
-        return object.__hash__(self)
-
-    def __eq__(self, other):
-        return object.__eq__(self, other)
-
-
-@API.private
-class TagProvider(DependencyProvider):
-    """
-    Provider managing string tag. Tags allows one to retrieve a collection of
-    dependencies marked by their creator.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.__dependency_to_tag_by_tag_name: Dict[str, Dict[Hashable, Tag]] = {}
-        self.__freeze_lock = threading.RLock()
-        self.__frozen = False
-
-    def freeze(self):
-        with self.__freeze_lock:
-            self.__frozen = True
-
-    def __repr__(self):
-        return f"{type(self).__name__}(tagged_dependencies={self.__dependency_to_tag_by_tag_name!r})"
-
-    def clone(self) -> DependencyProvider:
-        p = TagProvider()
-        p.__dependency_to_tag_by_tag_name = self.__dependency_to_tag_by_tag_name.copy()
-        return p
-
-    def provide(self, dependency: Hashable, container: DependencyContainer
-                ) -> Optional[DependencyInstance]:
-        """
-        Returns all dependencies matching the tag name specified with a
-        :py:class:`~.dependency.Tagged`. For every other case, :obj:`None` is
-        returned.
-
-        Args:
-            dependency: Only :py:class:`~.dependency.Tagged` is supported, all
-                others are ignored.
-
-        Returns:
-            :py:class:`~.TaggedDependencies` wrapped in a
-            :py:class:`~..core.Instance`.
-        """
-        if isinstance(dependency, Tagged):
-            dependencies = []
-            tags = []
-            dependency_to_tag = self.__dependency_to_tag_by_tag_name.get(dependency.name,
-                                                                         {})
-
-            for dependency_, tag in dependency_to_tag.items():
-                dependencies.append(dependency_)
-                tags.append(tag)
-
-            return DependencyInstance(
-                TaggedDependencies(
-                    container=container,
-                    dependencies=dependencies,
-                    tags=tags
-                ),
-                # Whether the returned dependencies are singletons or not is
-                # their decision to take.
-                singleton=False
-            )
-
-        return None
-
-    def register(self, dependency: Hashable, tags: Iterable[Union[str, Tag]]):
-        """
-        Mark a dependency with all the supplied tags. Raises
-        :py:exc:`~.exceptions.DuplicateTagError` if the tag has already been
-        used for this dependency.
-
-        Args:
-            dependency: dependency to register.
-            tags: Iterable of tags which should be associated with the
-                dependency
-        """
-        tags = [Tag(t) if isinstance(t, str) else t for t in tags]
-        for tag in tags:
-            if not isinstance(tag, Tag):
-                raise ValueError(f"Expecting tag of type Tag, not {type(tag)}")
-
-        with self.__freeze_lock:
-            if self.__frozen:
-                raise FrozenWorldError(f"Cannot add tags {tags} to {dependency} "
-                                       f"in a frozen world.")
-            for tag in tags:
-                if tag.name not in self.__dependency_to_tag_by_tag_name:
-                    self.__dependency_to_tag_by_tag_name[tag.name] = {dependency: tag}
-                elif dependency not in self.__dependency_to_tag_by_tag_name[tag.name]:
-                    self.__dependency_to_tag_by_tag_name[tag.name][dependency] = tag
-                else:
-                    raise DuplicateTagError(tag.name)
-
-
-@API.public
-class TaggedDependencies:
+@final
+class TaggedDependencies(Generic[T, D], metaclass=FinalMeta):
     """
     Collection containing dependencies and their tags. Dependencies are lazily
-    instantiated. This is thread-safe.
-
-    Used by :py:class:`~.TagProvider` to return the dependencies matching a tag.
+    instantiated.
     """
 
     @API.private  # You're not supposed to create it yourself
     def __init__(self,
                  container: DependencyContainer,
                  dependencies: List[Hashable],
-                 tags: List[Tag]):
-        self._lock = threading.Lock()
-        self._container = container
-        self._dependencies = dependencies
-        self._tags = tags
+                 tags: List[T]):
+        self.__lock = threading.RLock()
+        self.__container = container
+        self.__dependencies = list(dependencies)
         self._instances: List[Any] = []
+        self._tags = list(tags)
 
     def __len__(self):
         return len(self._tags)
 
-    def dependencies(self) -> Iterable[Hashable]:
+    def items(self) -> Iterator[Tuple[T, D]]:
         """
-        Returns all the dependencies retrieved. This does not instantiate them.
+        Zips tags and values together.
         """
-        return iter(self._dependencies)
+        return zip(self.tags(), self.values())
 
-    def tags(self) -> Iterable[Tag]:
-        """
-        Returns all the tags retrieved. This does not instantiate the
-        dependencies.
-        """
+    # Mainly here for interface consistency with instances() (instead of _tags)
+    def tags(self) -> Iterator[T]:
+        """Tags associated with the retrieved dependencies."""
         return iter(self._tags)
 
-    def instances(self) -> Iterator:
-        """
-        Returns the dependencies, in a stable order for multi-threaded
-        environments.
-        """
+    def values(self) -> Iterator[D]:
+        """Retrieved dependencies, lazily instantiated."""
         i = -1
         for i, instance in enumerate(self._instances):
             yield instance
@@ -229,11 +149,70 @@ class TaggedDependencies:
             try:
                 yield self._instances[i]
             except IndexError:
-                with self._lock:
+                with self.__lock:
                     # If not other thread has already added the instance.
                     if i == len(self._instances):
                         self._instances.append(
-                            self._container.get(self._dependencies[i])
+                            self.__container.get(self.__dependencies[i])
                         )
                 yield self._instances[i]
             i += 1
+
+        # Don't need to keep them anymore.
+        self.__container = None
+        self.__dependencies = None
+        self.__lock = None
+
+
+@API.private
+class TagProvider(DependencyProvider):
+    def __init__(self):
+        super().__init__()
+        self.__tag_to_dependencies: Dict[Any, Dict[Hashable, Tag]] = {}
+
+    def __repr__(self):
+        return f"{type(self).__name__}(tagged_dependencies={self.__tag_to_dependencies})"
+
+    def clone(self, keep_singletons_cache: bool) -> TagProvider:
+        p = TagProvider()
+        p.__tag_to_dependencies = self.__tag_to_dependencies.copy()
+        return p
+
+    def provide(self, dependency: Hashable, container: DependencyContainer
+                ) -> Optional[DependencyInstance]:
+        if isinstance(dependency, Tag):
+            try:
+                tag_and_dependencies = self.__tag_to_dependencies[dependency.group()]
+            except KeyError:
+                dependencies, tags = [], []
+            else:
+                dependencies, tags = zip(*tag_and_dependencies.items())
+
+            return DependencyInstance(
+                TaggedDependencies(
+                    container=container,
+                    dependencies=dependencies,
+                    tags=tags
+                ),
+                # Whether the returned dependencies are singletons or not is
+                # our decision to take.
+                singleton=False
+            )
+
+        return None
+
+    def register(self, dependency: Hashable, *, tags: Iterable[Tag]):
+        tags = list(tags)
+        for tag in tags:
+            if not isinstance(tag, Tag):
+                raise TypeError(f"Expecting tag of type Tag, not {type(tag)}")
+
+        for tag in tags:
+            key = tag.group()
+            if key not in self.__tag_to_dependencies:
+                self.__tag_to_dependencies[key] = {dependency: tag}
+            elif dependency not in self.__tag_to_dependencies[key]:
+                self.__tag_to_dependencies[key][dependency] = tag
+            else:
+                raise DuplicateTagError(dependency,
+                                        self.__tag_to_dependencies[key][dependency])

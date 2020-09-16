@@ -1,11 +1,17 @@
 import typing
+from contextlib import contextmanager
 
 import pytest
 
 from antidote import world
 from antidote._internal.argspec import Arguments
-from antidote.core import DependencyContainer, raw_inject
+from antidote.core.injection import inject, raw_inject, validate_injection
 from antidote.exceptions import DependencyNotFoundError
+
+
+@contextmanager
+def does_not_raise():
+    yield
 
 
 class Service:
@@ -16,8 +22,33 @@ class AnotherService:
     pass
 
 
-def test_simple():
-    @raw_inject
+@pytest.mark.parametrize('kwargs, expectation', [
+    (dict(), does_not_raise()),
+    (dict(dependencies="{arg_name}"), does_not_raise()),
+    (dict(dependencies=lambda arg: arg.name), does_not_raise()),
+    (dict(dependencies=dict(x='x')), does_not_raise()),
+    (dict(dependencies=['x']), does_not_raise()),
+    (dict(use_names=True), does_not_raise()),
+    (dict(use_names=['x']), does_not_raise()),
+    (dict(use_type_hints=True), does_not_raise()),
+    (dict(use_type_hints=['x']), does_not_raise()),
+    (dict(dependencies=1), pytest.raises(TypeError, match=".*dependencies.*int.*")),
+    (dict(use_names=1), pytest.raises(TypeError, match=".*use_names.*int.*")),
+    (dict(use_type_hints=1), pytest.raises(TypeError, match=".*use_type_hints.*int.*")),
+])
+def test_validate_injection(kwargs, expectation):
+    print(expectation)
+    with expectation:
+        validate_injection(**kwargs)
+
+
+@pytest.fixture(params=[raw_inject, inject])
+def injector(request):
+    return request.param
+
+
+def test_simple(injector):
+    @injector
     def f(x: Service):
         return x
 
@@ -46,10 +77,10 @@ def test_simple():
                      dict(dependencies=(None, Service)),
                      id='dependencies:tuple-second'),
         pytest.param(('first', 'second'),
-                     dict(dependencies=lambda s: s),
+                     dict(dependencies=lambda arg: arg.name),
                      id='dependencies:callable'),
         pytest.param((Service, Service),
-                     dict(dependencies=lambda s: Service),
+                     dict(dependencies=lambda arg: Service),
                      id='dependencies:callable2'),
         pytest.param((None, None),
                      dict(dependencies=lambda s: None),
@@ -71,26 +102,31 @@ def test_simple():
                      id='use_names:list')
     ]
 )
-def test_without_type_hints(expected, kwargs):
+def test_without_type_hints(injector, expected, kwargs):
     default = object()
 
-    @raw_inject(**kwargs)
+    @injector(**kwargs)
     def f(first=default, second=default):
         return first, second
 
     class A:
-        @raw_inject(**kwargs)
+        @injector(**kwargs)
         def method(self, first=default, second=default):
             return first, second
 
-        @raw_inject(**kwargs)
+        @injector(**kwargs)
         @classmethod
         def class_method(cls, first=default, second=default):
             return first, second
 
-        @raw_inject(**kwargs)
+        @injector(**kwargs)
         @staticmethod
         def static_method(first=default, second=default):
+            return first, second
+
+        @classmethod
+        @injector(**kwargs)
+        def klass(cls, first=default, second=default):
             return first, second
 
     with world.test.empty():
@@ -111,12 +147,14 @@ def test_without_type_hints(expected, kwargs):
         assert expected == A().method()
         assert expected == A.class_method()
         assert expected == A.static_method()
+        assert expected == A.klass()
 
         a, b = object(), object()
         assert (a, b) == f(a, b)
         assert (a, b) == A().method(a, b)
         assert (a, b) == A.class_method(a, b)
         assert (a, b) == A.static_method(a, b)
+        assert (a, b) == A.klass(a, b)
 
 
 @pytest.mark.parametrize(
@@ -138,13 +176,13 @@ def test_without_type_hints(expected, kwargs):
                      dict(dependencies=(None, Service)),
                      id='dependencies:tuple-second'),
         pytest.param(('first', 'second'),
-                     dict(dependencies=lambda s: s),
+                     dict(dependencies=lambda arg: arg.name),
                      id='dependencies:callable'),
         pytest.param((Service, Service),
-                     dict(dependencies=lambda s: Service),
+                     dict(dependencies=lambda arg: Service),
                      id='dependencies:callable2'),
         pytest.param((Service, None),
-                     dict(dependencies=lambda s: None),
+                     dict(dependencies=lambda arg: None),
                      id='dependencies:callable3'),
         pytest.param(('first', 'second'),
                      dict(dependencies="{arg_name}"),
@@ -187,26 +225,31 @@ def test_without_type_hints(expected, kwargs):
                      id='use_type_hints:False+use_names=True'),
     ]
 )
-def test_with_type_hints(expected, kwargs):
+def test_with_type_hints(injector, expected, kwargs):
     default = object()
 
-    @raw_inject(**kwargs)
+    @injector(**kwargs)
     def f(first: Service = default, second: str = default):
         return first, second
 
     class A:
-        @raw_inject(**kwargs)
+        @injector(**kwargs)
         def method(self, first: Service = default, second: str = default):
             return first, second
 
-        @raw_inject(**kwargs)
+        @injector(**kwargs)
         @classmethod
         def class_method(cls, first: Service = default, second: str = default):
             return first, second
 
-        @raw_inject(**kwargs)
+        @injector(**kwargs)
         @staticmethod
         def static_method(first: Service = default, second: str = default):
+            return first, second
+
+        @classmethod
+        @injector(**kwargs)
+        def klass(cls, first: Service = default, second: str = default):
             return first, second
 
     with world.test.empty():
@@ -225,12 +268,14 @@ def test_with_type_hints(expected, kwargs):
         assert expected == A().method()
         assert expected == A.class_method()
         assert expected == A.static_method()
+        assert expected == A.klass()
 
         a, b = object(), object()
         assert (a, b) == f(a, b)
         assert (a, b) == A().method(a, b)
         assert (a, b) == A.class_method(a, b)
         assert (a, b) == A.static_method(a, b)
+        assert (a, b) == A.klass(a, b)
 
 
 @pytest.mark.parametrize(
@@ -238,8 +283,8 @@ def test_with_type_hints(expected, kwargs):
     [str, int, float, set, list, dict, complex, type, tuple, bytes, bytearray,
      typing.Optional, typing.Sequence]
 )
-def test_ignored_type_hints(type_hint):
-    @raw_inject
+def test_ignored_type_hints(injector, type_hint):
+    @injector
     def f(x: type_hint):
         pass
 
@@ -264,23 +309,23 @@ def test_arguments():
         assert dict(a=12, b=24) == g()
 
 
-def test_none_optional_support():
+def test_none_optional_support(injector):
     class Dummy:
         pass
 
-    @raw_inject
+    @injector
     def f(x: Service = None):
         return x
 
-    @raw_inject
+    @injector
     def g(x: typing.Optional[Service] = None):
         return x
 
-    @raw_inject
+    @injector
     def h(x: Dummy, y: typing.Optional[Service] = None):
         return y
 
-    @raw_inject
+    @injector
     def f2(x: typing.Union[Service, Dummy]):
         pass
 
@@ -302,140 +347,213 @@ def test_none_optional_support():
 
 
 @pytest.mark.parametrize(
-    'error,kwargs',
+    'expectation,kwargs',
     [
-        pytest.param(TypeError,
-                     dict(),
-                     id="unknown-dependency"),
-        pytest.param(DependencyNotFoundError,
-                     dict(dependencies=(Service,)),
-                     id="dependencies:unknown-dependency-tuple"),
-        pytest.param(DependencyNotFoundError,
-                     dict(dependencies=dict(x=Service)),
-                     id="dependencies:unknown-dependency-dict"),
-        pytest.param(DependencyNotFoundError,
-                     dict(dependencies=lambda s: Service),
-                     id="dependencies:unknown-dependency-callable"),
-        pytest.param(DependencyNotFoundError,
-                     dict(dependencies="unknown:{arg_name}"),
-                     id="dependencies:unknown-dependency-str"),
-        pytest.param((ValueError, TypeError),
-                     dict(dependencies=(None, None)),
-                     id="dependencies:too-much-arguments"),
-        pytest.param(TypeError,
+        pytest.param(pytest.raises(TypeError, match=".*dependencies.*"),
                      dict(dependencies=object()),
                      id="dependencies:unsupported-type"),
-        pytest.param(TypeError,
+        pytest.param(pytest.raises(ValueError, match=".*dependencies.*"),
+                     dict(dependencies="dummy"),
+                     id="dependencies:missing-string-arg_name"),
+        pytest.param(pytest.raises(TypeError),
                      dict(dependencies={1: 'x'}),
                      id="dependencies:invalid-key-type"),
-        pytest.param(ValueError,
-                     dict(dependencies=dict(unknown=DependencyContainer)),
-                     id="dependencies:unknown-argument-dict"),
-        pytest.param(TypeError,
-                     dict(use_names=False),
-                     id="use_names:unknown-dependency-False"),
-        pytest.param(DependencyNotFoundError,
-                     dict(use_names=True),
-                     id="use_names:unknown-dependency-True"),
-        pytest.param(DependencyNotFoundError,
-                     dict(use_names=['x']),
-                     id="use_names:unknown-dependency-list"),
-        pytest.param(ValueError,
-                     dict(use_names=['y']),
-                     id="use_names:unknown-argument-list"),
-        pytest.param(ValueError,
-                     dict(use_names=['x', 'y']),
-                     id="use_names:unknown-argument-list2"),
-        pytest.param(TypeError,
-                     dict(use_names=[]),
-                     id="use_names:empty"),
-        pytest.param(TypeError,
+        pytest.param(pytest.raises(TypeError, match=".*use_names.*"),
                      dict(use_names=object()),
                      id="use_names:unsupported-type"),
-        pytest.param(TypeError,
+        pytest.param(pytest.raises(TypeError),
                      dict(use_names=[1]),
                      id="use_names:invalid-name-type"),
-        pytest.param(TypeError,
+        pytest.param(pytest.raises(TypeError, match=".*use_type_hints.*"),
                      dict(use_type_hints=object()),
                      id="use_type_hints:unsupported-type"),
-        pytest.param(TypeError,
+        pytest.param(pytest.raises(TypeError),
                      dict(use_type_hints=[1]),
-                     id="use_type_hints:invalid-name-type"),
-        pytest.param(ValueError,
-                     dict(use_type_hints=['y']),
-                     id="use_type_hints:unknown-arg"),
+                     id="use_type_hints:invalid-name-type")
     ]
 )
-def test_invalid(error, kwargs):
-    with pytest.raises(error):
-        @raw_inject(**kwargs)
+def test_invalid_args(injector, expectation, kwargs):
+    with expectation:
+        @injector(**kwargs)
         def f(x):
             return x
 
         f()
 
-    with pytest.raises(error):
+    with expectation:
         class A:
-            @raw_inject(**kwargs)
+            @injector(**kwargs)
             def method(self, x):
                 return x
 
         A().method()
 
-    with pytest.raises(error):
+    with expectation:
         class A:
-            @raw_inject(**kwargs)
+            @injector(**kwargs)
             @classmethod
             def classmethod(cls, x):
                 return x
 
         A.classmethod()
 
-    with pytest.raises(error):
+    with expectation:
         class A:
-            @raw_inject(**kwargs)
+            @injector(**kwargs)
             @staticmethod
             def staticmethod(x):
                 return x
 
         A.staticmethod()
 
+    with expectation:
+        class A:
+            @classmethod
+            @injector(**kwargs)
+            def classmethod(cls, x):
+                return x
+
+        A.classmethod()
+
+    with expectation:
+        validate_injection(**kwargs)
+
 
 @pytest.mark.parametrize(
-    'error,kwargs',
+    'expectation,kwargs',
     [
-        pytest.param(ValueError,
+        pytest.param(pytest.raises(TypeError),
+                     dict(),
+                     id="unknown-dependency"),
+        pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
+                     dict(dependencies=(Service,)),
+                     id="dependencies:unknown-dependency-tuple"),
+        pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
+                     dict(dependencies=dict(x=Service)),
+                     id="dependencies:unknown-dependency-dict"),
+        pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
+                     dict(dependencies=lambda arg: Service),
+                     id="dependencies:unknown-dependency-callable"),
+        pytest.param(pytest.raises(DependencyNotFoundError, match=".*unknown.*"),
+                     dict(dependencies="unknown:{arg_name}"),
+                     id="dependencies:unknown-dependency-str"),
+        pytest.param(pytest.raises((ValueError, TypeError)),
+                     dict(dependencies=(None, None)),
+                     id="dependencies:too-much-arguments"),
+        pytest.param(pytest.raises(ValueError, match=".*unknown.*"),
+                     dict(dependencies=dict(unknown=DependencyNotFoundError)),
+                     id="dependencies:unknown-argument-dict"),
+        pytest.param(pytest.raises(TypeError),
+                     dict(use_names=False),
+                     id="use_names:unknown-dependency-False"),
+        pytest.param(pytest.raises(DependencyNotFoundError, match=".*x.*"),
+                     dict(use_names=True),
+                     id="use_names:unknown-dependency-True"),
+        pytest.param(pytest.raises(DependencyNotFoundError, match=".*x.*"),
+                     dict(use_names=['x']),
+                     id="use_names:unknown-dependency-list"),
+        pytest.param(pytest.raises(ValueError, match=".*y.*"),
+                     dict(use_names=['y']),
+                     id="use_names:unknown-argument-list"),
+        pytest.param(pytest.raises(ValueError, match=".*y.*"),
+                     dict(use_names=['x', 'y']),
+                     id="use_names:unknown-argument-list2"),
+        pytest.param(pytest.raises(TypeError),
+                     dict(use_names=[]),
+                     id="use_names:empty"),
+        pytest.param(pytest.raises(ValueError, match=".*y.*"),
+                     dict(use_type_hints=['y']),
+                     id="use_type_hints:unknown-arg"),
+    ]
+)
+def test_invalid_call(injector, expectation, kwargs):
+    with expectation:
+        @injector(**kwargs)
+        def f(x):
+            return x
+
+        f()
+
+    with expectation:
+        class A:
+            @injector(**kwargs)
+            def method(self, x):
+                return x
+
+        A().method()
+
+    with expectation:
+        class A:
+            @injector(**kwargs)
+            @classmethod
+            def classmethod(cls, x):
+                return x
+
+        A.classmethod()
+
+    with expectation:
+        class A:
+            @injector(**kwargs)
+            @staticmethod
+            def staticmethod(x):
+                return x
+
+        A.staticmethod()
+
+    with expectation:
+        class A:
+            @classmethod
+            @injector(**kwargs)
+            def classmethod(cls, x):
+                return x
+
+        A.classmethod()
+
+
+@pytest.mark.parametrize(
+    'expectation,kwargs',
+    [
+        pytest.param(pytest.raises(ValueError, match=".*self.*"),
                      dict(dependencies=dict(self='x')),
                      id="dependencies"),
-        pytest.param(ValueError,
+        pytest.param(pytest.raises(ValueError, match=".*self.*"),
                      dict(use_names=('self',)),
                      id="use_names"),
-        pytest.param(ValueError,
+        pytest.param(pytest.raises(ValueError, match=".*self.*"),
                      dict(use_type_hints=('self',)),
                      id="use_type_hints"),
     ]
 )
-def test_cannot_inject_self(error, kwargs):
-    with pytest.raises(error):
+def test_cannot_inject_self(injector, expectation, kwargs):
+    with expectation:
         class A:
-            @raw_inject(**kwargs)
+            @injector(**kwargs)
             def method(self, x=None):
                 return x
 
         A()
 
-    with pytest.raises(error):
+    with expectation:
         class A:
-            @raw_inject(**kwargs)
+            @injector(**kwargs)
             @classmethod
             def classmethod(self, x=None):
                 return x
 
         A()
 
+    with expectation:
+        class A:
+            @classmethod
+            @injector(**kwargs)
+            def classmethod(self, x=None):
+                return x
 
-def test_invalid_type_hint():
-    @raw_inject
+        A()
+
+
+def test_invalid_type_hint(injector):
+    @injector
     def f(x: Service):
         return x
 
@@ -451,8 +569,8 @@ def test_no_injections():
     assert raw_inject(f) is f
 
 
-def test_already_injected():
-    @raw_inject(use_names=True)
+def test_already_injected(injector):
+    @injector(use_names=True)
     def f(x):
         return x
 
@@ -461,8 +579,11 @@ def test_already_injected():
     assert raw_inject(f) is f
 
 
-def test_class_inject():
+def test_invalid_inject(injector):
     with pytest.raises(TypeError):
-        @raw_inject
+        @injector
         class Dummy:
             pass
+
+    with pytest.raises(TypeError):
+        injector(1)

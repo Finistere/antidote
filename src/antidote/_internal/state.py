@@ -1,19 +1,17 @@
+"""
+Antidote has a global container which is managed in this module.
+"""
+import threading
 from contextlib import contextmanager
-from threading import RLock
 from typing import Callable
 
-from ..core import DependencyContainer
+from ..core.container import RawDependencyContainer
 
-__container: DependencyContainer = None
-__container_lock = RLock()
-__overridden: int = 0
-
-
-def is_overridden():
-    return __overridden == 0
+__container: RawDependencyContainer = None
+__container_lock = threading.RLock()
 
 
-# Used only for tests, as the cython version does not have a "public" __container
+# Used only for tests
 def reset():
     global __container
     __container = None
@@ -24,24 +22,22 @@ def init():
     if __container is None:
         with __container_lock:
             if __container is None:
-                from . import defaults
-                __container = defaults.new_container()
+                from .utils.world import new_container
+                __container = new_container()
 
 
-def get_container() -> DependencyContainer:
+def get_container() -> RawDependencyContainer:
     assert __container is not None
     return __container
 
 
 @contextmanager
-def override(create: Callable[[DependencyContainer], DependencyContainer]):
-    global __container, __overridden
+def override(create: Callable[[RawDependencyContainer], RawDependencyContainer]):
+    global __container
     with __container_lock:
         old = __container
         try:
-            __overridden += 1
             __container = create(old)
             yield
         finally:
             __container = old
-            __overridden -= 1

@@ -1,283 +1,123 @@
-import threading
-from typing import Callable, Dict, get_type_hints, Hashable, Optional, Protocol, TypeVar
+from __future__ import annotations
 
-from .._internal.utils import API, SlotsReprMixin
-from ..core import DependencyContainer, DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateDependencyError, FrozenWorldError
+from typing import Any, Callable, Dict, Hashable, Optional, Union
+from weakref import ref, ReferenceType
 
-F = TypeVar("F", bound=Callable[..., object])
-
-
-class FactoryProtocol(Protocol):
-    def __rmatmul__(self, dependency) -> 'Build':
-        pass
-
-    def with_kwargs(self, **kwargs) -> 'PreBuild':
-        pass
-
-    __call__: F
-
-
-@API.public
-class FactoryMeta(type):
-    def __new__(mcls, name, bases, namespace, **kwargs):
-        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
-
-        if '__call__' not in dir(cls):
-            raise TypeError(f"The class {cls} must implement __call__()")
-
-        return cls
-
-    def __rmatmul__(cls, dependency) -> 'Build':
-        return dependency @ PreBuild(cls, cls.__supported_dependency)
-
-    def with_kwargs(cls, **kwargs) -> 'PreBuild':
-        return PreBuild(cls, cls.__supported_dependency, kwargs)
-
-    @API.private
-    @property
-    def __supported_dependency(cls):
-        return get_type_hints(cls.__call__).get('return')
-
-
-@API.public
-class Factory(metaclass=FactoryMeta):
-    pass
-
-
-@API.private
-class LambdaFactory(SlotsReprMixin):
-    __slots__ = ('__factory',)
-
-    def __init__(self, factory: Callable):
-        self.__factory = factory
-
-    @property
-    def __supported_dependency(self):
-        return get_type_hints(self.__factory).get('return')
-
-    def __call__(self, *args, **kwargs):
-        return self.__factory(*args, **kwargs)
-
-    def __rmatmul__(self, dependency) -> 'Build':
-        return dependency @ PreBuild(self, self.__supported_dependency)
-
-    def with_kwargs(self, **kwargs) -> 'PreBuild':
-        return PreBuild(self, self.__supported_dependency, kwargs)
-
-
-@API.private
-class PreBuild(SlotsReprMixin):
-    __slots__ = ('factory', 'supported_dependency', 'kwargs')
-
-    def __init__(self, factory, supported_dependency, kwargs: Dict = None):
-        self.factory = factory
-        self.supported_dependency = supported_dependency
-        self.kwargs = kwargs
-
-    def __rmatmul__(self, dependency) -> 'Build':
-        if dependency != self.supported_dependency:
-            raise ValueError(f"Factory {self.factory!r} cannot build {dependency!r}, "
-                             f"only {self.supported_dependency!r}.")
-        return Build(dependency, self.kwargs)
-
-
-@API.public
-class Build(SlotsReprMixin):
-    """
-    Custom Dependency wrapper used to pass arguments to the factory used to
-    create the actual dependency.
-
-    .. doctest::
-
-        >>> from antidote import Build, register, world
-        >>> @register
-        ... class Dummy:
-        ...     def __init__(self, name=None):
-        ...         self.name = name
-        >>> dummy = world.get(Build(Dummy, name='me'))
-        >>> dummy.name
-        'me'
-
-    With no arguments, that is to say :code:`Build(x)`, it is equivalent to
-    :code:`x` for the :py:class:`~.core.DependencyContainer`.
-    """
-    __slots__ = ('dependency', 'kwargs', '__hash')
-
-    def __init__(self, dependency: Hashable, kwargs: Dict = None):
-        """
-        Args:
-            *args: The first argument is the dependency, all others are passed
-                on to the factory.
-            **kwargs: Passed on to the factory.
-        """
-        self.dependency: Hashable = dependency
-        self.kwargs: Dict = kwargs or None
-
-        if self.kwargs:
-            try:
-                # Try most precise hash first
-                self.__hash = hash((self.dependency, tuple(self.kwargs.items())))
-            except TypeError:
-                # If type error, return the best error-free hash possible
-                self.__hash = hash((self.dependency, tuple(self.kwargs.keys())))
-        else:
-            self.__hash = hash((Build, self.dependency))
-
-    def __hash__(self):
-        return self.__hash
-
-    def __eq__(self, other):
-        return isinstance(other, Build) \
-               and (
-                       self.dependency is other.dependency or self.dependency == other.dependency) \
-               and self.kwargs == self.kwargs  # noqa
+from .service import Build
+from .._internal import API
+from .._internal.utils import FinalImmutable, SlotRecord
+from ..core import Dependency, DependencyContainer, DependencyInstance, DependencyProvider
+from ..exceptions import DuplicateDependencyError
 
 
 @API.private
 class FactoryProvider(DependencyProvider):
-    """
-    Provider managing factories. Also used to register classes directly.
-    """
-
     def __init__(self):
         super().__init__()
-        self.__builders: Dict[Hashable, Builder] = dict()
-        self.__freeze_lock = threading.RLock()
-        self.__frozen = False
+        self.__factories: Dict[Hashable, Factory] = dict()
 
     def __repr__(self):
-        return f"{type(self).__name__}(factories={tuple(self.__builders.keys())!r})"
+        return f"{type(self).__name__}(factories={self.__factories})"
 
-    def freeze(self):
-        with self.__freeze_lock:
-            self.__frozen = True
-
-    def clone(self) -> DependencyProvider:
-        f = FactoryProvider()
-        f.__builders = self.__builders.copy()
-        return f
+    def clone(self, keep_singletons_cache: bool) -> FactoryProvider:
+        p = FactoryProvider()
+        if keep_singletons_cache:
+            factories = {
+                k: (f.copy() if f.dependency is not None else f)
+                for k, f in self.__factories.items()
+            }
+        else:
+            factories = {
+                k: (f.copy(function=None) if f.dependency is not None else f)
+                for k, f in self.__factories.items()
+            }
+        p.__factories = factories
+        return p
 
     def provide(self, build: Hashable, container: DependencyContainer
                 ) -> Optional[DependencyInstance]:
-        if isinstance(build, Build):
-            try:
-                builder: Builder = self.__builders[build.dependency]
-            except KeyError:
-                return None
+        dependency_factory = build.dependency if isinstance(build, Build) else build
+        if not isinstance(dependency_factory, FactoryDependency):
+            return
 
-            if builder.factory_dependency is not None:
-                f = container.provide(builder.factory_dependency)
-                factory = f.instance
-                if f.singleton:
-                    builder.factory_dependency = None
-                    builder.factory = f.instance
-            else:
-                factory = builder.factory
+        try:
+            factory = self.__factories[dependency_factory.dependency]
+        except KeyError:
+            return
 
-            if builder.takes_dependency:
-                instance = factory(build.dependency, **build.kwargs) \
-                    if build.kwargs else factory(build.dependency)
-            else:
-                instance = factory(**build.kwargs) if build.kwargs else factory()
+        if factory.function is None:
+            f = container.provide(factory.dependency)
+            assert f.singleton, "factory dependency is expected to be a singleton"
+            factory.function = f.instance
 
-            return DependencyInstance(instance,
-                                      singleton=builder.singleton)
+        instance = (factory.function(**build.kwargs)
+                    if isinstance(build, Build) and build.kwargs
+                    else factory.function())
 
-    def register_class(self, class_: type, singleton: bool = True):
-        """
-        Register a class which is both dependency and factory.
+        return DependencyInstance(instance, singleton=factory.singleton)
 
-        Args:
-            class_: dependency to register.
-            singleton: Whether the dependency should be mark as singleton or
-                not for the :py:class:`~..core.DependencyContainer`.
-        """
-        with self.__freeze_lock:
-            if self.__frozen:
-                raise FrozenWorldError(f"Cannot add {class_} to a frozen world.")
-            self.register_factory(dependency=class_, factory=class_,
-                                  singleton=singleton, takes_dependency=False)
-        return class_
-
-    def register_factory(self,
-                         dependency: Hashable,
-                         factory: Callable,
-                         singleton: bool = True,
-                         takes_dependency: bool = False):
-        """
-        Registers a factory for a dependency.
-
-        Args:
-            dependency: dependency to register.
-            factory: Callable used to instantiate the dependency.
-            singleton: Whether the dependency should be mark as singleton or
-                not for the :py:class:`~..core.DependencyContainer`.
-            takes_dependency: If True, the factory will be given the requested
-                dependency as its first arguments. This allows re-using the
-                same factory for different dependencies.
-        """
-        if dependency in self.__builders:
-            raise DuplicateDependencyError(dependency,
-                                           self.__builders[dependency])
-
-        if callable(factory):
-            with self.__freeze_lock:
-                if self.__frozen:
-                    raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
-                self.__builders[dependency] = Builder(singleton=singleton,
-                                                      takes_dependency=takes_dependency,
-                                                      factory=factory)
+    def register(self,
+                 dependency: Hashable,
+                 factory: Union[Callable, Dependency],
+                 singleton: bool = True) -> FactoryDependency:
+        # For now we don't support multiple factories for a single dependency.
+        # Simply because I don't see a use case where it would make sense. In
+        # Antidote the standard way would be to use `with_kwargs()` to customization
+        # Open for discussions though, create an issue if you a use case.
+        if dependency in self.__factories:
+            raise DuplicateDependencyError(
+                dependency,
+                self.__factories[dependency]
+            )
+        if isinstance(factory, Dependency):
+            return self.__add(dependency,
+                              Factory(dependency=factory.value,
+                                      singleton=singleton))
+        elif callable(factory):
+            return self.__add(dependency, Factory(singleton=singleton,
+                                                  function=factory))
         else:
             raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
-    def register_providable_factory(self,
-                                    dependency: Hashable,
-                                    factory_dependency: Hashable,
-                                    singleton: bool = True,
-                                    takes_dependency: bool = False):
-        """
-        Registers a lazy factory (retrieved only at the first instantiation) for
-        a dependency.
+    def __add(self, dependency: Hashable, factory: Factory):
+        self.__factories[dependency] = factory
+        factory_dependency = FactoryDependency(dependency, ref(self))
+        return factory_dependency
 
-        Args:
-            dependency: dependency to register.
-            factory_dependency: Dependency used to retrieve.
-            singleton: Whether the dependency should be mark as singleton or
-                not for the :py:class:`~..core.DependencyContainer`.
-            takes_dependency: If True, the factory will be given the requested
-                dependency as its first arguments. This allows re-using the
-                same factory for different dependencies.
-        """
-        if dependency in self.__builders:
-            raise DuplicateDependencyError(dependency,
-                                           self.__builders[dependency])
-
-        with self.__freeze_lock:
-            if self.__frozen:
-                raise FrozenWorldError(f"Cannot add {dependency} to a frozen world.")
-            self.__builders[dependency] = Builder(singleton=singleton,
-                                                  takes_dependency=takes_dependency,
-                                                  factory_dependency=factory_dependency)
+    def debug_get_registered_factory(self, dependency: Hashable
+                                     ) -> Union[Callable, Dependency]:
+        factory = self.__factories[dependency]
+        if factory.dependency is not None:
+            return Dependency(factory.dependency)
+        else:
+            return factory.function
 
 
 @API.private
-class Builder(SlotsReprMixin):
-    """
-    Not part of the public API.
+class FactoryDependency(FinalImmutable):
+    __slots__ = ('dependency', '_provider_ref')
+    dependency: Hashable
+    _provider_ref: ReferenceType[FactoryProvider]
 
-    Only used by the FactoryProvider to store information on how the factory
-    has to be used.
-    """
-    __slots__ = ('singleton', 'factory', 'takes_dependency', 'factory_dependency')
+    def __repr__(self):
+        provider = self._provider_ref()
+        if provider is not None:
+            factory = provider.debug_get_registered_factory(self.dependency)
+            return f"FactoryDependency({self.dependency!r} @ {factory!r})"
+        # Should not happen, but we'll try to provide some debug information
+        return f"FactoryDependency({self.dependency!r} @ ???)"  # pragma: no cover
+
+
+@API.private
+class Factory(SlotRecord):
+    __slots__ = ('singleton', 'function', 'dependency')
+    singleton: bool
+    function: Callable
+    dependency: Any
 
     def __init__(self,
-                 singleton: bool,
-                 takes_dependency: bool,
-                 factory: Optional[Callable] = None,
-                 factory_dependency: Optional[Hashable] = None):
-        assert factory is not None or factory_dependency is not None
-        self.singleton = singleton
-        self.takes_dependency = takes_dependency
-        self.factory = factory
-        self.factory_dependency = factory_dependency
+                 singleton: bool = True,
+                 function: Callable = None,
+                 dependency: Any = None):
+        assert function is not None or dependency is not None
+        super().__init__(singleton, function, dependency)

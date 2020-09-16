@@ -1,25 +1,125 @@
 import builtins
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, overload, Sequence,
-                    Set,
-                    TypeVar, Union)
+from typing import (Any, Callable, Dict, final, Hashable, Iterable, Mapping, Optional,
+                    overload,
+                    Sequence,
+                    Set, TypeVar, Union)
 
 from .._internal.argspec import Arguments
-from .._internal.utils import API
-from .._internal.wrapper import InjectedWrapper, Injection, InjectionBlueprint
+from .._internal.utils import FinalImmutable
+from .._internal import API
+from .._internal.wrapper import (build_wrapper, InjectedWrapper, Injection,
+                                 InjectionBlueprint)
 
 F = TypeVar('F', Callable, staticmethod, classmethod)
 
 _BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
+
+
+@API.public
+@final
+class Arg(FinalImmutable):
+    """
+    Represents an argument (name and type hint) if you need a very custom injection
+    logic.
+    """
+    __slots__ = ('name', 'type_hint')
+    name: str
+    type_hint: Any
+
+    def __init__(self, name: str, type_hint: Any):
+        super().__init__(name=name, type_hint=type_hint)
+
+
+# This type is experimental.
 DEPENDENCIES_TYPE = Union[
     Mapping[str, Hashable],  # {arg_name: dependency, ...}
-    Sequence[Hashable],  # (dependency for arg 1, ...)
-    Callable[[str], Hashable],  # arg_name -> dependency
+    Sequence[Optional[Hashable]],  # (dependency for arg 1, ...)
+    Callable[[Arg], Optional[Hashable]],  # arg -> dependency
     str  # str.format(arg_name=arg_name) -> dependency
 ]
 
 
+@overload
+def inject(func: F,  # noqa: E704  # pragma: no cover
+           *,
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None
+           ) -> F: ...
+
+
+@overload
+def inject(*,  # noqa: E704  # pragma: no cover
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None
+           ) -> Callable[[F], F]: ...
+
+
+@API.public
+def inject(func=None,
+           *,
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None):
+    """
+    Inject the dependencies into the function lazily, they are only retrieved
+    upon execution.
+
+    .. doctest:: core_inject_dependencies
+
+        >>> from antidote import inject
+        >>> # All possibilities for dependency argument.
+        ... @inject(dependencies=dict(b='dependency'))
+        ... def f(a, b):
+        ...     pass
+        >>> @inject(dependencies=[None, 'dependency'])  # Nothing will be injected a
+        ... def f(a, b):
+        ...     pass
+        >>> @inject(dependencies=lambda arg: 'dependency' if arg.name == 'b' else None)
+        ... def f(a, b):
+        ...     pass
+        >>> @inject(dependencies="conf:{arg_name}")
+        ... def f(a, b):
+        ...     pass
+
+    Args:
+        func: Callable to be wrapped. Can also be used on static methods or class methods.
+        dependencies: Explicit definition of the dependencies which overrides
+            :code:`use_names` and :code:`use_type_hints`. Defaults to :py:obj:`None`.
+            Can be one of:
+
+            - Mapping from argument name to its dependency
+            - Sequence of dependencies which will be mapped with the position
+              of the arguments. :py:obj:`None` can be used as a placeholder.
+            - Callable which receives :py:class:`~.Arg` as arguments and should
+              return the matching dependency. :py:obj:`None` should be used for
+              arguments without dependency.
+            - String which must have :code:`{arg_name}` as format parameter
+        use_names: Whether or not the arguments' name should be used as their
+            respective dependency. An iterable of argument names may also be
+            supplied to activate this feature only for those. Defaults to :code:`False`.
+        use_type_hints: Whether or not the type hints should be used as the arguments
+            dependency. An iterable of argument names may also be supplied to activate
+            this feature only for those. Any type hints from the builtins (str, int...)
+            or the typing (except :py:class:`~typing.Optional`) are ignored. It overrides
+            :code:`use_names`. Defaults to :code:`True`.
+
+    Returns:
+        The decorator to be applied or the injected function if the
+        argument :code:`func` was supplied.
+
+    """
+
+    return raw_inject(func,
+                      dependencies=dependencies,
+                      use_names=use_names,
+                      use_type_hints=use_type_hints)
+
+
+@API.experimental  # Function will be kept in sync with @inject, so you may use it.
 def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
                        use_names: Union[bool, Iterable[str]] = None,
                        use_type_hints: Union[bool, Iterable[str]] = None):
@@ -31,87 +131,50 @@ def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
             f"a sequence of dependencies, a function or a string, "
             f"not a {type(dependencies)!r}"
         )
+    if isinstance(dependencies, str):
+        if "{arg_name}" not in dependencies:
+            raise ValueError("Missing formatting parameter {arg_name} in dependencies. "
+                             "If you really want a constant injection, "
+                             "consider using a defaultdict.")
+    if isinstance(dependencies, c_abc.Mapping):
+        if not all(isinstance(k, str) for k in dependencies.keys()):
+            raise TypeError("Dependencies keys must be argument names (str)")
 
     if not (use_names is None or isinstance(use_names, (bool, c_abc.Iterable))):
         raise TypeError(
             f"use_names must be either a boolean or a whitelist of argument names, "
             f"not {type(use_names)!r}.")
+    if isinstance(use_names, c_abc.Iterable):
+        if not all(isinstance(arg_name, str) for arg_name in use_names):
+            raise TypeError("use_names must be list of argument names (str) or a boolean")
 
-    if not (use_type_hints is None or isinstance(use_type_hints, (bool, c_abc.Iterable))):
+    if not (use_type_hints is None or isinstance(use_type_hints,
+                                                 (bool, c_abc.Iterable))):
         raise TypeError(
             f"use_type_hints must be either a boolean or a whitelist of argument names, "
-            f"not {type(use_names)!r}.")
+            f"not {type(use_type_hints)!r}.")
+    if isinstance(use_type_hints, c_abc.Iterable):
+        if not all(isinstance(arg_name, str) for arg_name in use_type_hints):
+            raise TypeError(
+                "use_type_hints must be list of argument names (str) or a boolean")
 
 
-@overload
-def raw_inject(func: F,  # noqa: E704  # pragma: no cover
-               *,
-               arguments: Arguments = None,
-               dependencies: DEPENDENCIES_TYPE = None,
-               use_names: Union[bool, Iterable[str]] = None,
-               use_type_hints: Union[bool, Iterable[str]] = None
-               ) -> F: ...
-
-
-@overload
-def raw_inject(*,  # noqa: E704  # pragma: no cover
-               arguments: Arguments = None,
-               dependencies: DEPENDENCIES_TYPE = None,
-               use_names: Union[bool, Iterable[str]] = None,
-               use_type_hints: Union[bool, Iterable[str]] = None
-               ) -> Callable[[F], F]: ...
-
-
-@API.private  # Use helpers.inject instead
+@API.private  # Use inject instead
 def raw_inject(func=None,
                *,
                arguments: Arguments = None,
                dependencies: DEPENDENCIES_TYPE = None,
                use_names: Union[bool, Iterable[str]] = None,
-               use_type_hints: Union[bool, Iterable[str]] = None
-               ):
-    """
-    Inject the dependencies into the function lazily, they are only retrieved
-    upon execution. Can be used as a decorator.
-
-    Dependency CAN NOT be:
-
-    - part of the builtins
-    - part of typing
-    - None
-
-    Args:
-        func: Callable to be wrapped.
-        arguments: Arguments of the function can directly be specified if they
-            have already been built.
-        dependencies: Can be either a mapping of arguments name to their
-            dependency, an iterable of dependencies or a function which returns
-            the dependency given the arguments name. If an iterable is specified,
-            the position of the arguments is used to determine their respective
-            dependency. An argument may be skipped by using :code:`None` as a
-            placeholder. The first argument is always ignored for methods (self)
-            and class methods (cls).Type hints are overridden. Defaults to :code:`None`.
-        use_names: Whether or not the arguments' name should be used as their
-            respective dependency. An iterable of argument names may also be
-            supplied to restrict this to those. Defaults to :code:`False`.
-        use_type_hints: Whether or not the type hints (annotations) should be
-            used as the arguments dependency. An iterable of argument names may
-            also be specified to restrict this to those. Any type hints from
-            the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
-            ...) are ignored. Defaults to :code:`True`.
-
-    Returns:
-        The decorator to be applied or the injected function if the
-        argument :code:`func` was supplied.
-
-    """
-
+               use_type_hints: Union[bool, Iterable[str]] = None):
     def _inject(wrapped):
         if inspect.isclass(wrapped):
             # @inject on a class would not return a class which is
             # counter-intuitive.
             raise TypeError("Classes cannot be wrapped with @inject. "
                             "Consider using @wire")
+        if not (callable(wrapped) or isinstance(wrapped, (classmethod, staticmethod))):
+            raise TypeError(f"wrapped object {wrapped} is not callable "
+                            f"neither a class/static method")
 
         nonlocal arguments
         # if the function has already its dependencies injected, no need to do
@@ -134,11 +197,12 @@ def raw_inject(func=None,
         if all(injection.dependency is None for injection in blueprint.injections):
             return wrapped
 
-        return InjectedWrapper(blueprint=blueprint, wrapped=wrapped)
+        return build_wrapper(blueprint=blueprint, wrapped=wrapped)
 
     return func and _inject(func) or _inject
 
 
+@API.private
 def _build_injection_blueprint(arguments: Arguments,
                                dependencies: DEPENDENCIES_TYPE = None,
                                use_names: Union[bool, Iterable[str]] = None,
@@ -175,16 +239,21 @@ def _build_injection_blueprint(arguments: Arguments,
     ))
 
 
+@API.private
 def _build_arg_to_dependency(arguments: Arguments,
                              dependencies: DEPENDENCIES_TYPE = None
                              ) -> Dict[str, Any]:
     if dependencies is None:
         arg_to_dependency: Mapping = {}
     elif isinstance(dependencies, str):
+        if "{arg_name}" not in dependencies:
+            raise ValueError("Missing formatting parameter {arg_name} in dependencies. "
+                             "If you really want a constant injection, "
+                             "consider using a defaultdict.")
         arg_to_dependency = {arg.name: dependencies.format(arg_name=arg.name)
                              for arg in arguments.without_self}
     elif callable(dependencies):
-        arg_to_dependency = {arg.name: dependencies(arg.name)
+        arg_to_dependency = {arg.name: dependencies(Arg(arg.name, arg.type_hint))
                              for arg in arguments.without_self}
     elif isinstance(dependencies, c_abc.Mapping):
         _check_valid_arg_names(dependencies.keys(), arguments)
@@ -200,7 +269,7 @@ def _build_arg_to_dependency(arguments: Arguments,
                              in zip(arguments.without_self, dependencies)}
     else:
         raise TypeError(f'Only a mapping or a iterable is supported for '
-                        f'arg_map, not {type(dependencies)!r}')
+                        f'dependencies, not {type(dependencies)!r}')
 
     # Remove any None as they would hide type_hints and use_names.
     return {
@@ -210,6 +279,7 @@ def _build_arg_to_dependency(arguments: Arguments,
     }
 
 
+@API.private
 def _build_type_hints(arguments: Arguments,
                       use_type_hints: Union[bool, Iterable[str]]) -> Dict[str, Any]:
     if use_type_hints is True:
@@ -247,6 +317,7 @@ def _build_type_hints(arguments: Arguments,
     }
 
 
+@API.private
 def _build_dependency_names(arguments: Arguments,
                             use_names: Union[bool, Iterable[str]]) -> Set[str]:
     if use_names is False:
@@ -263,13 +334,14 @@ def _build_dependency_names(arguments: Arguments,
                         f'use_names, not {type(use_names)!r}')
 
 
+@API.private
 def _check_valid_arg_names(names: Iterable[str], arguments: Arguments):
     for name in names:
         if not isinstance(name, str):
-            raise TypeError(f"Expected argument name (string), "
-                            f"got {name!r}")
+            raise TypeError(f"Expected argument name (str), "
+                            f"not {type(name)}")
         if name not in arguments:
-            raise ValueError(f"Unknown argument {name!r}")
+            raise ValueError(f"Unknown argument '{name}'")
         if arguments.has_self and name == arguments[0].name:
             raise ValueError(f"Cannot inject first argument "
-                             f"({arguments[0]}) of a method")
+                             f"('{arguments[0]}') of a method")

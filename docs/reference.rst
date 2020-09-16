@@ -2,59 +2,79 @@ API Reference
 =============
 
 
-Core
-----
+World
+-----
 
-.. automodule:: antidote.core.injection
-    :members:
-
-.. automodule:: antidote.core.container
-    :members:
-
-Helpers
--------
-
-.. automodule:: antidote.helpers.register
-    :members:
-
-.. automodule:: antidote.helpers.factory
-    :members:
-
-.. autoclass:: antidote.helpers.constants.LazyConstantsMeta
-   :special-members: __new__
-
-.. automodule:: antidote.helpers.provider
-    :members:
-
-.. automodule:: antidote.helpers.container
-    :members:
-
-.. automodule:: antidote.helpers.wire
-    :members:
-
-.. automodule:: antidote.helpers.implements
-    :members:
+.. automodule:: antidote.world
+    :members: freeze, provider, get, lazy
 
 
-Providers
----------
+Dependencies
+------------
 
 Service
 ^^^^^^^
+.. automodule:: antidote.helpers.service
+    :members: register
 
-.. automodule:: antidote.providers.factory
-    :members: FactoryProvider,Build
+.. autoclass:: antidote.helpers.service.Service
+    :members: __antidote__
+    :inherited-members:
+
+    .. automethod:: with_kwargs
+
+Factory
+^^^^^^^
+.. automodule:: antidote.helpers.factory
+    :members: factory
+
+.. autoclass:: antidote.helpers.factory.Factory
+    :members:
+    :inherited-members:
+
+    .. automethod:: with_kwargs
+
+Constants
+^^^^^^^^^
+.. autoclass:: antidote.helpers.constants.Constants
+    :members:
 
 Lazy
 ^^^^
+.. automodule:: antidote.helpers.lazy
+    :members:
 
-.. automodule:: antidote.providers.lazy
-    :members: LazyCall,LazyMethodCall,LazyCallProvider
+Implementation
+^^^^^^^^^^^^^^
+.. automodule:: antidote.helpers.implements
+    :members:
 
-Tag
-^^^
-
+Tags
+^^^^
 .. automodule:: antidote.providers.tag
+    :members: Tag, TaggedDependencies
+
+
+Core
+----
+
+Injection
+^^^^^^^^^
+.. automodule:: antidote.core.injection
+    :members: inject, Arg
+
+.. automodule:: antidote.core.wiring
+    :members: Wiring, wire, WithWiringMixin
+
+.. automodule:: antidote.core.utils
+    :members:
+
+Provider
+^^^^^^^^
+.. automodule:: antidote.core.provider
+    :members:
+
+.. automodule:: antidote.core.container
     :members:
 
 

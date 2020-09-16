@@ -1,145 +1,147 @@
-from typing import Iterable, Union
+from typing import Callable, final, Optional, Union
 
-from .register import register
-from .wire import wire
-from .._internal.utils import API
-from ..core import DEPENDENCIES_TYPE
-from ..providers.lazy import LazyMethodCall
+from ._constants import ConstantsMeta, MakeConst
+from .._internal import API
+from .._internal.utils import Copy, FinalImmutable
+from ..core.wiring import Wiring, WithWiringMixin
+
+const = MakeConst()
 
 
 @API.public
-class LazyConstantsMeta(type):
-    def __new__(metacls, cls, bases, namespace,
-                lazy_method: str = 'get',
-                auto_wire: Union[bool, Iterable[str]] = None,
-                dependencies: DEPENDENCIES_TYPE = None,
-                use_names: Union[bool, Iterable[str]] = None,
-                use_type_hints: Union[bool, Iterable[str]] = None):
+class Constants(metaclass=ConstantsMeta, abstract=True):
+    """
+    Used to declare constants, typically configuration. By default all public uppercase
+    attributes are considered to be constants. When using them as dependencies or directly
+    through a instance the method :code:`get()` will be called with its associated value.
+    Only :code:`__init__()` is wired by default.
+
+    The purpose is to have easily indentify where a specific constant is used in your
+    code while keeping it lazy. The class and the constants themselves will only be
+    instantiated if necessary.
+
+    .. doctest::
+
+        >>> from antidote import Constants, world
+        >>> class Conf(Constants):
+        ...     # By default only public uppercase attributes are considered constants
+        ...     DOMAIN = 'domain'
+        ...     _A = 'unchanged'
+        ...     a = 'unchanged'
+        ...
+        ...     def __init__(self):
+        ...         self._data = {'domain': 'example.com'}
+        ...
+        ...     # By default the method get() is used to retrieve the constant.
+        ...     def get(self, key):
+        ...         return self._data[key]
+        ...
+        >>> Conf._A
+        'unchanged'
+        >>> Conf.a
+        'unchanged'
+        >>> world.get(Conf.DOMAIN)
+        'example.com'
+        >>> # which is equivalent to:
+        ... world.get()
+        >>> # For ease of use, if accessed through an instance, the constant will not
+        ... # pass through Antidote.
+        ... Conf().DOMAIN
+        'example.com'
+
+    You may also use :py:func:`.const` if you want to explitly define it as a constant or
+    if you want to specify its type.
+
+    .. doctest::
+
+        >>> from antidote import Constants, const, world
+        >>> class Conf(Constants):
+        ...     _PORT = const[int]('80')
+        ...     _PORT2 = const('8080')
+        ...
+        ...     def get(self, value):
+        ...         return value
+        >>> # Mypy will treat it as a int
+        ... Conf()._PORT
+        80
+
+    You may customize how the Constants class is configured through
+    :py:attr:`.__antidote__`.  Among others you can also customize
+    :py:attr:`~.Constants.Conf.is_const` used to determine which attributes are constants
+    or not.
+
+    .. doctest::
+
+        >>> from antidote import Constants, const, world
+        >>> class Conf(Constants):
+        ...     __antidote__ = Constants.Conf(is_const=lambda name: name.startswith("CONF_"))
+        ...     CONF_A = "A"
+        ...     A = "A"
+        ...
+        ...     def get(self, value):
+        ...         return f"Hello {value}"
+        >>> # Mypy will treat it as a int
+        ... Conf().CONF_A
+        80
+
+    """
+
+    @final
+    class Conf(FinalImmutable, WithWiringMixin):
         """
-        Metaclass used to generate class with constant dependencies.
-
-        This should be used for configuration or external static resources.
-        Only public uppercase class attributes will be converted to dependencies.
-
-        .. doctest::
-
-            >>> import antidote
-            >>> class Conf(metaclass=antidote.LazyConstantsMeta):
-            ...     DOMAIN = 'domain'
-            ...     _A = 'unchanged'
-            ...     a = 'unchanged'
-            ...
-            ...     def __init__(self):
-            ...         self._data = {'domain': 'example.com'}
-            ...
-            ...     def get(self, key):
-            ...         return self._data[key]
-            ...
-            >>> Conf._A
-            'unchanged'
-            >>> Conf.a
-            'unchanged'
-            >>> Conf().DOMAIN
-            'example.com'
-            >>> antidote.world.get(Conf.DOMAIN)
-            'example.com'
-            >>> @antidote.inject(dependencies=(Conf.DOMAIN,))
-            ... def f(a):
-            ...     return a
-            >>> f()
-            'example.com'
-
-        As one can see, neither :code:`a` nor :code:`_A` are changed,
-        only :code:`DOMAIN`. Constant's initial value becomes the argument given
-        to the lazy method, by default :code:`__call__()`. It has two different
-        behaviors depending how it is retrieved:
-
-        - Used as a instance attribute, :code:`Conf().DOMAIN`, is is equivalent
-          to :code:`Conf().__call__('domain')`. This lets your code stay easy to
-          manipulate and test.
-        - Used as a class attribute, :code:`Conf.DOMAIN`, it becomes a special
-          object used by Antidote to identify a dependency. This lets you inject
-          :code:`Conf.DOMAIN` anywhere in your code.
-
-        The advantage of using this is that Antidote will only instantiate
-        :code:`Conf` once, if and only if necessary. The same is applied for
-        every constant, those are singletons. Defining your static resources or
-        configuration as class constants also makes your code more maintainable,
-        as any decent IDE will refactor / find the usage of those in a blink of
-        an eye.
-
-        Underneath it uses :py:class:`.LazyMethodCall` and :py:func:`.register`.
-        It is equivalent to:
-
-        .. testcode::
-
-            from antidote import LazyMethodCall, register
-
-            @register(auto_wire=('__init__', '__call__'))
-            class Conf:
-                # Required for the example as we specify __init__() explicitly
-                # for auto wiring, so it has to exist.
-                def __init__(self):
-                    pass
-
-                def __call__(self, key):
-                    return config[key]
-
-                DOMAIN = LazyMethodCall(__call__)('domain')
-
-        Args:
-            lazy_method: Name of the lazy method to use for the constants.
-                Defaults to :code:`'__call__'`.
-            auto_wire: Injects automatically the dependencies of the methods
-                specified, or only of :code:`__init__()` and :code:`__call__()`
-                if True.
-            dependencies: Can be either a mapping of arguments name to their
-                dependency, an iterable of dependencies or a function which returns
-                the dependency given the arguments name. If an iterable is specified,
-                the position of the arguments is used to determine their respective
-                dependency. An argument may be skipped by using :code:`None` as a
-                placeholder. The first argument is always ignored for methods (self)
-                and class methods (cls).Type hints are overridden. Defaults to
-                :code:`None`.
-            use_names: Whether or not the arguments' name should be used as their
-                respective dependency. An iterable of argument names may also be
-                supplied to restrict this to those. Defaults to :code:`False`.
-            use_type_hints: Whether or not the type hints (annotations) should be
-                used as the arguments dependency. An iterable of argument names may
-                also be specified to restrict this to those. Any type hints from
-                the builtins (str, int...) or the typing (:py:class:`~typing.Optional`,
-                ...) are ignored. Defaults to :code:`True`.
+        Immutable constants configuration. To change parameters on a existing instance,
+        use either method :py:meth:`.copy` or
+        :py:meth:`~.core.wiring.WithWiringMixin.with_wiring`.
         """
-        if lazy_method not in namespace:
-            raise ValueError(f"Lazy method {use_type_hints}() is no defined in {cls}")
+        __slots__ = ('wiring', 'is_const', 'public')
+        wiring: Optional[Wiring]
+        is_const: Optional[Callable[[str], bool]]
+        public: bool
 
-        resource_class = super().__new__(metacls, cls, bases, namespace)
+        def __init__(self,
+                     *,
+                     public: bool = False,
+                     is_const: Optional[Callable[[str], bool]] =
+                     lambda name: name.isupper() and not name.startswith('_'),
+                     wiring: Optional[Wiring] = Wiring(methods=['__init__'],
+                                                       ignore_missing_method=[
+                                                           '__init__'])):
+            """
+            Args:
+                public: Whether the Constants instance is available through Antidote like
+                    a service or not. Defaults to :py:obj:`False`.
+                is_const: Callable determining whether attributes are considered to be
+                    constant or not. If :py:obj:`None`, no attributes will be changed.
+                    Defaults to changing all public (not starting with an underscore)
+                    uppercase attributes.
+                wiring: :py:class:`Wiring` used on the class. Defaults to wire only
+                    :code:`__init__()`.
+            """
+            if not isinstance(public, bool):
+                raise TypeError(f"public must be a boolean, "
+                                f"not a {type(public)}")
 
-        wire_raise_on_missing = True
-        if auto_wire is None or isinstance(auto_wire, bool):
-            if auto_wire is False:
-                methods: Iterable[str] = ()
-            else:
-                methods = (lazy_method, '__init__')
-                wire_raise_on_missing = False
-        else:
-            methods = auto_wire
+            if not (wiring is None or isinstance(wiring, Wiring)):
+                raise TypeError(f"wiring can be None or a Wiring, "
+                                f"but not a {type(wiring)}")
 
-        if methods:
-            resource_class = wire(
-                resource_class,
-                methods=methods,
-                dependencies=dependencies,
-                use_names=use_names,
-                use_type_hints=use_type_hints,
-                raise_on_missing_method=wire_raise_on_missing
+            if is_const is None:
+                def is_const(name):
+                    return False
+
+            if not callable(is_const):
+                raise TypeError(f"is_const must be a callable, not a {type(is_const)}")
+            super().__init__(wiring=wiring, is_const=is_const, public=public)
+
+        def copy(self,
+                 *,
+                 public: Union[bool, Copy] = Copy.IDENTICAL,
+                 wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
+                 is_const: Union[Callable[[str], bool], Copy] = Copy.IDENTICAL):
+            return Constants.Conf(
+                public=self.public if public is Copy.IDENTICAL else public,
+                wiring=self.wiring if wiring is Copy.IDENTICAL else wiring,
+                is_const=self.is_const if is_const is Copy.IDENTICAL else is_const
             )
 
-        resource_class = register(resource_class, auto_wire=False, singleton=True)
-
-        func = resource_class.__dict__[lazy_method]
-        for name, v in list(resource_class.__dict__.items()):
-            if not name.startswith('_') and name.isupper():
-                setattr(resource_class, name, LazyMethodCall(func, singleton=True)(v))
-
-        return resource_class
+    __antidote__: Conf = Conf()

@@ -1,36 +1,44 @@
 import functools
 from typing import Callable, Sequence
 
-from .._internal.utils import SlotsReprMixin
-from ..core import DependencyContainer
-from ..exceptions import DependencyNotFoundError
+from . import API
+from .utils import FinalImmutable
+from ..core.container import DependencyContainer
+from ..core.exceptions import DependencyNotFoundError
 
 compiled = False
 
 
-class Injection(SlotsReprMixin):
+@API.private
+class Injection(FinalImmutable):
     """
     Maps an argument name to its dependency and if the injection is required,
     which is equivalent to no default argument.
     """
     __slots__ = ('arg_name', 'required', 'dependency')
-
-    def __init__(self, arg_name: str, required: bool, dependency):
-        self.arg_name = arg_name
-        self.required = required
-        self.dependency = dependency
+    arg_name: str
+    required: bool
+    dependency: object
 
 
-class InjectionBlueprint(SlotsReprMixin):
+@API.private
+class InjectionBlueprint(FinalImmutable):
     """
     Stores all the injections for a function.
     """
     __slots__ = ('injections',)
-
-    def __init__(self, injections: Sequence[Injection]):
-        self.injections = injections
+    injections: Sequence[Injection]
 
 
+@API.private
+def build_wrapper(blueprint: InjectionBlueprint,
+                  wrapped: Callable,
+                  skip_self: bool = False):
+    """Used for consistency with Cython implementation."""
+    return InjectedWrapper(blueprint, wrapped, skip_self)
+
+
+@API.private
 class InjectedWrapper:
     """
     Wrapper which injects all the dependencies not supplied in the passed
@@ -75,6 +83,7 @@ class InjectedWrapper:
         return getattr(self.__wrapped__, item)
 
 
+@API.private
 class InjectedBoundWrapper(InjectedWrapper):
     """
     Behaves like Python bound methods. Unsure whether this is really necessary
@@ -85,6 +94,7 @@ class InjectedBoundWrapper(InjectedWrapper):
         return self  # pragma: no cover
 
 
+@API.private
 def _inject_kwargs(container: DependencyContainer,
                    blueprint: InjectionBlueprint,
                    offset: int,

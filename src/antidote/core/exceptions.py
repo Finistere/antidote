@@ -1,7 +1,7 @@
 import inspect
 from typing import Any, Hashable, List
 
-from .._internal.utils import API
+from .._internal import API
 
 
 @API.public
@@ -19,17 +19,20 @@ class DuplicateDependencyError(AntidoteError):
     *May* be raised by providers.
     """
 
-    def __init__(self, dependency: Hashable, existing_definition: Any):
-        self.dependency = dependency
-        self.existing_definition = existing_definition
-
-    def __repr__(self):
-        return f"DuplicateDependencyError(dependency={self.dependency!r}, " \
-               f"existing_definition={self.existing_definition!r})"
+    def __init__(self, dependency_or_message: Hashable, existing_definition: Any = None):
+        if existing_definition is None:
+            self.message = dependency_or_message
+        else:
+            self.message = None
+            self.dependency = dependency_or_message
+            self.existing_definition = existing_definition
 
     def __str__(self):
-        return f"The dependency {self.dependency} already exists. " \
-               f"It points to {self.existing_definition}."
+        if self.message is not None:
+            return self.message
+        else:
+            return f"The dependency {self.dependency} already exists. " \
+                   f"It points to {self.existing_definition}."
 
 
 @API.public
@@ -37,6 +40,9 @@ class DependencyInstantiationError(AntidoteError):
     """
     The dependency could not be instantiated.
     """
+
+    def __init__(self, dependency):
+        super().__init__(f"Could not instantiate {dependency}")
 
 
 @API.public
@@ -49,15 +55,16 @@ class DependencyCycleError(AntidoteError):
         self.dependencies = dependencies
 
     def __str__(self):
-        return ' => '.join(map(self._repr, self.dependencies))
+        return "Cycle:" + ''.join(map(self._repr, enumerate(self.dependencies))) + "\n"
 
     @staticmethod
-    def _repr(dependency: Hashable) -> str:
+    def _repr(i_dep) -> str:
+        index, dependency = i_dep
         if inspect.isclass(dependency):
-            return f"{dependency.__module__}" \
+            return f"\n    {index}: {dependency.__module__}" \
                    f".{getattr(dependency, '__name__', dependency)}"
 
-        return repr(dependency)
+        return f"\n    {index}: {repr(dependency)}"
 
 
 @API.public
@@ -76,12 +83,13 @@ class DependencyNotFoundError(AntidoteError):
 @API.public
 class FrozenWorldError(AntidoteError):
     """
-    The DependencyContainer and its provider are already frozen, dependencies
-    cannot be changed anymore.
+    An action failed because the world is frozen. Typically happens when trying
+    to register a dependency after having called freeze() on the world.
     """
 
-    def __init__(self, message: str):
-        self.message = message
 
-    def __str__(self):
-        return self.message
+@API.public
+class FrozenContainerError(FrozenWorldError):
+    """
+    Whenever ensure_not_frozen() fails.
+    """

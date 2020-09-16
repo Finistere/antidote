@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, get_type_hints, Iterator, List, Sequence, Union
+from typing import Callable, get_type_hints, Iterator, List, Sequence, Set, Union
 
 
 class Argument:
@@ -14,10 +14,15 @@ class Argument:
 
 
 class Arguments:
+    """ Used when generating the injection wrapper """
+
     @classmethod
     def from_callable(cls,
                       func: Union[Callable, staticmethod, classmethod]
                       ) -> 'Arguments':
+        if not (callable(func) or isinstance(func, (staticmethod, classmethod))):
+            raise TypeError(f"func must be a callable or a static/class-method. "
+                            f"Not a {type(func)}")
         unbound_method = is_unbound_method(func)  # doing it before un-wrapping.
         if isinstance(func, (staticmethod, classmethod)):
             func = func.__func__
@@ -29,11 +34,8 @@ class Arguments:
         has_var_positional = False
         has_var_keyword = False
 
-        try:
-            # typing is used, as lazy evaluation is not done properly with Signature.
-            type_hints = get_type_hints(func)
-        except Exception:  # Python 3.5.3 does not handle properly method wrappers
-            type_hints = {}
+        # typing is used, as lazy evaluation is not done properly with Signature.
+        type_hints = get_type_hints(func)
 
         for name, parameter in inspect.signature(func).parameters.items():
             if parameter.kind is parameter.VAR_POSITIONAL:
@@ -70,6 +72,10 @@ class Arguments:
         else:
             self.without_self = self
 
+    @property
+    def arg_names(self) -> Set[str]:
+        return set(self.name_to_argument.keys())
+
     def __repr__(self):
         args = [repr(arg) for arg in self.name_to_argument.values()]
         if self.has_var_positional:
@@ -99,7 +105,8 @@ class Arguments:
 
 def is_unbound_method(func: Union[Callable, staticmethod, classmethod]) -> bool:
     """
-    Methods and nested function will have a different __qualname__ (See PEP-3155).
+    Methods and nested function will have a different __qualname__ than
+    __name__ (See PEP-3155).
 
     >>> class A:
     ...     def f(self):
@@ -107,7 +114,7 @@ def is_unbound_method(func: Union[Callable, staticmethod, classmethod]) -> bool:
     >>> A.f.__qualname__
     'A.f'
 
-    With methods which still have self (or cls for class methods), we will ignore
+    This helps us differentiate method defined in a module and those for a class.
     """
     if isinstance(func, staticmethod):
         return False
