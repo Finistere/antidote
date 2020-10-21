@@ -1,4 +1,4 @@
-from antidote._internal import API
+from .. import API
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 

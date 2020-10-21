@@ -2,7 +2,7 @@ import functools
 import inspect
 from typing import Set
 
-from .container import RawDependencyProvider
+from .container import RawProvider
 from .exceptions import FrozenContainerError, FrozenWorldError
 from .._internal import API
 
@@ -14,10 +14,11 @@ class ProviderMeta(type):
     def __new__(mcls, name, bases, namespace, **kwargs):
         # Every method which does not the have the does_not_freeze decorator
         # is considered
-        raw_method = {"clone", "provide"}
+        raw_methods = {"clone", "provide", "exists", "maybe_provide", "debug",
+                       "maybe_debug"}
         attrs: Set[str] = {attr for attr in namespace.keys() if
                            not attr.startswith("__")}
-        for attr in (attrs - raw_method):
+        for attr in (attrs - raw_methods):
             method = namespace[attr]
             if not inspect.isfunction(method):
                 continue
@@ -34,7 +35,7 @@ class ProviderMeta(type):
 @API.private
 def _make_wrapper(attr, method):
     @functools.wraps(method)
-    def wrapped_method(self: RawDependencyProvider, *args, **kwargs):
+    def wrapped_method(self: RawProvider, *args, **kwargs):
         try:
             with self._ensure_not_frozen():
                 return method(self, *args, **kwargs)

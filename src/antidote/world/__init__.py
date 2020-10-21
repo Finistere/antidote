@@ -1,15 +1,15 @@
 import inspect
-from typing import TypeVar
+from typing import Type, TypeVar
 
-from . import singletons, test
+from . import singletons, test, debug
 from .._internal import API, state
 from .._internal.utils.world import WorldGet, WorldLazy
-from ..core import DependencyProvider
-
 # Creates the global container
+from ..core.container import RawProvider
+
 state.init()
 
-P = TypeVar('P', bound=type)
+P = TypeVar('P', bound=Type[RawProvider])
 T = TypeVar('T')
 
 # public
@@ -22,22 +22,20 @@ with a check.
 Returns:
     Retrieves given dependency or raises a :py:exc:`~.exceptions.DependencyNotFoundError`
 
-.. doctest::
+.. doctest:: world_get
     
-    >>> from antidote import world, register
+    >>> from antidote import world, Service
     >>> world.singletons.set('dep', 1)
     >>> world.get('dep')
     1
-    >>> x = world.get[int]('dep')  # mypy will treat x as a int
-    ... x
-    1
-    >>> @register
-    ... class Dummy:
+    >>> # mypy will treat x as a int 
+    ... x = world.get[int]('dep')
+    >>> class Dummy(Service):
     ...     pass
     >>> # To avoid repetition, if a type hint is provided but no argument, it
     ... # will retrieve the type hint itself. 
     ... world.get[Dummy]()
-    Dummy
+    <Dummy ...>
 
 """
 lazy = WorldLazy()
@@ -49,24 +47,23 @@ enforce it with a check.
 Returns:
     Dependency: wrapped dependency.
 
-.. doctest::
+.. doctest:: world_lazy
     
-    >>> from antidote import world, register
+    >>> from antidote import world, Service
     >>> world.singletons.set('dep', 1)
     >>> dep = world.lazy('dep')
+    >>> dep
     Dependency(value='dep')
     >>> dep.get()
     1
-    >>> x = world.lazy[int]('dep').get()  # mypy will treat x as a int
-    ... x
-    1
-    >>> @register
-    ... class Dummy:
+    >>> # mypy will treat x as a int 
+    ... x = world.lazy[int]('dep').get()
+    >>> class Dummy(Service):
     ...     pass
     >>> # To avoid repetition, if a type hint is provided but no argument, it
     ... # will retrieve the type hint itself.
     ... world.lazy[Dummy]().get()
-    Dummy
+    <Dummy ...>
 
 """
 
@@ -75,14 +72,14 @@ Returns:
 def provider(p: P) -> P:
     """
     Class decorator used to register a new
-    :py:class:`~.core.provider.DependencyProvider`.
+    :py:class:`~.core.provider.Provider`.
     """
-    if inspect.isclass(p) and issubclass(p, DependencyProvider):
+    if inspect.isclass(p) and issubclass(p, RawProvider):
         state.get_container().register_provider(p)
         return p
 
     raise TypeError(f"Provider must be a subclass of "
-                    f"RawDependencyProvider, not {p}")
+                    f"RawProvider, not {p}")
 
 
 @API.public
@@ -95,11 +92,15 @@ def freeze():
     It can be used to ensure that at runtime, once everything is initialized, nothing
     may be changed anymore.
 
-    .. doctest::
+    .. doctest:: world_freeze
 
         >>> from antidote import world
+        >>> from antidote.exceptions import FrozenWorldError
         >>> world.freeze()
-        >>> world.singletons.set('dependency', 1)
-        FrozenWorldError
+        >>> try:
+        ...     world.singletons.set('dependency', 1)
+        ... except FrozenWorldError:
+        ...     print("Frozen world !")
+        Frozen world !
     """
     state.get_container().freeze()

@@ -84,6 +84,22 @@ def test_const():
     assert conf.b == 2
 
 
+def test_const_with_is_const():
+    class Config(Constants):
+        A = const('1')
+        B = const[int]('2')
+
+        def get(self, key):
+            return int(key)
+
+    assert world.get(Config.A) == 1
+    assert world.get(Config.B) == 2
+
+    conf = Config()
+    assert conf.A == 1
+    assert conf.B == 2
+
+
 def test_invalid_lazy_method():
     with pytest.raises(TypeError):
         class Config(Constants):

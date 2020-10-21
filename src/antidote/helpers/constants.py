@@ -20,10 +20,10 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
     code while keeping it lazy. The class and the constants themselves will only be
     instantiated if necessary.
 
-    .. doctest::
+    .. doctest:: helpers_Constants
 
         >>> from antidote import Constants, world
-        >>> class Conf(Constants):
+        >>> class Config(Constants):
         ...     # By default only public uppercase attributes are considered constants
         ...     DOMAIN = 'domain'
         ...     _A = 'unchanged'
@@ -36,33 +36,31 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         ...     def get(self, key):
         ...         return self._data[key]
         ...
-        >>> Conf._A
+        >>> Config._A
         'unchanged'
-        >>> Conf.a
+        >>> Config.a
         'unchanged'
-        >>> world.get(Conf.DOMAIN)
+        >>> world.get(Config.DOMAIN)
         'example.com'
-        >>> # which is equivalent to:
-        ... world.get()
         >>> # For ease of use, if accessed through an instance, the constant will not
         ... # pass through Antidote.
-        ... Conf().DOMAIN
+        ... Config().DOMAIN
         'example.com'
 
     You may also use :py:func:`.const` if you want to explitly define it as a constant or
     if you want to specify its type.
 
-    .. doctest::
+    .. doctest:: helpers_Constants_v2
 
         >>> from antidote import Constants, const, world
-        >>> class Conf(Constants):
+        >>> class Config(Constants):
         ...     _PORT = const[int]('80')
         ...     _PORT2 = const('8080')
         ...
         ...     def get(self, value):
-        ...         return value
+        ...         return int(value)
         >>> # Mypy will treat it as a int
-        ... Conf()._PORT
+        ... Config()._PORT
         80
 
     You may customize how the Constants class is configured through
@@ -70,19 +68,18 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
     :py:attr:`~.Constants.Conf.is_const` used to determine which attributes are constants
     or not.
 
-    .. doctest::
+    .. doctest:: helpers_Constants_v3
 
         >>> from antidote import Constants, const, world
-        >>> class Conf(Constants):
+        >>> class Config(Constants):
         ...     __antidote__ = Constants.Conf(is_const=lambda name: name.startswith("CONF_"))
         ...     CONF_A = "A"
         ...     A = "A"
         ...
         ...     def get(self, value):
         ...         return f"Hello {value}"
-        >>> # Mypy will treat it as a int
-        ... Conf().CONF_A
-        80
+        >>> Config().CONF_A
+        'Hello A'
 
     """
 

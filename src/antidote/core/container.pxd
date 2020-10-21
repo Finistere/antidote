@@ -10,7 +10,7 @@ cdef:
 
 cdef class DependencyInstance:
     cdef:
-        readonly object instance
+        readonly object value
         readonly bint singleton
 
 cdef class PyObjectBox:
@@ -28,11 +28,10 @@ cdef struct ProviderCache:
     size_t*counters
     PyObject** providers
 
-cdef class DependencyContainer:
-    cpdef object get(self, object dependency)
-    cpdef DependencyInstance provide(self, object dependency)
+cdef class Container:
+    pass
 
-cdef class RawDependencyContainer(DependencyContainer):
+cdef class RawContainer(Container):
     cdef:
         DependencyStack __dependency_stack
         ProviderCache __cache
@@ -48,14 +47,13 @@ cdef class RawDependencyContainer(DependencyContainer):
     cdef __safe_provide(self, PyObject*dependency, DependencyResult*result,
                         unsigned long singletons_clock)
 
-cdef class RawDependencyProvider:
+cdef class RawProvider:
     cdef:
         object _container_ref
 
-    cpdef DependencyInstance provide(self, object dependency,
-                                     DependencyContainer container)
+    cpdef DependencyInstance maybe_provide(self, object dependency, Container container)
     cdef fast_provide(self, PyObject*dependency, PyObject*container,
                       DependencyResult*result)
 
-cdef class FastDependencyProvider(RawDependencyProvider):
+cdef class FastProvider(RawProvider):
     pass

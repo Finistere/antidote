@@ -1,40 +1,36 @@
 # @formatter:off
+from typing import Hashable
 cimport cython
 from cpython.object cimport PyObject, PyObject_CallMethodObjArgs
-from cpython.weakref cimport PyWeakref_GET_OBJECT
 
-from antidote.core.container cimport (DependencyInstance, FastDependencyProvider,
-                                      RawDependencyContainer, DependencyResult,
-                                      DependencyContainer,
-                                      PyObjectBox, FLAG_SINGLETON, FLAG_DEFINED)
-# @formatter:on
-
+from antidote.core.container cimport (DependencyInstance, FastProvider, RawContainer,
+                                      DependencyResult,  Container, PyObjectBox,
+                                      FLAG_SINGLETON, FLAG_DEFINED)
 from ..exceptions import DependencyNotFoundError
+
+# @formatter:on
 
 cdef extern from "Python.h":
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
 
 
-cdef class FastLazy:
-    cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
-        raise NotImplementedError()
-
-cdef class Lazy(FastLazy):
+cdef class Lazy:
     cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
         cdef:
             DependencyInstance dependency_instance
 
-        dependency_instance = self._lazy_get(<DependencyContainer> container)
+        dependency_instance = self.lazy_get(<Container> container)
         if dependency_instance is not None:
             result.flags = FLAG_DEFINED | (
                 FLAG_SINGLETON if dependency_instance.singleton else 0)
-            (<PyObjectBox> result.box).obj = dependency_instance.instance
+            (<PyObjectBox> result.box).obj = dependency_instance.value
 
-    cpdef _lazy_get(self, container: DependencyContainer) -> DependencyInstance:
+    cpdef lazy_get(self, container: Container):
         raise NotImplementedError()  # pragma: no cover
 
+
 @cython.final
-class FastLazyMethod(FastLazy):
+cdef class FastLazyMethod(Lazy):
     cdef:
         object dependency
         str method_name
@@ -46,7 +42,7 @@ class FastLazyMethod(FastLazy):
         self.value = value
 
     cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
-        (<RawDependencyContainer> container).fast_get(<PyObject*> self.dependency, result)
+        (<RawContainer> container).fast_get(<PyObject*> self.dependency, result)
         if result.flags != 0:
             result.flags = FLAG_DEFINED | FLAG_SINGLETON
             (<PyObjectBox> result.box).obj = PyObject_CallMethodObjArgs(
@@ -59,9 +55,12 @@ class FastLazyMethod(FastLazy):
 
 
 @cython.final
-cdef class LazyProvider(FastDependencyProvider):
-    def clone(self) -> FastDependencyProvider:
+cdef class LazyProvider(FastProvider):
+    def clone(self, keep_singletons_cache: bool) -> FastProvider:
         return LazyProvider()
+
+    def has(self, dependency: Hashable) -> bool:
+        return isinstance(dependency, Lazy)
 
     cdef fast_provide(self,
                       PyObject*dependency,

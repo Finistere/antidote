@@ -1,8 +1,9 @@
 import inspect
-from typing import Callable, TypeVar
+from typing import Callable, Iterable, TypeVar, Union
 
 from .._internal import API
 from ..core import inject
+from ..core.injection import DEPENDENCIES_TYPE
 from ..providers import IndirectProvider
 from ..providers.factory import FactoryDependency
 from ..providers.service import Build
@@ -20,7 +21,7 @@ def implements(interface: type) -> Callable[[C], C]:
     The underlying class needs to be retrievable from Antidote, typically by
     defining it as a service:
 
-    .. doctest::
+    .. doctest:: helpers_implements
 
         >>> from antidote import world, implements, Service
         >>> class Interface:
@@ -29,7 +30,7 @@ def implements(interface: type) -> Callable[[C], C]:
         ... class Impl(Interface, Service):
         ...     pass
         >>> world.get(Interface)
-        Impl
+        <Impl ...>
 
     .. note::
 
@@ -60,7 +61,13 @@ def implements(interface: type) -> Callable[[C], C]:
 
 
 @API.experimental
-def implementation(interface: type, *, permanent=True) -> Callable[[F], F]:
+def implementation(interface: type,
+                   *,
+                   permanent: bool = True,
+                   auto_wire: bool = True,
+                   dependencies: DEPENDENCIES_TYPE = None,
+                   use_names: Union[bool, Iterable[str]] = None,
+                   use_type_hints: Union[bool, Iterable[str]] = None) -> Callable[[F], F]:
     """
     Function decorator which decides which implementation should be used for
     :code:`interface`.
@@ -70,7 +77,7 @@ def implementation(interface: type, *, permanent=True) -> Callable[[F], F]:
 
     The function will not be wired, you'll need to do it yourself if you need it.
 
-    .. doctest::
+    .. doctest:: helpers_implementation
 
         >>> from antidote import implementation, Service, factory, world
         >>> class Interface:
@@ -82,25 +89,30 @@ def implementation(interface: type, *, permanent=True) -> Callable[[F], F]:
         >>> @factory
         ... def build_b() -> B:
         ...     return B()
-        >>> @implementation(Interface)
-        ... @inject(dependencies=['choice'])
+        >>> @implementation(Interface, dependencies=['choice'])
         ... def choose_interface(choice: str):
         ...     if choice == 'a':
         ...         return A  # One could also use A.with_kwargs(...)
         ...     else:
         ...         return B @ build_b  # or B @ build_b.with_kwargs(...)
         >>> world.singletons.set('choice', 'b')
-        ... world.get(Interface)
-        B
+        >>> world.get(Interface)
+        <B ...>
         >>> # Changing choice doesn't matter anymore as the implementation is permanent.
-        ... world.singletons.set('choice', 'a')
-        ... world.get(Interface)
-        B
+        ... with world.test.clone(overridable=True):
+        ...     world.singletons.set('choice', 'a')
+        ...     world.get(Interface)
+        <B ...>
 
     Args:
         interface: Interface for which an implementation will be provided
         permanent: Whether the function should be called each time the interface is needed
             or not. Defaults to :py:obj:`True`.
+        auto_wire: Whether the function should have its arguments injected or not
+            with :py:func:`~.injection.inject`.
+        dependencies: Propagated to :py:func:`~.injection.inject`.
+        use_names: Propagated to :py:func:`~.injection.inject`.
+        use_type_hints: Propagated to :py:func:`~.injection.inject`.
 
     Returns:
         The decorated function, unmodified.
@@ -108,9 +120,18 @@ def implementation(interface: type, *, permanent=True) -> Callable[[F], F]:
     if not inspect.isclass(interface):
         raise TypeError(f"interface must be a class, not a {type(interface)}")
 
+    if not (auto_wire is None or isinstance(auto_wire, bool)):
+        raise TypeError(f"auto_wire can be None or a boolean, not {type(auto_wire)}")
+
     @inject
     def register(func, indirect_provider: IndirectProvider):
         if inspect.isfunction(func):
+            if auto_wire:
+                func = inject(func,
+                              dependencies=dependencies,
+                              use_names=use_names,
+                              use_type_hints=use_type_hints)
+
             def linker():
                 dependency = func()
                 cls = dependency

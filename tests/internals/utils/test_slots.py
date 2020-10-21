@@ -2,10 +2,10 @@ import pytest
 
 from antidote._internal.utils import (FinalImmutable, Immutable,
                                       SlotRecord)
-from antidote._internal.utils.slots import SlotsMixin
+from antidote._internal.utils.slots import SlotsRepr
 
 
-class DummySlot(SlotsMixin):
+class DummySlot(SlotsRepr):
     __slots__ = ('test', '__value')
 
     def __init__(self, test, value):
@@ -17,7 +17,7 @@ def test_slot_repr_mixin():
     assert repr(DummySlot(1, 'test')) == "DummySlot(test=1, __value='test')"
 
 
-@pytest.mark.parametrize('cls', [Immutable, FinalImmutable, SlotRecord])
+@pytest.mark.parametrize('cls', [SlotRecord])
 def test_copy(cls):
     class A(cls):
         __slots__ = ('x', 'y')

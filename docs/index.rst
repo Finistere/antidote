@@ -18,5 +18,6 @@ Table of Content
     why
     tutorial
     recipes
+    extend
     reference
 

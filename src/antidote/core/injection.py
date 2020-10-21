@@ -1,16 +1,14 @@
 import builtins
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, Dict, final, Hashable, Iterable, Mapping, Optional,
-                    overload,
-                    Sequence,
-                    Set, TypeVar, Union)
+from typing import (Any, Callable, Dict, final, Hashable, Iterable, Mapping,
+                    Optional,  overload,  Sequence, Set, TypeVar, Union)
 
+from .._internal import API
 from .._internal.argspec import Arguments
 from .._internal.utils import FinalImmutable
-from .._internal import API
-from .._internal.wrapper import (build_wrapper, InjectedWrapper, Injection,
-                                 InjectionBlueprint)
+from .._internal.wrapper import (build_wrapper, InjectedWrapper,
+                                 Injection, InjectionBlueprint)
 
 F = TypeVar('F', Callable, staticmethod, classmethod)
 
@@ -66,24 +64,54 @@ def inject(func=None,
            use_type_hints: Union[bool, Iterable[str]] = None):
     """
     Inject the dependencies into the function lazily, they are only retrieved
-    upon execution.
+    upon execution. As several options can apply to the same argument, the priority is
+    defined as:
 
-    .. doctest:: core_inject_dependencies
+    1. Dependencies declared explicitly if any declared with :code:`dependencies`.
+    2. Type hints (unless deactivated through :code:`use_type_hints`)
+    3. Argument names if specified with :code:`use_names`
+
+    .. doctest:: core_inject
 
         >>> from antidote import inject
         >>> # All possibilities for dependency argument.
-        ... @inject(dependencies=dict(b='dependency'))
+        ... @inject(dependencies=None)  # default
+        ... def f(a):
+        ...     pass  # a = <not injected>
+        >>> @inject(dependencies=dict(b='dependency'))
         ... def f(a, b):
-        ...     pass
+        ...     pass  # a, b = <not injected>, world.get('dependency')
         >>> @inject(dependencies=[None, 'dependency'])  # Nothing will be injected a
         ... def f(a, b):
-        ...     pass
+        ...     pass  # a, b = <not injected>, world.get('dependency')
         >>> @inject(dependencies=lambda arg: 'dependency' if arg.name == 'b' else None)
         ... def f(a, b):
-        ...     pass
+        ...     pass  # a, b = <not injected>, world.get('dependency')
         >>> @inject(dependencies="conf:{arg_name}")
+        ... def f(a):
+        ...     pass  # a = world.get('conf:a')
+        >>> # All possibilities for use_names argument.
+        ... @inject(use_names=False)  # default
+        ... def f(a):
+        ...     pass  # a = <not injected>
+        >>> @inject(use_names=True)
+        ... def f(a):
+        ...     pass  # a = world.get('a')
+        >>> @inject(use_names=['b'])
         ... def f(a, b):
+        ...     pass  # a, b = <not injected>, world.get('b')
+        >>> # All possibilities for use_type_hints argument.
+        ... class Service:
         ...     pass
+        >>> @inject(use_type_hints=True)  # default
+        ... def f(a: Service):
+        ...     pass  # a = world.get(Service)
+        >>> @inject(use_type_hints=['b'])
+        ... def f(a: Service, b: Service):
+        ...     pass  # a, b = <not injected>, world.get(Service)
+        >>> @inject(use_type_hints=False)
+        ... def f(a: Service):
+        ...     pass  # a = <not injected>
 
     Args:
         func: Callable to be wrapped. Can also be used on static methods or class methods.

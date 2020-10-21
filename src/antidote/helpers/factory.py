@@ -53,7 +53,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
         If you only need a simple function, consider using :py:func:`.factory` instead.
 
-    .. doctest::
+    .. doctest:: helpers_Factory
 
         >>> from antidote import Factory, world
         >>> class ExternalService:
@@ -62,11 +62,11 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         ...     def __call__(self) -> ExternalService:
         ...         return ExternalService()
         >>> world.get[ExternalService @ MyFactory]()
-        ExternalService
+        <ExternalService ...>
 
     For customization use :py:attr:`.__antidote__`:
 
-    .. doctest::
+    .. doctest:: helpers_Factory_v2
 
         >>> from antidote import Factory, world
         >>> class ExternalService:
@@ -81,9 +81,9 @@ class Factory(metaclass=FactoryMeta, abstract=True):
     One can customize the instantiation and use the same service with different
     configuration:
 
-    .. doctest::
+    .. doctest:: helpers_Factory_v3
 
-        >>> from antidote import Factory, world
+        >>> from antidote import Factory, world, inject
         >>> class ExternalService:
         ...     def __init__(self, name):
         ...         self.name = name
@@ -91,19 +91,18 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         ...     def __call__(self, name = 'default') -> ExternalService:
         ...         return ExternalService(name)
         >>> world.get[ExternalService](ExternalService @ MyFactory).name
-        default
+        'default'
         >>> s = world.get[ExternalService](
         ...     ExternalService @ MyFactory.with_kwargs(name='perfection'))
         >>> s.name
-        perfection
+        'perfection'
         >>> # The same instance will be returned for those keywords as MyFactory was
         ... # declared as returning a singleton.
         ... s is world.get(ExternalService @ MyFactory.with_kwargs(name='perfection'))
         True
-        >>> from antidote import inject
-        ... # You can also keep the dependency and re-use it
+        >>> # You can also keep the dependency and re-use it
         ... PerfectionService = ExternalService @ MyFactory.with_kwargs(name='perfection')
-        ... @inject(dependencies=dict(service=PerfectionService))
+        >>> @inject(dependencies=dict(service=PerfectionService))
         ... def f(service):
         ...     return service
         >>> f() is s
@@ -190,7 +189,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
 
 @overload
-def factory(func: F,  # noqa: E704  # pragma: no cover
+def factory(f: F,  # noqa: E704  # pragma: no cover
             *,
             auto_wire: bool = True,
             singleton: bool = True,
@@ -238,7 +237,7 @@ def factory(f: F = None,
         If you need a stateful factory or want to implement a complex one prefer using
         :py:class:`.Factory` instead.
 
-    .. doctest::
+    .. doctest:: helpers_factory
 
         >>> from antidote import factory, world
         >>> class ExternalService:
@@ -247,14 +246,14 @@ def factory(f: F = None,
         ... def build_service() -> ExternalService:
         ...     return ExternalService()
         >>> world.get[ExternalService](ExternalService @ build_service)
-        ExternalService
+        <ExternalService ...>
 
     One can customize the instantiation and use the same service with different
     configuration:
 
-    .. doctest::
+    .. doctest:: helpers_factory_v2
 
-        >>> from antidote import Factory, world
+        >>> from antidote import factory, world, inject
         >>> class ExternalService:
         ...     def __init__(self, name):
         ...         self.name = name
@@ -262,20 +261,19 @@ def factory(f: F = None,
         ... def build_service(name = 'default') -> ExternalService:
         ...     return ExternalService(name)
         >>> world.get[ExternalService](ExternalService @ build_service).name
-        default
+        'default'
         >>> s = world.get[ExternalService](
         ...     ExternalService @ build_service.with_kwargs(name='perfection'))
         >>> s.name
-        perfection
+        'perfection'
         >>> # The same instance will be returned for those keywords as MyFactory was
         ... # declared as returning a singleton.
         ... s is world.get(ExternalService @ build_service.with_kwargs(name='perfection'))
         True
-        >>> from antidote import inject
-        ... # You can also keep the dependency and re-use it
+        >>> # You can also keep the dependency and re-use it
         ... PerfectionService = \\
         ...     ExternalService @ build_service.with_kwargs(name='perfection')
-        ... @inject(dependencies=dict(service=PerfectionService))
+        >>> @inject(dependencies=dict(service=PerfectionService))
         ... def f(service):
         ...     return service
         >>> f() is s

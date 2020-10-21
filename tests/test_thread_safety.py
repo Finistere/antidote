@@ -2,8 +2,8 @@ import random
 import threading
 import time
 
-from antidote import factory, Tag, TaggedDependencies, world
-from antidote.core import DependencyContainer
+from antidote import factory, Tag, Tagged, world
+from antidote.core import Container
 
 
 class A:
@@ -68,7 +68,7 @@ def test_tagged_dependencies_instantiation_safety():
                     singleton=False,
                     tags=[tag])
 
-        tagged: TaggedDependencies = world.get(tag)
+        tagged: Tagged = world.get(tag)
         dependencies = []
 
         def worker():
@@ -134,7 +134,7 @@ def test_state_override_safety():
 
     def create(c):
         assert c is container
-        return DependencyContainer()
+        return Container()
 
     def worker():
         random_delay()

@@ -12,7 +12,7 @@ from .._internal.utils import Copy, FinalImmutable, raw_getattr
 from .._internal import API
 
 C = TypeVar('C', bound=type)
-_empty_set = frozenset()
+_empty_set: FrozenSet[str] = frozenset()
 
 
 @API.public
@@ -31,13 +31,13 @@ class Wiring(FinalImmutable):
     defined by Antidote, you'll need to rely on :py:meth:`~.copy`. It accepts the same
     arguments as :py:meth:`~.__init__` and overrides existing values.
 
-    .. doctest::
+    .. doctest:: core_Wiring
 
         >>> from antidote import Wiring
         >>> # Methods must always be specified.
         ... w = Wiring(methods=['my_method', 'other_method'])
         >>> # Now argument names will be used on both my_method and other_method.
-        ... w_copy = w.clone(use_names=True)
+        ... w_copy = w.copy(use_names=True)
 
     """
     __slots__ = ('methods', 'dependencies', 'use_names', 'use_type_hints', 'wire_super',
@@ -52,8 +52,8 @@ class Wiring(FinalImmutable):
     ignore_missing_method: FrozenSet[str]
     """Method names for which an exception will not be raised if not found."""
     dependencies: DEPENDENCIES_TYPE
-    use_names: Union[True, FrozenSet[str]]
-    use_type_hints: Union[True, FrozenSet[str]]
+    use_names: Union[bool, FrozenSet[str]]
+    use_type_hints: Union[bool, FrozenSet[str]]
 
     def __init__(self,
                  *,
@@ -259,7 +259,7 @@ class WithWiringMixin:
 
     wiring: Optional[Wiring]
 
-    def copy(self: W, **kwargs) -> W:
+    def copy(self: W, *, wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL) -> W:
         raise NotImplementedError()  # pragma: no cover
 
     def with_wiring(self: W,
@@ -330,7 +330,7 @@ def _wire_class(cls: C, wiring: Wiring) -> C:
                     for arg_name, dependency in dependencies.items()
                     if arg_name in arguments.without_self
                 }
-            elif isinstance(dependencies, c_abc.Iterable) \
+            elif isinstance(dependencies, c_abc.Sequence) \
                     and not isinstance(dependencies, str):
                 dependencies = dependencies[:len(arguments.without_self)]
 

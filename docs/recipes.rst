@@ -1,65 +1,85 @@
 Recipes
 =======
 
+
 This is a collection of how to use certain features of Antidote or simply examples of
 what can be done.
+
 
 Use interfaces
 --------------
 
-Exposing services through an interface can be done wth :py:func:`~.implements`
-(For now, the underlying class needs to be decorated with :py:func:`~.register` .) :
+Antidote supports the distinction interface/implementation out of the box. The
+implementation needs to be retrievable and hence typically defined as a
+:py:class:`~.Service`.
 
-.. testcode:: how_to_interface
+When the choice of the implementation is straightforward you can simply use
+:py:func:`~.implements`: :
 
-    from antidote import register, implements
+.. testcode:: how_to_interface_implements
 
-    class IService:
+    from antidote import Service, implements
+
+    class Interface:
         pass
 
-    @implements(IService)
-    @register
-    class Service(IService):
+    @implements(Interface)
+    class MyService(Service, Interface):
         pass
 
-.. doctest:: how_to_interface
+.. doctest:: how_to_interface_implements
 
-    >>> from antidote import World
-    >>> World.get(IService)
-    <Service ...>
+    >>> from antidote import world
+    >>> world.get[Interface]()
+    <MyService ...>
 
-Multiple implementations can also be declared:
+If you have multiple possible implementation you'll need to rely on the function decorator
+:py:func:`~.implementation`. The result of the function will be the retrieved dependency
+for the specified interface. Typically this means a class registered as a service or one
+that can be provided by a factory.
 
-.. testcode:: how_to_interface
+.. testcode:: how_to_interface_implementation
 
-    from enum import Flag, auto
-
-    class Profile(Flag):
-        POSTGRES = auto()
-        MYSQL = auto()
+    from antidote import implementation, Service, inject
 
     class Database:
+        def __init__(self, host: str, name: str):
+            self.host = host
+            self.name = name
+
+    class PostgresDB(Service, Database):
         pass
 
-    @implements(Database, state=Profile.POSTGRES)
-    @register
-    class PostgresDB(Database):
+    class MySQLDB(Service, Database):
         pass
 
-    @implements(Database, state=Profile.MYSQL)
-    @register
-    class MySQLDB(Database):
-        pass
+    # permanent is True by default. If you want to choose each time which implementation
+    # should be used, set it to False.
+    @implementation(Database, permanent=True, dependencies=['db_conn_str'])
+    def choose_db(conn_str):
+        db, host, name = conn_str.split(':')
+        if db == 'postgres':
+            # Complex dependencies are supported
+            return PostgresDB.with_kwargs(host=host, name=name)
+        elif db == 'mysql':
+            # But you can also simply return the class
+            return MySQLDB
+        else:
+            raise RuntimeError(f"{db} is not a supported database")
 
-.. doctest:: how_to_interface
 
-    >>> World.singletons.set(Profile, Profile.POSTGRES)
-    >>> World.get(Database)
+.. doctest:: how_to_interface_implementation
+
+    >>> from antidote import world
+    >>> world.singletons.set('db_conn_str', 'postgres:localhost:my_project')
+    >>> db = world.get[Database]()
+    >>> db
     <PostgresDB ...>
+    >>> db.host
+    'localhost'
+    >>> db.name
+    'my_project'
 
-The selected implementation will be chosen based on the value of the
-:code:`Profile` dependency. While in the example it is defined as a singleton,
-it does not have to be.
 
 .. note::
 
@@ -115,64 +135,92 @@ Method call
 
 .. testcode:: how_to_lazy
 
-    from urllib.parse import urljoin
-    from antidote import register, LazyMethodCall
+    from antidote import LazyMethodCall, Service
 
-    @register
-    class ExampleCom:
+    class ExampleCom(Service):
         def get(url):
-            return requests.get(urljoin("https://example.com/", url))
+            return requests.get(f"https://example.com{url}")
 
         STATUS = LazyMethodCall(get, singleton=False)("/status")
 
 Lazily calling a method through :py:class:`.LazyMethodCall` requires the class
-to be known to Antidote, with :py:func:`.register` typically. The class itself
-will only be instantiated when necessary.
+to be defined as a service. The class itself will only be instantiated when
+necessary.
 
 .. note::
 
-    In fact :py:class:`.LazyConstantsMeta` uses :py:class:`.LazyMethodCall`
-    under the hood to define all the constants. So if you're using the same
-    function to declare multiple constants you should consider using it
-    instead.
+    If you intend to define multiple constants lazily, consider using
+    :py:class:`.Constants` instead.
 
 
 Use tags to retrieve multiple dependencies
 ------------------------------------------
 
-Tags are a way to retrieve a list of services, such as plugins, extensions, etc...
+Tags are a way to retrieve a list of services, such as plugins, extensions, etc... In
+Antidote tags are instance of :py:class:`.Tag`. Dependencies tagged with this instance
+can simply be retrieved by requesting this specific tag from Antidote. You'll get a
+:py:class:`.Tagged` instances containing both your dependencies and their associated
+instance of :py:class:`.Tag`.
 
 .. testcode:: how_to_tags
 
-    from antidote import register, Tag
+    from antidote import Service, Tag
 
-    @register(tags=['dummies', Tag('extension', version=1)])
-    class Service:
-        pass
+    tag = Tag()
 
-    @register(tags=['dummies', Tag('extension', version=2)])
-    class Service2:
-        pass
+    class PluginA(Service):
+        __antidote__ = Service.Conf(tags=[tag])
+
+    class PluginB(Service):
+        __antidote__ = Service.Conf(tags=[tag])
 
 .. doctest:: how_to_tags
 
-    >>> from antidote import World, Tagged
-        >>> services = World.get(Tagged('extension'))
-        >>> list(zip(services.tags(), services.dependencies(), services.values()))
-        [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
-    >>> services = World.get(Tagged('extension'))
-    >>> list(zip(services.tags(), services.dependencies(), services.instances()))
-    [(Tag(name='extension', version=1), <class 'Service'>, <Service object at ...>), (Tag(name='extension', version=2), <class 'Service2'>, <Service2 object at ...>)]
+    >>> from antidote import world, Tagged
+    >>> tagged = world.get[Tagged](tag)
+    >>> list(sorted(tagged.values(), key=lambda plugin: type(plugin).__name__))
+    [<PluginA ...>, <PluginB ...>]
+
+You can do more than that with tags though, you can
+
+- store information in them.
+- change how dependencies are grouped.
+
+To do so, just create your own subclass:
+
+.. testcode:: how_to_tags
+
+    class CustomTag(Tag):
+        __slots__ = ('name',)  # __slots__ isn't required
+        name: str  # For Mypy
+
+        def __init__(self, name: str):
+            # Tag defining all its instances as immutable you can't do a
+            # self.name = name
+            # so you have to through the parent constructor.
+            super().__init__(name=name)
+
+        def group(self):
+            # All tags having the same group will be retrieved together by Antidote
+            return self.name.split("_")[0]
+
+Antidote will always return a :py:class:`.Tagged`, whether there are tagged instances or
+not.
+
+.. note::
+
+    :py:class:`.Tagged` has two generic parameters :code:`T` and :code:`D` which
+    respectfully represent the tag type and the dependency type.
 
 
 Create a stateful factory
 -------------------------
 
-Factories created with :py:func:`.factory` can be more complex than a function:
+Antidote supports stateful factories simply by using defining a class as a factory:
 
 .. testcode:: how_to_stateful_factory
 
-    from antidote import factory
+    from antidote import Factory
 
     class ID:
         def __init__(self, id: str):
@@ -181,10 +229,11 @@ Factories created with :py:func:`.factory` can be more complex than a function:
         def __repr__(self):
             return "ID(id='{}')".format(self.id)
 
-    @factory(dependencies=dict(prefix='id_prefix'), singleton=False)
-    class IDFactory:
-        def __init__(self, prefix: str):
-            self._prefix = prefix
+    class IDFactory(Factory):
+        __antidote__ = Factory.Conf(singleton=False).with_wiring(use_names=True)
+
+        def __init__(self, id_prefix: str):
+            self._prefix = id_prefix
             self._next = 1
 
         def __call__(self) -> ID:
@@ -194,80 +243,24 @@ Factories created with :py:func:`.factory` can be more complex than a function:
 
 .. doctest:: how_to_stateful_factory
 
-    >>> from antidote import World
-    >>> World.singletons.set('id_prefix', "example")
-    >>> World.get(ID)
+    >>> from antidote import world
+    >>> world.singletons.set('id_prefix', "example")
+    >>> world.get[ID](ID @ IDFactory)
     ID(id='example_1')
-    >>> World.get(ID)
+    >>> world.get[ID](ID @ IDFactory)
     ID(id='example_2')
 
 In this example we choose to inject :code:`id_prefix` in the :code:`__init__()`, but we
-also could have done it in the :code:`__call__()`. Both are injected by default, bu they
+also could have done it in the :code:`__call__()`. Both are injected by default, but they
 have different use cases. The factory itself is always a singleton, so static dependencies
 should be injected through :code:`__init__()`. If you need dependencies that changes, get
 them through :code:`__call__()`. Obviously you can change that behavior through the
-:code:`auto_wire` argument.
-
-You might be thinking that one could avoid the use of the class :code:`ID`, but it provides
-a nice feature that isn't obvious in this example: it's easy to find its definition. And
-more often than not, the factory will be relatively close to it. Had we used a string as a
-dependency id, finding the factory would be a lot harder.
-
-Stateful factories can also be used to provide dependencies that have a more complex scope
-than Antidote provides (singleton or different each time). Although, if you need to handle
-some scope for multiples dependencies it might be worth just extending Antidote through a
-:py:class:`.DependencyProvider`.
+:py:class:`.Factory.Conf`: defined in :code:`__antidote__`.
 
 
-Extend Antidote through a Provider
-----------------------------------
+.. note::
 
-While Antidote provides several ways to handle your dependencies out of the box, it may
-not be enough. But don't worry, Antidote got you covered ! It is designed from the ground
-up to have an easily extendable core mechanism. Services, resources and tags are all
-handled in the same way, through a custom :py:class:`.DependencyProvider` ::
-
-                      +-------------+
-       tag=...  +-----> TagProvider +----+
-                      +-------------+    |
-                                         |
-                   +------------------+  |    +----------+    +-----------+
-    @implements +--> IndirectProvider +-------> Provider +----> Container +---> @inject
-                   +------------------+  |    +----------+    +-----------+
-                                         |
-                    +-----------------+  |
-     @register  +---> ServiceProvider +--+
-                    +-----------------+
-
-
-The container never handles the instantiation of the dependencies itself, it mostly
-handles their scope. Let's suppose you want to inject a random number through Antidote,
-without passing through a Service. You could do it the following way:
-
-
-.. testcode:: how_to_provider
-
-    import random
-    from typing import Any, Optional
-
-    import antidote
-    from antidote.core import DependencyProvider, DependencyInstance
-
-    @antidote.provider
-    class RandomProvider(DependencyProvider):
-        def provide(self, dependency: Any) -> Optional[DependencyInstance]:
-            if dependency == 'random':
-                return DependencyInstance(random.random(), singleton=False)
-
-.. doctest:: how_to_provider
-
-    >>> from antidote import World
-    >>> World.get('random')
-    0...
-    >>> World.get('random') is World.get('random')
-    False
-
-Provider are in most cases tried sequentially. So if a provider returns nothing,
-it is simply ignored and another provider is tried. For the same reason it is not
-recommended to have a lot of different :py:class:`.DependencyProvider`\ s as this
-implies a performance penalty.
+    Stateful factories can also be used to provide dependencies that have a more complex
+    scope than Antidote provides (singleton or not). Although, if you need to handle some
+    scope for multiples dependencies it might be worth just extending Antidote through a
+    :py:class:`.Provider`.

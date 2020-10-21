@@ -3,18 +3,17 @@ Cython version of the wrapper, doing the same thing but faster.
 """
 # @formatter:off
 cimport cython
-
-# @formatter:on
-
 # @formatter:off
 cimport cython
 from cpython.dict cimport PyDict_Copy, PyDict_New
+from cpython.object cimport PyObject_Call, PyObject_CallMethodObjArgs
 from cpython.ref cimport PyObject
-from cpython.object cimport PyObject_CallMethodObjArgs, PyObject_Call
 
 from antidote._internal.state cimport fast_get_container
-from antidote.core.container cimport DependencyResult, PyObjectBox, RawDependencyContainer
+from antidote.core.container cimport DependencyResult, PyObjectBox, RawContainer
 from ..core.exceptions import DependencyNotFoundError
+
+# @formatter:on
 
 # @formatter:on
 
@@ -78,7 +77,7 @@ cdef class InjectedWrapper:
 
     def __call__(self, *args, **kwargs):
         cdef:
-            RawDependencyContainer container = fast_get_container()
+            RawContainer container = fast_get_container()
             DependencyResult result
             PyObjectBox box = PyObjectBox.__new__(PyObjectBox)
             PyObject*injection

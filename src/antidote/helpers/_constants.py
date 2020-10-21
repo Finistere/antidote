@@ -2,7 +2,7 @@ import inspect
 from typing import Any, Callable, cast, final, Type, TypeVar
 
 from .lazy import LazyCall
-from .service import register
+from .service import service
 from .._internal import API
 from .._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
 from ..providers.lazy import FastLazyMethod
@@ -60,7 +60,7 @@ def _configure_constants(cls):
         conf.wiring.wire(cls)
 
     if conf.public:
-        dependency = register(cls, auto_wire=False, singleton=True)
+        dependency = service(cls, singleton=True)
     else:
         dependency = LazyCall(cls, singleton=True)
 
@@ -74,9 +74,6 @@ def _configure_constants(cls):
 @API.private
 @final
 class LazyConst(FinalImmutable, copy=False):
-    """
-    The Cython implementation has a faster version than what
-    """
     __slots__ = ('dependency', 'method_name', 'value', '_cache')
     dependency: object
     method_name: str

@@ -1,32 +1,42 @@
 import pytest
 
 from antidote import world
-from antidote.core import DependencyContainer, DependencyInstance
+from antidote.core import Container, DependencyInstance
 from antidote.providers.lazy import FastLazyMethod, Lazy, LazyProvider
 
 
-@pytest.fixture
+@pytest.fixture()
 def lazy_provider():
     with world.test.empty():
         world.provider(LazyProvider)
         yield world.get(LazyProvider)
 
 
-def test_lazy(lazy_provider: LazyProvider):
-    x = object()
-    world.singletons.set(x, object())
+class Dummy(Lazy):
+    def __init__(self, value, singleton=False):
+        self.value = value
+        self.singleton = singleton
 
-    class Dummy(Lazy):
-        def __init__(self, value, singleton=False):
-            self.value = value
-            self.singleton = singleton
+    def lazy_get(self, container: Container) -> DependencyInstance:
+        return DependencyInstance(container.get(self.value), self.singleton)
 
-        def lazy_get(self, container: DependencyContainer) -> DependencyInstance:
-            return DependencyInstance(container.get(self.value), self.singleton)
 
-    assert lazy_provider.test_provide(Dummy(x)).instance is world.get(x)
-    for s in [True, False]:
-        assert lazy_provider.test_provide(Dummy(x, singleton=s)).singleton is s
+def test_lazy():
+    with world.test.empty():
+        x = object()
+        world.singletons.set(x, object())
+        lazy_provider = LazyProvider()
+
+        assert world.test.maybe_provide_from(lazy_provider, Dummy(x)).value is world.get(x)
+        for s in [True, False]:
+            assert world.test.maybe_provide_from(lazy_provider,
+                                                 Dummy(x, singleton=s)).singleton is s
+
+
+def test_exists():
+    lazy = LazyProvider()
+    assert not lazy.exists(object())
+    assert lazy.exists(Dummy('x'))
 
 
 def test_fast_lazy_method(lazy_provider: LazyProvider):
@@ -42,5 +52,5 @@ def test_fast_lazy_method(lazy_provider: LazyProvider):
 
 
 def test_copy(lazy_provider: LazyProvider):
-    assert isinstance(lazy_provider.clone(keep_singletons_cache=True), LazyProvider)
-    assert isinstance(lazy_provider.clone(keep_singletons_cache=False), LazyProvider)
+    assert isinstance(lazy_provider.clone(True), LazyProvider)
+    assert isinstance(lazy_provider.clone(False), LazyProvider)

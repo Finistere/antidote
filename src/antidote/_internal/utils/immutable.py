@@ -1,7 +1,7 @@
 import inspect
 
-from antidote._internal import API
-from .slots import SlotsMixin
+from .slots import SlotsRepr
+from .. import API
 
 
 @API.private
@@ -38,14 +38,18 @@ def copy_not_supported(self):
 
 
 @API.private
-class Immutable(SlotsMixin, metaclass=ImmutableMeta, abstract=True):
+class Immutable(SlotsRepr, metaclass=ImmutableMeta, abstract=True):
     """
     Imitates immutable behavior by raising an exception when modifying an
     attribute through the standard means.
     """
     __slots__ = ()
 
-    def __init__(self, **attrs):
+    def __init__(self, *args, **kwargs):
+        # quick way to initialize an Immutable through args. It won't take into
+        # account parent classes though.
+        attrs = dict(zip(self.__slots__, args))
+        attrs.update(kwargs)
         for attr, value in attrs.items():
             object.__setattr__(self, attr, value)
 
@@ -67,9 +71,3 @@ class FinalImmutableMeta(ImmutableMeta):
 @API.private
 class FinalImmutable(Immutable, metaclass=FinalImmutableMeta, abstract=True):
     __slots__ = ()
-
-    def __init__(self, *args, **kwargs):
-        # quick way to initialize an FinalImmutable through args.
-        attrs = dict(zip(self.__slots__, args))
-        attrs.update(kwargs)
-        super().__init__(**attrs)

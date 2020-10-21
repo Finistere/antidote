@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import threading
 from typing import (Any, Dict, final, Generic, Hashable, Iterable, Iterator, List,
-                    Optional, Tuple, TypeVar)
+                    Optional, Sequence, Tuple, TypeVar)
 
 from .._internal import API
 from .._internal.utils import FinalMeta
-from ..core import DependencyContainer, DependencyInstance, DependencyProvider
+from .._internal.utils.slots import SlotsRepr
+from ..core import Container, DependencyInstance, Provider
 from ..core.exceptions import AntidoteError
+from ..core.utils import DependencyDebug
 
 
 @API.public
@@ -19,14 +21,14 @@ class Tag:
 
     The only requirement for a tag is to be an instance of :py:class:`.Tag`.
 
-    .. doctest::
+    .. doctest:: providers_tag_Tag
 
         >>> from antidote import Tag, Service, world
         >>> tag = Tag()
         >>> class Dummy(Service):
         ...     __antidote__ = Service.Conf(tags=[tag])
         >>> world.get(tag)
-        TaggedDependencies
+        <...Tagged ...>
         >>> # You can retrieve the tags and/or dependencies. Here we take both.
         ... (t, dummy) = list(world.get(tag).items())[0]
         >>> t is tag
@@ -39,11 +41,11 @@ class Tag:
     dependencies will have their associated tag provided, so you can store information
     in it.
 
-    .. doctest::
+    .. doctest:: providers_tag_Tag_v2
 
-        >>> from antidote import Tag, Service, world
+        >>> from antidote import Tag, Service, world, Tagged
         >>> class CustomTag(Tag):
-        ...     __slots__ = ('name',)  # __slots__ isn't necessary
+        ...     __slots__ = ('name',)  # __slots__ isn't required
         ...     name: str  # For Mypy
         ...
         ...     def __init__(self, name: str):
@@ -54,11 +56,11 @@ class Tag:
         ...
         >>> class Dummy(Service):
         ...     __antidote__ = Service.Conf(tags=[CustomTag(name="ref_dummy")])
-        >>> world.get[TaggedDependencies[CustomTag, object]](CustomTag("ref_any"))
-        TaggedDependencies
-        >>> (tag, dummy) = list(world.get(tag).items())[0]
+        >>> world.get[Tagged[CustomTag, object]](CustomTag("ref_any"))
+        <...Tagged ...>
+        >>> (tag, dummy) = list(world.get(CustomTag("ref_any")).items())[0]
         >>> tag.name
-        ref_dummy
+        'ref_dummy'
         >>> dummy is world.get(Dummy)
         True
 
@@ -81,6 +83,12 @@ class Tag:
     def __setattr__(self, name, value):
         raise AttributeError(f"{type(self)} is immutable")
 
+    def __repr__(self):
+        group = self.group()
+        if group is self:
+            group = hex(id(self))
+        return f"{type(self).__name__}(group={group})"
+
     def group(self):
         """Tags will be grouped by this value. By default it's the tag instance itself."""
         return self
@@ -97,8 +105,7 @@ class DuplicateTagError(AntidoteError):
         self.existing_tag = existing_tag
 
     def __str__(self):
-        return f"Dependency {self.dependency} already has a tag {self.existing_tag}" \
-               f"with id={self.existing_tag.group()}"
+        return f"Dependency {self.dependency} already has a tag {self.existing_tag}"
 
 
 T = TypeVar('T', bound=Tag)
@@ -107,7 +114,7 @@ D = TypeVar('D')
 
 @API.public
 @final
-class TaggedDependencies(Generic[T, D], metaclass=FinalMeta):
+class Tagged(Generic[T, D], metaclass=FinalMeta):
     """
     Collection containing dependencies and their tags. Dependencies are lazily
     instantiated.
@@ -115,9 +122,9 @@ class TaggedDependencies(Generic[T, D], metaclass=FinalMeta):
 
     @API.private  # You're not supposed to create it yourself
     def __init__(self,
-                 container: DependencyContainer,
-                 dependencies: List[Hashable],
-                 tags: List[T]):
+                 container: Container,
+                 dependencies: Sequence[Hashable],
+                 tags: Sequence[T]):
         self.__lock = threading.RLock()
         self.__container = container
         self.__dependencies = list(dependencies)
@@ -159,60 +166,67 @@ class TaggedDependencies(Generic[T, D], metaclass=FinalMeta):
             i += 1
 
         # Don't need to keep them anymore.
-        self.__container = None
-        self.__dependencies = None
-        self.__lock = None
+        setattr(self, "__container", None)
+        setattr(self, "__dependencies", None)
+        setattr(self, "__lock", None)
 
 
 @API.private
-class TagProvider(DependencyProvider):
+class TagProvider(Provider[Tag]):
     def __init__(self):
         super().__init__()
-        self.__tag_to_dependencies: Dict[Any, Dict[Hashable, Tag]] = {}
+        self.__tag_to_tagged: Dict[Any, Dict[Hashable, Tag]] = {}
 
     def __repr__(self):
-        return f"{type(self).__name__}(tagged_dependencies={self.__tag_to_dependencies})"
+        return f"{type(self).__name__}(tagged_dependencies={self.__tag_to_tagged})"
 
     def clone(self, keep_singletons_cache: bool) -> TagProvider:
         p = TagProvider()
-        p.__tag_to_dependencies = self.__tag_to_dependencies.copy()
+        p.__tag_to_tagged = self.__tag_to_tagged.copy()
         return p
 
-    def provide(self, dependency: Hashable, container: DependencyContainer
-                ) -> Optional[DependencyInstance]:
-        if isinstance(dependency, Tag):
-            try:
-                tag_and_dependencies = self.__tag_to_dependencies[dependency.group()]
-            except KeyError:
-                dependencies, tags = [], []
-            else:
-                dependencies, tags = zip(*tag_and_dependencies.items())
+    def exists(self, dependency: Hashable) -> bool:
+        return isinstance(dependency, Tag) and dependency in self.__tag_to_tagged
 
-            return DependencyInstance(
-                TaggedDependencies(
-                    container=container,
-                    dependencies=dependencies,
-                    tags=tags
-                ),
-                # Whether the returned dependencies are singletons or not is
-                # our decision to take.
-                singleton=False
-            )
+    def debug(self, dependency: Tag) -> DependencyDebug:
+        return DependencyDebug(repr(dependency),
+                               singleton=False,
+                               dependencies=list(self.__tag_to_tagged[dependency].keys()))
 
-        return None
+    def maybe_provide(self, dependency: Hashable, container: Container
+                      ) -> Optional[DependencyInstance]:
+        if not isinstance(dependency, Tag):
+            return
+
+        try:
+            tagged = self.__tag_to_tagged[dependency.group()]
+        except KeyError:
+            return
+
+        return DependencyInstance(
+            Tagged(
+                container=container,
+                dependencies=list(tagged.keys()),
+                tags=list(tagged.values())
+            ),
+            # Whether the returned dependencies are singletons or not is
+            # our decision to take.
+            singleton=False
+        )
 
     def register(self, dependency: Hashable, *, tags: Iterable[Tag]):
         tags = list(tags)
         for tag in tags:
             if not isinstance(tag, Tag):
                 raise TypeError(f"Expecting tag of type Tag, not {type(tag)}")
+            self._raise_if_exists_elsewhere(tag)
 
         for tag in tags:
             key = tag.group()
-            if key not in self.__tag_to_dependencies:
-                self.__tag_to_dependencies[key] = {dependency: tag}
-            elif dependency not in self.__tag_to_dependencies[key]:
-                self.__tag_to_dependencies[key][dependency] = tag
+            if key not in self.__tag_to_tagged:
+                self.__tag_to_tagged[key] = {dependency: tag}
+            elif dependency not in self.__tag_to_tagged[key]:
+                self.__tag_to_tagged[key][dependency] = tag
             else:
                 raise DuplicateTagError(dependency,
-                                        self.__tag_to_dependencies[key][dependency])
+                                        self.__tag_to_tagged[key][dependency])

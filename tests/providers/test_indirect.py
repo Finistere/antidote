@@ -3,6 +3,7 @@ from typing import Callable
 import pytest
 
 from antidote import world
+from antidote.core.exceptions import DependencyNotFoundError
 from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
 from antidote.providers import IndirectProvider, ServiceProvider
 
@@ -26,44 +27,65 @@ def empty_world():
 
 
 @pytest.fixture
-def service():
+def service(empty_world):
     world.provider(ServiceProvider)
     return world.get(ServiceProvider)
 
 
 @pytest.fixture
-def indirect():
+def indirect(empty_world):
     world.provider(IndirectProvider)
     return world.get(IndirectProvider)
 
 
-def test_none(indirect: IndirectProvider):
-    assert indirect.test_provide(Interface) is None
+def test_none():
+    indirect = IndirectProvider()
+    assert world.test.maybe_provide_from(indirect, Interface) is None
 
 
-def test_simple(indirect: IndirectProvider):
+def test_simple():
+    indirect = IndirectProvider()
     world.singletons.set(A, A())
     indirect.register_static(Interface, A)
 
-    assert indirect.test_provide(Interface).instance is world.get(A)
-    assert indirect.test_provide(Interface).singleton is True
+    assert world.test.maybe_provide_from(indirect, Interface).value is world.get(A)
+    assert world.test.maybe_provide_from(indirect, Interface).singleton is True
     assert str(Interface) in repr(indirect)
 
 
-def test_not_singleton_interface(indirect: IndirectProvider,
-                                 service: ServiceProvider):
+def test_static_exists():
+    indirect = IndirectProvider()
+    world.singletons.set(A, A())
+    indirect.register_static(Interface, A)
+
+    assert not indirect.exists(object())
+    assert indirect.exists(Interface)
+    assert not indirect.exists(A)
+
+
+def test_link_exists():
+    indirect = IndirectProvider()
+    world.singletons.set(A, A())
+    indirect.register_link(Interface, lambda: A)
+
+    assert not indirect.exists(object())
+    assert indirect.exists(Interface)
+    assert not indirect.exists(A)
+
+
+def test_not_singleton_interface(service: ServiceProvider):
+    indirect = IndirectProvider()
     service.register(A, singleton=False)
     indirect.register_static(Interface, A)
 
-    assert indirect.test_provide(Interface).instance is not world.get(A)
-    assert isinstance(indirect.test_provide(Interface).instance, A)
-    assert indirect.test_provide(Interface).singleton is False
+    assert world.test.maybe_provide_from(indirect, Interface).value is not world.get(A)
+    assert isinstance(world.test.maybe_provide_from(indirect, Interface).value, A)
+    assert world.test.maybe_provide_from(indirect, Interface).singleton is False
 
 
 @pytest.mark.parametrize('singleton', [True, False])
 @pytest.mark.parametrize('permanent', [True, False])
-def test_link_permanent_singleton(indirect: IndirectProvider,
-                                  service: ServiceProvider,
+def test_link_permanent_singleton(service: ServiceProvider,
                                   singleton: bool,
                                   permanent: bool):
     choice = 'a'
@@ -73,17 +95,20 @@ def test_link_permanent_singleton(indirect: IndirectProvider,
 
     service.register(A, singleton=singleton)
     service.register(B, singleton=singleton)
+    indirect = IndirectProvider()
     indirect.register_link(Interface, linker=implementation, permanent=permanent)
 
-    instance = indirect.test_provide(Interface).instance
+    instance = world.test.maybe_provide_from(indirect, Interface).value
     assert isinstance(instance, A)
     assert (instance is world.get(A)) is singleton
-    assert indirect.test_provide(Interface).singleton is (singleton and permanent)
+    assert world.test.maybe_provide_from(indirect, Interface).singleton is (
+                singleton and permanent)
 
     choice = 'b'
     assert implementation() == B
-    assert indirect.test_provide(Interface).singleton is (singleton and permanent)
-    instance = indirect.test_provide(Interface).instance
+    assert world.test.maybe_provide_from(indirect, Interface).singleton is (
+                singleton and permanent)
+    instance = world.test.maybe_provide_from(indirect, Interface).value
     if permanent:
         assert isinstance(instance, A)
         assert (instance is world.get(A)) is singleton
@@ -111,18 +136,18 @@ def test_copy(indirect: IndirectProvider,
     world.singletons.update({A: A()})
 
     register(indirect, Interface, A)
-    a = indirect.test_provide(Interface).instance
+    a = world.get(Interface)
     assert isinstance(a, Interface)
 
     if keep_singletons_cache:
         with world.test.clone(keep_singletons=True):
-            clone = indirect.clone(keep_singletons_cache=True)
-            assert clone.test_provide(Interface).instance is a
+            clone = indirect.clone(True)
+            assert world.test.maybe_provide_from(clone, Interface).value is a
     else:
         with world.test.empty():
             world.singletons.update({A: A(), B: B()})
-            clone = indirect.clone(keep_singletons_cache=False)
-            instance = clone.test_provide(Interface).instance
+            clone = indirect.clone(False)
+            instance = world.test.maybe_provide_from(clone, Interface).value
             assert instance is world.get(A)
             assert instance is not a
 
@@ -141,13 +166,14 @@ def test_copy(indirect: IndirectProvider,
     world.singletons.update({A2: A2(), A3: A3()})
     # Original does not modify clone
     register(indirect, Interface2, A2)
-    assert indirect.test_provide(Interface2).instance is world.get(A2)
-    assert clone.test_provide(Interface2) is None
+    assert world.get(Interface2) is world.get(A2)
+    assert world.test.maybe_provide_from(clone, Interface2) is None
 
     # Did not modify original provider
     register(clone, Interface3, A3)
-    assert clone.test_provide(Interface3).instance is world.get(A3)
-    assert indirect.test_provide(Interface3) is None
+    assert world.test.maybe_provide_from(clone, Interface3).value is world.get(A3)
+    with pytest.raises(DependencyNotFoundError):
+        world.get(Interface3)
 
 
 def test_freeze(indirect: IndirectProvider):
@@ -159,7 +185,8 @@ def test_freeze(indirect: IndirectProvider):
     with pytest.raises(FrozenWorldError):
         indirect.register_static(Interface, A)
 
-    assert indirect.test_provide(Interface) is None
+    with pytest.raises(DependencyNotFoundError):
+        world.get(Interface)
 
 
 def test_register_static_duplicate_check(indirect: IndirectProvider):

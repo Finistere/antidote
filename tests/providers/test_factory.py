@@ -43,6 +43,18 @@ def test_lazy(provider: FactoryProvider):
     assert world.get(factory_id) is world.get(factory_id)
 
 
+def test_exists():
+    provider = FactoryProvider()
+    factory_id = provider.register(A, build)
+
+    assert not provider.exists(object())
+    assert not provider.exists(Build(object(), kwargs=dict(a=1)))
+    assert provider.exists(factory_id)
+    assert provider.exists(Build(factory_id, kwargs=dict(a=1)))
+    assert not provider.exists(A)
+    assert not provider.exists(build)
+
+
 @pytest.mark.parametrize('singleton', [True, False])
 def test_singleton(singleton: bool):
     with world.test.empty():
@@ -117,10 +129,10 @@ def test_copy():
         a_id = original.register(A, build)
 
         # cloned has the same dependencies
-        cloned = original.clone(keep_singletons_cache=False)
+        cloned = original.clone(False)
         with pytest.raises(DuplicateDependencyError):
             cloned.register(A, build)
-        assert isinstance(cloned.test_provide(a_id).instance, A)
+        assert isinstance(world.test.maybe_provide_from(cloned, a_id).value, A)
 
         # Adding dependencies to either original or cloned, should not impact the
         # other one.
@@ -134,22 +146,22 @@ def test_copy():
         world.singletons.set('build', build)
         original = FactoryProvider()
         a_id = original.register(A, world.lazy('build'))
-        a = original.test_provide(a_id).instance
+        a = world.test.maybe_provide_from(original, a_id).value
 
         assert isinstance(a, A)
         assert a.kwargs == {}
 
-        cloned_with_singletons = original.clone(keep_singletons_cache=True)
-        cloned = original.clone(keep_singletons_cache=False)
+        cloned_with_singletons = original.clone(True)
+        cloned = original.clone(False)
         with world.test.empty():
             world.singletons.set('build', build2)
-            a2 = cloned.test_provide(a_id).instance
+            a2 = world.test.maybe_provide_from(cloned, a_id).value
 
             assert isinstance(a2, A)
             assert a2.kwargs == dict(build2=True)
 
             # We kept singletons, so previous dependency 'build' has been kept.
-            a3 = cloned_with_singletons.test_provide(a_id).instance
+            a3 = world.test.maybe_provide_from(cloned_with_singletons, a_id).value
             assert isinstance(a3, A)
             assert a3.kwargs == {}
 
@@ -163,20 +175,21 @@ def test_freeze(provider: FactoryProvider):
 
 def test_factory_id_repr(provider: FactoryProvider):
     factory_id = provider.register(A, build)
-    assert repr(A) in repr(factory_id)
-    assert repr(build) in repr(factory_id)
+    assert f"{__name__}.A" in repr(factory_id)
+    assert f"{__name__}.build" in repr(factory_id)
 
     class B:
         pass
 
     factory_id = provider.register(B, world.lazy(build))
-    assert repr(B) in repr(factory_id)
-    assert repr(build) in repr(factory_id)
+    assert f"{__name__}.test_factory_id_repr.<locals>.B" in repr(factory_id)
+    assert f"{__name__}.build" in repr(factory_id)
 
 
-def test_invalid_dependency(provider: FactoryProvider):
-    assert provider.test_provide(object()) is None
+def test_invalid_dependency():
+    p1 = FactoryProvider()
+    assert world.test.maybe_provide_from(p1, object()) is None
 
     p2 = FactoryProvider()
     dependency = p2.register(A, build)
-    assert provider.test_provide(dependency) is None
+    assert world.test.maybe_provide_from(p1, dependency) is None
