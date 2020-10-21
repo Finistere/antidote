@@ -8,6 +8,9 @@ World
 .. automodule:: antidote.world
     :members: freeze, provider, get, lazy
 
+.. automodule:: antidote.world.singletons
+    :members: set, update
+
 
 Dependencies
 ------------
@@ -15,7 +18,7 @@ Dependencies
 Service
 ^^^^^^^
 .. automodule:: antidote.helpers.service
-    :members: register
+    :members: service
 
 .. autoclass:: antidote.helpers.service.Service
     :members: __antidote__
@@ -52,7 +55,7 @@ Implementation
 Tags
 ^^^^
 .. automodule:: antidote.providers.tag
-    :members: Tag, TaggedDependencies
+    :members: Tag, Tagged
 
 
 Core

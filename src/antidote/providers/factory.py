@@ -1,17 +1,17 @@
 from __future__ import annotations
 
+import weakref
 from typing import Any, Callable, Dict, Hashable, Optional, Union
-from weakref import ref, ReferenceType
 
 from .service import Build
 from .._internal import API
-from .._internal.utils import FinalImmutable, SlotRecord
-from ..core import Dependency, DependencyContainer, DependencyInstance, DependencyProvider
-from ..exceptions import DuplicateDependencyError
+from .._internal.utils import debug_repr, FinalImmutable, SlotRecord
+from ..core import Container, Dependency, DependencyInstance, Provider
+from ..core.utils import DependencyDebug
 
 
 @API.private
-class FactoryProvider(DependencyProvider):
+class FactoryProvider(Provider):
     def __init__(self):
         super().__init__()
         self.__factories: Dict[Hashable, Factory] = dict()
@@ -34,21 +34,48 @@ class FactoryProvider(DependencyProvider):
         p.__factories = factories
         return p
 
-    def provide(self, build: Hashable, container: DependencyContainer
-                ) -> Optional[DependencyInstance]:
+    def exists(self, dependency: Hashable) -> bool:
+        # For now we don't support multiple factories for a single dependency. Neither
+        # is sharing the dependency with another provider. Simply because I don't see a
+        # use case where it would make sense.
+        # Open for discussions though, create an issue if you a use case.
+        if isinstance(dependency, Build):
+            dependency = dependency.dependency
+        return (isinstance(dependency, FactoryDependency)
+                and dependency.dependency in self.__factories)
+
+    def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
         dependency_factory = build.dependency if isinstance(build, Build) else build
         if not isinstance(dependency_factory, FactoryDependency):
-            return
+            return None
 
         try:
             factory = self.__factories[dependency_factory.dependency]
         except KeyError:
-            return
+            return None
+
+        return DependencyDebug(
+            debug_repr(build),
+            singleton=factory.singleton,
+            wired=[factory.function] if factory.dependency is None else [],
+            dependencies=([factory.dependency]
+                          if factory.dependency is not None else []))
+
+    def maybe_provide(self, build: Hashable, container: Container
+                      ) -> Optional[DependencyInstance]:
+        dependency_factory = build.dependency if isinstance(build, Build) else build
+        if not isinstance(dependency_factory, FactoryDependency):
+            return None
+
+        try:
+            factory = self.__factories[dependency_factory.dependency]
+        except KeyError:
+            return None
 
         if factory.function is None:
             f = container.provide(factory.dependency)
             assert f.singleton, "factory dependency is expected to be a singleton"
-            factory.function = f.instance
+            factory.function = f.value
 
         instance = (factory.function(**build.kwargs)
                     if isinstance(build, Build) and build.kwargs
@@ -64,24 +91,18 @@ class FactoryProvider(DependencyProvider):
         # Simply because I don't see a use case where it would make sense. In
         # Antidote the standard way would be to use `with_kwargs()` to customization
         # Open for discussions though, create an issue if you a use case.
-        if dependency in self.__factories:
-            raise DuplicateDependencyError(
-                dependency,
-                self.__factories[dependency]
-            )
+        factory_dependency = FactoryDependency(dependency, weakref.ref(self))
+        self._assert_not_duplicate(factory_dependency)
+
         if isinstance(factory, Dependency):
-            return self.__add(dependency,
-                              Factory(dependency=factory.value,
-                                      singleton=singleton))
+            self.__factories[dependency] = Factory(dependency=factory.value,
+                                                   singleton=singleton)
         elif callable(factory):
-            return self.__add(dependency, Factory(singleton=singleton,
-                                                  function=factory))
+            self.__factories[dependency] = Factory(singleton=singleton,
+                                                   function=factory)
         else:
             raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
-    def __add(self, dependency: Hashable, factory: Factory):
-        self.__factories[dependency] = factory
-        factory_dependency = FactoryDependency(dependency, ref(self))
         return factory_dependency
 
     def debug_get_registered_factory(self, dependency: Hashable
@@ -97,15 +118,22 @@ class FactoryProvider(DependencyProvider):
 class FactoryDependency(FinalImmutable):
     __slots__ = ('dependency', '_provider_ref')
     dependency: Hashable
-    _provider_ref: ReferenceType[FactoryProvider]
+    _provider_ref: weakref.ReferenceType[FactoryProvider]
 
     def __repr__(self):
+        return f"FactoryDependency({self})"
+
+    def debug_repr(self):
+        return str(self)
+
+    def __str__(self):
         provider = self._provider_ref()
+        dependency = debug_repr(self.dependency)
         if provider is not None:
             factory = provider.debug_get_registered_factory(self.dependency)
-            return f"FactoryDependency({self.dependency!r} @ {factory!r})"
+            return f"{dependency} @ {debug_repr(factory)}"
         # Should not happen, but we'll try to provide some debug information
-        return f"FactoryDependency({self.dependency!r} @ ???)"  # pragma: no cover
+        return f"{dependency} @ ???"  # pragma: no cover
 
 
 @API.private

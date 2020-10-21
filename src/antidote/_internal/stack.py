@@ -8,7 +8,7 @@ class DependencyStack:
     Stores the stack of dependency instantiation to detect and prevent cycles
     by raising DependencyCycleError.
 
-    Used in the DependencyContainer.
+    Used in the Container.
 
     This class is not thread-safe by itself.
     """

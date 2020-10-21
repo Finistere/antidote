@@ -1,9 +1,9 @@
 import functools
-from typing import Callable, Sequence
+from typing import Callable, Hashable, List, Sequence
 
 from . import API
 from .utils import FinalImmutable
-from ..core.container import DependencyContainer
+from ..core.container import Container
 from ..core.exceptions import DependencyNotFoundError
 
 compiled = False
@@ -18,7 +18,7 @@ class Injection(FinalImmutable):
     __slots__ = ('arg_name', 'required', 'dependency')
     arg_name: str
     required: bool
-    dependency: object
+    dependency: Hashable
 
 
 @API.private
@@ -39,6 +39,16 @@ def build_wrapper(blueprint: InjectionBlueprint,
 
 
 @API.private
+def get_wrapper_dependencies(wrapper: 'InjectedWrapper') -> List[Hashable]:
+    if not isinstance(wrapper, InjectedWrapper):
+        raise TypeError(f"Argument must be an {InjectedWrapper}")
+
+    blueprint: InjectionBlueprint = getattr(wrapper,
+                                            f"_{InjectedWrapper.__name__}__blueprint")
+    return [inj.dependency for inj in blueprint.injections if inj.dependency is not None]
+
+
+@API.private
 class InjectedWrapper:
     """
     Wrapper which injects all the dependencies not supplied in the passed
@@ -56,8 +66,8 @@ class InjectedWrapper:
             wrapped:  real function to be called
             skip_self:  whether the first argument must be skipped. Used internally
         """
-        self.__wrapped__ = wrapped
         self.__blueprint = blueprint
+        self.__wrapped__ = wrapped
         self.__injection_offset = 1 if skip_self else 0
         functools.wraps(wrapped, updated=())(self)
 
@@ -95,7 +105,7 @@ class InjectedBoundWrapper(InjectedWrapper):
 
 
 @API.private
-def _inject_kwargs(container: DependencyContainer,
+def _inject_kwargs(container: Container,
                    blueprint: InjectionBlueprint,
                    offset: int,
                    kwargs: dict) -> dict:

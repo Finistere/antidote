@@ -6,8 +6,8 @@ from typing import Hashable, Optional
 import pytest
 
 from antidote import world
-from antidote.core import DependencyContainer, DependencyInstance, DependencyProvider, \
-    does_not_freeze, StatelessDependencyProvider, Wiring
+from antidote.core import Container, DependencyInstance, Provider, \
+    does_not_freeze, StatelessProvider
 from antidote.exceptions import FrozenWorldError
 
 
@@ -17,12 +17,12 @@ def does_not_raise():
 
 
 def test_freeze_world():
-    class DummyProvider(DependencyProvider):
-        def provide(self, dependency: Hashable, container: DependencyContainer
+    class DummyProvider(Provider):
+        def provide(self, dependency: Hashable, container: Container
                     ) -> Optional[DependencyInstance]:
             return None
 
-        def clone(self) -> DummyProvider:
+        def clone(self, keep_singletons_cache: bool) -> DummyProvider:
             return self
 
         def register(self):
@@ -58,18 +58,35 @@ def test_freeze_world():
         assert provider.method() == "method"
         assert provider.static() == "static"
         assert provider.klass() == "klass"
-        provider.clone()
+        provider.clone(False)
         provider.provide(None, None)
         with pytest.raises(FrozenWorldError):
             provider.register()
 
 
 def test_stateless():
-    class DummyProvider(StatelessDependencyProvider):
-        def provide(self, dependency: Hashable, container: DependencyContainer
+    class DummyProvider(StatelessProvider):
+        def provide(self, dependency: Hashable, container: Container
                     ) -> Optional[DependencyInstance]:
             return None
 
     p = DummyProvider()
     assert p.clone(True) is not p
     assert isinstance(p.clone(False), DummyProvider)
+
+
+def test_no_default_implementation():
+    class Dummy(Provider):
+        pass
+
+    with pytest.raises(NotImplementedError):
+        Dummy().maybe_provide(object(), object())
+
+    with pytest.raises(NotImplementedError):
+        Dummy().exists(object())
+
+    with pytest.raises(RuntimeError):
+        Dummy().provide(object(), object())
+
+    with pytest.raises(NotImplementedError):
+        Dummy().exists(False)

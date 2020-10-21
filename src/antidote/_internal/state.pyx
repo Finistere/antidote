@@ -6,18 +6,18 @@ from contextlib import contextmanager
 from typing import Callable
 
 # @formatter:off
-from antidote.core.container cimport RawDependencyContainer
+from antidote.core.container cimport RawContainer
 # @formatter:on
 
 cdef:
-    RawDependencyContainer __container = None
+    RawContainer __container = None
     object __container_lock = threading.RLock()
 
-cdef RawDependencyContainer fast_get_container():
+cdef RawContainer fast_get_container():
     assert __container is not None
     return __container
 
-def get_container() -> RawDependencyContainer:
+def get_container() -> RawContainer:
     return fast_get_container()
 
 def reset():
@@ -29,11 +29,11 @@ def init():
     if __container is None:
         with __container_lock:
             if __container is None:
-                from . import container_utils
-                __container = container_utils.new_container()
+                from .utils.world import new_container
+                __container = new_container()
 
 @contextmanager
-def override(create: Callable[[RawDependencyContainer], RawDependencyContainer]):
+def override(create: Callable[[RawContainer], RawContainer]):
     global __container
     with __container_lock:
         old = __container

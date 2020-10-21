@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from antidote import (Factory, factory, Service, Tag, TaggedDependencies,
+from antidote import (Factory, factory, Service, Tag, Tagged,
                       world)
 
 
@@ -39,7 +39,7 @@ def test_tags():
     class X(Service):
         __antidote__ = Service.Conf(tags=[tag])
 
-    tagged = cast(TaggedDependencies, world.get(tag))
+    tagged = cast(Tagged, world.get(tag))
 
     assert len(tagged) == 3
     assert list(tagged.tags()) == [tag, tag, tag]
@@ -66,7 +66,7 @@ def test_multiple_tags():
         __antidote__ = Service.Conf(tags=tags)
 
     for t in tags:
-        tagged = cast(TaggedDependencies, world.get(t))
+        tagged = cast(Tagged, world.get(t))
         assert len(tagged) == 3
         assert list(tagged.tags()) == [t, t, t]
         assert set(tagged.values()) == {world.get(A @ build_a),
@@ -105,7 +105,7 @@ def test_custom_tags():
     class X(Service):
         __antidote__ = Service.Conf(tags=[tag3])
 
-    tagged = cast(TaggedDependencies, world.get(CustomTag('my_tag')))
+    tagged = cast(Tagged, world.get(CustomTag('my_tag')))
     assert len(tagged) == 3
     assert set(tagged.items()) == {
         (tag1, world.get(A @ build_a)),

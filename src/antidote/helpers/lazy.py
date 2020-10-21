@@ -4,8 +4,9 @@ import weakref
 from typing import Callable, final, Union
 
 from .._internal import API
-from .._internal.utils import FinalImmutable
-from ..core import DependencyContainer, DependencyInstance
+from .._internal.utils import debug_repr, FinalImmutable
+from ..core import Container, DependencyInstance
+from ..core.utils import DependencyDebug
 from ..providers.lazy import Lazy
 
 
@@ -16,7 +17,7 @@ class LazyCall(FinalImmutable, Lazy):
     Dependency which is the result of the call of the given function with the
     given arguments.
 
-    .. doctest::
+    .. doctest:: helpers_lazy_func
 
         >>> from antidote import LazyCall, world
         >>> def f(x, y):
@@ -58,7 +59,12 @@ class LazyCall(FinalImmutable, Lazy):
         """
         return LazyCallWithArgsKwargs(self.func, self.singleton, args, kwargs)
 
-    def lazy_get(self, container: DependencyContainer) -> DependencyInstance:
+    def debug_info(self) -> DependencyDebug:
+        return DependencyDebug(f"Lazy {debug_repr(self.func)}",
+                               singleton=self.singleton,
+                               wired=[self.func])
+
+    def lazy_get(self, container: Container) -> DependencyInstance:
         return DependencyInstance(self.func(), self.singleton)
 
 
@@ -77,24 +83,24 @@ class LazyMethodCall(FinalImmutable, copy=False):
     - if retrieved as a instance attribute it returns the result for this
       instance. This makes testing a lot easier as it does not pass through Antidote.
 
-    .. doctest::
+    .. doctest:: helpers_lazy_method
 
         >>> from antidote import LazyMethodCall, Service, world
-        >>> class Constants(Service):
+        >>> class Api(Service):
         ...     # Name of the method
-        ...     A = LazyMethodCall('get')('A')
+        ...     conf = LazyMethodCall('query')('/conf')
         ...
-        ...     def get(self, x: str = 'default'):
-        ...         return f"Hello {x}"
+        ...     def query(self, url: str = '/status'):
+        ...         return f"requested {url}"
         ...
         ...     # or the method itself
-        ...     B = LazyMethodCall(get)
-        >>> world.get(Constants.A)
-        Hello A
+        ...     status = LazyMethodCall(query, singleton=False)
+        >>> world.get(Api.conf)
+        'requested /conf'
         >>> # For ease of use, accessing the dependency through a instance will simply
         ... # call the method without passing through Antidote. Useful for tests typically
-        ... Constants().B
-        Hello default
+        ... Api().status
+        'requested /status'
 
     .. note::
 
@@ -102,10 +108,10 @@ class LazyMethodCall(FinalImmutable, copy=False):
         to declare multiple constants.
 
     """
-    __slots__ = ('method_name', 'singleton', '_cache')
+    __slots__ = ('method_name', 'singleton', '_cache_attr')
     method_name: str
     singleton: bool
-    _cache: str
+    _cache_attr: str
 
     def __init__(self, method: Union[Callable, str], singleton: bool = True):
         """
@@ -121,7 +127,7 @@ class LazyMethodCall(FinalImmutable, copy=False):
         super().__init__(
             method_name=method if isinstance(method, str) else method.__name__,
             singleton=singleton,
-            _cache=f"__antidote_dependency_{hex(id(self))}"
+            _cache_attr=f"__antidote_dependency_{hex(id(self))}"
         )
 
     def __call__(self, *args, **kwargs) -> LazyMethodCallWithArgsKwargs:
@@ -130,18 +136,18 @@ class LazyMethodCall(FinalImmutable, copy=False):
         """
         return LazyMethodCallWithArgsKwargs(self.method_name,
                                             self.singleton,
-                                            self._cache,
+                                            self._cache_attr,
                                             args, kwargs)
 
     def __get__(self, instance, owner):
         if instance is None:
             try:
-                return getattr(owner, self._cache)
+                return getattr(owner, self._cache_attr)
             except AttributeError:
                 dependency = LazyMethodCallDependency(self,
                                                       weakref.ref(owner),
                                                       self.singleton)
-                setattr(owner, self._cache, dependency)
+                setattr(owner, self._cache_attr, dependency)
                 return dependency
         return getattr(instance, self.method_name)()
 
@@ -153,8 +159,19 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
     :meta private:
     """
     __slots__ = ('func', 'singleton', 'args', 'kwargs')
+    func: Callable
+    singleton: bool
+    args: tuple
+    kwargs: dict
 
-    def lazy_get(self, container: DependencyContainer) -> DependencyInstance:
+    def debug_info(self) -> DependencyDebug:
+        return DependencyDebug(
+            f"Lazy '{debug_repr(self.func)}' "
+            f"with args={self.args!r} and kwargs={self.kwargs!r}",
+            singleton=self.singleton,
+            wired=[self.func])
+
+    def lazy_get(self, container: Container) -> DependencyInstance:
         return DependencyInstance(self.func(*self.args, **self.kwargs), self.singleton)
 
 
@@ -164,17 +181,22 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable, copy=False):
     """
     :meta private:
     """
-    __slots__ = ('method_name', 'singleton', '_cache', 'args', 'kwargs')
+    __slots__ = ('method_name', 'singleton', '_cache_attr', 'args', 'kwargs')
+    method_name: str
+    singleton: bool
+    args: tuple
+    kwargs: dict
+    _cache_attr: str
 
     def __get__(self, instance, owner):
         if instance is None:
             try:
-                return getattr(owner, self._cache)
+                return getattr(owner, self._cache_attr)
             except AttributeError:
                 dependency = LazyMethodCallDependency(self,
                                                       weakref.ref(owner),
                                                       self.singleton)
-                setattr(owner, self._cache, dependency)
+                setattr(owner, self._cache_attr, dependency)
                 return dependency
         return getattr(instance, self.method_name)(*self.args, **self.kwargs)
 
@@ -186,8 +208,25 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
     :meta private:
     """
     __slots__ = ('descriptor', 'owner_ref', 'singleton')
+    descriptor: Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]
+    owner_ref: weakref.ReferenceType
+    singleton: bool
 
-    def lazy_get(self, container: DependencyContainer) -> DependencyInstance:
+    def debug_info(self) -> DependencyDebug:
+        owner = self.owner_ref()
+        assert owner is not None
+        method = self.descriptor.method_name
+        if isinstance(self.descriptor, LazyMethodCall):
+            info = f"Lazy Method '{method}'"
+        else:
+            info = f"Lazy Method '{method}' " \
+                   f"with args={self.descriptor.args} and kwargs={self.descriptor.kwargs}"
+        return DependencyDebug(info,
+                               singleton=self.descriptor.singleton,
+                               wired=[getattr(owner, method)],
+                               dependencies=[owner])
+
+    def lazy_get(self, container: Container) -> DependencyInstance:
         owner = self.owner_ref()
         assert owner is not None
         return DependencyInstance(

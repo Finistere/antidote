@@ -10,12 +10,12 @@ Changelog
   the design wasn't great. Instead the function decorator `@implementation` has been
   added:
   ```python
-  from antidote import implementation, register
+  from antidote import implementation, service
   
   class IService:
       pass
   
-  @register
+  @service
   class Service(IService):
     pass
   
@@ -52,7 +52,7 @@ Changelog
   through their position), the first argument will be ignored for methods (`self`) and 
   classmethod (`cls`). So now you can write:
   ```python
-  from antidote import inject, register
+  from antidote import inject, service
   
   class Service:
       @inject(dependencies=('dependency',))
@@ -64,7 +64,7 @@ Changelog
       def method(cls, arg1):
           ...
   
-  @register(dependencies=('dependency',))
+  @service(dependencies=('dependency',))
   class Service2:
       def __init__(self, arg1):
           ...
@@ -100,14 +100,14 @@ Changelog
 
 - Add `@implements` to define service implementing an interface. 
 - Add `IndirectProvider()` which supports `@implements`.
-- Add `DependencyContainer.safe_provide()` which does the same as 
-  `DependencyContainer.provide()` except that it raises an error if
+- Add `Container.safe_provide()` which does the same as 
+  `Container.provide()` except that it raises an error if
   the dependency cannot be found instead of returning None.
 
 
 ### Breaking changes
 
-- `DependencyContainer.provide()` returns a `DependencyInstance` not the 
+- `Container.provide()` returns a `DependencyInstance` not the 
   instance itself anymore.
 - Rename `LazyConfigurationMeta` to `LazyConstantsMeta`.
 - `LazyConfigurationMeta` default method is `get()`.

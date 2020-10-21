@@ -1,5 +1,6 @@
 import enum
 
+from .debug import debug_repr
 from .immutable import FinalImmutable, Immutable
 from .meta import AbstractMeta, FinalMeta
 from .slots import SlotRecord

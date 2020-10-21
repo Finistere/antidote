@@ -1,7 +1,7 @@
 import pytest
 
-from antidote.core.container import DependencyInstance, RawDependencyContainer, \
-    RawDependencyProvider
+from antidote.core.container import DependencyInstance, RawContainer, \
+    RawProvider
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
                                  DependencyNotFoundError, FrozenContainerError,
@@ -31,7 +31,7 @@ class ServiceWithNonMetDependency:
 
 @pytest.fixture()
 def container():
-    return RawDependencyContainer()
+    return RawContainer()
 
 
 def test_dependency_repr():
@@ -42,25 +42,25 @@ def test_dependency_repr():
     assert repr(o) in repr(d)
 
 
-def test_setitem(container: RawDependencyContainer):
+def test_setitem(container: RawContainer):
     s = object()
     container.update_singletons({'service': s})
 
     assert s is container.get('service')
-    assert s is container.provide('service').instance
+    assert s is container.provide('service').value
 
 
-def test_update(container: RawDependencyContainer):
+def test_update(container: RawContainer):
     x = object()
     y = object()
     container.update_singletons({'x': x, 'y': y})
 
-    assert container.provide('x').instance is x
+    assert container.provide('x').value is x
     assert container.provide('x').singleton is True
     assert container.get('y') is y
 
 
-def test_duplicate_singletons(container: RawDependencyContainer):
+def test_duplicate_singletons(container: RawContainer):
     x = object()
     container.update_singletons(dict(x=x))
 
@@ -71,7 +71,7 @@ def test_duplicate_singletons(container: RawDependencyContainer):
     assert container.get('x') is x
 
 
-def test_getitem(container: RawDependencyContainer):
+def test_getitem(container: RawContainer):
     container.register_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
         Service: lambda _: Service(),
@@ -83,7 +83,7 @@ def test_getitem(container: RawDependencyContainer):
     assert isinstance(container.get(Service), Service)
     assert isinstance(container.provide(Service), DependencyInstance)
     assert 'Antidote' == container.get('name')
-    assert 'Antidote' == container.provide('name').instance
+    assert 'Antidote' == container.provide('name').value
 
     with pytest.raises(DependencyNotFoundError):
         container.get(object)
@@ -92,7 +92,7 @@ def test_getitem(container: RawDependencyContainer):
         container.get(ServiceWithNonMetDependency)
 
 
-def test_singleton(container: RawDependencyContainer):
+def test_singleton(container: RawContainer):
     container.register_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
         Service: lambda _: Service(),
@@ -101,19 +101,19 @@ def test_singleton(container: RawDependencyContainer):
 
     service = container.get(Service)
     assert container.get(Service) is service
-    assert container.provide(Service).instance is service
+    assert container.provide(Service).value is service
     assert container.provide(Service).singleton is True
 
     container.get(DummyFactoryProvider).singleton = False
     another_service = container.get(AnotherService)
     assert container.get(AnotherService) is not another_service
-    assert container.provide(AnotherService).instance is not another_service
+    assert container.provide(AnotherService).value is not another_service
     assert container.provide(AnotherService).singleton is False
 
     assert container.get(Service) == service
 
 
-def test_dependency_cycle_error(container: RawDependencyContainer):
+def test_dependency_cycle_error(container: RawContainer):
     container.register_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
         Service: lambda _: Service(container.get(AnotherService)),
@@ -131,7 +131,7 @@ def test_dependency_cycle_error(container: RawDependencyContainer):
         container.get(YetAnotherService)
 
 
-def test_providers(container: RawDependencyContainer):
+def test_providers(container: RawContainer):
     x = object()
     y = object()
     container.register_provider(DummyProvider)
@@ -147,7 +147,7 @@ def test_providers(container: RawDependencyContainer):
             assert 'y' in provider.data
 
 
-def test_repr_str(container: RawDependencyContainer):
+def test_repr_str(container: RawContainer):
     container.register_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
     container.update_singletons({'test': 1})
@@ -157,7 +157,7 @@ def test_repr_str(container: RawDependencyContainer):
     assert str(container.get(DummyProvider)) in str(container)
 
 
-def test_invalid_provider(container: RawDependencyContainer):
+def test_invalid_provider(container: RawContainer):
     with pytest.raises(TypeError):
         container.register_provider(object)
 
@@ -167,7 +167,7 @@ def test_invalid_provider(container: RawDependencyContainer):
         container.register_provider(DummyProvider)
 
 
-def test_clone(container: RawDependencyContainer):
+def test_clone(container: RawContainer):
     container.register_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
     container.update_singletons({'test': object()})
@@ -190,7 +190,7 @@ def test_clone(container: RawDependencyContainer):
         container.get("test2")
 
 
-def test_freeze(container: RawDependencyContainer):
+def test_freeze(container: RawContainer):
     container.register_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
     container.freeze()
@@ -202,7 +202,7 @@ def test_freeze(container: RawDependencyContainer):
         container.update_singletons({'test': object()})
 
 
-def test_ensure_not_frozen(container: RawDependencyContainer):
+def test_ensure_not_frozen(container: RawContainer):
     with container.ensure_not_frozen():
         pass
 
@@ -213,24 +213,14 @@ def test_ensure_not_frozen(container: RawDependencyContainer):
             pass
 
 
-def test_singleton_property(container: RawDependencyContainer):
-    container.update_singletons({'a': 1})
-
-    assert container.singletons == dict(a=1)
-    container.singletons.update({'b': 1})
-
-    with pytest.raises(DependencyNotFoundError):
-        container.get('b')
-
-
-def test_provider_property(container: RawDependencyContainer):
+def test_provider_property(container: RawContainer):
     container.register_provider(DummyProvider)
     assert container.providers == [container.get(DummyProvider)]
 
 
-def test_providers_must_properly_clone(container: RawDependencyContainer):
-    class DummySelf(RawDependencyProvider):
-        def clone(self, keep_singletons_cache: bool) -> 'RawDependencyProvider':
+def test_providers_must_properly_clone(container: RawContainer):
+    class DummySelf(RawProvider):
+        def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
             return self
 
     container.register_provider(DummySelf)
@@ -239,12 +229,12 @@ def test_providers_must_properly_clone(container: RawDependencyContainer):
         container.clone()
 
 
-def test_providers_must_properly_clone2(container: RawDependencyContainer):
+def test_providers_must_properly_clone2(container: RawContainer):
     container.register_provider(DummyProvider)
     p = container.get(DummyProvider)
 
-    class DummyRegistered(RawDependencyProvider):
-        def clone(self, keep_singletons_cache: bool) -> 'RawDependencyProvider':
+    class DummyRegistered(RawProvider):
+        def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
             return p
 
     container.register_provider(DummyRegistered)
@@ -252,7 +242,7 @@ def test_providers_must_properly_clone2(container: RawDependencyContainer):
         container.clone()
 
 
-def test_clone_providers(container: RawDependencyContainer):
+def test_clone_providers(container: RawContainer):
     container.register_provider(DummyProvider)
     data = dict(name='antidote')
     container.get(DummyProvider).data = data

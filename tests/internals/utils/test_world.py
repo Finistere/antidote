@@ -2,18 +2,22 @@ from typing import Hashable, Optional
 
 import pytest
 
-from antidote._internal.utils.world import new_container, ProviderCollection
-from antidote.core import DependencyContainer, DependencyInstance
-from antidote.core.container import RawDependencyContainer, RawDependencyProvider
+from antidote._internal.utils.world import new_container, OverridableProviderCollection
+from antidote.core import Container, DependencyInstance
+from antidote.core.container import RawContainer, RawProvider
 
 
-class A(RawDependencyProvider):
-    def provide(self, dependency: Hashable, container: DependencyContainer
-                ) -> Optional[DependencyInstance]:
+class A(RawProvider):
+
+    def exists(self, dependency: Hashable) -> bool:
+        return isinstance(dependency, int)
+
+    def maybe_provide(self, dependency: Hashable, container: Container
+                      ) -> Optional[DependencyInstance]:
         if isinstance(dependency, int):
             return DependencyInstance(dependency ** 2)
 
-    def clone(self, keep_singletons_cache: bool) -> 'RawDependencyProvider':
+    def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
         return A()
 
 
@@ -21,35 +25,38 @@ class A(RawDependencyProvider):
 def test_provider_collection(keep_singletons_cache):
     cleaned_cache = 0
 
-    class B(RawDependencyProvider):
+    class B(RawProvider):
         def __init__(self):
             super().__init__()
 
-        def provide(self, dependency: Hashable, container: DependencyContainer
-                    ) -> Optional[DependencyInstance]:
+        def exists(self, dependency: Hashable) -> bool:
+            return isinstance(dependency, str)
+
+        def maybe_provide(self, dependency: Hashable, container: Container
+                          ) -> Optional[DependencyInstance]:
             if isinstance(dependency, str):
                 return container.provide(dependency * 2)
 
-        def clone(self, keep_singletons_cache: bool) -> 'RawDependencyProvider':
+        def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
             nonlocal cleaned_cache
             cleaned_cache += 1
             return B()
 
-    provider = ProviderCollection()
-    container = RawDependencyContainer()
+    provider = OverridableProviderCollection()
+    container = RawContainer()
     container.update_singletons({'xx': object()})
-    assert provider.provide('xx', container) is None
+    assert provider.maybe_provide('xx', container) is None
 
     provider.set_providers([A(), B()])
 
     for p in [provider, provider.clone(keep_singletons_cache)]:
-        assert p.provide(1.23, container) is None
-        assert p.provide(9, container).instance == 81
-        assert p.provide("x", container).instance == container.get("xx")
+        assert p.maybe_provide(1.23, container) is None
+        assert p.maybe_provide(9, container).value == 81
+        assert p.maybe_provide("x", container).value == container.get("xx")
 
     if keep_singletons_cache:
         assert cleaned_cache == 1
 
 
 def test_new_container():
-    assert isinstance(new_container(), DependencyContainer)
+    assert isinstance(new_container(), Container)

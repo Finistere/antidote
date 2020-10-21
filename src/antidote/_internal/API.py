@@ -14,16 +14,10 @@ def public(x: T) -> T:
 
 def experimental(x: T) -> T:
     """
-    Similar to public, they're part of the public API. However it's not really stable
-    or may simply be removed in the next release.
-    """
-    return x
-
-
-def public_for_tests(x: T) -> T:
-    """
-    Similar to public, they're part of the public API. However they're only meant to
-    be used in tests.
+    Similar to public, they're part of the public API. However it's not really stable.
+    Hence there's a good chance they may be changed or removed in the next release. If
+    you're relying on a experimental feature consider opening an issue with your use case
+    to advocate its migration to public !
     """
     return x
 
@@ -31,7 +25,7 @@ def public_for_tests(x: T) -> T:
 def private(x: T) -> T:
     """
     Only for internal use. They're are NOT part of the public API, and as such may
-    change without warning in later versions. If you need access to private APIs,
-    please submit an issue.
+    change without warning in later versions. If you rely on private APIs, please open
+    an issue.
     """
     return x

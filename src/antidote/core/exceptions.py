@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Hashable, List
+from typing import Any, Hashable, List, Optional, Union
 
 from .._internal import API
 
@@ -18,9 +18,10 @@ class DuplicateDependencyError(AntidoteError):
     A dependency already exists with the same id.
     *May* be raised by providers.
     """
+    message: Optional[str]
 
     def __init__(self, dependency_or_message: Hashable, existing_definition: Any = None):
-        if existing_definition is None:
+        if isinstance(dependency_or_message, str) and existing_definition is None:
             self.message = dependency_or_message
         else:
             self.message = None
@@ -88,8 +89,16 @@ class FrozenWorldError(AntidoteError):
     """
 
 
-@API.public
+@API.experimental
 class FrozenContainerError(FrozenWorldError):
     """
     Whenever ensure_not_frozen() fails.
+    """
+
+
+@API.private
+class DebugNotAvailableError(AntidoteError):
+    """
+    Currently provider do not have to implement the debug behavior. If not, this error
+    will be raised and discarded (a warning may be emitted).
     """

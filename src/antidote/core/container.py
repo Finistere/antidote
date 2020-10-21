@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from typing import (Any, Dict, final, Hashable, List, Mapping, Optional, Type)
+from typing import (Any, Dict, final, Hashable, List, Mapping, Optional, Sequence, Type)
 from weakref import ref, ReferenceType
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError,
                          FrozenContainerError)
+from .utils import DependencyDebug
+from .._internal import API
 from .._internal.stack import DependencyStack
 from .._internal.utils import FinalImmutable, FinalMeta
-from .._internal import API
 
 # PRIVATE
 _CONTAINER_REF_ATTR = "_antidote__container_ref"
@@ -21,21 +22,26 @@ _CONTAINER_REF_ATTR = "_antidote__container_ref"
 class DependencyInstance(FinalImmutable):
     """
     Simple wrapper of a dependency instance given by a
-    :py:class:`~.provider.DependencyProvider`.
+    :py:class:`~.provider.Provider`.
     """
-    __slots__ = ('instance', 'singleton')
-    instance: Any
+    __slots__ = ('value', 'singleton')
+    value: Any
     singleton: bool
 
-    def __init__(self, instance: Any, singleton: bool = False):
-        super().__init__(instance, singleton)
+    def __init__(self, value: Any, singleton: bool = False):
+        super().__init__(value, singleton)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyInstance) \
+               and self.singleton == other.singleton \
+               and self.value == other.value
 
 
 @API.public
-class DependencyContainer:
+class Container:
     """
     Public interface of the container used by Antidote to handles all
-    dependencies. Used in a :py:class:`~.provider.DependencyProvider` to access other
+    dependencies. Used in a :py:class:`~.provider.Provider` to access other
     dependencies.
     """
 
@@ -52,7 +58,7 @@ class DependencyContainer:
         """
         raise NotImplementedError()  # pragma: no cover
 
-    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+    def provide(self, dependency: Hashable) -> DependencyInstance:
         """
         Similar to :py:meth:`~.get` it will retrieve a dependency. However it will
         be wrapped in a :py:class:`~.DependencyInstance` if found. If not
@@ -63,23 +69,19 @@ class DependencyContainer:
             dependency: Dependency to be retrieved.
 
         Returns:
-            Optional[DependencyInstance]: wrapped dependency instance if found.
+            wrapped dependency instance.
 
         """
         raise NotImplementedError()  # pragma: no cover
 
-    @contextmanager
-    def ensure_not_frozen(self):
-        raise NotImplementedError()  # pragma: no cover
-
 
 @API.private
-class RawDependencyProvider:
+class RawProvider:
     """
     Abstract base class for a Provider.
 
-    Prefer using :py:class:`~.core.provider.DependencyProvider`
-    or :py:class:`~.core.provider.StatelessDependencyProvider` which are safer
+    Prefer using :py:class:`~.core.provider.Provider`
+    or :py:class:`~.core.provider.StatelessProvider` which are safer
     to implement.
 
     :meta private:
@@ -88,41 +90,59 @@ class RawDependencyProvider:
     def __init__(self):
         setattr(self, _CONTAINER_REF_ATTR, None)
 
-    @API.private
-    def provide(self, dependency: Hashable, container: DependencyContainer
-                ) -> Optional[DependencyInstance]:
+    def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
         raise NotImplementedError()  # pragma: no cover
 
-    @API.private
-    def clone(self, keep_singletons_cache: bool) -> 'RawDependencyProvider':
+    def exists(self, dependency: Hashable) -> bool:
+        raise NotImplementedError()  # pragma: no cover
+
+    def maybe_provide(self, dependency: Hashable, container: Container
+                      ) -> Optional[DependencyInstance]:
+        raise NotImplementedError()  # pragma: no cover
+
+    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
         raise NotImplementedError()  # pragma: no cover
 
     @final
     @contextmanager
     def _ensure_not_frozen(self):
-        container_ref: ReferenceType[DependencyContainer] = getattr(self,
-                                                                    _CONTAINER_REF_ATTR)
+        container_ref: ReferenceType[Container] = getattr(self,
+                                                          _CONTAINER_REF_ATTR)
         if container_ref is None:
             yield
         else:
-            container: DependencyContainer = container_ref()
+            container: RawContainer = container_ref()
             assert container is not None, "Associated container does not exist anymore."
             with container.ensure_not_frozen():
                 yield
 
+    @final
+    def _raise_if_exists_elsewhere(self, dependency):
+        container_ref: ReferenceType[Container] = getattr(self,
+                                                          _CONTAINER_REF_ATTR)
+        if container_ref is not None:
+            container: RawContainer = container_ref()
+            assert container is not None, "Associated container does not exist anymore."
+            container.raise_if_exists(dependency, ignored=self)
+
+    # PRIVATE
+    @property
+    def is_registered(self):
+        return getattr(self, _CONTAINER_REF_ATTR) is not None
+
 
 @final
 @API.private  # Not meant for direct use. You should go through world to manipulate it.
-class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
+class RawContainer(Container, metaclass=FinalMeta):
     """
-    Reference implementation for the DependencyContainer. The Cython version is
+    Reference implementation for the Container. The Cython version is
     considerably more complex for better performance.
 
     :meta private:
     """
 
     def __init__(self):
-        self.__providers: List[RawDependencyProvider] = list()
+        self.__providers: List[RawProvider] = list()
         self.__singletons: Dict[Any, Any] = dict()
         self.__dependency_stack = DependencyStack()
         self.__singleton_lock = threading.RLock()
@@ -133,11 +153,7 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
         return f"{type(self).__name__}(providers={', '.join(map(str, self.__providers))})"
 
     @property
-    def singletons(self):
-        return self.__singletons.copy()
-
-    @property
-    def providers(self):
+    def providers(self) -> Sequence[RawProvider]:
         return self.__providers.copy()
 
     @contextmanager
@@ -151,11 +167,30 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
         with self.__freeze_lock:
             self.__frozen = True
 
+    def raise_if_exists(self,
+                        dependency: Hashable,
+                        *,
+                        ignored: Optional[RawProvider] = None):
+        with self.ensure_not_frozen():
+            if dependency in self.__singletons:
+                raise DuplicateDependencyError(
+                    f"{dependency!r} has already been defined as a singleton pointing "
+                    f"to {self.__singletons[dependency]}")
+
+            for provider in self.__providers:
+                if provider is not ignored and provider.exists(dependency):
+                    debug = provider.maybe_debug(dependency)
+                    message = f"{dependency!r} has already been declared in {type(provider)}"
+                    if debug is None:
+                        raise DuplicateDependencyError(message)
+                    else:
+                        raise DuplicateDependencyError(message + f"\n{debug.info}")
+
     def clone(self,
               *,
               keep_singletons: bool = False,
-              clone_providers: bool = True) -> 'RawDependencyContainer':
-        c = RawDependencyContainer()
+              clone_providers: bool = True) -> 'RawContainer':
+        c = RawContainer()
         with self.__singleton_lock:
             if keep_singletons:
                 c.__singletons = self.__singletons.copy()
@@ -176,11 +211,11 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
 
         return c
 
-    def register_provider(self, provider_cls: Type[RawDependencyProvider]):
+    def register_provider(self, provider_cls: Type[RawProvider]):
         if not isinstance(provider_cls, type) \
-                or not issubclass(provider_cls, RawDependencyProvider):
+                or not issubclass(provider_cls, RawProvider):
             raise TypeError(
-                f"provider must be a DependencyProvider, not a {provider_cls}")
+                f"provider must be a Provider, not a {provider_cls}")
 
         with self.ensure_not_frozen(), self.__singleton_lock:
             if any(provider_cls == type(p) for p in self.__providers):
@@ -194,10 +229,7 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
     def update_singletons(self, dependencies: Mapping):
         with self.ensure_not_frozen(), self.__singleton_lock:
             for k, v in dependencies.items():
-                if k in self.__singletons:
-                    raise DuplicateDependencyError(
-                        f"Trying to overwrite singleton {k!r} with {v!r}, but it already "
-                        f"exists with the value {self.__singletons[k]!r}")
+                self.raise_if_exists(k)
             self.__singletons.update(dependencies)
 
     def get(self, dependency: Hashable) -> Any:
@@ -205,16 +237,16 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
             return self.__singletons[dependency]
         except KeyError:
             pass
-        return self.__safe_provide(dependency).instance
+        return self.__safe_provide(dependency).value
 
-    def provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+    def provide(self, dependency: Hashable) -> DependencyInstance:
         try:
             return DependencyInstance(self.__singletons[dependency], singleton=True)
         except KeyError:
             pass
         return self.__safe_provide(dependency)
 
-    def __safe_provide(self, dependency: Hashable) -> Optional[DependencyInstance]:
+    def __safe_provide(self, dependency: Hashable) -> DependencyInstance:
         try:
             with self.__singleton_lock, \
                  self.__dependency_stack.instantiating(dependency):
@@ -225,10 +257,10 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
                     pass
 
                 for provider in self.__providers:
-                    dependency_instance = provider.provide(dependency, self)
+                    dependency_instance = provider.maybe_provide(dependency, self)
                     if dependency_instance is not None:
                         if dependency_instance.singleton:
-                            self.__singletons[dependency] = dependency_instance.instance
+                            self.__singletons[dependency] = dependency_instance.value
 
                         return dependency_instance
 
@@ -238,5 +270,4 @@ class RawDependencyContainer(DependencyContainer, metaclass=FinalMeta):
         except Exception as e:
             raise DependencyInstantiationError(dependency) from e
 
-        else:
-            raise DependencyNotFoundError(dependency)
+        raise DependencyNotFoundError(dependency)
