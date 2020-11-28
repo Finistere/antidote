@@ -99,20 +99,13 @@ def test_invalid_type(provider: ServiceProvider):
         provider.register(A, singleton=object())
 
 
-@pytest.mark.parametrize('dependency', ['test', A, object()])
-def test_unknown_dependency(dependency):
-    with world.test.empty():
-        provider = ServiceProvider()
-        assert world.test.maybe_provide_from(provider, dependency) is None
-
-
 @pytest.mark.parametrize('keep_singletons_cache', [True, False])
 def test_copy(provider: ServiceProvider,
               keep_singletons_cache: bool):
     class C:
         pass
 
-    world.singletons.set('factory', lambda: C())
+    world.singletons.add('factory', lambda: C())
     provider.register(A)
 
     cloned = provider.clone(keep_singletons_cache)

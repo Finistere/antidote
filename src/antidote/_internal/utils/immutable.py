@@ -6,7 +6,8 @@ from .. import API
 
 @API.private
 class ImmutableMeta(type):
-    def __new__(mcls, name, bases, namespace, abstract: bool = False, copy: bool = True):
+    def __new__(mcls, name, bases, namespace, abstract: bool = False, copy: bool = True,
+                **kwargs):
         if '__slots__' not in namespace:
             raise TypeError("Attributes must be defined in slots")
         slots = set(namespace['__slots__'])
@@ -29,7 +30,9 @@ class ImmutableMeta(type):
             else:
                 namespace['copy'] = copy_not_supported
 
-        return super().__new__(mcls, name, bases, namespace)
+        # TODO: Type ignore necessary when type checking with Python 3.6
+        #       To be removed ASAP.
+        return super().__new__(mcls, name, bases, namespace, **kwargs)  # type: ignore
 
 
 @API.private
@@ -63,7 +66,7 @@ class FinalImmutableMeta(ImmutableMeta):
         for b in bases:
             if isinstance(b, ImmutableMeta) \
                     and b.__module__ != __name__:
-                raise TypeError(f"Type '{b.__name__}' cannot be inherited.")
+                raise TypeError(f"Type '{b.__name__}' cannot be inherited by {name}.")
 
         return super().__new__(mcls, name, bases, namespace, **kwargs)
 

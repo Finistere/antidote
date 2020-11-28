@@ -29,6 +29,9 @@ class InjectionBlueprint(FinalImmutable):
     __slots__ = ('injections',)
     injections: Sequence[Injection]
 
+    def is_empty(self):
+        return all(injection.dependency is None for injection in self.injections)
+
 
 @API.private
 def build_wrapper(blueprint: InjectionBlueprint,
@@ -46,6 +49,11 @@ def get_wrapper_dependencies(wrapper: 'InjectedWrapper') -> List[Hashable]:
     blueprint: InjectionBlueprint = getattr(wrapper,
                                             f"_{InjectedWrapper.__name__}__blueprint")
     return [inj.dependency for inj in blueprint.injections if inj.dependency is not None]
+
+
+@API.private
+def is_wrapper(x) -> bool:
+    return isinstance(x, InjectedWrapper)
 
 
 @API.private

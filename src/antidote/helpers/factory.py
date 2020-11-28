@@ -1,11 +1,10 @@
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, final, get_type_hints, Iterable, Optional,
-                    overload,
-                    Protocol,
-                    Tuple, TypeVar, Union)
+from typing import (Any, Callable, get_type_hints, Iterable, Optional,
+                    overload, Tuple, TypeVar, Union)
 
 from ._factory import FactoryMeta, LambdaFactory, PreBuild
+from .._compatibility.typing import final, Protocol
 from .._internal import API
 from .._internal.utils import Copy, FinalImmutable
 from ..core.injection import DEPENDENCIES_TYPE, inject
@@ -183,7 +182,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
     __antidote__: Conf = Conf()
     """
-    Configuration of the factory. Defaults to wire :py:meth:`.__init__` and 
+    Configuration of the factory. Defaults to wire :py:meth:`.__init__` and
     :py:meth:`.__call__`.
     """
 

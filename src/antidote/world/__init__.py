@@ -1,7 +1,7 @@
 import inspect
 from typing import Type, TypeVar
 
-from . import singletons, test, debug
+from . import debug, singletons, test
 from .._internal import API, state
 from .._internal.utils.world import WorldGet, WorldLazy
 # Creates the global container
@@ -23,17 +23,17 @@ Returns:
     Retrieves given dependency or raises a :py:exc:`~.exceptions.DependencyNotFoundError`
 
 .. doctest:: world_get
-    
+
     >>> from antidote import world, Service
-    >>> world.singletons.set('dep', 1)
+    >>> world.singletons.add('dep', 1)
     >>> world.get('dep')
     1
-    >>> # mypy will treat x as a int 
+    >>> # mypy will treat x as a int
     ... x = world.get[int]('dep')
     >>> class Dummy(Service):
     ...     pass
     >>> # To avoid repetition, if a type hint is provided but no argument, it
-    ... # will retrieve the type hint itself. 
+    ... # will retrieve the type hint itself.
     ... world.get[Dummy]()
     <Dummy ...>
 
@@ -41,22 +41,22 @@ Returns:
 lazy = WorldLazy()
 """
 Used to retrieves lazily a dependency. A type hint can be provided and the retrieved
-instance will be cast to match it. It follows the same philosophy as mypy and will NOT 
+instance will be cast to match it. It follows the same philosophy as mypy and will NOT
 enforce it with a check.
 
 Returns:
     Dependency: wrapped dependency.
 
 .. doctest:: world_lazy
-    
+
     >>> from antidote import world, Service
-    >>> world.singletons.set('dep', 1)
+    >>> world.singletons.add('dep', 1)
     >>> dep = world.lazy('dep')
     >>> dep
     Dependency(value='dep')
     >>> dep.get()
     1
-    >>> # mypy will treat x as a int 
+    >>> # mypy will treat x as a int
     ... x = world.lazy[int]('dep').get()
     >>> class Dummy(Service):
     ...     pass
@@ -75,7 +75,7 @@ def provider(p: P) -> P:
     :py:class:`~.core.provider.Provider`.
     """
     if inspect.isclass(p) and issubclass(p, RawProvider):
-        state.get_container().register_provider(p)
+        state.get_container().add_provider(p)
         return p
 
     raise TypeError(f"Provider must be a subclass of "
@@ -98,7 +98,7 @@ def freeze():
         >>> from antidote.exceptions import FrozenWorldError
         >>> world.freeze()
         >>> try:
-        ...     world.singletons.set('dependency', 1)
+        ...     world.singletons.add('dependency', 1)
         ... except FrozenWorldError:
         ...     print("Frozen world !")
         Frozen world !

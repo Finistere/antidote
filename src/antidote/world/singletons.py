@@ -4,15 +4,15 @@ from .._internal import API, state
 
 
 @API.public
-def set(dependency: Hashable, instance):
+def add(dependency: Hashable, instance):
     """
     Declare a singleton dependency with its associated instance.
     """
-    state.get_container().update_singletons({dependency: instance})
+    state.get_container().add_singletons({dependency: instance})
 
 
 @API.public
-def update(dependencies: dict):
+def add_all(dependencies: dict):
     """
     Declare multiple singleton dependencies.
 
@@ -20,4 +20,4 @@ def update(dependencies: dict):
         dependencies: Dictionary of dependencies to their associated value.
 
     """
-    state.get_container().update_singletons(dependencies)
+    state.get_container().add_singletons(dependencies)

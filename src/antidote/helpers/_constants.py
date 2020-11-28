@@ -1,15 +1,15 @@
-import inspect
-from typing import Any, Callable, cast, final, Type, TypeVar
+from typing import Any, Callable, cast, Type, TypeVar
 
 from .lazy import LazyCall
 from .service import service
+from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
-from ..providers.lazy import FastLazyMethod
+from ..providers.lazy import FastLazyConst
 
 T = TypeVar('T')
 
-CONST_CONSTRUCTOR_METHOD = 'get'
+_CONST_CONSTRUCTOR_METHOD = 'get'
 
 
 @API.private
@@ -49,12 +49,10 @@ def _configure_constants(cls):
         raise TypeError(f"Constants configuration (__antidote__) is expected to be a "
                         f"{Constants.Conf}, not a {type(conf)}")
 
-    method = getattr(cls, CONST_CONSTRUCTOR_METHOD, None)
+    method = getattr(cls, _CONST_CONSTRUCTOR_METHOD, None)
     if method is None:
         raise TypeError(
-            f"{cls} does not implement the lazy method '{CONST_CONSTRUCTOR_METHOD}'")
-    if not inspect.isfunction(method):
-        raise TypeError(f"{method} is not a method.")
+            f"{cls} does not implement the lazy method '{_CONST_CONSTRUCTOR_METHOD}'")
 
     if conf.wiring is not None:
         conf.wiring.wire(cls)
@@ -66,9 +64,9 @@ def _configure_constants(cls):
 
     for name, v in list(cls.__dict__.items()):
         if isinstance(v, LazyConstToDo):
-            setattr(cls, name, LazyConst(dependency, CONST_CONSTRUCTOR_METHOD, v.value))
+            setattr(cls, name, LazyConst(dependency, _CONST_CONSTRUCTOR_METHOD, v.value))
         elif conf.is_const(name):
-            setattr(cls, name, LazyConst(dependency, CONST_CONSTRUCTOR_METHOD, v))
+            setattr(cls, name, LazyConst(dependency, _CONST_CONSTRUCTOR_METHOD, v))
 
 
 @API.private
@@ -93,9 +91,9 @@ class LazyConst(FinalImmutable, copy=False):
             try:
                 return getattr(owner, self._cache)
             except AttributeError:
-                dependency = FastLazyMethod(self.dependency,
-                                            self.method_name,
-                                            self.value)
+                dependency = FastLazyConst(self.dependency,
+                                           self.method_name,
+                                           self.value)
                 setattr(owner, self._cache, dependency)
                 return dependency
         return getattr(instance, self.method_name)(self.value)

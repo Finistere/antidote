@@ -1,7 +1,8 @@
 import collections.abc as c_abc
-from typing import Callable, final, Iterable, Optional, overload, Tuple, TypeVar, Union
+from typing import Callable, Iterable, Optional, overload, Tuple, TypeVar, Union
 
 from ._service import ServiceMeta
+from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import Copy, FinalImmutable
 from ..core.exceptions import DuplicateDependencyError

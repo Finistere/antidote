@@ -1,7 +1,7 @@
-from typing import Hashable, Union
+from typing import Union
 
 
-def info(dependency, *, recursive: Union[bool, int] = False) -> str:
+def info(dependency, *, recursive: Union[bool, int] = True) -> str:
     from .._internal.state import get_container
     from .._internal.utils.debug import tree_debug_info
     if isinstance(recursive, bool):
@@ -9,5 +9,4 @@ def info(dependency, *, recursive: Union[bool, int] = False) -> str:
 
     return tree_debug_info(get_container(),
                            dependency,
-                           max_depth=recursive,
-                           helper_txt=recursive > 0)
+                           max_depth=recursive)

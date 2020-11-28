@@ -23,6 +23,6 @@ class AbstractMeta(type):
                     raise TypeError(
                         f"Cannot inherit a service which is not defined abstract. "
                         f"Consider defining {b} abstract by adding 'abstract=True' as a "
-                        f"metaclass parameter.")
+                        f"metaclass parameter. If so, Antidote won't use it.")
 
         return super().__new__(mcls, name, bases, namespace)

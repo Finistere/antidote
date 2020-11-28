@@ -2,7 +2,7 @@ from typing import Any, Type
 
 import pytest
 
-from antidote import Factory, factory, Tag, world, Wiring
+from antidote import Factory, factory, Tag, Wiring, world
 from antidote.providers import FactoryProvider, LazyProvider, ServiceProvider, TagProvider
 
 
@@ -67,7 +67,7 @@ def test_pass_through(build):
 
 
 def test_auto_wire():
-    world.singletons.set(C, C())
+    world.singletons.add(C, C())
 
     with world.test.clone(keep_singletons=True):
         @factory
@@ -172,7 +172,7 @@ def test_missing_return_type_hint():
 
     with pytest.raises(TypeError):
         @factory
-        def faulty_service_provider() -> Any:
+        def faulty_service_provider2() -> Any:
             return A()
 
     with pytest.raises(ValueError):
@@ -181,7 +181,7 @@ def test_missing_return_type_hint():
                 return A()
 
     with pytest.raises(TypeError):
-        class FaultyServiceFactory(Factory):
+        class FaultyServiceFactory2(Factory):
             def __call__(self) -> Any:
                 return A()
 

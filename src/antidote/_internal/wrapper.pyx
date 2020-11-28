@@ -3,8 +3,6 @@ Cython version of the wrapper, doing the same thing but faster.
 """
 # @formatter:off
 cimport cython
-# @formatter:off
-cimport cython
 from cpython.dict cimport PyDict_Copy, PyDict_New
 from cpython.object cimport PyObject_Call, PyObject_CallMethodObjArgs
 from cpython.ref cimport PyObject
@@ -12,8 +10,6 @@ from cpython.ref cimport PyObject
 from antidote._internal.state cimport fast_get_container
 from antidote.core.container cimport DependencyResult, PyObjectBox, RawContainer
 from ..core.exceptions import DependencyNotFoundError
-
-# @formatter:on
 
 # @formatter:on
 
@@ -28,9 +24,9 @@ compiled = True
 
 cdef class Injection:
     cdef:
-        readonly str arg_name
-        readonly bint required
-        readonly object dependency
+        str arg_name
+        bint required
+        object dependency
 
     def __repr__(self):
         return f"{type(self).__name__}(arg_name={self.arg_name!r}, " \
@@ -43,10 +39,18 @@ cdef class Injection:
 
 cdef class InjectionBlueprint:
     cdef:
-        readonly tuple injections
+        tuple injections
 
     def __init__(self, tuple injections):
         self.injections = injections
+
+    def is_empty(self):
+        cdef:
+            Injection injection
+        for injection in self.injections:
+            if injection.dependency is not None:
+                return False
+        return True
 
 def build_wrapper(InjectionBlueprint blueprint,
                   object wrapped,
@@ -65,6 +69,15 @@ def build_wrapper(InjectionBlueprint blueprint,
     wrapper.__is_staticmethod = isinstance(wrapped, staticmethod)
     return wrapper
 
+def get_wrapper_dependencies(wrapper):
+    if not isinstance(wrapper, InjectedWrapper):
+        raise TypeError(f"Argument must be an {InjectedWrapper}")
+
+    return (<InjectedWrapper> wrapper).get_injections()
+
+def is_wrapper(x) -> bool:
+    return isinstance(x, InjectedWrapper)
+
 @cython.freelist(128)
 cdef class InjectedWrapper:
     cdef:
@@ -74,6 +87,13 @@ cdef class InjectedWrapper:
         int __injection_offset
         bint __is_classmethod
         bint __is_staticmethod
+
+    cdef list get_injections(self):
+        cdef:
+            Injection inj
+        return [inj.dependency
+                for inj in self.__blueprint.injections
+                if inj.dependency is not None]
 
     def __call__(self, *args, **kwargs):
         cdef:

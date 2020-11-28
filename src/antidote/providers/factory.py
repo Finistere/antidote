@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import weakref
 from typing import Any, Callable, Dict, Hashable, Optional, Union
 
@@ -19,7 +17,7 @@ class FactoryProvider(Provider):
     def __repr__(self):
         return f"{type(self).__name__}(factories={self.__factories})"
 
-    def clone(self, keep_singletons_cache: bool) -> FactoryProvider:
+    def clone(self, keep_singletons_cache: bool) -> 'FactoryProvider':
         p = FactoryProvider()
         if keep_singletons_cache:
             factories = {
@@ -86,7 +84,7 @@ class FactoryProvider(Provider):
     def register(self,
                  dependency: Hashable,
                  factory: Union[Callable, Dependency],
-                 singleton: bool = True) -> FactoryDependency:
+                 singleton: bool = True) -> 'FactoryDependency':
         # For now we don't support multiple factories for a single dependency.
         # Simply because I don't see a use case where it would make sense. In
         # Antidote the standard way would be to use `with_kwargs()` to customization
@@ -118,12 +116,12 @@ class FactoryProvider(Provider):
 class FactoryDependency(FinalImmutable):
     __slots__ = ('dependency', '_provider_ref')
     dependency: Hashable
-    _provider_ref: weakref.ReferenceType[FactoryProvider]
+    _provider_ref: 'weakref.ReferenceType[FactoryProvider]'
 
     def __repr__(self):
         return f"FactoryDependency({self})"
 
-    def debug_repr(self):
+    def __antidote_debug_repr__(self):
         return str(self)
 
     def __str__(self):

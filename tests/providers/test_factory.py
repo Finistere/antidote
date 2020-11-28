@@ -1,6 +1,7 @@
 import pytest
 
 from antidote import world
+from antidote.core.exceptions import DependencyNotFoundError
 from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
 from antidote.providers.factory import FactoryProvider
 from antidote.providers.service import Build
@@ -36,7 +37,7 @@ def test_simple(provider: FactoryProvider):
 
 
 def test_lazy(provider: FactoryProvider):
-    world.singletons.set('A', build)
+    world.singletons.add('A', build)
     factory_id = provider.register(A, world.lazy('A'))
     assert isinstance(world.get(factory_id), A)
     # singleton
@@ -58,7 +59,7 @@ def test_exists():
 @pytest.mark.parametrize('singleton', [True, False])
 def test_singleton(singleton: bool):
     with world.test.empty():
-        world.singletons.set('A', build)
+        world.singletons.add('A', build)
         world.provider(FactoryProvider)
         with world.test.clone():
             provider = world.get(FactoryProvider)
@@ -76,7 +77,7 @@ def test_singleton(singleton: bool):
 @pytest.mark.parametrize('first', ['register', 'register_lazy'])
 @pytest.mark.parametrize('second', ['register', 'register_lazy'])
 def test_duplicate_dependency(provider: FactoryProvider, first: str, second: str):
-    world.singletons.set('A', build)
+    world.singletons.add('A', build)
 
     if first == 'register':
         provider.register(A, build)
@@ -96,7 +97,7 @@ def test_invalid_register(provider: FactoryProvider):
 
 
 def test_build_dependency(provider: FactoryProvider):
-    world.singletons.set('A', build)
+    world.singletons.add('A', build)
     kwargs = dict(test=object())
 
     with world.test.clone():
@@ -136,14 +137,14 @@ def test_copy():
 
         # Adding dependencies to either original or cloned, should not impact the
         # other one.
-        original_b_id = original.register(B, lambda: B())
-        cloned_b_id = cloned.register(B, lambda: B())
+        _ = original.register(B, lambda: B())
+        _ = cloned.register(B, lambda: B())
 
         cloned.register(C, lambda: C())
         original.register(C, lambda: C())
 
     with world.test.empty():
-        world.singletons.set('build', build)
+        world.singletons.add('build', build)
         original = FactoryProvider()
         a_id = original.register(A, world.lazy('build'))
         a = world.test.maybe_provide_from(original, a_id).value
@@ -154,7 +155,7 @@ def test_copy():
         cloned_with_singletons = original.clone(True)
         cloned = original.clone(False)
         with world.test.empty():
-            world.singletons.set('build', build2)
+            world.singletons.add('build', build2)
             a2 = world.test.maybe_provide_from(cloned, a_id).value
 
             assert isinstance(a2, A)
@@ -186,10 +187,20 @@ def test_factory_id_repr(provider: FactoryProvider):
     assert f"{__name__}.build" in repr(factory_id)
 
 
-def test_invalid_dependency():
+def test_unknown_dependency():
     p1 = FactoryProvider()
     assert world.test.maybe_provide_from(p1, object()) is None
+    assert p1.maybe_debug(object()) is None
 
     p2 = FactoryProvider()
     dependency = p2.register(A, build)
     assert world.test.maybe_provide_from(p1, dependency) is None
+    assert p1.maybe_debug(dependency) is None
+
+
+def test_invalid_lazy_dependency():
+    provider = FactoryProvider()
+    fid = provider.register('A', factory=world.lazy("factory"))
+
+    with pytest.raises(DependencyNotFoundError, match=".*factory.*"):
+        world.test.maybe_provide_from(provider, fid)

@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import weakref
-from typing import Callable, final, Union
+from typing import Callable, Union
 
+from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
 from ..core import Container, DependencyInstance
@@ -53,14 +52,17 @@ class LazyCall(FinalImmutable, Lazy):
             raise TypeError(f"singleton must be a boolean, not {type(singleton)!r}")
         super().__init__(func=func, singleton=singleton)
 
-    def __call__(self, *args, **kwargs) -> LazyCallWithArgsKwargs:
+    def __call__(self, *args, **kwargs) -> 'LazyCallWithArgsKwargs':
         """
         All argument are passed on to the lazily called function.
         """
         return LazyCallWithArgsKwargs(self.func, self.singleton, args, kwargs)
 
+    def __antidote_debug_repr__(self):
+        return f"LazyCall(func={debug_repr(self.func)}, singleton={self.singleton})"
+
     def debug_info(self) -> DependencyDebug:
-        return DependencyDebug(f"Lazy {debug_repr(self.func)}",
+        return DependencyDebug(f"LazyCall {debug_repr(self.func)}",
                                singleton=self.singleton,
                                wired=[self.func])
 
@@ -130,7 +132,7 @@ class LazyMethodCall(FinalImmutable, copy=False):
             _cache_attr=f"__antidote_dependency_{hex(id(self))}"
         )
 
-    def __call__(self, *args, **kwargs) -> LazyMethodCallWithArgsKwargs:
+    def __call__(self, *args, **kwargs) -> 'LazyMethodCallWithArgsKwargs':
         """
         All argument are passed on to the lazily called method.
         """
@@ -163,6 +165,11 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
     singleton: bool
     args: tuple
     kwargs: dict
+
+    def __antidote_debug_repr__(self):
+        return f"LazyCall(func={debug_repr(self.func)}, " \
+               f"args={self.args}, kwargs={self.kwargs}" \
+               f"singleton={self.singleton})"
 
     def debug_info(self) -> DependencyDebug:
         return DependencyDebug(

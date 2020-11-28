@@ -1,9 +1,8 @@
-from __future__ import annotations
+from typing import Hashable
 
-from typing import final, Hashable
-
+from .._compatibility.typing import final
 from .._internal import API
-from .._internal.utils import FinalImmutable, debug_repr
+from .._internal.utils import debug_repr, FinalImmutable
 from ..core import Container, DependencyInstance, StatelessProvider
 from ..core.utils import DependencyDebug
 
@@ -19,17 +18,23 @@ class Lazy:
 
 @API.private
 @final
-class FastLazyMethod(FinalImmutable, Lazy):
+class FastLazyConst(FinalImmutable, Lazy):
     __slots__ = ('dependency', 'method_name', 'value')
     dependency: object
     method_name: str
     value: object
 
     def debug_info(self) -> DependencyDebug:
-        return DependencyDebug(f"Lazy Method {self.method_name} with {self.value!r} on "
+        from ..helpers.lazy import LazyCall
+        if isinstance(self.dependency, LazyCall):
+            cls: object = self.dependency.func
+        else:
+            cls = self.dependency
+        return DependencyDebug(f"Const calling {self.method_name} with {self.value!r} on "
                                f"{debug_repr(self.dependency)}",
                                singleton=True,
-                               dependencies=[self.dependency])
+                               dependencies=[self.dependency],
+                               wired=[getattr(cls, self.method_name)])
 
     def lazy_get(self, container: Container) -> DependencyInstance:
         return DependencyInstance(

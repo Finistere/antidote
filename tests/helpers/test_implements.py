@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import factory, implementation, implements, Service, world
+from antidote import factory, implementation, Implementation, Service, world
 from antidote.exceptions import DependencyInstantiationError
 from antidote.providers import FactoryProvider, IndirectProvider, ServiceProvider
 
@@ -18,9 +18,8 @@ class Interface:
     pass
 
 
-def test_implements():
-    @implements(Interface)
-    class A(Interface, Service):
+def test_implementation_class():
+    class A(Interface, Implementation):
         pass
 
     assert world.get(Interface) is world.get(A)
@@ -99,7 +98,7 @@ def test_implementation_integration():
             return A(**kwargs)
 
         @implementation(Interface)
-        def impl():
+        def impl2():
             return A @ build_a.with_kwargs(test=x)
 
         a = world.get(Interface)
@@ -107,17 +106,22 @@ def test_implementation_integration():
         assert a.kwargs == dict(test=x)
 
 
-def test_invalid_implements():
+def test_invalid_implementation_class():
     with pytest.raises(TypeError):
-        @implements(Interface)
-        class A:
+        class A(Implementation):
             pass
 
     with pytest.raises(TypeError):
-        implements(Interface)(1)
+        class B(Implementation, Interface):
+            pass
 
     with pytest.raises(TypeError):
-        implements(1)
+        class C(Interface, Implementation, Implementation):
+            pass
+
+    with pytest.raises(ValueError):
+        class D(Interface, Implementation, abstract=True):
+            pass
 
 
 def test_invalid_implementation():
@@ -135,8 +139,8 @@ def test_invalid_implementation():
     class B:
         pass
 
-    world.singletons.set(B, 1)
-    world.singletons.set(1, 1)
+    world.singletons.add(B, 1)
+    world.singletons.add(1, 1)
 
     with world.test.clone(keep_singletons=True):
         @implementation(Interface)
@@ -149,7 +153,7 @@ def test_invalid_implementation():
 
     with world.test.clone(keep_singletons=True):
         @implementation(Interface)
-        def choose():
+        def choose2():
             return B
 
         world.get(B)
@@ -179,7 +183,7 @@ def test_invalid_implementation():
             return D(**kwargs)
 
         @implementation(Interface)
-        def impl():
+        def impl2():
             return D @ build_d.with_kwargs(test=1)
 
         world.get(D @ build_d.with_kwargs(test=1))

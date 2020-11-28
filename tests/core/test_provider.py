@@ -1,13 +1,11 @@
-from __future__ import annotations
-
 from contextlib import contextmanager
 from typing import Hashable, Optional
 
 import pytest
 
 from antidote import world
-from antidote.core import Container, DependencyInstance, Provider, \
-    does_not_freeze, StatelessProvider
+from antidote.core import Container, DependencyInstance, does_not_freeze, Provider, \
+    StatelessProvider
 from antidote.exceptions import FrozenWorldError
 
 
@@ -22,7 +20,7 @@ def test_freeze_world():
                     ) -> Optional[DependencyInstance]:
             return None
 
-        def clone(self, keep_singletons_cache: bool) -> DummyProvider:
+        def clone(self, keep_singletons_cache: bool) -> 'DummyProvider':
             return self
 
         def register(self):
@@ -85,8 +83,23 @@ def test_no_default_implementation():
     with pytest.raises(NotImplementedError):
         Dummy().exists(object())
 
+    with pytest.raises(NotImplementedError):
+        Dummy().clone(False)
+
     with pytest.raises(RuntimeError):
         Dummy().provide(object(), object())
 
     with pytest.raises(NotImplementedError):
         Dummy().exists(False)
+
+
+def test_debug():
+    x = object()
+
+    class Dummy(Provider):
+        def exists(self, dependency: Hashable) -> bool:
+            return dependency is x
+
+    Dummy().maybe_debug(object())  # should no fail
+    with pytest.warns(UserWarning, match="(?i).*debug.*"):
+        Dummy().maybe_debug(x)

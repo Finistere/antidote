@@ -1,20 +1,20 @@
-from typing import Callable, Dict, Hashable
+from typing import Callable, Dict, Hashable, Optional
 
 # @formatter:off
 cimport cython
-from cpython.object cimport PyObject
+from cpython.object cimport PyObject, PyObject_CallObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider,
                                       FLAG_SINGLETON, RawContainer)
-from ..exceptions import DuplicateDependencyError
+from .._internal.utils import debug_repr
+from ..core.exceptions import DependencyNotFoundError
+from ..core.utils import DependencyDebug
 
 # @formatter:on
 
 cdef extern from "Python.h":
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
-    int PyDict_DelItem(PyObject *p, PyObject *key) except -1
-    PyObject*PyObject_CallObject(PyObject *callable_object, PyObject *args) except NULL
 
 
 @cython.final
@@ -38,8 +38,48 @@ cdef class IndirectProvider(FastProvider):
         p.__static_links = self.__static_links.copy()
         return p
 
-    def has(self, dependency):
+    def exists(self, dependency) -> bool:
         return dependency in self.__static_links or dependency in self.__links
+
+    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+        cdef:
+            Link link
+
+        try:
+            link = self.__links[dependency]
+        except KeyError:
+            pass
+        else:
+            repr_d = debug_repr(dependency)
+            repr_linker = debug_repr(link.linker)
+            if link.permanent:
+                if dependency in self.__static_links:
+                    target = self.__static_links[dependency]
+                    return DependencyDebug(
+                        f"Permanent link: {repr_d} -> {debug_repr(target)} "
+                        f"defined by {repr_linker}",
+                        singleton=True,
+                        dependencies=[target])
+                else:
+                    return DependencyDebug(
+                        f"Permanent link: {repr_d} -> ??? "
+                        f"defined by {repr_linker}",
+                        singleton=True)
+            else:
+                return DependencyDebug(
+                    f"Dynamic link: {repr_d} -> ??? defined by {repr_linker}",
+                    singleton=False,
+                    wired=[link.linker])
+
+        try:
+            target = self.__static_links[dependency]
+        except KeyError:
+            pass
+        else:
+            repr_d = debug_repr(dependency)
+            return DependencyDebug(f"Static link: {repr_d} -> {debug_repr(target)}",
+                                   singleton=True,
+                                   dependencies=[target])
 
     cdef fast_provide(self,
                       PyObject*dependency,
@@ -47,42 +87,36 @@ cdef class IndirectProvider(FastProvider):
                       DependencyResult*result):
         cdef:
             PyObject*ptr
-            PyObject*target
+            object target
 
         ptr = PyDict_GetItem(<PyObject*> self.__static_links, dependency)
         if ptr != NULL:
             (<RawContainer> container).fast_get(ptr, result)
+            if result.flags == 0:
+                raise DependencyNotFoundError(<object> ptr)
         else:
             ptr = PyDict_GetItem(<PyObject*> self.__links, dependency)
             if ptr != NULL:
-                target = PyObject_CallObject(<PyObject*> (<Link> ptr).linker, NULL)
-                (<RawContainer> container).fast_get(target, result)
+                target = PyObject_CallObject((<Link> ptr).linker, <object> NULL)
+                (<RawContainer> container).fast_get(<PyObject*> target, result)
+                if result.flags == 0:
+                    raise DependencyNotFoundError(target)
                 result.flags &= (<Link> ptr).singleton_flag
                 if (<Link> ptr).permanent:
                     PyDict_SetItem(<PyObject*> self.__static_links,
                                    dependency,
-                                   target)
-                    PyDict_DelItem(<PyObject*> self.__links, dependency)
+                                   <PyObject*> target)
 
     def register_static(self, dependency: Hashable, target_dependency: Hashable):
         with self._ensure_not_frozen():
-            self.__check_no_duplicate(dependency)
+            self._raise_if_exists(dependency)
             self.__static_links[dependency] = target_dependency
 
     def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
                       permanent: bool = True):
         with self._ensure_not_frozen():
-            self.__check_no_duplicate(dependency)
+            self._raise_if_exists(dependency)
             self.__links[dependency] = Link(linker, permanent)
-
-    cdef __check_no_duplicate(self, dependency):
-        self._raise_if_exists_elsewhere(dependency)
-        if dependency in self.__static_links:
-            raise DuplicateDependencyError(dependency,
-                                           self.__static_links[dependency])
-        if dependency in self.__links:
-            raise DuplicateDependencyError(dependency,
-                                           self.__links[dependency])
 
 @cython.final
 cdef class Link:

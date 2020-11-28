@@ -1,15 +1,23 @@
-from typing import cast, final, Generic, Hashable, Sequence, TypeVar
+from typing import cast, Generic, Hashable, Sequence, TypeVar
 
+from .._compatibility.typing import final, GenericMeta
 from .._internal import API
-from .._internal.utils import FinalImmutable
+from .._internal.utils import FinalImmutable, Immutable
 from .._internal.utils.debug import debug_repr
+from .._internal.utils.immutable import ImmutableMeta
 
 T = TypeVar('T')
 
 
+# TODO: Inheriting GenericMeta for Python 3.6, remove once 3.6 support ends.
+#       And use FinalImmutable instead of Immutable
+class DependencyMeta(ImmutableMeta, GenericMeta):
+    pass
+
+
 @API.public
 @final
-class Dependency(FinalImmutable, Generic[T]):
+class Dependency(Immutable, Generic[T], metaclass=DependencyMeta):
     """
     Used to clearly state that a value should be treated as a dependency and must
     be retrieved from Antidote. It is recommended to use it through
@@ -18,7 +26,7 @@ class Dependency(FinalImmutable, Generic[T]):
     .. doctest:: core_Dependency
 
         >>> from antidote import world
-        >>> world.singletons.set('dependency', 1)
+        >>> world.singletons.add('dependency', 1)
         >>> world.lazy('dependency')
         Dependency(value='dependency')
         >>> # to retrieve the dependency later, you may use get()
@@ -46,7 +54,7 @@ class Dependency(FinalImmutable, Generic[T]):
         return cast(T, world.get(self.value))
 
     @API.private
-    def debug_repr(self) -> str:
+    def __antidote_debug_repr__(self) -> str:
         return f"Dependency(value={debug_repr(self.value)})"
 
 

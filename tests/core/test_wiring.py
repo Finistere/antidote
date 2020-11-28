@@ -11,11 +11,11 @@ class Dummy:
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.empty():
-        world.singletons.update({'x': object(),
-                                 'xx': object(),
-                                 'y': object(),
-                                 'z': object(),
-                                 Dummy: Dummy()})
+        world.singletons.add_all({'x': object(),
+                                  'xx': object(),
+                                  'y': object(),
+                                  'z': object(),
+                                  Dummy: Dummy()})
         yield
 
 
@@ -93,14 +93,14 @@ def test_wiring_super_methods():
         wiring = Wiring(methods=['f'])
 
         @wiring.wire
-        class B(A):
+        class X(A):
             pass
 
     with pytest.raises(AttributeError, match=".*'f'.*"):
         wiring = Wiring(methods=['f'], wire_super=False)
 
         @wiring.wire
-        class B(A):
+        class Y(A):
             pass
 
     c_wiring = Wiring(methods=['f'], wire_super=True)
@@ -291,14 +291,14 @@ def test_ignore_missing_method():
         wiring = Wiring(methods=['unknown_method'])
 
         @wiring.wire
-        class A:
+        class X:
             pass
 
     with pytest.raises(AttributeError, match=".*unknown_method.*"):
         wiring = Wiring(methods=['unknown_method'], ignore_missing_method=False)
 
         @wiring.wire
-        class A:
+        class Y:
             pass
 
     a_wiring = Wiring(methods=['unknown_method'], ignore_missing_method=True)

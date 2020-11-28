@@ -21,10 +21,19 @@ def provider():
 def test_tag():
     # id is unique
     assert Tag().group != Tag().group
+    assert repr(Tag()) != repr(Tag())
 
     # Immutable
     with pytest.raises(AttributeError):
         Tag().x = 1
+
+
+def test_custom_tag():
+    class CustomTag(Tag):
+        def group(self):
+            return "hello"
+
+    assert "hello" in repr(CustomTag())
 
 
 def test_repr(provider: TagProvider):
@@ -40,7 +49,7 @@ def test_repr(provider: TagProvider):
 
 def test_tagged_dependencies():
     with world.test.empty():
-        world.singletons.update({
+        world.singletons.add_all({
             'd': object(),
             'd2': object()
         })
@@ -61,7 +70,7 @@ def test_tagged_dependencies():
 
         # tagged dependencies should only be retrieved once.
         with world.test.empty():
-            world.singletons.update({
+            world.singletons.add_all({
                 'd': object(),
                 'd2': object()
             })
@@ -102,7 +111,7 @@ def test_provide_unknown_tag():
 def test_provide_tags():
     with world.test.empty():
         provider = TagProvider()
-        world.singletons.update(dict(test=object(), test2=object()))
+        world.singletons.add_all(dict(test=object(), test2=object()))
         tagA = Tag()
         tagB = Tag()
         provider.register('test', tags=[tagA, tagB])
@@ -140,7 +149,7 @@ def test_custom_tags(provider: TagProvider):
         def group(self):
             return self.name
 
-    world.singletons.update(dict(test=object(), test2=object()))
+    world.singletons.add_all(dict(test=object(), test2=object()))
     test_tags = [CustomTag("A", attr=1), CustomTag("B", attr=1)]
     provider.register('test', tags=test_tags)
     test2_tags = [CustomTag("B", attr=2)]
@@ -205,7 +214,7 @@ def test_unknown_dependency(dependency):
 @pytest.mark.parametrize('keep_singletons_cache', [True, False])
 def test_copy(provider: TagProvider,
               keep_singletons_cache: bool):
-    world.singletons.update(dict(test=object(), test2=object(), test3=object()))
+    world.singletons.add_all(dict(test=object(), test2=object(), test3=object()))
     tag = Tag()
     provider.register('test', tags=[tag])
     cloned = provider.clone(keep_singletons_cache=keep_singletons_cache)

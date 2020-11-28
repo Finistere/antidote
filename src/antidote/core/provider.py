@@ -1,9 +1,10 @@
-from typing import cast, final, Generic, Hashable, NoReturn, Optional, TypeVar
+from typing import cast, Generic, Hashable, Optional, TypeVar
 
 from ._provider import _FREEZE_ATTR_NAME, ProviderMeta
 from .container import Container, DependencyInstance, RawProvider
-from .exceptions import DebugNotAvailableError, DuplicateDependencyError
+from .exceptions import DebugNotAvailableError
 from .utils import DependencyDebug
+from .._compatibility.typing import final
 from .._internal import API
 
 T = TypeVar('T', bound=Hashable)
@@ -135,8 +136,8 @@ class Provider(RawProvider, Generic[T],
         """
         Method called by the :py:class:`~.core.container.Container` when
         searching for a dependency. Be sure that the dependency space of your
-        providers don't intersect ! This function will only be called if :py:meth:`.exists`
-        succeeded on the :code:`dependency`.
+        providers don't intersect ! This function will only be called if
+        :py:meth:`.exists` succeeded on the :code:`dependency`.
 
         If you need to access other dependencies, you MUST use the provided
         :code:`container` argument and NEVER :py:mod:`~antidote.world`.
@@ -165,7 +166,7 @@ class Provider(RawProvider, Generic[T],
         """
         Optional support for :py:mod:`.world.debug`. If not implemented, debug information
         will not be provided for dependencies.
-        
+
         Args:
             dependency: The dependency for which debug information should be provided. It
                 will have passed :py:meth:`.exists`.
@@ -224,10 +225,10 @@ class Provider(RawProvider, Generic[T],
                 return self.debug(cast(T, dependency))
             except DebugNotAvailableError:
                 import warnings
-                warnings.warn(f"Debug information not available in {type(self)}")
+                warnings.warn(f"Debug information for {dependency} "
+                              f"not available in {type(self)}")
         return None
 
-    @API.public  # public for the provider itself, not really for users.
     @does_not_freeze
     @final
     def _assert_not_duplicate(self, dependency: Hashable):
@@ -241,10 +242,7 @@ class Provider(RawProvider, Generic[T],
         Raises:
             DuplicateDependencyError
         """
-        if self.exists(dependency):
-            raise DuplicateDependencyError(
-                f"{dependency} has already been registered in {type(self)}")
-        self._raise_if_exists_elsewhere(dependency)
+        self._raise_if_exists(dependency)
 
 
 @API.public

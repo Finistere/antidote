@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Hashable, Union
+from typing import Callable, Dict, Hashable, Optional, Union
 from weakref import ref
 
 # @formatter:off
@@ -9,8 +9,10 @@ from cpython.ref cimport PyObject
 from antidote.core.container cimport (DependencyResult, FastProvider, FLAG_DEFINED,
                                       FLAG_SINGLETON, PyObjectBox, RawContainer)
 from antidote.providers.service cimport Build
+from .._internal.utils import debug_repr
 from ..core import Dependency
-from ..exceptions import DependencyNotFoundError, DuplicateDependencyError
+from ..core.utils import DependencyDebug
+from ..exceptions import DependencyNotFoundError
 # @formatter:on
 
 cdef extern from "Python.h":
@@ -52,9 +54,31 @@ cdef class FactoryProvider(FastProvider):
         p.__factories = factories
         return p
 
-    def has(self, dependency: Hashable) -> bool:
-        dep = dependency.dependency if isinstance(dependency, Build) else dependency
-        return isinstance(dep, FactoryDependency) and dep.dependency in self.__factories
+    def exists(self, dependency: Hashable) -> bool:
+        if isinstance(dependency, Build):
+            dependency = dependency.dependency
+        return (isinstance(dependency, FactoryDependency)
+                and dependency.dependency in self.__factories)
+
+    def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
+        cdef:
+            Factory factory
+
+        dependency_factory = build.dependency if isinstance(build, Build) else build
+        if not isinstance(dependency_factory, FactoryDependency):
+            return None
+
+        try:
+            factory = self.__factories[dependency_factory.dependency]
+        except KeyError:
+            return None
+
+        return DependencyDebug(
+            debug_repr(build),
+            singleton=factory.singleton,
+            wired=[factory.function] if factory.dependency is None else [],
+            dependencies=([factory.dependency]
+                          if factory.dependency is not None else []))
 
     cdef fast_provide(self,
                       PyObject*dependency,
@@ -81,8 +105,7 @@ cdef class FactoryProvider(FastProvider):
                 <PyObject*> (<Factory> factory).dependency, result)
             if result.flags == 0:
                 raise DependencyNotFoundError((<Factory> factory).dependency)
-            assert (
-                               result.flags & FLAG_SINGLETON) != 0, "factory dependency is expected to be a singleton"
+            assert (result.flags & FLAG_SINGLETON) != 0, "factory dependency is expected to be a singleton"
             (<Factory> factory).function = (<PyObjectBox> result.box).obj
 
         result.flags = FLAG_DEFINED | (<Factory> factory).flags
@@ -103,25 +126,18 @@ cdef class FactoryProvider(FastProvider):
                  factory: Union[Callable, Dependency],
                  singleton: bool = True) -> FactoryDependency:
         with self._ensure_not_frozen():
-            self._raise_if_exists_elsewhere(dependency)
-            if dependency in self.__factories:
-                raise DuplicateDependencyError(dependency,
-                                               self.__factories[dependency])
+            factory_dependency = FactoryDependency(dependency, ref(self))
+            self._raise_if_exists(factory_dependency)
 
             if isinstance(factory, Dependency):
-                return self.__add(dependency,
-                                  Factory(dependency=factory.value,
-                                          singleton=singleton))
+                self.__factories[dependency] = Factory(singleton,
+                                                       dependency=factory.value)
             elif callable(factory):
-                return self.__add(dependency, Factory(singleton=singleton,
-                                                      function=factory))
+                self.__factories[dependency] = Factory(singleton, function=factory)
             else:
                 raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
-    def __add(self, dependency: Hashable, factory: Factory):
-        self.__factories[dependency] = factory
-        factory_dependency = FactoryDependency(dependency, ref(self))
-        return factory_dependency
+            return factory_dependency
 
     def debug_get_registered_factory(self, dependency: Hashable
                                      ) -> Union[Callable, Dependency]:
@@ -143,12 +159,19 @@ cdef class FactoryDependency:
         self._provider_ref = provider_ref
 
     def __repr__(self):
+        return f"FactoryDependency({self})"
+
+    def __antidote_debug_repr__(self):
+        return str(self)
+
+    def __str__(self):
         provider = self._provider_ref()
+        dependency = debug_repr(self.dependency)
         if provider is not None:
             factory = provider.debug_get_registered_factory(self.dependency)
-            return f"FactoryDependency({self.dependency!r} @ {factory!r})"
+            return f"{dependency} @ {debug_repr(factory)}"
         # Should not happen, but we'll try to provide some debug information
-        return f"FactoryDependency({self.dependency!r} @ ???)"  # pragma: no cover
+        return f"{dependency} @ ???"  # pragma: no cover
 
 @cython.final
 cdef class Factory:
@@ -167,17 +190,21 @@ cdef class Factory:
         self.dependency = dependency
 
     def __repr__(self):
-        return (f"{type(self).__name__}(singleton={self.flags == FLAG_SINGLETON}, "
+        return (f"{type(self).__name__}(singleton={self.singleton}, "
                 f"function={self.function}, "
                 f"dependency={self.dependency})")
 
+    @property
+    def singleton(self):
+        return self.flags == FLAG_SINGLETON
+
     def copy(self):
-        return Factory(self.flags == FLAG_SINGLETON,
+        return Factory(self.singleton,
                        self.function,
                        self.dependency)
 
     def copy_without_function(self):
         assert self.dependency is not None
-        return Factory(self.flags == FLAG_SINGLETON,
+        return Factory(self.singleton,
                        None,
                        self.dependency)

@@ -1,15 +1,13 @@
-from __future__ import annotations
-
 import collections.abc as c_abc
 import enum
 import inspect
-from typing import Callable, final, FrozenSet, Iterable, Optional, overload, TypeVar, \
-    Union
+from typing import Callable, FrozenSet, Iterable, Optional, overload, TypeVar, Union
 
 from .injection import DEPENDENCIES_TYPE, raw_inject, validate_injection
+from .._compatibility.typing import final
+from .._internal import API
 from .._internal.argspec import Arguments
 from .._internal.utils import Copy, FinalImmutable, raw_getattr
-from .._internal import API
 
 C = TypeVar('C', bound=type)
 _empty_set: FrozenSet[str] = frozenset()
@@ -46,7 +44,7 @@ class Wiring(FinalImmutable):
     """Method names that must be injected."""
     wire_super: FrozenSet[str]
     """
-    Method names which may be retrieved in a parent class. By default, only methods 
+    Method names which may be retrieved in a parent class. By default, only methods
     directly defined in the class itself may be injected.
     """
     ignore_missing_method: FrozenSet[str]
@@ -119,8 +117,8 @@ class Wiring(FinalImmutable):
             ignore_missing_method = frozenset(ignore_missing_method)
             if not ignore_missing_method.issubset(methods):
                 raise ValueError(
-                    f"ignore_missing_method is not a subset of methods. "
-                    f"Method names {', '.join(map(repr, ignore_missing_method - methods))} "
+                    f"ignore_missing_method is not a subset of methods. Method names "
+                    f"{', '.join(map(repr, ignore_missing_method - methods))} "
                     f"are unknown.")
 
         if isinstance(wire_super, bool):
@@ -145,7 +143,7 @@ class Wiring(FinalImmutable):
              use_type_hints: Union[bool, Iterable[str], Copy] = Copy.IDENTICAL,
              wire_super: Union[bool, Iterable[str], Copy] = Copy.IDENTICAL,
              ignore_missing_method: Union[bool, Iterable[str], Copy] = Copy.IDENTICAL
-             ) -> Wiring:
+             ) -> 'Wiring':
         """
         Returns:
             Wiring: copy of the current object with the specified attributes overriding

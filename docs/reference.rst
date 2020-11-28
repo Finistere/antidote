@@ -9,7 +9,7 @@ World
     :members: freeze, provider, get, lazy
 
 .. automodule:: antidote.world.singletons
-    :members: set, update
+    :members: add, add_all
 
 
 Dependencies
@@ -49,7 +49,7 @@ Lazy
 
 Implementation
 ^^^^^^^^^^^^^^
-.. automodule:: antidote.helpers.implements
+.. automodule:: antidote.helpers.implementation
     :members:
 
 Tags

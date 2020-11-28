@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import threading
-from typing import (Any, Dict, final, Generic, Hashable, Iterable, Iterator, List,
+from typing import (Any, Dict, Generic, Hashable, Iterable, Iterator, List,
                     Optional, Sequence, Tuple, TypeVar)
 
+from .._compatibility.typing import final
 from .._internal import API
-from .._internal.utils import FinalMeta
-from .._internal.utils.slots import SlotsRepr
 from ..core import Container, DependencyInstance, Provider
 from ..core.exceptions import AntidoteError
 from ..core.utils import DependencyDebug
@@ -112,9 +109,11 @@ T = TypeVar('T', bound=Tag)
 D = TypeVar('D')
 
 
+# TODO: Python3.6 does not support inheriting FinalMeta and GenericMeta
+#       To be added again once 3.6 support ends.
 @API.public
 @final
-class Tagged(Generic[T, D], metaclass=FinalMeta):
+class Tagged(Generic[T, D]):
     """
     Collection containing dependencies and their tags. Dependencies are lazily
     instantiated.
@@ -180,7 +179,7 @@ class TagProvider(Provider[Tag]):
     def __repr__(self):
         return f"{type(self).__name__}(tagged_dependencies={self.__tag_to_tagged})"
 
-    def clone(self, keep_singletons_cache: bool) -> TagProvider:
+    def clone(self, keep_singletons_cache: bool) -> 'TagProvider':
         p = TagProvider()
         p.__tag_to_tagged = self.__tag_to_tagged.copy()
         return p
@@ -196,12 +195,12 @@ class TagProvider(Provider[Tag]):
     def maybe_provide(self, dependency: Hashable, container: Container
                       ) -> Optional[DependencyInstance]:
         if not isinstance(dependency, Tag):
-            return
+            return None
 
         try:
             tagged = self.__tag_to_tagged[dependency.group()]
         except KeyError:
-            return
+            return None
 
         return DependencyInstance(
             Tagged(
@@ -219,7 +218,12 @@ class TagProvider(Provider[Tag]):
         for tag in tags:
             if not isinstance(tag, Tag):
                 raise TypeError(f"Expecting tag of type Tag, not {type(tag)}")
-            self._raise_if_exists_elsewhere(tag)
+            if tag not in self.__tag_to_tagged:
+                self._assert_not_duplicate(tag)
+            # else:
+            #   the tag could not be declared elsewhere if other providers also
+            #   check with _assert_not_duplicate and use the freeze lock (which is
+            #   enforced @does_not_freeze)
 
         for tag in tags:
             key = tag.group()

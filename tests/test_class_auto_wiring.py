@@ -1,12 +1,15 @@
-from __future__ import annotations
-
 import itertools
-from typing import Any, Callable, Optional, Protocol, Tuple, Type
+from typing import Any, Callable, Optional, Tuple, Type
 
 import pytest
 
-from antidote import Constants, Factory, Service, world
+from antidote import Constants, Factory, Implementation, Service, world
+from antidote._compatibility.typing import Protocol
 from antidote.core import Wiring
+
+
+class Interface:
+    pass
 
 
 class FactoryOutput:
@@ -28,13 +31,13 @@ class B:
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.new():
-        world.singletons.update({A: A(),
-                                 B: B(),
-                                 'a': object(),
-                                 'b': object(),
-                                 'x': object(),
-                                 'y': object(),
-                                 'z': object()})
+        world.singletons.add_all({A: A(),
+                                  B: B(),
+                                  'a': object(),
+                                  'b': object(),
+                                  'x': object(),
+                                  'y': object(),
+                                  'z': object()})
         yield
 
 
@@ -55,29 +58,29 @@ class DummyProtocol(Protocol):
         pass
 
 
-@pytest.fixture(
-    params=[
-        pytest.param((c, w), id=f"{c.__name__} - w")
-        for (c, w) in itertools.product([Factory,
-                                         Service,
-                                         Constants],
-                                        ['with_wiring', 'Wiring'])
-    ])
-def class_builder(request):
-    (cls, wiring_kind) = request.param
+default_wiring = object()
 
-    def builder(wiring: Wiring = None, subclass: bool = False):
-        meta_kwargs = dict(abstract=True) if subclass else dict()
 
-        class Dummy(cls, **meta_kwargs):
-            if wiring is not None:
-                if wiring_kind == 'Wiring':
-                    __antidote__ = cls.Conf(wiring=wiring)
+def builder(cls: type, wiring_kind: str, subclass: bool = False):
+    meta_kwargs = dict(abstract=True) if subclass else dict()
+    if cls is Implementation:
+        bases = (Interface, Implementation)
+    else:
+        bases = (cls,)
+
+    def build(wiring: Wiring = None):
+        class Dummy(*bases, **meta_kwargs):
+            if wiring is not default_wiring:
+                if wiring is not None:
+                    if wiring_kind == 'Wiring':
+                        __antidote__ = cls.Conf(wiring=wiring)
+                    else:
+                        __antidote__ = cls.Conf().with_wiring(**{
+                            attr: getattr(wiring, attr)
+                            for attr in Wiring.__slots__
+                        })
                 else:
-                    __antidote__ = cls.Conf().with_wiring(**{
-                        attr: getattr(wiring, attr)
-                        for attr in Wiring.__slots__
-                    })
+                    __antidote__ = cls.Conf(wiring=None)
 
             def __init__(self, a: A = None, b: B = None):
                 super().__init__()
@@ -108,13 +111,34 @@ def class_builder(request):
         else:
             return Dummy
 
-    return builder
+    return build
 
 
-@pytest.fixture
-def subclass_builder(class_builder):
-    from functools import partial
-    return partial(class_builder, subclass=True)
+@pytest.fixture(
+    params=[
+        pytest.param((c, w), id=f"{c.__name__} - w")
+        for (c, w) in itertools.product([Factory,
+                                         Service,
+                                         Constants,
+                                         Implementation],
+                                        ['with_wiring', 'Wiring'])
+    ])
+def class_builder(request):
+    (cls, wiring_kind) = request.param
+    return builder(cls, wiring_kind)
+
+
+@pytest.fixture(
+    params=[
+        pytest.param((c, w), id=f"{c.__name__} - w")
+        for (c, w) in itertools.product([Factory,
+                                         Service,
+                                         Constants],
+                                        ['with_wiring', 'Wiring'])
+    ])
+def subclass_builder(request):
+    (cls, wiring_kind) = request.param
+    return builder(cls, wiring_kind, subclass=True)
 
 
 F = Callable[[Optional[Wiring]], Type[DummyProtocol]]
@@ -122,9 +146,16 @@ F = Callable[[Optional[Wiring]], Type[DummyProtocol]]
 
 def test_auto_wiring(class_builder: F):
     """__init__ should be injected by default."""
-    dummy = class_builder(None)()
+    dummy = class_builder(default_wiring)()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
+
+
+def test_no_wiring(class_builder: F):
+    """__init__ should be injected by default."""
+    dummy = class_builder(None)()
+    assert dummy.a is None
+    assert dummy.b is None
 
 
 def test_method_wiring(class_builder: F):
@@ -418,9 +449,9 @@ def test_dependencies_seq(class_builder: F):
 
 def test_dependencies_callable(class_builder: F):
     with world.test.clone(keep_singletons=True):
-        dummy = class_builder(Wiring(methods=('method', 'method2'),
-                                     dependencies=
-                                     lambda arg: 'x' if arg.name == 'a' else 'y'))()
+        dummy = class_builder(Wiring(
+            methods=('method', 'method2'),
+            dependencies=lambda arg: 'x' if arg.name == 'a' else 'y'))()
         (a, b) = dummy.method()
         assert a is world.get('x')
         assert b is world.get('y')
@@ -430,10 +461,10 @@ def test_dependencies_callable(class_builder: F):
         assert b is world.get('y')
 
     with world.test.clone(keep_singletons=True):
-        dummy = class_builder(Wiring(methods=('method', 'method2'),
-                                     use_names=True,
-                                     dependencies=
-                                     lambda arg: 'x' if arg.name == 'a' else None))()
+        dummy = class_builder(Wiring(
+            methods=('method', 'method2'),
+            use_names=True,
+            dependencies=lambda arg: 'x' if arg.name == 'a' else None))()
         (a, b) = dummy.method()
         assert a is world.get('x')
         assert b is world.get(B)
@@ -457,7 +488,7 @@ def test_dependencies_callable(class_builder: F):
 
 def test_dependencies_str(class_builder: F):
     with world.test.clone(keep_singletons=True):
-        world.singletons.update({
+        world.singletons.add_all({
             'conf:a': object(),
             'conf:b': object()
         })

@@ -9,22 +9,20 @@ what can be done.
 Use interfaces
 --------------
 
-Antidote supports the distinction interface/implementation out of the box. The
-implementation needs to be retrievable and hence typically defined as a
-:py:class:`~.Service`.
-
+Antidote supports the distinction interface/implementation out of the box.
 When the choice of the implementation is straightforward you can simply use
-:py:func:`~.implements`: :
+:py:func:`~.Implementation`:
 
 .. testcode:: how_to_interface_implements
 
-    from antidote import Service, implements
+    from antidote import Implementation
 
     class Interface:
         pass
 
-    @implements(Interface)
-    class MyService(Service, Interface):
+    # Interface MUST always be inherited first and Implementation second
+    # Any other super class must be inherited afterwards.
+    class MyService(Interface, Implementation):
         pass
 
 .. doctest:: how_to_interface_implements
@@ -71,7 +69,7 @@ that can be provided by a factory.
 .. doctest:: how_to_interface_implementation
 
     >>> from antidote import world
-    >>> world.singletons.set('db_conn_str', 'postgres:localhost:my_project')
+    >>> world.singletons.add('db_conn_str', 'postgres:localhost:my_project')
     >>> db = world.get[Database]()
     >>> db
     <PostgresDB ...>
@@ -244,11 +242,12 @@ Antidote supports stateful factories simply by using defining a class as a facto
 .. doctest:: how_to_stateful_factory
 
     >>> from antidote import world
-    >>> world.singletons.set('id_prefix', "example")
+    >>> world.singletons.add('id_prefix', "example")
     >>> world.get[ID](ID @ IDFactory)
     ID(id='example_1')
     >>> world.get[ID](ID @ IDFactory)
     ID(id='example_2')
+
 
 In this example we choose to inject :code:`id_prefix` in the :code:`__init__()`, but we
 also could have done it in the :code:`__call__()`. Both are injected by default, but they

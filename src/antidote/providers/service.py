@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import inspect
 from typing import cast, Dict, Hashable, Optional
 
@@ -28,14 +26,14 @@ class Build(FinalImmutable, copy=False):
 
         super().__init__(dependency, kwargs, _hash)
 
+    def __hash__(self):
+        return self._hash
+
     def __repr__(self):
         return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
 
-    def debug_repr(self):
+    def __antidote_debug_repr__(self):
         return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
-
-    def __hash__(self):
-        return self._hash
 
     def __eq__(self, other):
         return (isinstance(other, Build)
@@ -59,7 +57,7 @@ class ServiceProvider(Provider):
             return dependency.dependency in self.__services
         return dependency in self.__services
 
-    def clone(self, keep_singletons_cache: bool) -> ServiceProvider:
+    def clone(self, keep_singletons_cache: bool) -> 'ServiceProvider':
         p = ServiceProvider()
         p.__services = self.__services.copy()
         return p
@@ -70,7 +68,9 @@ class ServiceProvider(Provider):
             singleton = self.__services[klass]
         except KeyError:
             return None
-        return DependencyDebug(debug_repr(build), singleton=singleton, wired=[klass])
+        return DependencyDebug(debug_repr(build),
+                               singleton=singleton,
+                               wired=[klass])
 
     def maybe_provide(self, build: Hashable, container: Container
                       ) -> Optional[DependencyInstance]:

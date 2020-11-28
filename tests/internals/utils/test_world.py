@@ -44,7 +44,7 @@ def test_provider_collection(keep_singletons_cache):
 
     provider = OverridableProviderCollection()
     container = RawContainer()
-    container.update_singletons({'xx': object()})
+    container.add_singletons({'xx': object()})
     assert provider.maybe_provide('xx', container) is None
 
     provider.set_providers([A(), B()])
