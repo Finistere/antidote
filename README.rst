@@ -22,60 +22,28 @@ Antidote
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
 Antidotes is a declarative dependency injection micro-framework for Python 3.6+
-designed for ease of use.
+designed the following ideas:
 
-
-Why Antidote ?
-==============
-
-In short antidote avoids you the hassle of instantiating and managing your
-services, configuration and so on. You declare them at their definition, and
-inject them wherever needed with simple decorators. Now when you only one
-service, typically a database, you could handle it through a module acting as a
-singleton. But as you start getting more and more services, relying on each other,
-you'll start having to maintain code for this, fixing bugs, etc... That's what
-Antidote is doing for you.
-
-While there are several dependency injection libraries, there was none which
-really convinced me. Most of them did not satisfy all of those requirements:
-
-- Use of type hints: *Be consistent* with type hints as supported by mypy and *use them*
-  to inject dependencies. Other means to inject dependencies should be possible.
-- Maturity: Support different kind of dependencies and decent tests.
-- Easy to integrate with existing code: Introducing a library in a existing application
-  shouldn't be a big bang migration whenever possible.
-- Not encourage magic: Using the arguments name *implicitly*, by default, to find
-  dependencies *is* magic. While magic can make sense in projects, it's rarely a friend
-  of maintainability.
-- Be nice with developers and their IDE: Use of type hints in the library, no
-  :code:`**kwargs` for function arguments (so auto-completion works), should be as easy as
-  possible to find definition of dependencies with a right click and "Go to definition",
-  etc... This is in the same spirit of avoiding magic.
-
-
-Features Highlight
-==================
-
-Core functionalities:
-
-- Injection of all kinds of functions (method, classmethod, bound or not, ...) through
-  type hints and optionally from argument's name and/or with explicitly specified
-  dependencies.
-- Dependency cycle detection and thread-safety
-- Cython implementation, roughly 10x faster the pure Python. With it, Antidote has a
-  limited impact on your code:
-  `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
-- Easily extendable, through dependency providers. All after-mentioned kind of dependencies
-  are implemented with it. It is designed to support custom kind of dependencies from the ground up.
-  So if you want custom magic or whatever, you can have it !
-
-Kind of dependencies:
-
-- Services and factories: provides an instance of a class.
-- Tags: Dependencies can be tagged, and as such all of them matching a specific tag can be
-  retrieved.
-- Configuration: Constants which are lazily evaluated.
-- Definition of interface and services implementing those.
+- Ease of use
+    - injection anywhere you need through a decorator `@inject` which uses type hints by default.
+    - no \*\*kwargs arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
+    - documented with a lot of examples. See `<https://antidote.readthedocs.io/en/stable>`_.
+      If you don't find what you need, open an issue ;)
+    - thread-safe
+- Flexibility
+    - A rich ecosystem of dependencies out of the box: services, configuration, factories, interface/implementation, tags.
+    - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, you can
+      add it easily.
+- Maintainability
+    - The different kind of dependencies are designed to be easy to track back. Finding where a
+      dependency is defined is easy.
+- Testability
+    - `@inject` lets you override any injections by passing explicitly the arguments.
+    - you can change any dependency locally within a context manager
+- Performance
+    - Antidote has two implementations: the pure Python one which is the reference and the
+      Cython one which is 10x times faster. With it, injection has a low impact. See
+      `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_
 
 
 Installation
@@ -95,28 +63,23 @@ How does injection looks like ? Here is a simple example:
 
 .. code-block:: python
 
-   from antidote import inject, register
+   from antidote import inject, Service
 
-   # Declare Service as a dependency that can be injected
-   @register
-   class Service:
+   # Declare NyService as a dependency that can be injected
+   class MyService(Service):
        pass
 
     # uses the type hint
     @inject
-    def f(service: Service):
+    def f(service: MyService):
         pass
 
     f()  # Service will be automatically injected if not provided
-    f(Service())  # Want to override injection for tests ? easy
+    f(MyService())  # but you can still use the function normally
 
-    # Explicitly provide the dependency
-    @inject(dependencies=dict(service=Service))
-    def f(service):
-        pass
-
-    # uses the position of the arguments
-    @inject(dependencies=(Service,))
+    # There are also different ways to declare which dependency should be used for each
+    # arguments, for example: a mapping from arguments to their dependencies
+    @inject(dependencies=dict(service=MyService))
     def f(service):
         pass
 
@@ -130,11 +93,9 @@ Want more ? Here is a more complete example with configurations, services, facto
     to retrieve the best movies. In our case the implementation uses IMDB
     to dot it.
     """
-    from functools import reduce
-
     import antidote
 
-
+    # Interface
     class MovieDB:
         def get_best_movies(self):
             pass
@@ -150,16 +111,21 @@ Want more ? Here is a more complete example with configurations, services, facto
 
 
     # Usage of constants for configuration makes refactoring easier and is
-    # less error-prone. Moreover Conf will only be instantiated if necessary.
-    class Conf(metaclass=antidote.LazyConstantsMeta):
-        # The metaclass adds custom behavior for constants (upper case attributes).
-        # Conf.IMDB_HOST is a dependency id
-        # but Conf().IMDB_HOST is the actual value making it easy to work with.
+    # less error-prone. Moreover everything is lazy, even the class instantiation.
+    # As constants are very similar, this is the only place with some magic to avoid
+    # repetition.
+    class Conf(antidote.Constants):
+        # Constants, by default public upper case attributes, have a special treatment:
+        # The class attribute Conf.IMDB_HOST is to be used as a dependency for Antidote
+        # but the instance attribute Conf().IMDB_HOST is the actual value allowing some
+        # flexibility when testing.
+
+        # 'imdb.host' is not the actual value, it will be given to get() first.
         IMDB_HOST = 'imdb.host'
         IMDB_API_KEY = 'imdb.api_key'
 
         def __init__(self):
-            # Load configuration from somewhere
+            """ Load configuration from somewhere """
             self._raw_conf = {
                 'imdb': {
                     'host': 'dummy_host',
@@ -168,14 +134,15 @@ Want more ? Here is a more complete example with configurations, services, facto
             }
 
         def get(self, key):
-            """ 'a.b' -> self._raw_conf['a']['b'] """
+            """ Used to actually retrieve constants.
+            self.get('a.b') <=> self._raw_conf['a']['b']
+            """
+            from functools import reduce
             return reduce(dict.get, key.split('.'), self._raw_conf)
 
 
     # Declare a factory which should be called to instantiate Database.
     # The order of the arguments is here used to map the dependencies.
-    # A dictionary mapping arguments name to their dependency could also
-    # have been used.
     @antidote.factory(dependencies=(Conf.IMDB_HOST, Conf.IMDB_API_KEY))
     def imdb_factory(host: str, api_key: str) -> ImdbAPI:
         """
@@ -186,14 +153,13 @@ Want more ? Here is a more complete example with configurations, services, facto
 
     # implements specifies that IMDBMovieDB should be used whenever MovieDB is requested.
     @antidote.implements(MovieDB)
-    # Registering IMDBMovieDB makes it available in Antidote. (required for @implements)
-    @antidote.register
-    class IMDBMovieDB(MovieDB):
-        # Here the dependencies of __init__() are injected by default as @register treats
-        # it as the factory of the service.
-        # Note that IMDBMovieDB does not build itself ImdbAPI, which makes testing
-        # easier.
-        def __init__(self, imdb_api: ImdbAPI):
+    # Declaring IMDBMovieDB as a Service which makes it available for Antidote
+    class IMDBMovieDB(MovieDB, antidote.Service):
+        # Services have __init__() automatically injected (auto-wiring).
+        # Note here a custom syntax for the ImdbAPI provided by imdb_factory. This has
+        # the nice advantage of enforcing imdb_factory to declared before and it is now
+        # easy to track back what's going on !
+        def __init__(self, imdb_api: ImdbAPI @ imdb_factory):
             self._imdb_api = imdb_api
 
         def get_best_movies(self):
@@ -210,10 +176,7 @@ Want more ? Here is a more complete example with configurations, services, facto
     # Can be called without arguments now.
     f()
 
-    assert antidote.world.get(MovieDB) is antidote.world.get(IMDBMovieDB)
-
-Looks good, no ? Now you should probably asking yourself, but how do I test all of
-that ???
+That looks all good, but what about testability ?
 
 .. code-block:: python
 
@@ -226,36 +189,32 @@ that ???
         api_key=conf._raw_conf['imdb']['api_key'],
     )))
 
-    # Or you can create a new world for your tests
-    with world.test.clone():
+    # Or modify dependencies within a test:
+    with antidote.world.test.clone(overridable=True):
+        antidote.world.singletons.add_all({
+            Conf.IMDB_HOST: 'other host'
+        })
         f()
 
-        @register
-        class DummyService
 
-
-Interested ? Check out the documentation or try it directly ! There are still features
-left such as tags or custom kinds of dependencies.
+Hooked ? Check out the documentation ! There are still a lot of features not presented here !
 
 
 Cython
 ======
 
 The cython implementation is roughly 10x faster than the Python one and has strictly the
-same API than the pure Python implementation. If you encounter any inconsistencies, please
-open an issue !
+same API than the pure Python implementation. This also implies that the Cython implementation
+is _not_ part of the public API, meaning you cannot rely on it in your own Cython code.
 
-This also implies that the Cython implementation is _not_ part of the public API, meaning
-you cannot rely on it in your own Cython code.
+If you encounter any inconsistencies, please open an issue !
+You use the pure python with the following:
 
-Documentation
-=============
+.. code-block:: bash
 
-The documentation is available at
-`<https://antidote.readthedocs.io/en/stable>`_.
+    pip install --no-binary antidote
 
-Injection benchmark is available at
-`injection benchmarks <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
+Note that it will nonetheless try to compile with Cython if available.
 
 
 Bug Reports / Feature Requests
@@ -280,21 +239,10 @@ How to Contribute
 
 *Be sure to merge the latest from "upstream" before making a pull request!*
 
-
-Pull requests **should avoid** to:
-
-- make it harder to integrate Antidote into existing code.
-- break backwards compatibility.
-- create features difficult to understand for an IDE, such as converting a
-  string *dependency id* to a non singleton object somehow. An user may do
-  this, but antidote shouldn't.
+If you have any issue during development or just want some feedback, don't hesitate
+to open a pull request and ask for help !
 
 Pull requests **will not** be accepted if:
 
-- classes and non trivial functions have not docstrings documenting their
-  behavior.
-- tests do not cover all of code changes.
-
-
-*Do not hesitate to send a pull request, even if incomplete, to get early
-feedback ! :)*
+- classes and non trivial functions have not docstrings documenting their behavior.
+- tests do not cover all of code changes (100% coverage).

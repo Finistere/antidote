@@ -8,8 +8,9 @@ from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider,
                                       FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox )
-from ..exceptions import  DuplicateDependencyError
+from .._internal.utils import debug_repr
 # @formatter:on
+from ..core.utils import DependencyDebug
 
 cdef extern from "Python.h":
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
@@ -37,11 +38,15 @@ cdef class Build:
     def __repr__(self):
         return f"{type(self).__name__}(dependency={self.dependency}, kwargs={self.kwargs})"
 
+    def __antidote_debug_repr__(self):
+        return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
+
     def __eq__(self, other):
-        return isinstance(other, Build) \
-               and (self.dependency is other.dependency
-                    or self.dependency == other.dependency) \
-               and self.kwargs == other.kwargs
+        return (isinstance(other, Build)
+                and self._hash == other._hash
+                and (self.dependency is other.dependency
+                     or self.dependency == other.dependency)
+                and self.kwargs == other.kwargs)  # noqa
 
 @cython.final
 cdef class ServiceProvider(FastProvider):
@@ -60,7 +65,7 @@ cdef class ServiceProvider(FastProvider):
     def __repr__(self):
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
 
-    def has(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: Hashable) -> bool:
         if isinstance(dependency, Build):
             return dependency.dependency in self.__services
         return dependency in self.__services
@@ -69,6 +74,16 @@ cdef class ServiceProvider(FastProvider):
         p = ServiceProvider()
         p.__services = self.__services.copy()
         return p
+
+    def maybe_debug(self, build: Hashable):
+        klass = build.dependency if isinstance(build, Build) else build
+        try:
+            singleton = self.__services[klass]
+        except KeyError:
+            return None
+        return DependencyDebug(debug_repr(build),
+                               singleton=singleton,
+                               wired=[klass])
 
     cdef fast_provide(self,
                       PyObject*dependency,
@@ -106,7 +121,5 @@ cdef class ServiceProvider(FastProvider):
         if not isinstance(singleton, bool):
             raise TypeError(f"singleton must be a boolean, not {singleton!r}")
         with self._ensure_not_frozen():
-            self._raise_if_exists_elsewhere(klass)
-            if klass in self.__services:
-                raise DuplicateDependencyError(f"Service {klass} already declared.")
+            self._raise_if_exists(klass)
             self.__services[klass] = singleton

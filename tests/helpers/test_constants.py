@@ -105,11 +105,6 @@ def test_invalid_lazy_method():
         class Config(Constants):
             A = 'a'
 
-    with pytest.raises(TypeError):
-        class Config(Constants):
-            A = 'a'
-            get = 1
-
 
 def test_private_attribute():
     class Config(Constants):

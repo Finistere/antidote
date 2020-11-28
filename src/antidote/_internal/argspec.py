@@ -9,7 +9,8 @@ class Argument:
         self.type_hint = type_hint
 
     def __repr__(self):
-        common = f'{self.name}:{getattr(self.type_hint, "__name__", repr(self.type_hint))}'
+        type_hint = getattr(self.type_hint, "__name__", repr(self.type_hint))
+        common = f'{self.name}:{type_hint}'
         return common + " = ?" if self.has_default else common
 
 

@@ -1,13 +1,11 @@
 """
 Utilities used by world, mostly for syntactic sugar.
 """
-from __future__ import annotations
-
-from typing import Any, Callable, cast, final, Hashable, List, Optional, Type, \
-    TypeVar
+from typing import Any, Callable, cast, Hashable, List, Optional, Type, TypeVar
 
 from .meta import FinalMeta
 from .. import API
+from ..._compatibility.typing import final
 from ...core.container import (Container, DependencyInstance, RawContainer, RawProvider)
 from ...core.utils import Dependency
 
@@ -54,11 +52,11 @@ def new_container():
                               IndirectProvider, FactoryProvider)
 
     container = RawContainer()
-    container.register_provider(FactoryProvider)
-    container.register_provider(ServiceProvider)
-    container.register_provider(LazyProvider)
-    container.register_provider(IndirectProvider)
-    container.register_provider(TagProvider)
+    container.add_provider(FactoryProvider)
+    container.add_provider(ServiceProvider)
+    container.add_provider(LazyProvider)
+    container.add_provider(IndirectProvider)
+    container.add_provider(TagProvider)
 
     return container
 
@@ -87,6 +85,6 @@ class OverridableProviderCollection(RawProvider, metaclass=FinalMeta):
     def set_providers(self, providers: List[RawProvider]):
         self.__providers = providers
 
-    def clone(self, keep_singletons_cache: bool) -> OverridableProviderCollection:
+    def clone(self, keep_singletons_cache: bool) -> 'OverridableProviderCollection':
         return OverridableProviderCollection([p.clone(keep_singletons_cache)
                                               for p in self.__providers])

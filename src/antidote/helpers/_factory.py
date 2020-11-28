@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import functools
 import inspect
 from typing import Any, Callable, Dict, get_type_hints
@@ -40,7 +38,7 @@ class FactoryMeta(AbstractMeta):
         return cls.__factory_dependency
 
     @API.public
-    def with_kwargs(cls, **kwargs) -> PreBuild:
+    def with_kwargs(cls, **kwargs) -> 'PreBuild':
         """
         Creates a new dependency based on the factory which will have the keyword
         arguments provided. If the factory provides a singleton and identical kwargs are

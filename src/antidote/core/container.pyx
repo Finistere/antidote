@@ -1,6 +1,6 @@
 import threading
 from contextlib import contextmanager
-from typing import Any, Dict, Hashable, List, Mapping, Type
+from typing import Any, Dict, Hashable, List, Mapping, Optional, Type
 from weakref import ref
 
 # @formatter:off
@@ -14,6 +14,7 @@ from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError, FrozenContainerError)
 
 # @formatter:on
+from .utils import DependencyDebug
 
 
 cdef extern from "Python.h":
@@ -66,7 +67,10 @@ cdef class RawProvider:
     def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
         raise NotImplementedError()  # pragma: no cover
 
-    def has(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: Hashable) -> bool:
+        raise NotImplementedError()  # pragma: no cover
+
+    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
         raise NotImplementedError()  # pragma: no cover
 
     cpdef DependencyInstance maybe_provide(self,
@@ -86,7 +90,7 @@ cdef class RawProvider:
         if dependency_instance is not None:
             result.flags = FLAG_DEFINED | (
                 FLAG_SINGLETON if dependency_instance.singleton else 0)
-            (<PyObjectBox> result.box).obj = dependency_instance.instance
+            (<PyObjectBox> result.box).obj = dependency_instance.value
 
     @property
     def is_registered(self):
@@ -102,11 +106,15 @@ cdef class RawProvider:
             with container.ensure_not_frozen():
                 yield
 
-    def _raise_if_exists_elsewhere(self, dependency):
+    def _raise_if_exists(self, dependency):
         if self._container_ref is not None:
             container: RawContainer = self._container_ref()
             assert container is not None, "Associated container does not exist anymore."
-            container.raise_if_exists_elsewhere(dependency, self)
+            container.raise_if_exists(dependency)
+        else:
+            if self.exists(dependency):
+                raise DuplicateDependencyError(
+                    f"{dependency} has already been registered in {type(self)}")
 
 cdef class FastProvider(RawProvider):
     cpdef DependencyInstance maybe_provide(self,
@@ -182,6 +190,10 @@ cdef class RawContainer(Container):
     def __repr__(self):
         return f"{type(self).__name__}(providers={', '.join(map(str, self.__providers))})"
 
+    @property
+    def providers(self):
+        return self.__providers.copy()
+
     @contextmanager
     def ensure_not_frozen(self):
         with self.__freeze_lock:
@@ -189,27 +201,52 @@ cdef class RawContainer(Container):
                 raise FrozenContainerError()
             yield
 
-    @property
-    def providers(self):
-        return [p for p in self.__providers]
-
     def freeze(self):
         with self.__freeze_lock:
             self.__frozen = True
 
-    def raise_if_exists_elsewhere(self,
-                                     dependency: Hashable,
-                                     current_provider: RawProvider):
-        with self.ensure_not_frozen():
+    def add_provider(self, provider_cls: Type[RawProvider]):
+        cdef:
+            RawProvider provider
+
+        if not isinstance(provider_cls, type) \
+                or not issubclass(provider_cls, RawProvider):
+            raise TypeError(
+                f"provider must be a Provider, not a {provider_cls}")
+
+        with self.ensure_not_frozen(), self.__singleton_lock:
+            if any(provider_cls == type(p) for p in self.__providers):
+                raise ValueError(f"Provider {provider_cls} already exists")
+
+            provider = provider_cls()
+            provider._container_ref = ref(self)
+            self.__providers.append(provider)
+            self.__singletons[provider_cls] = provider
+            self.__singletons_clock += 1
+
+    def add_singletons(self, dependencies: Mapping):
+        with self.ensure_not_frozen(), self.__singleton_lock:
+            for k, v in dependencies.items():
+                self.raise_if_exists(k)
+            self.__singletons.update(dependencies)
+            self.__singletons_clock += 1
+
+    def raise_if_exists(self, dependency: Hashable):
+        with self.__freeze_lock:
             if dependency in self.__singletons:
                 raise DuplicateDependencyError(
                     f"{dependency!r} has already been defined as a singleton pointing "
                     f"to {self.__singletons[dependency]}")
 
             for provider in self.__providers:
-                if provider is not current_provider and provider.has(dependency):
-                    raise DuplicateDependencyError(f"{dependency!r} has already been "
-                                                   f"declared in {provider}")
+                if provider.exists(dependency):
+                    debug = provider.maybe_debug(dependency)
+                    message = f"{dependency!r} has already been declared " \
+                              f"in {type(provider)}"
+                    if debug is None:
+                        raise DuplicateDependencyError(message)
+                    else:
+                        raise DuplicateDependencyError(message + f"\n{debug.info}")
 
     def clone(self,
               *,
@@ -235,38 +272,9 @@ cdef class RawContainer(Container):
                     c.__singletons[type(p)] = clone
             else:
                 for p in self.__providers:
-                    c.register_provider(type(p))
+                    c.add_provider(type(p))
 
         return c
-
-    def register_provider(self, provider_cls: Type[RawProvider]):
-        cdef:
-            RawProvider provider
-
-        if not isinstance(provider_cls, type) \
-                or not issubclass(provider_cls, RawProvider):
-            raise TypeError(
-                f"provider must be a Provider, not a {provider_cls}")
-
-        with self.ensure_not_frozen(), self.__singleton_lock:
-            if any(provider_cls == type(p) for p in self.__providers):
-                raise ValueError(f"Provider {provider_cls} already exists")
-
-            provider = provider_cls()
-            provider._container_ref = ref(self)
-            self.__providers.append(provider)
-            self.__singletons[provider_cls] = provider
-            self.__singletons_clock += 1
-
-    def update_singletons(self, dependencies: Mapping):
-        with self.ensure_not_frozen(), self.__singleton_lock:
-            for k, v in dependencies.items():
-                if k in self.__singletons:
-                    raise DuplicateDependencyError(
-                        f"Trying to overwrite singleton {k!r} with {v!r}, but it already "
-                        f"exists with the value {self.__singletons[k]!r}")
-            self.__singletons.update(dependencies)
-            self.__singletons_clock += 1
 
     def provide(self, dependency: Hashable):
         cdef:

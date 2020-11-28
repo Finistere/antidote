@@ -1,14 +1,14 @@
 import builtins
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, Dict, final, Hashable, Iterable, Mapping,
-                    Optional,  overload,  Sequence, Set, TypeVar, Union)
+from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping,
+                    Optional, overload, Sequence, Set, TypeVar, Union)
 
+from .._compatibility.typing import final
 from .._internal import API
 from .._internal.argspec import Arguments
 from .._internal.utils import FinalImmutable
-from .._internal.wrapper import (build_wrapper, InjectedWrapper,
-                                 Injection, InjectionBlueprint)
+from .._internal.wrapper import (build_wrapper, Injection, InjectionBlueprint, is_wrapper)
 
 F = TypeVar('F', Callable, staticmethod, classmethod)
 
@@ -195,6 +195,8 @@ def raw_inject(func=None,
                use_names: Union[bool, Iterable[str]] = None,
                use_type_hints: Union[bool, Iterable[str]] = None):
     def _inject(wrapped):
+        nonlocal arguments
+
         if inspect.isclass(wrapped):
             # @inject on a class would not return a class which is
             # counter-intuitive.
@@ -204,10 +206,9 @@ def raw_inject(func=None,
             raise TypeError(f"wrapped object {wrapped} is not callable "
                             f"neither a class/static method")
 
-        nonlocal arguments
         # if the function has already its dependencies injected, no need to do
         # it twice.
-        if isinstance(wrapped, InjectedWrapper):
+        if is_wrapper(wrapped):
             return wrapped
 
         if arguments is None:
@@ -222,7 +223,7 @@ def raw_inject(func=None,
 
         # If nothing can be injected, just return the existing function without
         # any overhead.
-        if all(injection.dependency is None for injection in blueprint.injections):
+        if blueprint.is_empty():
             return wrapped
 
         return build_wrapper(blueprint=blueprint, wrapped=wrapped)
@@ -239,7 +240,7 @@ def _build_injection_blueprint(arguments: Arguments,
     """
     Construct a InjectionBlueprint with all the necessary information about
     the arguments for dependency injection. Storing it avoids significant
-    execution overhead.
+    execution overhead./
 
     Used by inject()
     """
@@ -330,7 +331,7 @@ def _build_type_hints(arguments: Arguments,
         if getattr(type_hint, '__origin__', None) is Union \
                 and len(type_hint.__args__) == 2:
             a = type_hint.__args__
-            if a[1] is type(None):
+            if isinstance(None, a[1]):
                 type_hints[arg_name] = a[0]
 
     # Any object from builtins or typing do not carry any useful information

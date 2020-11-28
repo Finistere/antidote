@@ -19,7 +19,7 @@ First of all, let's start with a quick example:
     class MyService:
         pass
 
-    world.singletons.set(MyService, MyService())
+    world.singletons.add(MyService, MyService())
 
     @inject
     def f(service: MyService):
@@ -68,7 +68,7 @@ You surely noticed the declaration of :code:`MyService` with:
 
 .. code-block:: python
 
-    world.singletons.set(MyService, MyService())
+    world.singletons.add(MyService, MyService())
 
 This declares a new singleton, :code:`MyService` (the class) pointing to a instance of
 itself. A singleton is a dependency that never changes, it always returns the same object.
@@ -79,17 +79,19 @@ It also means that you cannot redefine an existing singleton:
 
     >>> from antidote.exceptions import DuplicateDependencyError
     >>> try:
-    ...     world.singletons.set(MyService, MyService())
+    ...     world.singletons.add(MyService, MyService())
     ... except DuplicateDependencyError:
     ...     print("Error raised !")
     Error raised !
 
 If you need to declare multiple of them :py:mod:`.world` provides a shortcut
-:py:func:`.world.singletons.update` :
+:py:func:`.world.singletons.add_all` :
 
 .. doctest:: tutorial_overview
 
-    >>> world.singletons.update({'favorite number': 11})
+    >>> world.singletons.add_all({'favorite number': 11})
+
+    And on top of that, you can retrieve dependencies directly with :py
 
 And on top of that, you can retrieve dependencies directly with :py:mod:`.world.get`:
 
@@ -223,13 +225,6 @@ arguments are specified.
     .. doctest:: tutorial_services_alternative
 
         >>> from antidote import service, world
-                >>> @service  # backup method if cannot inherit Service for whatever reason
-                ... class Database:
-                ...     pass
-                >>> world.get[Database]()
-                <Database ...>
-
-            However Antidote won't be able to provide all the features of :py
         >>> @service  # backup method if cannot inherit Service for whatever reason
         ... class Database:
         ...     pass
@@ -273,13 +268,16 @@ a lot more. Here are a few examples:
 .. doctest:: tutorial_injection
 
     >>> from antidote import world
-    >>> world.singletons.update({'country': 'FR', 'app:name': "Hello World !", 'timezone': 'UTC'})
+    >>> world.singletons.add_all({'country': 'FR',
+    ...                           'app:name': "Hello World !",
+    ...                           'timezone': 'UTC'})
     >>> get_country()
     'FR'
     >>> get_app_name()
     'Hello World !'
     >>> get_timezone()
     'UTC'
+
 
 An important thing to keep in mind is that Antidote has a specific priority:
 
@@ -314,7 +312,7 @@ is defined in the class :py:class`.Wiring` which you can customize easily:
 .. doctest:: tutorial_wiring
 
     >>> from antidote import world
-    >>> world.singletons.set('host_name', 'localhost')
+    >>> world.singletons.add('host_name', 'localhost')
     >>> world.get[CustomWiring]().get()
     'localhost'
 
@@ -370,7 +368,7 @@ for all methods that have be to wired:
 
 .. doctest:: tutorial_wiring
 
-    >>> world.singletons.set('different_host', 'different')
+    >>> world.singletons.add('different_host', 'different')
     >>> x = world.get[MultiWiring]()
     >>> x.host == x.get()
     True
@@ -494,11 +492,12 @@ dependencies which you don't own, like library classes.
 .. doctest:: tutorial_factory
 
     >>> from antidote import world
-    >>> world.singletons.set('url', 'localhost:5432')
+    >>> world.singletons.add('url', 'localhost:5432')
     >>> f()
     <Database ...>
     >>> world.get[Database](Database @ default_db)
     <Database ...>
+
 
 The return type MUST always be specified, this is how Antidote knows which dependency you
 intend to provide. You're probably wondering about the custom syntax of
@@ -609,11 +608,12 @@ default they are NOT kept, but you can change that behavior:
     ...     assert world.get[MyService]() is my_service
     >>> # Be careful with it ! any changes on the singletons themselves WILL be propagated
     ... # back
-    ... world.singletons.set("languages", ["en"])
+    ... world.singletons.add("languages", ["en"])
     >>> with world.test.clone(keep_singletons=True):
     ...     world.get[list]("languages").append("fr")
     >>> world.get("languages")
     ['en', 'fr']
+
 
 While Antidote does not accept support overriding dependencies, you may do it in tests:
 
@@ -621,13 +621,13 @@ While Antidote does not accept support overriding dependencies, you may do it in
 
     >>> with world.test.clone():
     ...     # This fails because MyService already exists as a dependency
-    ...     world.singletons.set(MyService, MyService())
+    ...     world.singletons.add(MyService, MyService())
     Traceback (most recent call last):
       File "<stdin>", line 1, in ?
     DuplicateDependencyError
     >>> with world.test.clone(overridable=True):
     ...     test_service = MyService()
-    ...     world.singletons.set(MyService, test_service)
+    ...     world.singletons.add(MyService, test_service)
     ...     assert world.get[MyService]() is test_service
 
 

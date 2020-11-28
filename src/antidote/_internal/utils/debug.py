@@ -6,17 +6,20 @@ from typing import Deque, Hashable, List, Optional, Tuple, TYPE_CHECKING
 from .immutable import Immutable
 from .. import API
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ...core.container import RawContainer
 
 
 @API.private
 def debug_repr(x):
+    from ..wrapper import is_wrapper
     try:
-        return x.debug_repr()
+        return x.__antidote_debug_repr__()
     except AttributeError:
         pass
-    if isinstance(x, type) and inspect.isclass(x) or callable(x):
+    if (isinstance(x, type) and inspect.isclass(x)) \
+            or inspect.isfunction(x) \
+            or is_wrapper(x):
         module = (x.__module__ + ".") if x.__module__ != "__main__" else ""
         return f"{module}{x.__qualname__}"
     return repr(x)
@@ -36,8 +39,7 @@ class Symbol:
     default = "─"
     function = "f"
     method = "m"
-    cycle = "/!\\"
-    not_found = "404"
+    error = "/!\\"
     lazy = "l"
 
 
@@ -68,69 +70,50 @@ class DependencyTask(Task):
 
 @API.private
 class InjectionTask(Task):
-    __slots__ = ('name', 'symbol', 'dependencies')
+    __slots__ = ('name', 'symbol', 'injections')
     symbol: str
     name: str
-    dependencies: List[Hashable]
+    injections: List[Hashable]
 
 
 @API.private
 def tree_debug_info(container: 'RawContainer',
                     origin,
-                    max_depth: int = 1 << 32,
-                    helper_txt: bool = True) -> str:
+                    max_depth: int = 1 << 32) -> str:
     from ...core.wiring import WithWiringMixin
     from ...core.utils import DependencyDebug
-    from ...providers.lazy import Lazy
 
+    max_depth += 1  # To match root = depth 0
     providers = container.providers
-    fake_root = DebugTreeNode(symbol='', info='')
+    root = DebugTreeNode(symbol='', info=debug_repr(origin))
+    original_root = root
     tasks: Deque[Tuple[DebugTreeNode, set, Task]] = deque(
-        [(fake_root, set(), DependencyTask(origin))])
+        [(root, set(), DependencyTask(origin))])
 
     def maybe_debug(dependency) -> Optional[DependencyDebug]:
         for p in providers:
             debug = p.maybe_debug(dependency)
             if debug is not None:
                 return debug
+        return None
 
-    def add_injections_tasks(parent: DebugTreeNode, parent_dependencies: set, dependency):
+    def add_root_injections(parent: DebugTreeNode, parent_dependencies: set, dependency):
         if isinstance(dependency, type) and inspect.isclass(dependency):
             cls = dependency
             conf = getattr(cls, '__antidote__', None)
-            if conf is not None and isinstance(conf, WithWiringMixin):
-                if conf.wiring.methods == {'__init__'}:
-                    for d in get_injections(getattr(cls, '__init__')):
-                        tasks.append(
-                            (parent, parent_dependencies,
-                             DependencyTask(d)))
-                else:
-                    for m in sorted(conf.wiring.methods):
+            if conf is not None \
+                    and isinstance(conf, WithWiringMixin) \
+                    and conf.wiring is not None:
+                for m in sorted(conf.wiring.methods):
+                    if m != '__init__':
                         tasks.append((parent, parent_dependencies, InjectionTask(
                             symbol=Symbol.method,
                             name=m,
-                            dependencies=get_injections(getattr(cls, m)),
+                            injections=get_injections(getattr(cls, m)),
                         )))
-            for name in (n for n in dir(cls) if not n.startswith('__')):
-                attr = getattr(cls, name)
-                if isinstance(attr, Lazy):
-                    debug = maybe_debug(attr)
-                    assert debug is not None
-                    import itertools
-                    tasks.append((parent, parent_dependencies, InjectionTask(
-                        symbol=Symbol.lazy,
-                        name=f"{name} <{debug.info}>",
-                        dependencies=set(itertools.chain(debug.dependencies, *(
-                            get_injections(w) for w in debug.wired
-                        ))) - {cls}
-                    )))
         elif callable(dependency):
-            f = dependency
-            tasks.append((parent, parent_dependencies, InjectionTask(
-                symbol=Symbol.function,
-                name=debug_repr(f),
-                dependencies=get_injections(f),
-            )))
+            for d in get_injections(dependency):
+                tasks.append((parent, parent_dependencies, DependencyTask(d)))
 
     while tasks:
         parent, parent_dependencies, task = tasks.pop()
@@ -138,17 +121,18 @@ def tree_debug_info(container: 'RawContainer',
             dependency = task.dependency
             debug = maybe_debug(dependency)
             if debug is None:
-                if parent_dependencies:
-                    parent.children.append(
-                        DebugTreeNode(debug_repr(dependency), symbol=Symbol.not_found))
+                if dependency is origin:
+                    add_root_injections(parent, parent_dependencies, dependency)
                 else:
-                    add_injections_tasks(parent, parent_dependencies, dependency)
+                    parent.children.append(
+                        DebugTreeNode(f"Unknown: {debug_repr(dependency)}",
+                                      symbol=Symbol.error))
 
                 continue
 
             if dependency in parent_dependencies:
-                parent.children.append(DebugTreeNode(f"Cyclic dependency on {debug.info}",
-                                                     symbol=Symbol.cycle))
+                parent.children.append(DebugTreeNode(f"Cyclic dependency: {debug.info}",
+                                                     symbol=Symbol.error))
                 continue
 
             tree_node = DebugTreeNode(debug.info, singleton=debug.singleton)
@@ -157,26 +141,39 @@ def tree_debug_info(container: 'RawContainer',
             parent = tree_node
             parent_dependencies = parent_dependencies | {dependency}
 
+            if dependency is origin:
+                root = tree_node  # previous root is redundant
+                add_root_injections(parent, parent_dependencies, dependency)
+
             if len(parent_dependencies) < max_depth:
                 for d in debug.dependencies:
                     tasks.append((parent, parent_dependencies,
                                   DependencyTask(d)))
                 for w in debug.wired:
-                    add_injections_tasks(parent, parent_dependencies, w)
-        elif isinstance(task, InjectionTask) and task.dependencies:
+                    if isinstance(w, type) and inspect.isclass(w):
+                        for d in get_injections(getattr(w, '__init__')):
+                            tasks.append((parent, parent_dependencies,
+                                          DependencyTask(d)))
+                    else:
+                        tasks.append((parent, parent_dependencies, InjectionTask(
+                            symbol=Symbol.function,
+                            name=debug_repr(w),
+                            injections=get_injections(w),
+                        )))
+        elif isinstance(task, InjectionTask) and task.injections:
             tree_node = DebugTreeNode(task.name, symbol=task.symbol)
             parent.children.append(tree_node)
             parent = tree_node
-            if len(parent_dependencies) < max_depth:
-                for d in task.dependencies:
-                    tasks.append((parent, parent_dependencies, DependencyTask(d)))
+            for d in task.injections:
+                tasks.append((parent, parent_dependencies, DependencyTask(d)))
 
-    if not fake_root.children:
+    if not root.children and original_root is root:
         return f"{origin!r} is neither a dependency nor is anything injected."
 
-    root = fake_root.children[0]
-    output = [root.info]
-    nodes: Deque[(str, bool, DebugTreeNode)] = deque([
+    output = [
+        ("* " if not root.singleton else "") + root.info
+    ]
+    nodes: Deque[Tuple[str, bool, DebugTreeNode]] = deque([
         ("", i == 0, child)
         for i, child in enumerate(root.children[::-1])
     ])
@@ -188,17 +185,16 @@ def tree_debug_info(container: 'RawContainer',
         txt += (" *" if not node.singleton else " ") + first_line
         new_prefix = prefix + ("    " if last else "│   ")
         if rest:
-            txt += "\n" + textwrap.indent(rest, new_prefix)
+            txt += "\n" + textwrap.indent(rest[0], new_prefix)
         output.append(txt)
 
         for i, child in enumerate(node.children[::-1]):
             nodes.append((new_prefix, i == 0, child))
 
-    if helper_txt:
-        output.append(textwrap.dedent(f"""
-        * = not singleton
-        ─{Symbol.function} = function
-        ─{Symbol.method} = method
-        ─{Symbol.lazy} = lazy
-        """))
+    output.append(textwrap.dedent(f"""
+    * = not singleton
+    ─{Symbol.function} = function
+    ─{Symbol.method} = method
+    ─{Symbol.lazy} = lazy
+    """))
     return "\n".join(output)

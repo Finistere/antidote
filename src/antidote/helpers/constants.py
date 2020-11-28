@@ -1,6 +1,7 @@
-from typing import Callable, final, Optional, Union
+from typing import Callable, Optional, Union
 
 from ._constants import ConstantsMeta, MakeConst
+from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import Copy, FinalImmutable
 from ..core.wiring import Wiring, WithWiringMixin
@@ -81,7 +82,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         >>> Config().CONF_A
         'Hello A'
 
-    """
+    """  # noqa: E501
 
     @final
     class Conf(FinalImmutable, WithWiringMixin):
@@ -100,7 +101,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                      public: bool = False,
                      is_const: Optional[Callable[[str], bool]] =
                      lambda name: name.isupper() and not name.startswith('_'),
-                     wiring: Optional[Wiring] = Wiring(methods=['__init__'],
+                     wiring: Optional[Wiring] = Wiring(methods=['__init__', 'get'],
                                                        ignore_missing_method=[
                                                            '__init__'])):
             """

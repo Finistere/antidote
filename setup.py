@@ -9,7 +9,9 @@ with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
 
 ext_modules = []
-requires = []
+requires = [
+    'typing_extensions; python_version < "3.8.0"'
+]
 setup_requires = ['setuptools_scm']
 
 try:
@@ -85,6 +87,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],

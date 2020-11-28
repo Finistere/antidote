@@ -1,6 +1,9 @@
+import functools
 import inspect
 from typing import Callable, Iterable, TypeVar, Union
 
+from ._implementation import ImplementationMeta
+from .service import Service
 from .._internal import API
 from ..core import inject
 from ..core.injection import DEPENDENCIES_TYPE
@@ -12,22 +15,18 @@ F = TypeVar('F', bound=Callable[[], type])
 C = TypeVar('C', bound=type)
 
 
-@API.public
-def implements(interface: type) -> Callable[[C], C]:
+class Implementation(Service, metaclass=ImplementationMeta, abstract=True):
     """
-    Class decorator declaring the underlying class as the implementation
-    to be used by Antidote when requested the specified interface.
+    Essentially syntactic sugar to define easily a single implementation for an interface.
+    The class will automatically be defined as a :py:class:`~.Service`, hence it has the
+    same features.
 
-    The underlying class needs to be retrievable from Antidote, typically by
-    defining it as a service:
+    .. doctest:: helpers_implementation_class
 
-    .. doctest:: helpers_implements
-
-        >>> from antidote import world, implements, Service
+        >>> from antidote import world, Implementation
         >>> class Interface:
         ...     pass
-        >>> @implements(Interface)
-        ... class Impl(Interface, Service):
+        >>> class Impl(Interface, Implementation):
         ...     pass
         >>> world.get(Interface)
         <Impl ...>
@@ -36,28 +35,7 @@ def implements(interface: type) -> Callable[[C], C]:
 
         If you need to chose between multiple implementations use
         :py:func:`.implementation`.
-
-    Args:
-        interface: Interface implemented by the decorated class.
-
-    Returns:
-        The decorated class, unmodified.
     """
-    if not inspect.isclass(interface):
-        raise TypeError(f"interface must be a class, not a {type(interface)}")
-
-    @inject
-    def register_implementation(obj, indirect_provider: IndirectProvider):
-        if inspect.isclass(obj):
-            if not issubclass(obj, interface):
-                raise TypeError(f"{obj} does not implement {interface}.")
-
-            indirect_provider.register_static(interface, obj)
-        else:
-            raise TypeError(f"implements must be applied on a class, not a {type(obj)}")
-        return obj
-
-    return register_implementation
 
 
 @API.experimental
@@ -95,12 +73,12 @@ def implementation(interface: type,
         ...         return A  # One could also use A.with_kwargs(...)
         ...     else:
         ...         return B @ build_b  # or B @ build_b.with_kwargs(...)
-        >>> world.singletons.set('choice', 'b')
+        >>> world.singletons.add('choice', 'b')
         >>> world.get(Interface)
         <B ...>
         >>> # Changing choice doesn't matter anymore as the implementation is permanent.
         ... with world.test.clone(overridable=True):
-        ...     world.singletons.set('choice', 'a')
+        ...     world.singletons.add('choice', 'a')
         ...     world.get(Interface)
         <B ...>
 
@@ -132,6 +110,7 @@ def implementation(interface: type,
                               use_names=use_names,
                               use_type_hints=use_type_hints)
 
+            @functools.wraps(func)
             def linker():
                 dependency = func()
                 cls = dependency

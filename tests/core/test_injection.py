@@ -54,7 +54,7 @@ def test_simple(injector):
 
     with world.test.empty():
         s = Service()
-        world.singletons.set(Service, s)
+        world.singletons.add(Service, s)
         assert s == f()
 
 
@@ -130,7 +130,7 @@ def test_without_type_hints(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.update({
+        world.singletons.add_all({
             Service: Service(),
             AnotherService: AnotherService(),
             'first': object(),
@@ -253,12 +253,12 @@ def test_with_type_hints(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.update({Service: Service(),
-                                 AnotherService: AnotherService(),
-                                 'first': object(),
-                                 'second': object(),
-                                 'prefix:first': object(),
-                                 'prefix:second': object()})
+        world.singletons.add_all({Service: Service(),
+                                  AnotherService: AnotherService(),
+                                  'first': object(),
+                                  'second': object(),
+                                  'prefix:first': object(),
+                                  'prefix:second': object()})
 
         expected = tuple((
             world.get(d) if d is not None else default
@@ -289,7 +289,7 @@ def test_ignored_type_hints(injector, type_hint):
         pass
 
     with world.test.empty():
-        world.singletons.set(type_hint, object())
+        world.singletons.add(type_hint, object())
         with pytest.raises(TypeError):
             f()
 
@@ -305,7 +305,7 @@ def test_arguments():
         return kwargs
 
     with world.test.empty():
-        world.singletons.update(dict(a=12, b=24))
+        world.singletons.add_all(dict(a=12, b=24))
         assert dict(a=12, b=24) == g()
 
 
@@ -331,8 +331,8 @@ def test_none_optional_support(injector):
 
     with world.test.empty():
         s = Service()
-        world.singletons.set(Dummy, Dummy())
-        world.singletons.set(Service, s)
+        world.singletons.add(Dummy, Dummy())
+        world.singletons.add(Service, s)
         assert s == f()
         assert s == g()
         assert s == h()
@@ -340,7 +340,7 @@ def test_none_optional_support(injector):
             f2()
 
     with world.test.empty():
-        world.singletons.set(Dummy, Dummy())
+        world.singletons.add(Dummy, Dummy())
         assert f() is None
         assert g() is None
         assert h() is None

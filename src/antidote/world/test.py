@@ -23,12 +23,12 @@ def clone(*, keep_singletons: bool = False, overridable: bool = False):
 
         >>> from antidote import world, service
         >>> from antidote.exceptions import DependencyNotFoundError
-        >>> world.singletons.set("test", 1)
+        >>> world.singletons.add("test", 1)
         >>> class Service:
         ...     pass
         >>> with world.test.clone():
         ...     assert world.get("test") == 1
-        ...     world.singletons.set("test", 10)
+        ...     world.singletons.add("test", 10)
         ...     assert world.get("test") == 10
         ...     service(Service)
         ...     assert isinstance(world.get(Service), Service)
@@ -47,7 +47,7 @@ def clone(*, keep_singletons: bool = False, overridable: bool = False):
             new_container = c.clone(keep_singletons=keep_singletons,
                                     clone_providers=False)
             # Old providers will be accessible from ProviderCollection
-            new_container.register_provider(OverridableProviderCollection)
+            new_container.add_provider(OverridableProviderCollection)
             provider_collection = cast(OverridableProviderCollection,
                                        new_container.get(OverridableProviderCollection))
             # Do not keep cached singletons

@@ -38,14 +38,9 @@ def indirect(empty_world):
     return world.get(IndirectProvider)
 
 
-def test_none():
-    indirect = IndirectProvider()
-    assert world.test.maybe_provide_from(indirect, Interface) is None
-
-
 def test_simple():
     indirect = IndirectProvider()
-    world.singletons.set(A, A())
+    world.singletons.add(A, A())
     indirect.register_static(Interface, A)
 
     assert world.test.maybe_provide_from(indirect, Interface).value is world.get(A)
@@ -55,7 +50,7 @@ def test_simple():
 
 def test_static_exists():
     indirect = IndirectProvider()
-    world.singletons.set(A, A())
+    world.singletons.add(A, A())
     indirect.register_static(Interface, A)
 
     assert not indirect.exists(object())
@@ -65,7 +60,7 @@ def test_static_exists():
 
 def test_link_exists():
     indirect = IndirectProvider()
-    world.singletons.set(A, A())
+    world.singletons.add(A, A())
     indirect.register_link(Interface, lambda: A)
 
     assert not indirect.exists(object())
@@ -101,13 +96,13 @@ def test_link_permanent_singleton(service: ServiceProvider,
     instance = world.test.maybe_provide_from(indirect, Interface).value
     assert isinstance(instance, A)
     assert (instance is world.get(A)) is singleton
-    assert world.test.maybe_provide_from(indirect, Interface).singleton is (
-                singleton and permanent)
+    assert world.test.maybe_provide_from(indirect,
+                                         Interface).singleton is (singleton and permanent)
 
     choice = 'b'
     assert implementation() == B
-    assert world.test.maybe_provide_from(indirect, Interface).singleton is (
-                singleton and permanent)
+    assert world.test.maybe_provide_from(indirect,
+                                         Interface).singleton is (singleton and permanent)
     instance = world.test.maybe_provide_from(indirect, Interface).value
     if permanent:
         assert isinstance(instance, A)
@@ -133,7 +128,7 @@ def test_link_permanent_singleton(service: ServiceProvider,
 def test_copy(indirect: IndirectProvider,
               keep_singletons_cache: bool,
               register: Callable[[IndirectProvider, type, type], object]):
-    world.singletons.update({A: A()})
+    world.singletons.add_all({A: A()})
 
     register(indirect, Interface, A)
     a = world.get(Interface)
@@ -145,7 +140,7 @@ def test_copy(indirect: IndirectProvider,
             assert world.test.maybe_provide_from(clone, Interface).value is a
     else:
         with world.test.empty():
-            world.singletons.update({A: A(), B: B()})
+            world.singletons.add_all({A: A(), B: B()})
             clone = indirect.clone(False)
             instance = world.test.maybe_provide_from(clone, Interface).value
             assert instance is world.get(A)
@@ -163,7 +158,7 @@ def test_copy(indirect: IndirectProvider,
     class A3(Interface3):
         pass
 
-    world.singletons.update({A2: A2(), A3: A3()})
+    world.singletons.add_all({A2: A2(), A3: A3()})
     # Original does not modify clone
     register(indirect, Interface2, A2)
     assert world.get(Interface2) is world.get(A2)
@@ -207,3 +202,23 @@ def test_register_duplicate_check(indirect: IndirectProvider):
 
     with pytest.raises(DuplicateDependencyError):
         indirect.register_link(Interface, lambda: A)
+
+
+def test_invalid_link():
+    indirect = IndirectProvider()
+    indirect.register_static('A', 'B')
+
+    with pytest.raises(DependencyNotFoundError, match=".*B.*"):
+        world.test.maybe_provide_from(indirect, 'A')
+
+    for permanent in [True, False]:
+        origin = f'origin-{permanent}'
+        target = f'target-{permanent}'
+
+        def impl():
+            return target
+
+        indirect.register_link(origin, linker=impl, permanent=permanent)
+
+        with pytest.raises(DependencyNotFoundError, match=".*" + target + ".*"):
+            world.test.maybe_provide_from(indirect, origin)

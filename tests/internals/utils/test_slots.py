@@ -1,7 +1,6 @@
 import pytest
 
-from antidote._internal.utils import (FinalImmutable, Immutable,
-                                      SlotRecord)
+from antidote._internal.utils import SlotRecord
 from antidote._internal.utils.slots import SlotsRepr
 
 

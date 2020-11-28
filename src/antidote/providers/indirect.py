@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 from typing import Callable, Dict, Hashable, Optional
 
 from .._internal import API
-from .._internal.utils import FinalImmutable, debug_repr
+from .._internal.utils import debug_repr, FinalImmutable
 from ..core import Container, DependencyInstance, Provider
 from ..core.utils import DependencyDebug
 
@@ -19,7 +17,7 @@ class IndirectProvider(Provider):
         return f"{type(self).__name__}(links={self.__links}, " \
                f"static_links={self.__static_links})"
 
-    def clone(self, keep_singletons_cache: bool) -> IndirectProvider:
+    def clone(self, keep_singletons_cache: bool) -> 'IndirectProvider':
         p = IndirectProvider()
         p.__links = self.__links.copy()
         p.__static_links = self.__static_links.copy()
@@ -37,17 +35,23 @@ class IndirectProvider(Provider):
             repr_d = debug_repr(dependency)
             linker = link.get_linker()
             repr_linker = debug_repr(linker)
-            if link.permanent and dependency in self.__static_links:
-                target = self.__static_links[dependency]
-                return DependencyDebug(
-                    f"Permanent link: {repr_d} -> {debug_repr(target)} "
-                    f"defined by {repr_linker}",
-                    singleton=True,
-                    dependencies=[target])
+            if link.permanent:
+                if dependency in self.__static_links:
+                    target = self.__static_links[dependency]
+                    return DependencyDebug(
+                        f"Permanent link: {repr_d} -> {debug_repr(target)} "
+                        f"defined by {repr_linker}",
+                        singleton=True,
+                        dependencies=[target])
+                else:
+                    return DependencyDebug(
+                        f"Permanent link: {repr_d} -> ??? "
+                        f"defined by {repr_linker}",
+                        singleton=True)
             else:
                 return DependencyDebug(
                     f"Dynamic link: {repr_d} -> ??? defined by {repr_linker}",
-                    singleton=link.permanent,
+                    singleton=False,
                     wired=[linker])
 
         try:

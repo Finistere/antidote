@@ -90,7 +90,7 @@ def test_world_safety():
     def worker():
         with world.test.empty():
             tid = (threading.get_ident(), random.random())
-            world.singletons.set("x", tid)
+            world.singletons.add("x", tid)
             random_delay()
             singletons.append((tid, tid == world.get("x")))
 

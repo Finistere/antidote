@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Hashable, List, Optional, Union
+from typing import Any, Hashable, List, Optional
 
 from .._internal import API
 

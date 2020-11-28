@@ -15,22 +15,7 @@ class SlotsRepr:
 
 
 @API.private
-class SlotsCopy:
-    __slots__ = ()
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def copy(self, **kwargs):
-        return type(self)(**{
-            name: kwargs.get(name, getattr(self, name))
-            for cls in type(self).__mro__
-            for name in getattr(cls, '__slots__', [])
-        })
-
-
-@API.private
-class SlotRecord(SlotsRepr, SlotsCopy):
+class SlotRecord(SlotsRepr):
     """
     Used in similar fashion to data classes. Used whenever mutability is still needed
     """
