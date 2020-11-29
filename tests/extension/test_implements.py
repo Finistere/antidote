@@ -2,7 +2,7 @@ import pytest
 
 from antidote import factory, implementation, Implementation, Service, world
 from antidote.exceptions import DependencyInstantiationError
-from antidote.providers import FactoryProvider, IndirectProvider, ServiceProvider
+from antidote._extension.providers import FactoryProvider, IndirectProvider, ServiceProvider
 
 
 @pytest.fixture(autouse=True)

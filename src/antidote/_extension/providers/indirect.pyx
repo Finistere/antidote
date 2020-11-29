@@ -6,9 +6,9 @@ from cpython.object cimport PyObject, PyObject_CallObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider,
                                       FLAG_SINGLETON, RawContainer)
-from .._internal.utils import debug_repr
-from ..core.exceptions import DependencyNotFoundError
-from ..core.utils import DependencyDebug
+from ..._internal.utils import debug_repr
+from ...core.exceptions import DependencyNotFoundError
+from ...core.utils import DependencyDebug
 
 # @formatter:on
 

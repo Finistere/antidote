@@ -2,14 +2,12 @@ import functools
 import inspect
 from typing import Callable, Iterable, TypeVar, Union
 
-from ._implementation import ImplementationMeta
+from ._extension.internal.implementation import ImplementationMeta
 from .service import Service
-from .._internal import API
-from ..core import inject
-from ..core.injection import DEPENDENCIES_TYPE
-from ..providers import IndirectProvider
-from ..providers.factory import FactoryDependency
-from ..providers.service import Build
+from ._internal import API
+from .core import inject
+from .core.injection import DEPENDENCIES_TYPE
+from ._extension.providers import IndirectProvider
 
 F = TypeVar('F', bound=Callable[[], type])
 C = TypeVar('C', bound=type)
@@ -103,6 +101,9 @@ def implementation(interface: type,
 
     @inject
     def register(func, indirect_provider: IndirectProvider):
+        from ._extension.providers.factory import FactoryDependency
+        from ._extension.providers.service import Build
+
         if inspect.isfunction(func):
             if auto_wire:
                 func = inject(func,

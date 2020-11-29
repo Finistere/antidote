@@ -3,14 +3,14 @@ import inspect
 from typing import (Any, Callable, get_type_hints, Iterable, Optional,
                     overload, Tuple, TypeVar, Union)
 
-from ._factory import FactoryMeta, LambdaFactory, PreBuild
-from .._compatibility.typing import final, Protocol
-from .._internal import API
-from .._internal.utils import Copy, FinalImmutable
-from ..core.injection import DEPENDENCIES_TYPE, inject
-from ..core.wiring import Wiring, WithWiringMixin
-from ..providers.factory import FactoryProvider
-from ..providers.tag import Tag, TagProvider
+from ._extension.internal.factory import FactoryMeta, LambdaFactory, PreBuild
+from ._compatibility.typing import final, Protocol
+from ._internal import API
+from ._internal.utils import Copy, FinalImmutable
+from .core.injection import DEPENDENCIES_TYPE, inject
+from .core.wiring import Wiring, WithWiringMixin
+from ._extension.providers import FactoryProvider
+from ._extension.providers import Tag, TagProvider
 
 F = TypeVar('F', bound=Callable[..., Any])
 

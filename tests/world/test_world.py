@@ -7,7 +7,7 @@ from antidote.core import Container, Dependency, DependencyInstance, Provider, \
     StatelessProvider
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.exceptions import DependencyNotFoundError, FrozenWorldError
-from antidote.providers import ServiceProvider
+from antidote._extension.providers import ServiceProvider
 
 
 @pytest.fixture(autouse=True)

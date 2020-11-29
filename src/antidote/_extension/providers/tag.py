@@ -2,11 +2,11 @@ import threading
 from typing import (Any, Dict, Generic, Hashable, Iterable, Iterator, List,
                     Optional, Sequence, Tuple, TypeVar)
 
-from .._compatibility.typing import final
-from .._internal import API
-from ..core import Container, DependencyInstance, Provider
-from ..core.exceptions import AntidoteError
-from ..core.utils import DependencyDebug
+from ..._compatibility.typing import final
+from ..._internal import API
+from ...core import Container, DependencyInstance, Provider
+from ...core.exceptions import AntidoteError
+from ...core.utils import DependencyDebug
 
 
 @API.public

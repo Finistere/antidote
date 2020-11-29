@@ -1,12 +1,12 @@
 import weakref
 from typing import Callable, Union
 
-from .._compatibility.typing import final
-from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable
-from ..core import Container, DependencyInstance
-from ..core.utils import DependencyDebug
-from ..providers.lazy import Lazy
+from ._compatibility.typing import final
+from ._internal import API
+from ._internal.utils import debug_repr, FinalImmutable
+from .core import Container, DependencyInstance
+from .core.utils import DependencyDebug
+from ._extension.providers import Lazy
 
 
 @API.public
@@ -106,7 +106,7 @@ class LazyMethodCall(FinalImmutable, copy=False):
 
     .. note::
 
-        Check out :py:class:`~.helpers.constants.Constants` for simple way
+        Check out :py:class:`~.extension.constants.Constants` for simple way
         to declare multiple constants.
 
     """

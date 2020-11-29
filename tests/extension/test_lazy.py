@@ -1,8 +1,7 @@
 import pytest
 
-from antidote import Service, world
-from antidote.helpers.lazy import LazyCall, LazyMethodCall
-from antidote.providers import LazyProvider, ServiceProvider
+from antidote import Service, world, LazyCall, LazyMethodCall
+from antidote._extension.providers import LazyProvider, ServiceProvider
 
 
 @pytest.fixture(autouse=True)

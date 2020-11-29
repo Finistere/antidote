@@ -5,7 +5,7 @@ import pytest
 from antidote import world
 from antidote.core.exceptions import DependencyNotFoundError
 from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
-from antidote.providers import IndirectProvider, ServiceProvider
+from antidote._extension.providers import IndirectProvider, ServiceProvider
 
 
 class Interface:

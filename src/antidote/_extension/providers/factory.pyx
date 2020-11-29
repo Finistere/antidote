@@ -8,11 +8,11 @@ from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider, FLAG_DEFINED,
                                       FLAG_SINGLETON, PyObjectBox, RawContainer)
-from antidote.providers.service cimport Build
-from .._internal.utils import debug_repr
-from ..core import Dependency
-from ..core.utils import DependencyDebug
-from ..exceptions import DependencyNotFoundError
+from antidote._extension.providers.service cimport Build
+from ..._internal.utils import debug_repr
+from ...core import Dependency
+from ...core.utils import DependencyDebug
+from ...core.exceptions import DependencyNotFoundError
 # @formatter:on
 
 cdef extern from "Python.h":

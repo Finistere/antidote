@@ -1,10 +1,10 @@
 import pytest
 
 from antidote import world
-from antidote.core.exceptions import DependencyNotFoundError
-from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
-from antidote.providers.factory import FactoryProvider
-from antidote.providers.service import Build
+from antidote._extension.providers import FactoryProvider
+from antidote._extension.providers.service import Build
+from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
+                                 FrozenWorldError)
 
 
 @pytest.fixture()

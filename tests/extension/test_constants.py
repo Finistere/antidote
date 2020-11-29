@@ -2,7 +2,7 @@ import pytest
 
 from antidote import const, Constants, Wiring, world
 from antidote.exceptions import DependencyNotFoundError
-from antidote.providers import LazyProvider, ServiceProvider
+from antidote._extension.providers import LazyProvider, ServiceProvider
 
 
 class A:
