@@ -3,7 +3,7 @@ from typing import Any, Type
 import pytest
 
 from antidote import Factory, factory, Tag, Wiring, world
-from antidote.providers import FactoryProvider, LazyProvider, ServiceProvider, TagProvider
+from antidote._extension.providers import FactoryProvider, LazyProvider, ServiceProvider, TagProvider
 
 
 @pytest.fixture(autouse=True)

@@ -1,9 +1,9 @@
 from typing import Callable, Dict, Hashable, Optional
 
-from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable
-from ..core import Container, DependencyInstance, Provider
-from ..core.utils import DependencyDebug
+from ..._internal import API
+from ..._internal.utils import debug_repr, FinalImmutable
+from ...core import Container, DependencyInstance, Provider
+from ...core.utils import DependencyDebug
 
 
 @API.private

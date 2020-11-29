@@ -3,7 +3,7 @@ from .core.exceptions import (AntidoteError, DependencyCycleError,
                               DependencyInstantiationError, DependencyNotFoundError,
                               DuplicateDependencyError, FrozenContainerError,
                               FrozenWorldError)
-from .providers.tag import DuplicateTagError
+from ._extension.providers import DuplicateTagError
 
 
 @API.public

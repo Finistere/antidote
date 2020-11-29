@@ -2,10 +2,10 @@ import weakref
 from typing import Any, Callable, Dict, Hashable, Optional, Union
 
 from .service import Build
-from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable, SlotRecord
-from ..core import Container, Dependency, DependencyInstance, Provider
-from ..core.utils import DependencyDebug
+from ..._internal import API
+from ..._internal.utils import debug_repr, FinalImmutable, SlotRecord
+from ...core import Container, Dependency, DependencyInstance, Provider
+from ...core.utils import DependencyDebug
 
 
 @API.private

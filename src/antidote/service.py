@@ -1,13 +1,13 @@
 import collections.abc as c_abc
 from typing import Callable, Iterable, Optional, overload, Tuple, TypeVar, Union
 
-from ._service import ServiceMeta
-from .._compatibility.typing import final
-from .._internal import API
-from .._internal.utils import Copy, FinalImmutable
-from ..core.exceptions import DuplicateDependencyError
-from ..core.wiring import AutoWire, Wiring, WithWiringMixin
-from ..providers.tag import Tag
+from ._extension.internal.service import ServiceMeta
+from ._compatibility.typing import final
+from ._internal import API
+from ._internal.utils import Copy, FinalImmutable
+from .core.exceptions import DuplicateDependencyError
+from .core.wiring import AutoWire, Wiring, WithWiringMixin
+from ._extension.providers import Tag
 
 C = TypeVar('C', bound=type)
 
@@ -166,8 +166,8 @@ def service(klass=None,
     .. note::
 
         If your wish to declare to register an external class to Antidote, prefer using
-        a factory with either :py:class:`~.helpers.factory.Factory` or
-        :py:func:`~.helpers.factory.factory`.
+        a factory with either :py:class:`~.extension.factory.Factory` or
+        :py:func:`~.extension.factory.factory`.
 
     Args:
         klass: Class to register as a dependency. It will be instantiated  only when
@@ -181,7 +181,7 @@ def service(klass=None,
     """
 
     def reg(cls):
-        from ._service import _configure_service
+        from antidote._extension.internal.service import _configure_service
 
         if issubclass(cls, Service):
             raise DuplicateDependencyError(f"{cls} is already defined as a dependency "

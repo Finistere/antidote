@@ -1,11 +1,9 @@
 from typing import Any, Callable, cast, Type, TypeVar
 
-from .lazy import LazyCall
-from .service import service
-from .._compatibility.typing import final
-from .._internal import API
-from .._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
-from ..providers.lazy import FastLazyConst
+from ..._extension.providers.lazy import FastLazyConst
+from ..._compatibility.typing import final
+from ..._internal import API
+from ..._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
 
 T = TypeVar('T')
 
@@ -42,7 +40,9 @@ class ConstantsMeta(AbstractMeta):
 
 @API.private
 def _configure_constants(cls):
-    from .constants import Constants
+    from ...constants import Constants
+    from ...lazy import LazyCall
+    from ...service import service
 
     conf = getattr(cls, '__antidote__', None)
     if not isinstance(conf, Constants.Conf):

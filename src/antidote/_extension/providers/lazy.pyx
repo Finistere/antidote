@@ -6,9 +6,9 @@ from cpython.object cimport PyObject, PyObject_CallMethodObjArgs
 from antidote.core.container cimport (DependencyInstance, FastProvider, RawContainer,
                                       DependencyResult,  Container, PyObjectBox,
                                       FLAG_SINGLETON, FLAG_DEFINED)
-from .._internal.utils import debug_repr
-from ..core.utils import DependencyDebug
-from ..exceptions import DependencyNotFoundError
+from ..._internal.utils import debug_repr
+from ...core.utils import DependencyDebug
+from ...core.exceptions import DependencyNotFoundError
 
 # @formatter:on
 
@@ -46,7 +46,7 @@ cdef class FastLazyConst(Lazy):
         self.value = value
 
     def debug_info(self) -> DependencyDebug:
-        from ..helpers.lazy import LazyCall
+        from ...lazy import LazyCall
         if isinstance(self.dependency, LazyCall):
             cls = self.dependency.func
         else:

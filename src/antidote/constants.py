@@ -1,10 +1,10 @@
 from typing import Callable, Optional, Union
 
-from ._constants import ConstantsMeta, MakeConst
-from .._compatibility.typing import final
-from .._internal import API
-from .._internal.utils import Copy, FinalImmutable
-from ..core.wiring import Wiring, WithWiringMixin
+from ._extension.internal.constants import ConstantsMeta, MakeConst
+from ._compatibility.typing import final
+from ._internal import API
+from ._internal.utils import Copy, FinalImmutable
+from .core.wiring import Wiring, WithWiringMixin
 
 const = MakeConst()
 

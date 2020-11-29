@@ -48,8 +48,8 @@ class WorldLazy(metaclass=FinalMeta):
 def new_container():
     """ default new container in Antidote """
 
-    from ...providers import (LazyProvider, ServiceProvider, TagProvider,
-                              IndirectProvider, FactoryProvider)
+    from ..._extension.providers import (LazyProvider, ServiceProvider, TagProvider,
+                                         IndirectProvider, FactoryProvider)
 
     container = RawContainer()
     container.add_provider(FactoryProvider)

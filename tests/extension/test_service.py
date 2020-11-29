@@ -4,7 +4,7 @@ import pytest
 
 from antidote import service, Service, Tag, Wiring, world
 from antidote.exceptions import DuplicateDependencyError
-from antidote.providers import ServiceProvider
+from antidote._extension.providers import ServiceProvider
 
 
 @contextmanager
