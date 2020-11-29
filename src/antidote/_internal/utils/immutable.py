@@ -2,6 +2,7 @@ import inspect
 
 from .slots import SlotsRepr
 from .. import API
+from ..._compatibility.typing import GenericMeta
 
 
 @API.private
@@ -33,6 +34,12 @@ class ImmutableMeta(type):
         # TODO: Type ignore necessary when type checking with Python 3.6
         #       To be removed ASAP.
         return super().__new__(mcls, name, bases, namespace, **kwargs)  # type: ignore
+
+
+# TODO: remove after Python 3.6 support drops.
+@API.private
+class ImmutableGenericMeta(ImmutableMeta, GenericMeta):
+    pass
 
 
 @API.private

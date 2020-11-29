@@ -1,7 +1,7 @@
 import pytest
 
-from antidote.core.container import DependencyInstance, RawContainer, \
-    RawProvider
+from antidote.core.container import (DependencyInstance, RawContainer,
+                                     RawProvider)
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.core.utils import DependencyDebug
 from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,

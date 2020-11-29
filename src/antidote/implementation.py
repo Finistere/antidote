@@ -2,17 +2,18 @@ import functools
 import inspect
 from typing import Callable, Iterable, TypeVar, Union
 
-from ._extension.internal.implementation import ImplementationMeta
-from .service import Service
+from ._extension.implementation import ImplementationMeta
+from ._extension.providers import IndirectProvider
 from ._internal import API
 from .core import inject
 from .core.injection import DEPENDENCIES_TYPE
-from ._extension.providers import IndirectProvider
+from .service import Service
 
 F = TypeVar('F', bound=Callable[[], type])
 C = TypeVar('C', bound=type)
 
 
+@API.experimental
 class Implementation(Service, metaclass=ImplementationMeta, abstract=True):
     """
     Essentially syntactic sugar to define easily a single implementation for an interface.
@@ -36,7 +37,7 @@ class Implementation(Service, metaclass=ImplementationMeta, abstract=True):
     """
 
 
-@API.experimental
+@API.public
 def implementation(interface: type,
                    *,
                    permanent: bool = True,

@@ -1,6 +1,9 @@
 from typing import Union
 
+from .._internal import API
 
+
+@API.public
 def info(dependency, *, recursive: Union[bool, int] = True) -> str:
     from .._internal.state import get_container
     from .._internal.utils.debug import tree_debug_info

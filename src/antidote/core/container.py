@@ -74,6 +74,10 @@ class Container:
         raise NotImplementedError()  # pragma: no cover
 
 
+###########
+# PRIVATE #
+###########
+
 @API.private
 class RawProvider:
     """

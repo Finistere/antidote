@@ -12,7 +12,6 @@ from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 from antidote._internal.stack cimport DependencyStack
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError, FrozenContainerError)
-
 # @formatter:on
 from .utils import DependencyDebug
 

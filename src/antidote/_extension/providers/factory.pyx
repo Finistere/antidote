@@ -6,13 +6,13 @@ cimport cython
 from cpython.object cimport PyObject_Call, PyObject_CallObject
 from cpython.ref cimport PyObject
 
+from antidote._extension.providers.service cimport Build
 from antidote.core.container cimport (DependencyResult, FastProvider, FLAG_DEFINED,
                                       FLAG_SINGLETON, PyObjectBox, RawContainer)
-from antidote._extension.providers.service cimport Build
 from ..._internal.utils import debug_repr
 from ...core import Dependency
-from ...core.utils import DependencyDebug
 from ...core.exceptions import DependencyNotFoundError
+from ...core.utils import DependencyDebug
 # @formatter:on
 
 cdef extern from "Python.h":

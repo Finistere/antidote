@@ -1,13 +1,13 @@
 import collections.abc as c_abc
 from typing import Callable, Iterable, Optional, overload, Tuple, TypeVar, Union
 
-from ._extension.internal.service import ServiceMeta
 from ._compatibility.typing import final
+from ._extension.service import ServiceMeta
+from ._extension.providers import Tag
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from .core.exceptions import DuplicateDependencyError
 from .core.wiring import AutoWire, Wiring, WithWiringMixin
-from ._extension.providers import Tag
 
 C = TypeVar('C', bound=type)
 
@@ -181,7 +181,7 @@ def service(klass=None,
     """
 
     def reg(cls):
-        from antidote._extension.internal.service import _configure_service
+        from ._extension.service import _configure_service
 
         if issubclass(cls, Service):
             raise DuplicateDependencyError(f"{cls} is already defined as a dependency "

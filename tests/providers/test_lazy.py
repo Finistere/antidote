@@ -1,8 +1,8 @@
 import pytest
 
 from antidote import world
-from antidote.core import Container, DependencyInstance
 from antidote._extension.providers.lazy import FastLazyConst, Lazy, LazyProvider
+from antidote.core import Container, DependencyInstance
 
 
 @pytest.fixture()

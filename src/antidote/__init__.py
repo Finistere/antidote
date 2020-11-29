@@ -18,16 +18,6 @@ def __version__() -> str:  # pragma: no cover
         return ''
 
 
-__all__ = ['factory',
-           'Implementation',
-           'inject',
-           'is_compiled',
-           'LazyCall',
-           'LazyMethodCall',
-           'service',
-           'Tag',
-           'Constants',
-           'Service',
-           'Tagged',
-           'wire',
-           'world']
+__all__ = ['world', 'const', 'Constants', 'inject', 'wire', 'Wiring', 'factory',
+           'Factory', 'Implementation', 'implementation', 'LazyCall', 'LazyMethodCall',
+           'service', 'Service', 'Tag', 'Tagged', 'is_compiled']

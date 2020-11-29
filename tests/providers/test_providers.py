@@ -1,9 +1,10 @@
 import pytest
 
 from antidote import world
-from antidote.core.container import RawProvider
-from antidote._extension.providers import (FactoryProvider, IndirectProvider, LazyProvider,
+from antidote._extension.providers import (FactoryProvider, IndirectProvider,
+                                           LazyProvider,
                                            ServiceProvider, TagProvider)
+from antidote.core.container import RawProvider
 
 
 @pytest.fixture(params=[
