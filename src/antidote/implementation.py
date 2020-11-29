@@ -2,9 +2,9 @@ import functools
 import inspect
 from typing import Callable, Iterable, TypeVar, Union
 
-from ._extension.implementation import ImplementationMeta
-from ._extension.providers import IndirectProvider
+from ._implementation import ImplementationMeta
 from ._internal import API
+from ._providers import IndirectProvider
 from .core import inject
 from .core.injection import DEPENDENCIES_TYPE
 from .service import Service
@@ -102,8 +102,8 @@ def implementation(interface: type,
 
     @inject
     def register(func, indirect_provider: IndirectProvider):
-        from ._extension.providers.factory import FactoryDependency
-        from ._extension.providers.service import Build
+        from ._providers.factory import FactoryDependency
+        from ._providers.service import Build
 
         if inspect.isfunction(func):
             if auto_wire:

@@ -3,7 +3,7 @@ from typing import Callable
 import pytest
 
 from antidote import world
-from antidote._extension.providers import IndirectProvider, ServiceProvider
+from antidote._providers import IndirectProvider, ServiceProvider
 from antidote.core.exceptions import DependencyNotFoundError
 from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
 

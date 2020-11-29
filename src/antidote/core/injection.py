@@ -1,4 +1,3 @@
-import builtins
 import collections.abc as c_abc
 from typing import (Any, Callable, Hashable, Iterable, Mapping,
                     Optional, overload, Sequence, TypeVar, Union)
@@ -9,8 +8,6 @@ from .._internal import API
 from .._internal.utils import FinalImmutable
 
 F = TypeVar('F', Callable, staticmethod, classmethod)
-
-_BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 
 
 @API.public

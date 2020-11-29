@@ -1,7 +1,7 @@
 import pytest
 
 from antidote import world
-from antidote._extension.providers import Tag, Tagged, TagProvider
+from antidote._providers import Tag, Tagged, TagProvider
 from antidote.core import DependencyInstance
 from antidote.exceptions import (DependencyNotFoundError, DuplicateTagError,
                                  FrozenWorldError)

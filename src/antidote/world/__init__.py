@@ -4,15 +4,15 @@ from typing import Type, TypeVar
 from . import debug, singletons, test
 from .._internal import API, state
 from .._internal.utils.world import WorldGet, WorldLazy
-# Creates the global container
 from ..core.container import RawProvider
 
+# Creates the global container
 state.init()
 
 P = TypeVar('P', bound=Type[RawProvider])
 T = TypeVar('T')
 
-# public
+# API.public
 get = WorldGet()
 """
 Used to retrieve a dependency from Antidote. A type hint can be provided and the result
@@ -38,6 +38,8 @@ Returns:
     <Dummy ...>
 
 """
+
+# API.public
 lazy = WorldLazy()
 """
 Used to retrieves lazily a dependency. A type hint can be provided and the retrieved

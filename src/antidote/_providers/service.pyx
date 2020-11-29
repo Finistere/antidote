@@ -8,9 +8,9 @@ from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider,
                                       FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox )
-from ..._internal.utils import debug_repr
+from .._internal.utils import debug_repr
 # @formatter:on
-from ...core.utils import DependencyDebug
+from ..core.utils import DependencyDebug
 
 cdef extern from "Python.h":
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1

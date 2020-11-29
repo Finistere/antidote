@@ -1,9 +1,9 @@
 import pytest
 
 from antidote import world
-from antidote._extension.providers import (FactoryProvider, IndirectProvider,
-                                           LazyProvider,
-                                           ServiceProvider, TagProvider)
+from antidote._providers import (FactoryProvider, IndirectProvider,
+                                 LazyProvider,
+                                 ServiceProvider, TagProvider)
 from antidote.core.container import RawProvider
 
 

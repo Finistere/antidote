@@ -2,11 +2,11 @@ import threading
 from typing import (Any, Dict, Generic, Hashable, Iterable, Iterator, List,
                     Optional, Sequence, Tuple, TypeVar)
 
-from ..._compatibility.typing import final
-from ..._internal import API
-from ...core import Container, DependencyInstance, Provider
-from ...core.exceptions import AntidoteError
-from ...core.utils import DependencyDebug
+from .._compatibility.typing import final
+from .._internal import API
+from ..core import Container, DependencyInstance, Provider
+from ..core.exceptions import AntidoteError
+from ..core.utils import DependencyDebug
 
 
 @API.public
@@ -221,7 +221,7 @@ class TagProvider(Provider[Tag]):
             if tag not in self.__tag_to_tagged:
                 self._assert_not_duplicate(tag)
             # else:
-            #   the tag could not be declared elsewhere if other providers also
+            #   the tag could not be declared elsewhere if other _providers also
             #   check with _assert_not_duplicate and use the freeze lock (which is
             #   enforced @does_not_freeze)
 

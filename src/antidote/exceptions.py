@@ -1,4 +1,4 @@
-from ._extension.providers import DuplicateTagError
+from ._providers import DuplicateTagError
 from .core.exceptions import (AntidoteError, DependencyCycleError,
                               DependencyInstantiationError, DependencyNotFoundError,
                               DuplicateDependencyError, FrozenContainerError,

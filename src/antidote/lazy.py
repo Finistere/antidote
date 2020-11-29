@@ -2,11 +2,11 @@ import weakref
 from typing import Callable, Union
 
 from ._compatibility.typing import final
-from ._extension.lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
-                              LazyMethodCallWithArgsKwargs)
-from ._extension.providers import Lazy
 from ._internal import API
 from ._internal.utils import debug_repr, FinalImmutable
+from ._lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
+                    LazyMethodCallWithArgsKwargs)
+from ._providers import Lazy
 from .core import Container, DependencyInstance
 from .core.utils import DependencyDebug
 

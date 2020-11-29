@@ -1,10 +1,10 @@
 from typing import Hashable
 
-from ..._compatibility.typing import final
-from ..._internal import API
-from ..._internal.utils import debug_repr, FinalImmutable
-from ...core import Container, DependencyInstance, StatelessProvider
-from ...core.utils import DependencyDebug
+from .._compatibility.typing import final
+from .._internal import API
+from .._internal.utils import debug_repr, FinalImmutable
+from ..core import Container, DependencyInstance, StatelessProvider
+from ..core.utils import DependencyDebug
 
 
 @API.private
@@ -25,7 +25,7 @@ class FastLazyConst(FinalImmutable, Lazy):
     value: object
 
     def debug_info(self) -> DependencyDebug:
-        from ...lazy import LazyCall
+        from ..lazy import LazyCall
         if isinstance(self.dependency, LazyCall):
             cls: object = self.dependency.func
         else:

@@ -6,7 +6,7 @@ from typing import Deque, Hashable, List, Optional, Tuple, TYPE_CHECKING
 from .immutable import Immutable
 from .. import API
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from ...core.container import RawContainer
 
 
