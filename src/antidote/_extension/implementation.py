@@ -1,7 +1,7 @@
 from .service import ServiceMeta
-from ..._extension.providers import IndirectProvider
-from ..._internal import API
-from ...core import inject
+from .._extension.providers import IndirectProvider
+from .._internal import API
+from ..core import inject
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 

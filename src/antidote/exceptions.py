@@ -1,18 +1,8 @@
-from ._internal import API
+from ._extension.providers import DuplicateTagError
 from .core.exceptions import (AntidoteError, DependencyCycleError,
                               DependencyInstantiationError, DependencyNotFoundError,
                               DuplicateDependencyError, FrozenContainerError,
                               FrozenWorldError)
-from ._extension.providers import DuplicateTagError
-
-
-@API.public
-class UndefinedContextError(AntidoteError):
-    """
-    A context does not have any target associated.
-    Raised by the :py:class:`~.providers.indirect.IndirectProvider`.
-    """
-
 
 __all__ = [
     'AntidoteError',
@@ -20,8 +10,7 @@ __all__ = [
     'DependencyInstantiationError',
     'DependencyNotFoundError',
     'DuplicateDependencyError',
-    'DuplicateTagError',
-    'UndefinedContextError',
+    'FrozenContainerError',
     'FrozenWorldError',
-    'FrozenContainerError'
+    'DuplicateTagError'
 ]

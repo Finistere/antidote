@@ -1,23 +1,17 @@
 from typing import cast, Generic, Hashable, Sequence, TypeVar
 
-from .._compatibility.typing import final, GenericMeta
+from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import FinalImmutable, Immutable
 from .._internal.utils.debug import debug_repr
-from .._internal.utils.immutable import ImmutableMeta
+from .._internal.utils.immutable import ImmutableGenericMeta
 
 T = TypeVar('T')
 
 
-# TODO: Inheriting GenericMeta for Python 3.6, remove once 3.6 support ends.
-#       And use FinalImmutable instead of Immutable
-class DependencyMeta(ImmutableMeta, GenericMeta):
-    pass
-
-
 @API.public
 @final
-class Dependency(Immutable, Generic[T], metaclass=DependencyMeta):
+class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
     """
     Used to clearly state that a value should be treated as a dependency and must
     be retrieved from Antidote. It is recommended to use it through

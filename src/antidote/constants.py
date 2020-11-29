@@ -1,7 +1,7 @@
 from typing import Callable, Optional, Union
 
-from ._extension.internal.constants import ConstantsMeta, MakeConst
 from ._compatibility.typing import final
+from ._extension.constants import ConstantsMeta, MakeConst
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from .core.wiring import Wiring, WithWiringMixin

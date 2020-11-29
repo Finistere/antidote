@@ -2,14 +2,14 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, get_type_hints
 
-from ...lazy import LazyCall
-from ...service import service
-from ..._internal import API
-from ..._internal.utils import AbstractMeta, FinalImmutable
-from ...core import Dependency, inject
-from ..._extension.providers.factory import FactoryDependency, FactoryProvider
-from ..._extension.providers.service import Build
-from ..._extension.providers import TagProvider
+from .._extension.providers import TagProvider
+from .._extension.providers.factory import FactoryDependency, FactoryProvider
+from .._extension.providers.service import Build
+from .._internal import API
+from .._internal.utils import AbstractMeta, FinalImmutable
+from ..core import Dependency, inject
+from ..lazy import LazyCall
+from ..service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 
@@ -59,7 +59,7 @@ class FactoryMeta(AbstractMeta):
 def _configure_factory(cls,
                        factory_provider: FactoryProvider,
                        tag_provider: TagProvider = None):
-    from ...factory import Factory
+    from ..factory import Factory
 
     conf = getattr(cls, '__antidote__', None)
     if not isinstance(conf, Factory.Conf):

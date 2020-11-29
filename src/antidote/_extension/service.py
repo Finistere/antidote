@@ -1,10 +1,10 @@
 from typing import Any
 
-from ..._extension.providers import TagProvider
-from ..._extension.providers.service import Build, ServiceProvider
-from ..._internal import API
-from ..._internal.utils import AbstractMeta
-from ...core import inject
+from .._extension.providers import TagProvider
+from .._extension.providers.service import Build, ServiceProvider
+from .._internal import API
+from .._internal.utils import AbstractMeta
+from ..core import inject
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 

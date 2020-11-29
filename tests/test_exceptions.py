@@ -1,6 +1,7 @@
 from antidote import Tag
-from antidote.exceptions import DependencyCycleError, DependencyNotFoundError, \
-    DuplicateDependencyError, DuplicateTagError, FrozenWorldError
+from antidote.exceptions import (DependencyCycleError, DependencyNotFoundError,
+                                 DuplicateDependencyError, DuplicateTagError,
+                                 FrozenWorldError)
 
 
 class Service:

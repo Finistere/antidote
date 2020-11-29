@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import Service, world, LazyCall, LazyMethodCall
+from antidote import LazyCall, LazyMethodCall, Service, world
 from antidote._extension.providers import LazyProvider, ServiceProvider
 
 

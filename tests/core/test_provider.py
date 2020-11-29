@@ -4,8 +4,8 @@ from typing import Hashable, Optional
 import pytest
 
 from antidote import world
-from antidote.core import Container, DependencyInstance, does_not_freeze, Provider, \
-    StatelessProvider
+from antidote.core import (Container, DependencyInstance, does_not_freeze, Provider,
+                           StatelessProvider)
 from antidote.exceptions import FrozenWorldError
 
 

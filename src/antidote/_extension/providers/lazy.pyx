@@ -3,12 +3,12 @@ from typing import Hashable
 cimport cython
 from cpython.object cimport PyObject, PyObject_CallMethodObjArgs
 
-from antidote.core.container cimport (DependencyInstance, FastProvider, RawContainer,
-                                      DependencyResult,  Container, PyObjectBox,
-                                      FLAG_SINGLETON, FLAG_DEFINED)
+from antidote.core.container cimport (Container, DependencyInstance, DependencyResult,
+                                      FastProvider, FLAG_DEFINED, FLAG_SINGLETON,
+                                      PyObjectBox, RawContainer)
 from ..._internal.utils import debug_repr
-from ...core.utils import DependencyDebug
 from ...core.exceptions import DependencyNotFoundError
+from ...core.utils import DependencyDebug
 
 # @formatter:on
 

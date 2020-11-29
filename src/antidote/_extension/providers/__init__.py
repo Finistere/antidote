@@ -1,5 +1,5 @@
 from .factory import FactoryProvider
 from .indirect import IndirectProvider
-from .lazy import LazyProvider, Lazy
+from .lazy import Lazy, LazyProvider
 from .service import ServiceProvider
-from .tag import TagProvider, Tagged, Tag, DuplicateTagError
+from .tag import DuplicateTagError, Tag, Tagged, TagProvider
