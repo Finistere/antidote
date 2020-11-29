@@ -4,8 +4,8 @@ Utilities used by world, mostly for syntactic sugar.
 from typing import Any, Callable, cast, Hashable, List, Optional, Type, TypeVar
 
 from .meta import FinalMeta
-from .. import API
 from ..._compatibility.typing import final
+from ..._internal import API
 from ...core.container import (Container, DependencyInstance, RawContainer, RawProvider)
 from ...core.utils import Dependency
 
@@ -48,8 +48,8 @@ class WorldLazy(metaclass=FinalMeta):
 def new_container():
     """ default new container in Antidote """
 
-    from ..._extension.providers import (LazyProvider, ServiceProvider, TagProvider,
-                                         IndirectProvider, FactoryProvider)
+    from ..._providers import (LazyProvider, ServiceProvider, TagProvider,
+                               IndirectProvider, FactoryProvider)
 
     container = RawContainer()
     container.add_provider(FactoryProvider)

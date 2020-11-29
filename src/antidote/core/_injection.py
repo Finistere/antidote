@@ -1,3 +1,4 @@
+import builtins
 import collections.abc as c_abc
 import inspect
 from typing import (Any, Dict, Iterable, Mapping, Set, TYPE_CHECKING, Union)
@@ -5,6 +6,8 @@ from typing import (Any, Dict, Iterable, Mapping, Set, TYPE_CHECKING, Union)
 from .._internal import API
 from .._internal.argspec import Arguments
 from .._internal.wrapper import (build_wrapper, Injection, InjectionBlueprint, is_wrapper)
+
+_BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 
 if TYPE_CHECKING:
     from .injection import DEPENDENCIES_TYPE
@@ -14,7 +17,7 @@ if TYPE_CHECKING:
 def raw_inject(func=None,
                *,
                arguments: Arguments = None,
-               dependencies: DEPENDENCIES_TYPE = None,
+               dependencies: 'DEPENDENCIES_TYPE' = None,
                use_names: Union[bool, Iterable[str]] = None,
                use_type_hints: Union[bool, Iterable[str]] = None):
     def _inject(wrapped):
@@ -56,7 +59,7 @@ def raw_inject(func=None,
 
 @API.private
 def _build_injection_blueprint(arguments: Arguments,
-                               dependencies: DEPENDENCIES_TYPE = None,
+                               dependencies: 'DEPENDENCIES_TYPE' = None,
                                use_names: Union[bool, Iterable[str]] = None,
                                use_type_hints: Union[bool, Iterable[str]] = None,
                                ) -> InjectionBlueprint:
@@ -93,7 +96,7 @@ def _build_injection_blueprint(arguments: Arguments,
 
 @API.private
 def _build_arg_to_dependency(arguments: Arguments,
-                             dependencies: DEPENDENCIES_TYPE = None
+                             dependencies: 'DEPENDENCIES_TYPE' = None
                              ) -> Dict[str, Any]:
     from .injection import Arg
     if dependencies is None:

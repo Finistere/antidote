@@ -10,7 +10,7 @@ from ..core.container import DependencyInstance, RawContainer, RawProvider
 @contextmanager
 def clone(*, keep_singletons: bool = False, overridable: bool = False):
     """
-    Clone current Antidote state (singletons & providers) into a new container. It should
+    Clone current Antidote state (singletons & _providers) into a new container. It should
     be used when you need to rely on existing dependencies defined in your source code.
     Otherwise consider using :py:func:`.new`.
 
@@ -43,10 +43,10 @@ def clone(*, keep_singletons: bool = False, overridable: bool = False):
     """
     if overridable:
         def build_new_container(c: RawContainer) -> RawContainer:
-            # Do not clone providers, re-create new ones.
+            # Do not clone _providers, re-create new ones.
             new_container = c.clone(keep_singletons=keep_singletons,
                                     clone_providers=False)
-            # Old providers will be accessible from ProviderCollection
+            # Old _providers will be accessible from ProviderCollection
             new_container.add_provider(OverridableProviderCollection)
             provider_collection = cast(OverridableProviderCollection,
                                        new_container.get(OverridableProviderCollection))
@@ -82,7 +82,7 @@ def new():
 def empty():
     """
     Creates an empty container. No initial provider are set up. This is useful to test one
-    or several providers in isolation. If you're not testing provider use
+    or several _providers in isolation. If you're not testing provider use
     :py:func:`.new` instead.
     """
     with state.override(lambda _: RawContainer()):
@@ -93,7 +93,7 @@ def empty():
 def maybe_provide_from(provider: RawProvider, dependency: Hashable
                        ) -> Optional[DependencyInstance]:
     """
-    Utility function to test providers that have not been registered in :py:mod:`.world`.
+    Utility function to test _providers that have not been registered in :py:mod:`.world`.
     The current :py:class:~.core.container.DependencyContainer` will be given as if it
     were registered. This allows to test exactly what has been returned by the provider.
 

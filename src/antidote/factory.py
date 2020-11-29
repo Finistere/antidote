@@ -4,10 +4,10 @@ from typing import (Any, Callable, get_type_hints, Iterable, Optional,
                     overload, Tuple, TypeVar, Union)
 
 from ._compatibility.typing import final, Protocol
-from ._extension.factory import FactoryMeta, LambdaFactory, PreBuild
-from ._extension.providers import FactoryProvider, Tag, TagProvider
+from ._factory import FactoryMeta, LambdaFactory, PreBuild
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
+from ._providers import FactoryProvider, Tag, TagProvider
 from .core.injection import DEPENDENCIES_TYPE, inject
 from .core.wiring import Wiring, WithWiringMixin
 
@@ -139,8 +139,8 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                 singleton: Whether the returned dependency is a singleton or not. If yes,
                     the factory will only be called once and its result cached. Defaults
                     to :py:obj:`True`.
-                tags: Iterable of :py:class:`~..providers.tag.Tag` tagging to the provided
-                    dependency.
+                tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
+                      provided dependency.
                 public: Whether the factory instance should be retrievable through
                     Antidote or not. Defaults to :py:obj:`False`
             """
@@ -286,7 +286,7 @@ def factory(f: F = None,
         dependencies: Propagated to :py:func:`~.injection.inject`.
         use_names: Propagated to :py:func:`~.injection.inject`.
         use_type_hints: Propagated to :py:func:`~.injection.inject`.
-        tags: Iterable of :py:class:`~..providers.tag.Tag` applied to the provided
+        tags: Iterable of :py:class:`~.._providers.tag.Tag` applied to the provided
             dependency.
 
     Returns:

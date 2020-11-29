@@ -9,3 +9,8 @@ source =
     src/
     .tox/py*/lib/python*/site-packages/
     .tox/pypy*/site-packages
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:

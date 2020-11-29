@@ -2,10 +2,10 @@ import collections.abc as c_abc
 from typing import Callable, Iterable, Optional, overload, Tuple, TypeVar, Union
 
 from ._compatibility.typing import final
-from ._extension.service import ServiceMeta
-from ._extension.providers import Tag
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
+from ._providers import Tag
+from ._service import ServiceMeta
 from .core.exceptions import DuplicateDependencyError
 from .core.wiring import AutoWire, Wiring, WithWiringMixin
 
@@ -91,7 +91,8 @@ class Service(metaclass=ServiceMeta, abstract=True):
                     deactivate any wiring at all use :py:obj:`None`.
                 singleton: Whether the service is a singleton or not. A singleton is
                     instantiated only once. Defaults to :py:obj:`True`
-                tags: Iterable of :py:class:`~..providers.tag.Tag` tagging to the service.
+                tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
+                      service.
             """
             if not isinstance(singleton, bool):
                 raise TypeError(f"singleton can be a boolean, "
@@ -173,7 +174,7 @@ def service(klass=None,
         klass: Class to register as a dependency. It will be instantiated  only when
             requested.
         singleton: If True, the service will be a singleton and instantiated only once.
-        tags: Iterable of :py:class:`~..providers.tag.Tag` applied to the service.
+        tags: Iterable of :py:class:`~.._providers.tag.Tag` applied to the service.
 
     Returns:
         The class or the class decorator.
@@ -181,7 +182,7 @@ def service(klass=None,
     """
 
     def reg(cls):
-        from ._extension.service import _configure_service
+        from ._service import _configure_service
 
         if issubclass(cls, Service):
             raise DuplicateDependencyError(f"{cls} is already defined as a dependency "

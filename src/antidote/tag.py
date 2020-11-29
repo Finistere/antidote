@@ -1,3 +1,3 @@
-from ._extension.providers.tag import Tag, Tagged
+from ._providers import Tag, Tagged
 
 __all__ = ['Tag', 'Tagged']

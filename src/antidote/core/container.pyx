@@ -146,7 +146,7 @@ cdef class RawContainer(Container):
     Behaves the same as the Python implementation but with additional optimizations:
     - singletons clock: Avoid testing twice the singleton dictionary it hasn't changed
                         since the first, not thread-safe, check.
-    - cache: Recurring non singletons dependencies will not go through the usual providers
+    - cache: Recurring non singletons dependencies will not go through the usual _providers
              loop and their provider will be cached. This avoids the overhead of each
              provider checking whether it's a dependency it can provide or not.
     """
@@ -187,7 +187,7 @@ cdef class RawContainer(Container):
         PyMem_Free(self.__cache.counters)
 
     def __repr__(self):
-        return f"{type(self).__name__}(providers={', '.join(map(str, self.__providers))})"
+        return f"{type(self).__name__}(_providers={', '.join(map(str, self.__providers))})"
 
     @property
     def providers(self):

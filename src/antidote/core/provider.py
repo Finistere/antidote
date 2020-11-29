@@ -88,7 +88,7 @@ class Provider(RawProvider, Generic[T],
         behavior. So be careful with it, it will impact the whole library. There are
         several rules to respect:
 
-        1. Different providers MUST provide strictly different dependencies.
+        1. Different _providers MUST provide strictly different dependencies.
         2. You MUST NOT use :py:mod:`~antidote.world`. If you need a dependency, rely on
            the provided :py:class:`~.core.container.Container`.
         3. Methods will automatically freeze except those marked with the decorator
@@ -120,7 +120,7 @@ class Provider(RawProvider, Generic[T],
     def exists(self, dependency: Hashable) -> bool:
         """
         Check whether dependency exists in the current provider. It is recommended to be
-        relatively fast as this function will often be called for all providers. Among
+        relatively fast as this function will often be called for all _providers. Among
         others it is used to check for duplicates and ensure that it is providable.
 
         Args:
@@ -136,7 +136,7 @@ class Provider(RawProvider, Generic[T],
         """
         Method called by the :py:class:`~.core.container.Container` when
         searching for a dependency. Be sure that the dependency space of your
-        providers don't intersect ! This function will only be called if
+        _providers don't intersect ! This function will only be called if
         :py:meth:`.exists` succeeded on the :code:`dependency`.
 
         If you need to access other dependencies, you MUST use the provided

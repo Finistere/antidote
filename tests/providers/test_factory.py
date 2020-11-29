@@ -1,8 +1,8 @@
 import pytest
 
 from antidote import world
-from antidote._extension.providers import FactoryProvider
-from antidote._extension.providers.service import Build
+from antidote._providers import FactoryProvider
+from antidote._providers.service import Build
 from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
                                  FrozenWorldError)
 

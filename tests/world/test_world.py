@@ -3,7 +3,7 @@ from typing import Callable, Hashable, Optional
 import pytest
 
 from antidote import world
-from antidote._extension.providers import ServiceProvider
+from antidote._providers import ServiceProvider
 from antidote.core import (Container, Dependency, DependencyInstance, Provider,
                            StatelessProvider)
 from antidote.core.exceptions import DuplicateDependencyError

@@ -1,15 +1,15 @@
 import weakref
 from typing import Callable, TYPE_CHECKING, Union
 
-from .._compatibility.typing import final
-from .._extension.providers import Lazy
-from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable
-from ..core import Container, DependencyInstance
-from ..core.utils import DependencyDebug
+from ._compatibility.typing import final
+from ._internal import API
+from ._internal.utils import debug_repr, FinalImmutable
+from ._providers import Lazy
+from .core import Container, DependencyInstance
+from .core.utils import DependencyDebug
 
 if TYPE_CHECKING:
-    from ..lazy import LazyMethodCall
+    from .lazy import LazyMethodCall
 
 
 @API.private
@@ -77,7 +77,7 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
     :meta private:
     """
     __slots__ = ('descriptor', 'owner_ref', 'singleton')
-    descriptor: Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]
+    descriptor: 'Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]'
     owner_ref: weakref.ReferenceType
     singleton: bool
 

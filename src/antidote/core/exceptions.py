@@ -16,7 +16,7 @@ class AntidoteError(Exception):
 class DuplicateDependencyError(AntidoteError):
     """
     A dependency already exists with the same id.
-    *May* be raised by providers.
+    *May* be raised by _providers.
     """
     message: Optional[str]
 

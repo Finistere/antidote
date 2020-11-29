@@ -1,8 +1,8 @@
 import pytest
 
 from antidote import factory, implementation, Implementation, Service, world
-from antidote._extension.providers import (FactoryProvider, IndirectProvider,
-                                           ServiceProvider)
+from antidote._providers import (FactoryProvider, IndirectProvider,
+                                 ServiceProvider)
 from antidote.exceptions import DependencyInstantiationError
 
 
