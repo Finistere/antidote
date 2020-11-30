@@ -130,7 +130,7 @@ def test_without_type_hints(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.add_all({
+        world.singletons.add({
             Service: Service(),
             AnotherService: AnotherService(),
             'first': object(),
@@ -253,12 +253,12 @@ def test_with_type_hints(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.add_all({Service: Service(),
-                                  AnotherService: AnotherService(),
-                                  'first': object(),
-                                  'second': object(),
-                                  'prefix:first': object(),
-                                  'prefix:second': object()})
+        world.singletons.add({Service: Service(),
+                              AnotherService: AnotherService(),
+                              'first': object(),
+                              'second': object(),
+                              'prefix:first': object(),
+                              'prefix:second': object()})
 
         expected = tuple((
             world.get(d) if d is not None else default
@@ -278,11 +278,9 @@ def test_with_type_hints(injector, expected, kwargs):
         assert (a, b) == A.klass(a, b)
 
 
-@pytest.mark.parametrize(
-    'type_hint',
-    [str, int, float, set, list, dict, complex, type, tuple, bytes, bytearray,
-     typing.Optional, typing.Sequence]
-)
+@pytest.mark.parametrize('type_hint',
+                         [str, int, float, set, list, dict, complex, type, tuple, bytes,
+                          bytearray, typing.Optional, typing.Sequence])
 def test_ignored_type_hints(injector, type_hint):
     @injector
     def f(x: type_hint):
@@ -305,7 +303,7 @@ def test_arguments():
         return kwargs
 
     with world.test.empty():
-        world.singletons.add_all(dict(a=12, b=24))
+        world.singletons.add(dict(a=12, b=24))
         assert dict(a=12, b=24) == g()
 
 

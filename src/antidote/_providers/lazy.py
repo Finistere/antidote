@@ -2,7 +2,7 @@ from typing import Hashable
 
 from .._compatibility.typing import final
 from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable
+from .._internal.utils import debug_repr, FinalImmutable, short_id
 from ..core import Container, DependencyInstance, StatelessProvider
 from ..core.utils import DependencyDebug
 
@@ -30,8 +30,8 @@ class FastLazyConst(FinalImmutable, Lazy):
             cls: object = self.dependency.func
         else:
             cls = self.dependency
-        return DependencyDebug(f"Const calling {self.method_name} with {self.value!r} on "
-                               f"{debug_repr(self.dependency)}",
+        return DependencyDebug(f"Const: {self.method_name}({self.value!r}) "
+                               f"on {debug_repr(cls)}  #{short_id(self)}",
                                singleton=True,
                                dependencies=[self.dependency],
                                wired=[getattr(cls, self.method_name)])

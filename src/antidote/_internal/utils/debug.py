@@ -1,7 +1,8 @@
+import base64
 import inspect
 import textwrap
 from collections import deque
-from typing import Deque, Hashable, List, Optional, Tuple, TYPE_CHECKING
+from typing import Deque, Hashable, List, Sequence, Tuple, TYPE_CHECKING
 
 from .immutable import Immutable
 from .. import API
@@ -9,9 +10,24 @@ from .. import API
 if TYPE_CHECKING:
     from ...core.container import RawContainer
 
+# Object will be allocated on the heap, so as close as possible to most user objects
+# in memory.
+_ID_MASK = id(object())
+
 
 @API.private
-def debug_repr(x):
+def short_id(obj) -> str:
+    """ Produces a short, human readable, representation of the id of an object. """
+    n = id(obj) ^ _ID_MASK
+    return (base64
+            .b64encode(n.to_bytes(8, byteorder='little'))
+            .decode('ascii')
+            .rstrip('=')  # Remove padding
+            .rstrip('A'))  # Remove 000000
+
+
+@API.private
+def debug_repr(x) -> str:
     from ..wrapper import is_wrapper
     try:
         return x.__antidote_debug_repr__()
@@ -26,7 +42,7 @@ def debug_repr(x):
 
 
 @API.private
-def get_injections(func):
+def get_injections(func) -> Sequence:
     from ..wrapper import get_wrapper_dependencies
     try:
         return get_wrapper_dependencies(func)
@@ -35,25 +51,16 @@ def get_injections(func):
 
 
 @API.private
-class Symbol:
-    default = "─"
-    function = "f"
-    method = "m"
-    error = "/!\\"
-    lazy = "l"
-
-
-@API.private
 class DebugTreeNode(Immutable):
-    __slots__ = ('info', 'symbol', 'singleton', 'children')
-    symbol: str
+    __slots__ = ('info', 'singleton', 'children')
     info: str
     singleton: bool
     children: 'List[DebugTreeNode]'
 
-    def __init__(self, info: str, *, symbol: str = Symbol.default, singleton: bool = True,
+    def __init__(self, info: str, *, singleton: bool = True,
                  children: 'List[DebugTreeNode]' = None):
-        super().__init__(symbol=symbol, info=textwrap.dedent(info), singleton=singleton,
+        super().__init__(info=textwrap.dedent(info),
+                         singleton=singleton,
                          children=children or [])
 
 
@@ -79,23 +86,19 @@ class InjectionTask(Task):
 @API.private
 def tree_debug_info(container: 'RawContainer',
                     origin,
-                    max_depth: int = 1 << 32) -> str:
+                    depth: int = -1) -> str:
     from ...core.wiring import WithWiringMixin
-    from ...core.utils import DependencyDebug
+    from ...core.exceptions import DependencyNotFoundError
 
-    max_depth += 1  # To match root = depth 0
-    providers = container.providers
-    root = DebugTreeNode(symbol='', info=debug_repr(origin))
+    if depth < 0:
+        depth = 1 << 31  # roughly infinity in this case.
+
+    depth += 1  # To match root = depth 0
+    root = DebugTreeNode(info=debug_repr(origin))
     original_root = root
-    tasks: Deque[Tuple[DebugTreeNode, set, Task]] = deque(
-        [(root, set(), DependencyTask(origin))])
-
-    def maybe_debug(dependency) -> Optional[DependencyDebug]:
-        for p in providers:
-            debug = p.maybe_debug(dependency)
-            if debug is not None:
-                return debug
-        return None
+    tasks: Deque[Tuple[DebugTreeNode, set, Task]] = deque([
+        (root, set(), DependencyTask(origin))
+    ])
 
     def add_root_injections(parent: DebugTreeNode, parent_dependencies: set, dependency):
         if isinstance(dependency, type) and inspect.isclass(dependency):
@@ -107,8 +110,7 @@ def tree_debug_info(container: 'RawContainer',
                 for m in sorted(conf.wiring.methods):
                     if m != '__init__':
                         tasks.append((parent, parent_dependencies, InjectionTask(
-                            symbol=Symbol.method,
-                            name=m,
+                            name=f"Method: {m}",
                             injections=get_injections(getattr(cls, m)),
                         )))
         elif callable(dependency):
@@ -119,20 +121,20 @@ def tree_debug_info(container: 'RawContainer',
         parent, parent_dependencies, task = tasks.pop()
         if isinstance(task, DependencyTask):
             dependency = task.dependency
-            debug = maybe_debug(dependency)
-            if debug is None:
+            try:
+                debug = container.debug(dependency)
+            except DependencyNotFoundError:
                 if dependency is origin:
                     add_root_injections(parent, parent_dependencies, dependency)
                 else:
-                    parent.children.append(
-                        DebugTreeNode(f"Unknown: {debug_repr(dependency)}",
-                                      symbol=Symbol.error))
+                    parent.children.append(DebugTreeNode(f"/!\\ Unknown: "
+                                                         f"{debug_repr(dependency)}"))
 
                 continue
 
             if dependency in parent_dependencies:
-                parent.children.append(DebugTreeNode(f"Cyclic dependency: {debug.info}",
-                                                     symbol=Symbol.error))
+                parent.children.append(DebugTreeNode(f"/!\\ Cyclic dependency: "
+                                                     f"{debug.info}"))
                 continue
 
             tree_node = DebugTreeNode(debug.info, singleton=debug.singleton)
@@ -145,7 +147,7 @@ def tree_debug_info(container: 'RawContainer',
                 root = tree_node  # previous root is redundant
                 add_root_injections(parent, parent_dependencies, dependency)
 
-            if len(parent_dependencies) < max_depth:
+            if len(parent_dependencies) < depth:
                 for d in debug.dependencies:
                     tasks.append((parent, parent_dependencies,
                                   DependencyTask(d)))
@@ -156,12 +158,11 @@ def tree_debug_info(container: 'RawContainer',
                                           DependencyTask(d)))
                     else:
                         tasks.append((parent, parent_dependencies, InjectionTask(
-                            symbol=Symbol.function,
                             name=debug_repr(w),
                             injections=get_injections(w),
                         )))
         elif isinstance(task, InjectionTask) and task.injections:
-            tree_node = DebugTreeNode(task.name, symbol=task.symbol)
+            tree_node = DebugTreeNode(task.name)
             parent.children.append(tree_node)
             parent = tree_node
             for d in task.injections:
@@ -177,12 +178,14 @@ def tree_debug_info(container: 'RawContainer',
         ("", i == 0, child)
         for i, child in enumerate(root.children[::-1])
     ])
+    any_not_singleton = not root.singleton
 
     while nodes:
         prefix, last, node = nodes.pop()
+        any_not_singleton |= (not node.singleton)
         first_line, *rest = node.info.split("\n", 1)
-        txt = prefix + ("└─" if last else "├─") + node.symbol
-        txt += (" *" if not node.singleton else " ") + first_line
+        txt = prefix + ("└──" if last else "├──")
+        txt += (" * " if not node.singleton else " ") + first_line
         new_prefix = prefix + ("    " if last else "│   ")
         if rest:
             txt += "\n" + textwrap.indent(rest[0], new_prefix)
@@ -191,10 +194,9 @@ def tree_debug_info(container: 'RawContainer',
         for i, child in enumerate(node.children[::-1]):
             nodes.append((new_prefix, i == 0, child))
 
-    output.append(textwrap.dedent(f"""
-    * = not singleton
-    ─{Symbol.function} = function
-    ─{Symbol.method} = method
-    ─{Symbol.lazy} = lazy
-    """))
+    output.append("")
+    if any_not_singleton:
+        output.extend(["* = not singleton",
+                       ""])
+
     return "\n".join(output)

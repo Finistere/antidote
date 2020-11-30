@@ -1,13 +1,16 @@
+*******
 Recipes
-=======
+*******
 
 
 This is a collection of how to use certain features of Antidote or simply examples of
 what can be done.
 
 
+
 Use interfaces
---------------
+==============
+
 
 Antidote supports the distinction interface/implementation out of the box.
 When the choice of the implementation is straightforward you can simply use
@@ -90,15 +93,18 @@ that can be provided by a factory.
       Antidote by searching :code:`@implements(Interface` through your code.
 
 
+
 Lazily call a function
-----------------------
+======================
+
 
 Calling lazily a function can be done with :py:class:`.LazyCall` or
 :py:class:`.LazyMethodCall` for methods. Both will pass any arguments passed on
 and can either be singletons or not.
 
+
 Function call
-^^^^^^^^^^^^^
+-------------
 
 .. testsetup:: how_to_lazy
 
@@ -128,8 +134,9 @@ Using :code:`CONF_A` as a representation of the result allows one to easily iden
 where this dependency is needed. Moreover neither :code:`f` nor its caller needs to
 be aware on how to call :code:`fetch_remote_conf`.
 
+
 Method call
-^^^^^^^^^^^
+-----------
 
 .. testcode:: how_to_lazy
 
@@ -151,8 +158,10 @@ necessary.
     :py:class:`.Constants` instead.
 
 
+
 Use tags to retrieve multiple dependencies
-------------------------------------------
+==========================================
+
 
 Tags are a way to retrieve a list of services, such as plugins, extensions, etc... In
 Antidote tags are instance of :py:class:`.Tag`. Dependencies tagged with this instance
@@ -211,8 +220,10 @@ not.
     respectfully represent the tag type and the dependency type.
 
 
+
 Create a stateful factory
--------------------------
+=========================
+
 
 Antidote supports stateful factories simply by using defining a class as a factory:
 

@@ -1,12 +1,12 @@
 """
 Utilities used by world, mostly for syntactic sugar.
 """
-from typing import Any, Callable, cast, Hashable, List, Optional, Type, TypeVar
+from typing import Any, Callable, cast, Type, TypeVar
 
 from .meta import FinalMeta
 from ..._compatibility.typing import final
 from ..._internal import API
-from ...core.container import (Container, DependencyInstance, RawContainer, RawProvider)
+from ...core.container import RawContainer
 from ...core.utils import Dependency
 
 T = TypeVar('T')
@@ -59,32 +59,3 @@ def new_container():
     container.add_provider(TagProvider)
 
     return container
-
-
-@API.private
-@final
-class OverridableProviderCollection(RawProvider, metaclass=FinalMeta):
-    """ Utility class used for creating an overridable world """
-
-    def __init__(self, providers: List[RawProvider] = None):
-        super().__init__()
-        self.__providers = providers or list()
-
-    def exists(self, dependency: Hashable) -> bool:
-        return False  # overridable as it'll never conflict.
-
-    def maybe_provide(self,
-                      dependency: Hashable,
-                      container: Container) -> Optional[DependencyInstance]:
-        for provider in self.__providers:
-            dependency_instance = provider.maybe_provide(dependency, container)
-            if dependency_instance is not None:
-                return dependency_instance
-        return None  # For Mypy
-
-    def set_providers(self, providers: List[RawProvider]):
-        self.__providers = providers
-
-    def clone(self, keep_singletons_cache: bool) -> 'OverridableProviderCollection':
-        return OverridableProviderCollection([p.clone(keep_singletons_cache)
-                                              for p in self.__providers])

@@ -92,7 +92,7 @@ class InjectedWrapper:
     def __get__(self, instance, owner):
         return InjectedBoundWrapper(
             self.__blueprint,
-            self.__wrapped__.__get__(instance, owner),
+            self.__wrapped__.__get__(instance, owner),  # type: ignore
             isinstance(self.__wrapped__, classmethod)
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
         )

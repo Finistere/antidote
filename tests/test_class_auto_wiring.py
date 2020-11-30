@@ -31,13 +31,13 @@ class B:
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.new():
-        world.singletons.add_all({A: A(),
-                                  B: B(),
-                                  'a': object(),
-                                  'b': object(),
-                                  'x': object(),
-                                  'y': object(),
-                                  'z': object()})
+        world.singletons.add({A: A(),
+                              B: B(),
+                              'a': object(),
+                              'b': object(),
+                              'x': object(),
+                              'y': object(),
+                              'z': object()})
         yield
 
 
@@ -114,28 +114,26 @@ def builder(cls: type, wiring_kind: str, subclass: bool = False):
     return build
 
 
-@pytest.fixture(
-    params=[
-        pytest.param((c, w), id=f"{c.__name__} - w")
-        for (c, w) in itertools.product([Factory,
-                                         Service,
-                                         Constants,
-                                         Implementation],
-                                        ['with_wiring', 'Wiring'])
-    ])
+@pytest.fixture(params=[
+    pytest.param((c, w), id=f"{c.__name__} - w")
+    for (c, w) in itertools.product([Factory,
+                                     Service,
+                                     Constants,
+                                     Implementation],
+                                    ['with_wiring', 'Wiring'])
+])
 def class_builder(request):
     (cls, wiring_kind) = request.param
     return builder(cls, wiring_kind)
 
 
-@pytest.fixture(
-    params=[
-        pytest.param((c, w), id=f"{c.__name__} - w")
-        for (c, w) in itertools.product([Factory,
-                                         Service,
-                                         Constants],
-                                        ['with_wiring', 'Wiring'])
-    ])
+@pytest.fixture(params=[
+    pytest.param((c, w), id=f"{c.__name__} - w")
+    for (c, w) in itertools.product([Factory,
+                                     Service,
+                                     Constants],
+                                    ['with_wiring', 'Wiring'])
+])
 def subclass_builder(request):
     (cls, wiring_kind) = request.param
     return builder(cls, wiring_kind, subclass=True)
@@ -230,8 +228,8 @@ def test_super_wiring(subclass_builder: F):
         assert b is None
 
     with world.test.clone(keep_singletons=True):
-        sub_dummy = subclass_builder(
-            Wiring(methods=('method', '__init__'), wire_super=True))()
+        sub_dummy = subclass_builder(Wiring(methods=('method', '__init__'),
+                                            wire_super=True))()
         assert sub_dummy.a is world.get(A)
         assert sub_dummy.b is world.get(B)
 
@@ -336,15 +334,17 @@ def test_use_type_hints(class_builder: F):
 
     # with use_names
     with world.test.clone(keep_singletons=True):
-        dummy = class_builder(
-            Wiring(methods=('method',), use_type_hints=False, use_names=True))()
+        dummy = class_builder(Wiring(methods=('method',),
+                                     use_type_hints=False,
+                                     use_names=True))()
         (a, b) = dummy.method()
         assert a is world.get('a')
         assert b is world.get('b')
 
     with world.test.clone(keep_singletons=True):
-        dummy = class_builder(
-            Wiring(methods=('method',), use_type_hints=('a',), use_names=True))()
+        dummy = class_builder(Wiring(methods=('method',),
+                                     use_type_hints=('a',),
+                                     use_names=True))()
         (a, b) = dummy.method()
         assert a is world.get(A)
         assert b is world.get('b')
@@ -352,8 +352,8 @@ def test_use_type_hints(class_builder: F):
 
 def test_dependencies_dict(class_builder: F):
     with world.test.clone(keep_singletons=True):
-        dummy = class_builder(
-            Wiring(methods=('method', 'method2'), dependencies=dict()))()
+        dummy = class_builder(Wiring(methods=('method', 'method2'),
+                                     dependencies=dict()))()
         (a, b) = dummy.method()
         assert a is world.get(A)
         assert b is world.get(B)
@@ -389,8 +389,8 @@ def test_dependencies_dict(class_builder: F):
 
 def test_dependencies_seq(class_builder: F):
     with world.test.clone(keep_singletons=True):
-        dummy = class_builder(
-            Wiring(methods=('method', 'method2'), dependencies=tuple()))()
+        dummy = class_builder(Wiring(methods=('method', 'method2'),
+                                     dependencies=tuple()))()
         (a, b) = dummy.method()
         assert a is world.get(A)
         assert b is world.get(B)
@@ -488,7 +488,7 @@ def test_dependencies_callable(class_builder: F):
 
 def test_dependencies_str(class_builder: F):
     with world.test.clone(keep_singletons=True):
-        world.singletons.add_all({
+        world.singletons.add({
             'conf:a': object(),
             'conf:b': object()
         })

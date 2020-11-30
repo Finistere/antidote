@@ -4,6 +4,7 @@ from typing import (Any, Dict, Generic, Hashable, Iterable, Iterator, List,
 
 from .._compatibility.typing import final
 from .._internal import API
+from .._internal.utils import short_id
 from ..core import Container, DependencyInstance, Provider
 from ..core.exceptions import AntidoteError
 from ..core.utils import DependencyDebug
@@ -42,7 +43,7 @@ class Tag:
 
         >>> from antidote import Tag, Service, world, Tagged
         >>> class CustomTag(Tag):
-        ...     __slots__ = ('name',)  # __slots__ isn't required
+        ...     __slots__ = ('name',)  # __slots__ is recommended
         ...     name: str  # For Mypy
         ...
         ...     def __init__(self, name: str):
@@ -83,7 +84,7 @@ class Tag:
     def __repr__(self):
         group = self.group()
         if group is self:
-            group = hex(id(self))
+            group = short_id(self)
         return f"{type(self).__name__}(group={group})"
 
     def group(self):

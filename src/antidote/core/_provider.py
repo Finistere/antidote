@@ -3,7 +3,7 @@ import inspect
 from typing import Set
 
 from .container import RawProvider
-from .exceptions import FrozenContainerError, FrozenWorldError
+from .exceptions import FrozenWorldError
 from .._compatibility.typing import GenericMeta
 from .._internal import API
 
@@ -28,7 +28,7 @@ class ProviderMeta(GenericMeta):
             if getattr(method, _FREEZE_ATTR_NAME, True):
                 namespace[attr] = _make_wrapper(attr, method)
 
-        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+        cls = super().__new__(mcls, name, bases, namespace, **kwargs)  # type: ignore
         assert getattr(cls, "__antidote__") is None
 
         return cls
@@ -41,7 +41,7 @@ def _make_wrapper(attr, method):
         try:
             with self._ensure_not_frozen():
                 return method(self, *args, **kwargs)
-        except FrozenContainerError:
+        except FrozenWorldError:
             raise FrozenWorldError(
                 f"Method {attr} could not be called in a frozen "
                 f"world with args={args} and kwargs={kwargs}"

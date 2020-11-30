@@ -18,7 +18,7 @@ class Dummy(Lazy):
         self.singleton = singleton
 
     def lazy_get(self, container: Container) -> DependencyInstance:
-        return DependencyInstance(container.get(self.value), self.singleton)
+        return DependencyInstance(container.get(self.value), singleton=self.singleton)
 
 
 def test_lazy():

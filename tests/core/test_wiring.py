@@ -11,11 +11,11 @@ class Dummy:
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.empty():
-        world.singletons.add_all({'x': object(),
-                                  'xx': object(),
-                                  'y': object(),
-                                  'z': object(),
-                                  Dummy: Dummy()})
+        world.singletons.add({'x': object(),
+                              'xx': object(),
+                              'y': object(),
+                              'z': object(),
+                              Dummy: Dummy()})
         yield
 
 
@@ -349,14 +349,12 @@ def test_unwrap_class_static_methods():
     dict(ignore_missing_method={'method'})
 ])
 def test_copy(kwargs):
-    wiring = Wiring(
-        methods=['method'],
-        dependencies=dict(),
-        use_names=False,
-        use_type_hints=False,
-        wire_super=False,
-        ignore_missing_method=False
-    )
+    wiring = Wiring(methods=['method'],
+                    dependencies=dict(),
+                    use_names=False,
+                    use_type_hints=False,
+                    wire_super=False,
+                    ignore_missing_method=False)
     copy = wiring.copy(**kwargs)
     for key, value in kwargs.items():
         assert getattr(copy, key) == value
@@ -379,14 +377,12 @@ class DummyConf(WithWiringMixin):
     dict(ignore_missing_method={'method'})
 ])
 def test_with_wiring(kwargs):
-    conf = DummyConf(Wiring(
-        methods=['method'],
-        dependencies=dict(),
-        use_names=False,
-        use_type_hints=False,
-        wire_super=False,
-        ignore_missing_method=False
-    ))
+    conf = DummyConf(Wiring(methods=['method'],
+                            dependencies=dict(),
+                            use_names=False,
+                            use_type_hints=False,
+                            wire_super=False,
+                            ignore_missing_method=False))
     copy = conf.with_wiring(**kwargs)
     for key, value in kwargs.items():
         assert getattr(copy.wiring, key) == value

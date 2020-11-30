@@ -27,6 +27,7 @@ class MakeConst(metaclass=FinalMeta):
 @final
 class LazyConstToDo(FinalImmutable):
     __slots__ = ('value',)
+    value: object
 
 
 @API.private
@@ -62,10 +63,12 @@ def _configure_constants(cls):
     else:
         dependency = LazyCall(cls, singleton=True)
 
+    # Waiting for a fix: https://github.com/python/mypy/issues/6910
+    is_const = cast(Callable[[str], bool], getattr(conf, 'is_const'))
     for name, v in list(cls.__dict__.items()):
         if isinstance(v, LazyConstToDo):
             setattr(cls, name, LazyConst(dependency, _CONST_CONSTRUCTOR_METHOD, v.value))
-        elif conf.is_const(name):
+        elif is_const(name):
             setattr(cls, name, LazyConst(dependency, _CONST_CONSTRUCTOR_METHOD, v))
 
 

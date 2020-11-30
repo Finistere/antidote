@@ -5,8 +5,7 @@ from antidote.core.container import (DependencyInstance, RawContainer,
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.core.utils import DependencyDebug
 from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
-                                 DependencyNotFoundError, FrozenContainerError,
-                                 FrozenWorldError)
+                                 DependencyNotFoundError, FrozenWorldError)
 from .utils import DummyFactoryProvider, DummyProvider
 
 
@@ -37,7 +36,7 @@ def container():
 
 def test_dependency_repr():
     o = object()
-    d = DependencyInstance(o, False)
+    d = DependencyInstance(o, singleton=False)
 
     assert repr(False) in repr(d)
     assert repr(o) in repr(d)
@@ -200,7 +199,7 @@ def test_ensure_not_frozen(container: RawContainer):
 
     container.freeze()
 
-    with pytest.raises(FrozenContainerError):
+    with pytest.raises(FrozenWorldError):
         with container.ensure_not_frozen():
             pass
 

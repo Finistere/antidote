@@ -1,25 +1,27 @@
 import textwrap
-from typing import Union
 
 from antidote import (Constants, factory, Implementation, implementation, inject,
-                      LazyCall,
-                      LazyMethodCall,
-                      Service, Tag, world)
+                      LazyCall, LazyMethodCall, Service, Tag, world)
+from antidote._internal.utils import raw_getattr, short_id
 
 
 class DebugTestCase:
-    def __init__(self, value, expected: str, recursive: Union[int, bool] = True):
+    def __init__(self, value, expected: str, depth: int = -1):
         if expected.startswith('\n'):
             expected = textwrap.dedent(expected[1:])
+        lines = expected.splitlines(keepends=True)
+        while not lines[-1].strip():
+            lines.pop()
+
         self.value = value
-        self.expected = expected
-        self.recursive = recursive
+        self.expected = ''.join(lines)
+        self.depth = depth
 
 
 def assert_valid(*test_cases: DebugTestCase):
     for test_case in test_cases:
-        assert world.debug.info(test_case.value,
-                                recursive=test_case.recursive) == test_case.expected
+        assert world.debug(test_case.value,
+                           depth=test_case.depth) == test_case.expected
 
 
 def test_no_debug():
@@ -52,11 +54,6 @@ def test_implementation_debug():
             value=Interface,
             expected=f"""
                 Permanent link: {prefix}.Interface -> ??? defined by {prefix}.f
-
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
                     """
         ))
 
@@ -66,11 +63,6 @@ def test_implementation_debug():
             expected=f"""
                 Permanent link: {prefix}.Interface -> {prefix}.Dummy defined by {prefix}.f
                 └── {prefix}.Dummy
-
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
                     """
         ))
 
@@ -79,9 +71,6 @@ def test_implementation_debug():
             * Dynamic link: {prefix}.Interface -> ??? defined by {prefix}.g
 
             * = not singleton
-            ─f = function
-            ─m = method
-            ─l = lazy
         """
 
         @implementation(Interface, permanent=False)
@@ -103,27 +92,20 @@ def test_lazy_call_debug():
         def f():
             pass
 
+        l1 = LazyCall(f)("arg", hello="world")
         assert_valid(
             DebugTestCase(
-                value=LazyCall(f)("arg", hello="world"),
+                value=l1,
                 expected=f"""
-                    Lazy '{prefix}.f' with args=('arg',) and kwargs={{'hello': 'world'}}
-
-                    * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
+                    Lazy {prefix}.f(*('arg',), **{{'hello': 'world'}})  #{short_id(l1)}
                     """
             ),
             DebugTestCase(
                 value=LazyCall(f, singleton=False)("arg", hello="world"),
                 expected=f"""
-                    * Lazy '{prefix}.f' with args=('arg',) and kwargs={{'hello': 'world'}}
+                    * Lazy {prefix}.f(*('arg',), **{{'hello': 'world'}})
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                     """
             ))
 
@@ -135,20 +117,27 @@ def test_lazy_call_debug():
         def f(service: MyService):
             pass
 
+        l2 = LazyCall(f)
         assert_valid(
             DebugTestCase(
-                value=LazyCall(f),
+                value=l2,
                 expected=f"""
-                    LazyCall {prefix}.f
-                    └─f {prefix}.f
+                    Lazy {prefix}.f()  #{short_id(l2)}
+                    └── {prefix}.f
+                        └── {prefix}.MyService
+                    """
+            ),
+            DebugTestCase(
+                value=LazyCall(f, singleton=False),
+                expected=f"""
+                    * Lazy {prefix}.f()
+                    └── {prefix}.f
                         └── {prefix}.MyService
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                     """
-            ))
+            )
+        )
 
 
 def test_unknown_debug():
@@ -166,12 +155,19 @@ def test_unknown_debug():
             value=Dummy,
             expected=f"""
                 {prefix}.Dummy
-                └─/!\\ Unknown: {prefix}.Service1
+                └── /!\\ Unknown: {prefix}.Service1
+            """
+        ))
 
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
+
+def test_singleton_debug():
+    with world.test.new():
+        world.singletons.add("test", 1)
+
+        assert_valid(DebugTestCase(
+            value="test",
+            expected="""
+                Singleton 'test' -> 1
             """
         ))
 
@@ -197,13 +193,8 @@ def test_wiring_debug():
             expected=f"""
                 {prefix}.Dummy
                 ├── {prefix}.Service1
-                └─m get
+                └── Method: get
                     └── {prefix}.Service1
-
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
             """
         ))
 
@@ -227,11 +218,6 @@ def test_multiline_debug():
                 {prefix}.Dummy
                 └── Multiline
                     Service
-
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
             """
         ))
 
@@ -249,37 +235,52 @@ def test_lazy_method_debug():
                 return value
 
             DATA = LazyMethodCall(fetch)
-            KW = LazyMethodCall(fetch, singleton=False)(value='1')
+            KW = LazyMethodCall(fetch)(value='1')
+            DATA2 = LazyMethodCall(fetch, singleton=False)
+            KW2 = LazyMethodCall(fetch, singleton=False)(value='2')
 
         assert_valid(
             DebugTestCase(
                 value=Conf.DATA,
                 expected=f"""
-                    Lazy Method 'fetch'
-                    ├─f {prefix}.Conf.fetch
+                    Lazy Method fetch()  #{short_id(raw_getattr(Conf, 'DATA'))}
+                    ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
-
-                    * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                     """
             ),
             DebugTestCase(
                 value=Conf.KW,
                 expected=f"""
-                    * Lazy Method 'fetch' with args=() and kwargs={{'value': '1'}}
-                    ├─f {prefix}.Conf.fetch
+        Lazy Method fetch(*(), **{{'value': '1'}})  #{short_id(raw_getattr(Conf, 'KW'))}
+        ├── {prefix}.Conf.fetch
+        │   └── {prefix}.MyService
+        └── {prefix}.Conf
+                    """
+            ),
+            DebugTestCase(
+                value=Conf.DATA2,
+                expected=f"""
+                    * Lazy Method fetch()
+                    ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                     """
-            ))
+            ),
+            DebugTestCase(
+                value=Conf.KW2,
+                expected=f"""
+                    * Lazy Method fetch(*(), **{{'value': '2'}})
+                    ├── {prefix}.Conf.fetch
+                    │   └── {prefix}.MyService
+                    └── {prefix}.Conf
+
+                    * = not singleton
+                    """
+            )
+        )
 
 
 def test_constants_debug():
@@ -296,13 +297,8 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-                Const calling get with '1' on LazyCall(func={prefix}.Conf, singleton=True)
-                └── LazyCall {prefix}.Conf
-
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
+            Const: get('1') on {prefix}.Conf  #{short_id(Conf.TEST)}
+            └── Lazy {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
                     """
             ))
 
@@ -319,13 +315,8 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-                    Const calling get with '1' on {prefix}.Conf
+                    Const: get('1') on {prefix}.Conf  #{short_id(Conf.TEST)}
                     └── {prefix}.Conf
-
-                    * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                     """
             ))
 
@@ -344,15 +335,10 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-                Const calling get with '1' on LazyCall(func={prefix}.Conf, singleton=True)
-                ├─f {prefix}.Conf.get
-                │   └── {prefix}.MyService
-                └── LazyCall {prefix}.Conf
-
-                * = not singleton
-                ─f = function
-                ─m = method
-                ─l = lazy
+            Const: get('1') on {prefix}.Conf  #{short_id(Conf.TEST)}
+            ├── {prefix}.Conf.get
+            │   └── {prefix}.MyService
+            └── Lazy {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
                     """
             ))
 
@@ -415,123 +401,96 @@ def test_complex_debug():
         assert_valid(
             DebugTestCase(
                 value=tag,
-                recursive=False,
+                depth=0,
                 expected=f"""
-                    * Tag(group={hex(id(tag))})
+                    * Tag(group={short_id(tag)})
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                         """
             ),
             DebugTestCase(
                 value=tag,
-                recursive=0,
+                depth=1,
                 expected=f"""
-                    * Tag(group={hex(id(tag))})
-
-                    * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
-                        """
-            ),
-            DebugTestCase(
-                value=tag,
-                recursive=1,
-                expected=f"""
-                    * Tag(group={hex(id(tag))})
+                    * Tag(group={short_id(tag)})
                     ├── {prefix}.Service4
-                    └── *{prefix}.Service3
+                    └── * {prefix}.Service3
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                         """
             ),
             DebugTestCase(
                 value=tag,
-                recursive=2,
+                depth=2,
                 expected=f"""
-                    * Tag(group={hex(id(tag))})
+                    * Tag(group={short_id(tag)})
                     ├── {prefix}.Service4
-                    │   ├── *{prefix}.Service3
+                    │   ├── * {prefix}.Service3
                     │   ├── {prefix}.Service2 @ {prefix}.build_s2
                     │   └── {prefix}.Service1
-                    └── *{prefix}.Service3
+                    └── * {prefix}.Service3
                         ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         ├── {prefix}.Service2 @ {prefix}.build_s2
                         └── {prefix}.Service1
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                         """
             ),
             DebugTestCase(
                 value=tag,
-                recursive=3,
+                depth=3,
                 expected=f"""
-                    * Tag(group={hex(id(tag))})
+                    * Tag(group={short_id(tag)})
                     ├── {prefix}.Service4
-                    │   ├── *{prefix}.Service3
+                    │   ├── * {prefix}.Service3
                     │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
                     │   │   ├── {prefix}.Service2 @ {prefix}.build_s2
                     │   │   └── {prefix}.Service1
                     │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                    │   │   └─f {prefix}.build_s2
+                    │   │   └── {prefix}.build_s2
                     │   │       └── {prefix}.Service1
                     │   └── {prefix}.Service1
-                    └── *{prefix}.Service3
+                    └── * {prefix}.Service3
                         ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         │   └── {prefix}.Service4
                         ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   └─f {prefix}.build_s2
+                        │   └── {prefix}.build_s2
                         │       └── {prefix}.Service1
                         └── {prefix}.Service1
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                         """
             ),
             DebugTestCase(
                 value=tag,
                 expected=f"""
-                    * Tag(group={hex(id(tag))})
+                    * Tag(group={short_id(tag)})
                     ├── {prefix}.Service4
-                    │   ├── *{prefix}.Service3
+                    │   ├── * {prefix}.Service3
                     │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                    │   │   │   └─/!\\ Cyclic dependency: {prefix}.Service4
+                    │   │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
                     │   │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                    │   │   │   └─f {prefix}.build_s2
+                    │   │   │   └── {prefix}.build_s2
                     │   │   │       └── {prefix}.Service1
                     │   │   └── {prefix}.Service1
                     │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                    │   │   └─f {prefix}.build_s2
+                    │   │   └── {prefix}.build_s2
                     │   │       └── {prefix}.Service1
                     │   └── {prefix}.Service1
-                    └── *{prefix}.Service3
+                    └── * {prefix}.Service3
                         ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         │   └── {prefix}.Service4
-                        │       ├─/!\\ Cyclic dependency: {prefix}.Service3
+                        │       ├── /!\\ Cyclic dependency: {prefix}.Service3
                         │       ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │       │   └─f {prefix}.build_s2
+                        │       │   └── {prefix}.build_s2
                         │       │       └── {prefix}.Service1
                         │       └── {prefix}.Service1
                         ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   └─f {prefix}.build_s2
+                        │   └── {prefix}.build_s2
                         │       └── {prefix}.Service1
                         └── {prefix}.Service1
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                         """
             ),
             DebugTestCase(
@@ -539,37 +498,29 @@ def test_complex_debug():
                 expected=f"""
                     {prefix}.f
                     └── {prefix}.Service4
-                        ├── *{prefix}.Service3
+                        ├── * {prefix}.Service3
                         │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                        │   │   └─/!\\ Cyclic dependency: {prefix}.Service4
+                        │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
                         │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   │   └─f {prefix}.build_s2
+                        │   │   └── {prefix}.build_s2
                         │   │       └── {prefix}.Service1
                         │   └── {prefix}.Service1
                         ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   └─f {prefix}.build_s2
+                        │   └── {prefix}.build_s2
                         │       └── {prefix}.Service1
                         └── {prefix}.Service1
 
                     * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
                         """
             ),
             DebugTestCase(
                 value=f_with_options,
                 expected=f"""
                     {prefix}.f_with_options
-                    ├── {prefix}.Service2 @ {prefix}.build_s2 with kwargs={{'option': 2}}
-                    │   └─f {prefix}.build_s2
+                    ├── {prefix}.Service2 @ {prefix}.build_s2(**{{'option': 2}})
+                    │   └── {prefix}.build_s2
                     │       └── {prefix}.Service1
-                    └── {prefix}.Service1 with kwargs={{'test': 1}}
-
-                    * = not singleton
-                    ─f = function
-                    ─m = method
-                    ─l = lazy
+                    └── {prefix}.Service1(**{{'test': 1}})
                     """
             )
         )

@@ -5,7 +5,7 @@ import threading
 from contextlib import contextmanager
 from typing import Callable, Optional
 
-from ..core.container import RawContainer
+from ..core.container import OverridableRawContainer, RawContainer
 
 __container: Optional[RawContainer] = None
 __container_lock = threading.RLock()
@@ -28,6 +28,14 @@ def init():
 
 def get_container() -> RawContainer:
     assert __container is not None
+    return __container
+
+
+def get_overridable_container() -> OverridableRawContainer:
+    assert __container is not None
+    if not isinstance(__container, OverridableRawContainer):
+        raise RuntimeError("Current world does not support overrides. "
+                           "Consider using world.test.clone(override=True)")
     return __container
 
 

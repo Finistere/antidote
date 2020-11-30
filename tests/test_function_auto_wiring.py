@@ -33,11 +33,11 @@ class FuncProtocol(Protocol):
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.new():
-        world.singletons.add_all({A: A(),
-                                  B: B(),
-                                  'a': object(),
-                                  'b': object(),
-                                  'x': object()})
+        world.singletons.add({A: A(),
+                              B: B(),
+                              'a': object(),
+                              'b': object(),
+                              'x': object()})
         yield
 
 
@@ -268,7 +268,7 @@ def test_dependencies_callable(builder: Builder):
 
 def test_dependencies_str(builder: Builder):
     with world.test.clone(keep_singletons=True):
-        world.singletons.add_all({
+        world.singletons.add({
             'conf:a': object(),
             'conf:b': object()
         })

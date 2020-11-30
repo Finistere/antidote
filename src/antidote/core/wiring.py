@@ -94,9 +94,8 @@ class Wiring(FinalImmutable):
 
         if not (wire_super is None or isinstance(wire_super, (bool, c_abc.Iterable))) \
                 or isinstance(wire_super, str):
-            raise TypeError(
-                f"wire_super must be either a boolean or a whitelist of methods names, "
-                f"not {type(wire_super)!r}.")
+            raise TypeError(f"wire_super must be either a boolean or a whitelist of "
+                            f"methods names, not {type(wire_super)!r}.")
         if wire_super is None or isinstance(wire_super, bool):
             wire_super = bool(wire_super)
         else:
@@ -116,24 +115,22 @@ class Wiring(FinalImmutable):
         else:
             ignore_missing_method = frozenset(ignore_missing_method)
             if not ignore_missing_method.issubset(methods):
-                raise ValueError(
-                    f"ignore_missing_method is not a subset of methods. Method names "
-                    f"{', '.join(map(repr, ignore_missing_method - methods))} "
-                    f"are unknown.")
+                unexpected = ignore_missing_method - methods
+                raise ValueError(f"ignore_missing_method is not a subset of methods. "
+                                 f"Method names {', '.join(map(repr, unexpected))} "
+                                 f"are unknown.")
 
         if isinstance(wire_super, bool):
             wire_super = methods if wire_super else _empty_set
         if isinstance(ignore_missing_method, bool):
             ignore_missing_method = methods if ignore_missing_method else _empty_set
 
-        super().__init__(
-            methods=methods,
-            wire_super=wire_super,
-            dependencies=dependencies,
-            use_names=use_names,
-            use_type_hints=use_type_hints,
-            ignore_missing_method=ignore_missing_method
-        )
+        super().__init__(methods=methods,
+                         wire_super=wire_super,
+                         dependencies=dependencies,
+                         use_names=use_names,
+                         use_type_hints=use_type_hints,
+                         ignore_missing_method=ignore_missing_method)
 
     def copy(self,
              *,
@@ -282,20 +279,20 @@ class WithWiringMixin:
             if methods is Copy.IDENTICAL:
                 raise TypeError("Current wiring is None, so methods must be specified")
             wiring = Wiring(methods=methods)
-            return self.copy(
-                wiring=wiring.copy(dependencies=dependencies,
-                                   use_names=use_names,
-                                   use_type_hints=use_type_hints,
-                                   wire_super=wire_super,
-                                   ignore_missing_method=ignore_missing_method))
+            return self.copy(wiring=wiring.copy(
+                dependencies=dependencies,
+                use_names=use_names,
+                use_type_hints=use_type_hints,
+                wire_super=wire_super,
+                ignore_missing_method=ignore_missing_method))
         else:
-            return self.copy(
-                wiring=self.wiring.copy(methods=methods,
-                                        dependencies=dependencies,
-                                        use_names=use_names,
-                                        use_type_hints=use_type_hints,
-                                        wire_super=wire_super,
-                                        ignore_missing_method=ignore_missing_method))
+            return self.copy(wiring=self.wiring.copy(
+                methods=methods,
+                dependencies=dependencies,
+                use_names=use_names,
+                use_type_hints=use_type_hints,
+                wire_super=wire_super,
+                ignore_missing_method=ignore_missing_method))
 
 
 @API.private  # Used internally for auto wiring.

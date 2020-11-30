@@ -1,3 +1,5 @@
+from typing import Dict
+
 from .. import API
 
 
@@ -23,14 +25,7 @@ class SlotRecord(SlotsRepr):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        attrs = dict(zip(self.__slots__, args))
+        attrs: Dict[str, object] = dict(zip(self.__slots__, args))
         attrs.update(kwargs)
         for attr, value in attrs.items():
             setattr(self, attr, value)
-
-    def copy(self, **kwargs):
-        return type(self)(**{
-            name: kwargs.get(name, getattr(self, name))
-            for cls in type(self).__mro__
-            for name in getattr(cls, '__slots__', [])
-        })

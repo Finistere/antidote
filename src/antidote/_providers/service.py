@@ -33,7 +33,7 @@ class Build(FinalImmutable, copy=False):
         return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
 
     def __antidote_debug_repr__(self):
-        return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
+        return f"{debug_repr(self.dependency)}(**{self.kwargs})"
 
     def __eq__(self, other):
         return (isinstance(other, Build)
@@ -86,7 +86,7 @@ class ServiceProvider(Provider):
         else:
             instance = klass()
 
-        return DependencyInstance(instance, singleton)
+        return DependencyInstance(instance, singleton=singleton)
 
     def register(self, klass: type, *, singleton: bool = True):
         if not (isinstance(klass, type) and inspect.isclass(klass)):

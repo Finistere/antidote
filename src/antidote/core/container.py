@@ -1,39 +1,20 @@
 import threading
+from collections import deque
 from contextlib import contextmanager
-from typing import Any, Dict, Hashable, List, Mapping, Optional, Sequence, Type
+from typing import (Any, Callable, cast, Deque, Dict, Hashable, List, Mapping, Optional,
+                    Sequence, Tuple, Type)
 from weakref import ref, ReferenceType
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError,
-                         FrozenContainerError)
-from .utils import DependencyDebug
+                         FrozenWorldError)
+from .utils import DependencyDebug, DependencyInstance
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.stack import DependencyStack
-from .._internal.utils import FinalImmutable, FinalMeta
 
 # PRIVATE
 _CONTAINER_REF_ATTR = "_antidote__container_ref"
-
-
-@API.public
-@final
-class DependencyInstance(FinalImmutable):
-    """
-    Simple wrapper of a dependency instance given by a
-    :py:class:`~.provider.Provider`.
-    """
-    __slots__ = ('value', 'singleton')
-    value: Any
-    singleton: bool
-
-    def __init__(self, value: Any, singleton: bool = False):
-        super().__init__(value, singleton)
-
-    def __eq__(self, other):
-        return isinstance(other, DependencyInstance) \
-               and self.singleton == other.singleton \
-               and self.value == other.value  # noqa: E126
 
 
 @API.public
@@ -110,12 +91,12 @@ class RawProvider:
     @final
     @contextmanager
     def _ensure_not_frozen(self):
-        container_ref: ReferenceType[Container] = getattr(self,
-                                                          _CONTAINER_REF_ATTR)
+        container_ref: ReferenceType[RawContainer] = getattr(self,
+                                                             _CONTAINER_REF_ATTR)
         if container_ref is None:
             yield
         else:
-            container: RawContainer = container_ref()
+            container = container_ref()
             assert container is not None, "Associated container does not exist anymore."
             with container.ensure_not_frozen():
                 yield
@@ -123,10 +104,10 @@ class RawProvider:
     @API.private
     @final
     def _raise_if_exists(self, dependency):
-        container_ref: ReferenceType[Container] = getattr(self,
-                                                          _CONTAINER_REF_ATTR)
+        container_ref: ReferenceType[RawContainer] = getattr(self,
+                                                             _CONTAINER_REF_ATTR)
         if container_ref is not None:
-            container: RawContainer = container_ref()
+            container = container_ref()
             assert container is not None, "Associated container does not exist anymore."
             container.raise_if_exists(dependency)
         else:
@@ -140,36 +121,29 @@ class RawProvider:
         return getattr(self, _CONTAINER_REF_ATTR) is not None
 
 
-@final
 @API.private  # Not meant for direct use. You should go through world to manipulate it.
-class RawContainer(Container, metaclass=FinalMeta):
-    """
-    Reference implementation for the Container. The Cython version is
-    considerably more complex for better performance.
-
-    :meta private:
-    """
+class RawContainer(Container):
 
     def __init__(self):
-        self.__providers: List[RawProvider] = list()
-        self.__singletons: Dict[Any, Any] = dict()
-        self.__dependency_stack = DependencyStack()
-        self.__singleton_lock = threading.RLock()
+        self._dependency_stack = DependencyStack()
+        self._singleton_lock = threading.RLock()
+        self._providers: List[RawProvider] = list()
+        self._singletons: Dict[Any, Any] = dict()
         self.__freeze_lock = threading.RLock()
         self.__frozen = False
 
     def __repr__(self):
-        return f"{type(self).__name__}(providers={', '.join(map(str, self.__providers))})"
+        return f"{type(self).__name__}(providers={', '.join(map(str, self._providers))})"
 
     @property
     def providers(self) -> Sequence[RawProvider]:
-        return self.__providers.copy()
+        return self._providers.copy()
 
     @contextmanager
     def ensure_not_frozen(self):
         with self.__freeze_lock:
             if self.__frozen:
-                raise FrozenContainerError()
+                raise FrozenWorldError()
             yield
 
     def freeze(self):
@@ -182,29 +156,29 @@ class RawContainer(Container, metaclass=FinalMeta):
             raise TypeError(
                 f"provider must be a Provider, not a {provider_cls}")
 
-        with self.ensure_not_frozen(), self.__singleton_lock:
-            if any(provider_cls == type(p) for p in self.__providers):
+        with self.ensure_not_frozen(), self._singleton_lock:
+            if any(provider_cls == type(p) for p in self._providers):
                 raise ValueError(f"Provider {provider_cls} already exists")
 
             provider = provider_cls()
             setattr(provider, _CONTAINER_REF_ATTR, ref(self))
-            self.__providers.append(provider)
-            self.__singletons[provider_cls] = provider
+            self._providers.append(provider)
+            self._singletons[provider_cls] = provider
 
     def add_singletons(self, dependencies: Mapping):
-        with self.ensure_not_frozen(), self.__singleton_lock:
+        with self.ensure_not_frozen(), self._singleton_lock:
             for k, v in dependencies.items():
                 self.raise_if_exists(k)
-            self.__singletons.update(dependencies)
+            self._singletons.update(dependencies)
 
     def raise_if_exists(self, dependency: Hashable):
         with self.__freeze_lock:
-            if dependency in self.__singletons:
+            if dependency in self._singletons:
                 raise DuplicateDependencyError(
                     f"{dependency!r} has already been defined as a singleton pointing "
-                    f"to {self.__singletons[dependency]}")
+                    f"to {self._singletons[dependency]}")
 
-            for provider in self.__providers:
+            for provider in self._providers:
                 if provider.exists(dependency):
                     debug = provider.maybe_debug(dependency)
                     message = f"{dependency!r} has already been declared " \
@@ -218,58 +192,74 @@ class RawContainer(Container, metaclass=FinalMeta):
               *,
               keep_singletons: bool = False,
               clone_providers: bool = True) -> 'RawContainer':
-        c = RawContainer()
-        with self.__singleton_lock:
+        container = type(self)()
+        with self._singleton_lock:
             if keep_singletons:
-                c.__singletons = self.__singletons.copy()
+                container._singletons = self._singletons.copy()
             if clone_providers:
-                for p in self.__providers:
+                for p in self._providers:
                     clone = p.clone(keep_singletons_cache=keep_singletons)
                     if clone is p \
-                            or getattr(clone, _CONTAINER_REF_ATTR,
-                                       None) is not None:
+                        or getattr(clone, _CONTAINER_REF_ATTR,
+                                   None) is not None:
                         raise RuntimeError(
                             "A Provider should always return a fresh "
                             "instance when copy() is called.")
 
-                    setattr(clone, _CONTAINER_REF_ATTR, ref(c))
-                    c.__providers.append(clone)
-                    c.__singletons[type(p)] = clone
+                    setattr(clone, _CONTAINER_REF_ATTR, ref(container))
+                    container._providers.append(clone)
+                    container._singletons[type(p)] = clone
             else:
-                for p in self.__providers:
-                    c.add_provider(type(p))
+                for p in self._providers:
+                    container.add_provider(type(p))
 
-        return c
+        return container
+
+    def debug(self, dependency: Hashable) -> DependencyDebug:
+        from .._internal.utils.debug import debug_repr
+
+        with self.__freeze_lock:
+            for p in self._providers:
+                debug = p.maybe_debug(dependency)
+                if debug is not None:
+                    return debug
+            try:
+                value = self._singletons[dependency]
+                return DependencyDebug(f"Singleton {debug_repr(dependency)} "
+                                       f"-> {value!r}",
+                                       singleton=True)
+            except KeyError:
+                raise DependencyNotFoundError(dependency)
 
     def provide(self, dependency: Hashable) -> DependencyInstance:
         try:
-            return DependencyInstance(self.__singletons[dependency], singleton=True)
+            return DependencyInstance(self._singletons[dependency], singleton=True)
         except KeyError:
             pass
-        return self.__safe_provide(dependency)
+        return self._safe_provide(dependency)
 
     def get(self, dependency: Hashable) -> Any:
         try:
-            return self.__singletons[dependency]
+            return self._singletons[dependency]
         except KeyError:
             pass
-        return self.__safe_provide(dependency).value
+        return self._safe_provide(dependency).value
 
-    def __safe_provide(self, dependency: Hashable) -> DependencyInstance:
+    def _safe_provide(self, dependency: Hashable) -> DependencyInstance:
         try:
-            with self.__singleton_lock, \
-                 self.__dependency_stack.instantiating(dependency):
+            with self._singleton_lock, \
+                 self._dependency_stack.instantiating(dependency):
                 try:
-                    return DependencyInstance(self.__singletons[dependency],
+                    return DependencyInstance(self._singletons[dependency],
                                               singleton=True)
                 except KeyError:
                     pass
 
-                for provider in self.__providers:
+                for provider in self._providers:
                     dependency_instance = provider.maybe_provide(dependency, self)
                     if dependency_instance is not None:
                         if dependency_instance.singleton:
-                            self.__singletons[dependency] = dependency_instance.value
+                            self._singletons[dependency] = dependency_instance.value
 
                         return dependency_instance
 
@@ -280,3 +270,133 @@ class RawContainer(Container, metaclass=FinalMeta):
             raise DependencyInstantiationError(dependency) from e
 
         raise DependencyNotFoundError(dependency)
+
+
+class OverridableRawContainer(RawContainer):
+    def __init__(self):
+        super().__init__()
+        self.__override_lock = threading.RLock()
+        # Used to differentiate singletons from the overrides and the "normal" ones.
+        self.__singletons_override = dict()
+        self.__factory_overrides: Dict[Any, Tuple[Callable[[], Any], bool]] = {}
+        self.__provider_overrides: Deque[
+            Callable[[Any], Optional[DependencyInstance]]] = deque()
+
+    @classmethod
+    def build(cls,
+              original: RawContainer,
+              keep_singletons: bool) -> 'OverridableRawContainer':
+        container = cls()
+        clone = original.clone(keep_singletons=keep_singletons)
+        container._singletons = clone._singletons
+        container._providers = clone._providers
+        if isinstance(clone, OverridableRawContainer):
+            container.__singletons_override = clone.__singletons_override
+            container.__factory_overrides = clone.__factory_overrides
+            container.__provider_overrides = clone.__provider_overrides
+        return container
+
+    def override_singletons(self, singletons: dict):
+        if not isinstance(singletons, dict):
+            raise TypeError(f"singletons must be a dict, not a {type(singletons)}")
+        with self.__override_lock:
+            self.__singletons_override.update(singletons)
+
+    def override_factory(self,
+                         dependency: Hashable,
+                         *,
+                         factory: Callable[[], Any],
+                         singleton: bool):
+        if not callable(factory):
+            raise TypeError(f"factory must be a callable, not a {type(factory)}")
+        if not isinstance(singleton, bool):
+            raise TypeError(f"singleton must be a boolean, not a {type(singleton)}")
+        with self.__override_lock:
+            self.__factory_overrides[dependency] = (factory, singleton)
+
+    def override_provider(self,
+                          provider: Callable[[Any], Optional[DependencyInstance]]):
+        if not callable(provider):
+            raise TypeError(f"provider must be a callable, not a {type(provider)}")
+        with self.__override_lock:
+            self.__provider_overrides.appendleft(provider)  # latest provider wins
+
+    def provide(self, dependency: Hashable) -> DependencyInstance:
+        return self._safe_provide(dependency)
+
+    def get(self, dependency: Hashable) -> Any:
+        return self._safe_provide(dependency).value
+
+    def clone(self,
+              *,
+              keep_singletons: bool = False,
+              clone_providers: bool = True) -> 'OverridableRawContainer':
+        with self._singleton_lock, self.__override_lock:
+            container = cast(OverridableRawContainer,
+                             super().clone(keep_singletons=keep_singletons,
+                                           clone_providers=clone_providers))
+            if keep_singletons:
+                container.__singletons_override = self.__singletons_override.copy()
+            container.__factory_overrides = self.__factory_overrides.copy()
+            container.__provider_overrides = self.__provider_overrides.copy()
+
+        return container
+
+    def debug(self, dependency: Hashable) -> DependencyDebug:
+        from .._internal.utils.debug import debug_repr
+
+        with self.__override_lock:
+            try:
+                value = self.__singletons_override[dependency]
+            except KeyError:
+                pass
+            else:
+                return DependencyDebug(f"Override/Singleton: {debug_repr(dependency)} "
+                                       f"-> {value!r}",
+                                       singleton=True)
+            try:
+                (factory, singleton) = self.__factory_overrides[dependency]
+            except KeyError:
+                pass
+            else:
+                return DependencyDebug(f"Override/Factory: {debug_repr(dependency)} "
+                                       f"-> {debug_repr(factory)}",
+                                       singleton=singleton)
+
+        return super().debug(dependency)
+
+    def _safe_provide(self, dependency: Hashable) -> DependencyInstance:
+        with self._singleton_lock, self.__override_lock:
+            with self._dependency_stack.instantiating(dependency):
+                try:
+                    return DependencyInstance(self.__singletons_override[dependency],
+                                              singleton=True)
+                except KeyError:
+                    pass
+
+                try:
+                    for provider in self.__provider_overrides:
+                        dependency_instance = provider(dependency)
+                        if dependency_instance is not None:
+                            if dependency_instance.singleton:
+                                self.__singletons_override[dependency] \
+                                    = dependency_instance.value
+                            return dependency_instance
+
+                    try:
+                        (factory, singleton) = self.__factory_overrides[dependency]
+                    except KeyError:
+                        pass
+                    else:
+                        value = factory()
+                        if singleton:
+                            self.__singletons_override[dependency] = value
+                        return DependencyInstance(value, singleton=singleton)
+
+                except DependencyCycleError:
+                    raise
+
+                except Exception as e:
+                    raise DependencyInstantiationError(dependency) from e
+
+            return super()._safe_provide(dependency)

@@ -20,6 +20,15 @@ cdef RawContainer fast_get_container():
 def get_container() -> RawContainer:
     return fast_get_container()
 
+
+def get_overridable_container():
+    from ..core.container import OverridableRawContainer
+    c = fast_get_container()
+    if not isinstance(c, OverridableRawContainer):
+        raise RuntimeError("Current world does not support overrides. "
+                           "Consider using world.test.clone(override=True)")
+    return c
+
 def reset():
     global __container
     __container = None

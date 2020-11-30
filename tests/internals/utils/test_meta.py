@@ -25,7 +25,10 @@ def test_abstract_meta():
 
 @pytest.mark.parametrize('meta', [FinalMeta, FinalImmutableMeta])
 def test_final_meta(meta):
-    class Dummy(metaclass=meta):
+    class Mixin:
+        pass
+
+    class Dummy(Mixin, metaclass=meta):
         __slots__ = ()
 
     with pytest.raises(TypeError):

@@ -11,7 +11,6 @@ class DummyProvider(Provider):
 
     def __init__(self, data: Dict = None):
         super().__init__()
-        self.frozen = False
         self.data = data
 
     def exists(self, dependency: Hashable) -> bool:
@@ -30,7 +29,6 @@ class DummyFactoryProvider(Provider):
 
     def __init__(self, data: Dict = None):
         super().__init__()
-        self.frozen = False
         self.data = data or dict()
 
     def exists(self, dependency: Hashable) -> bool:

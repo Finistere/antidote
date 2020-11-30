@@ -1,68 +1,111 @@
+*************
 API Reference
-=============
+*************
 
 
-World
+
+World Utilities
+===============
+
+
+world
 -----
 
 .. automodule:: antidote.world
-    :members: freeze, provider, get, lazy
+    :members:
+
+    .. autodata:: get
+
+    .. autodata:: lazy
+
+
+world.singletons
+----------------
 
 .. automodule:: antidote.world.singletons
-    :members: add, add_all
+    :members:
+
+
+world.test
+----------
+
+.. automodule:: antidote.world.test
+    :members:
+
+
+world.test.override
+-------------------
+
+.. automodule:: antidote.world.test.override
+    :members:
 
 
 Dependencies
-------------
+============
+
 
 Service
-^^^^^^^
-.. automodule:: antidote.helpers.service
+-------
+
+.. automodule:: antidote.service
     :members: service
 
-.. autoclass:: antidote.helpers.service.Service
+.. autoclass:: antidote.service.Service
     :members: __antidote__
     :inherited-members:
 
     .. automethod:: with_kwargs
 
+
 Factory
-^^^^^^^
-.. automodule:: antidote.helpers.factory
+-------
+
+.. automodule:: antidote.factory
     :members: factory
 
-.. autoclass:: antidote.helpers.factory.Factory
+.. autoclass:: antidote.factory.Factory
     :members:
     :inherited-members:
 
     .. automethod:: with_kwargs
 
+
 Constants
-^^^^^^^^^
-.. autoclass:: antidote.helpers.constants.Constants
+---------
+
+.. autoclass:: antidote.constants.Constants
     :members:
+
 
 Lazy
-^^^^
-.. automodule:: antidote.helpers.lazy
+----
+
+.. automodule:: antidote.lazy
     :members:
+
 
 Implementation
-^^^^^^^^^^^^^^
-.. automodule:: antidote.helpers.implementation
+--------------
+
+.. automodule:: antidote.implementation
     :members:
 
+
 Tags
-^^^^
-.. automodule:: antidote.providers.tag
+----
+
+.. automodule:: antidote.tag
     :members: Tag, Tagged
 
 
+
 Core
-----
+====
+
 
 Injection
-^^^^^^^^^
+---------
+
 .. automodule:: antidote.core.injection
     :members: inject, Arg
 
@@ -72,8 +115,10 @@ Injection
 .. automodule:: antidote.core.utils
     :members:
 
+
 Provider
-^^^^^^^^
+--------
+
 .. automodule:: antidote.core.provider
     :members:
 
@@ -81,8 +126,9 @@ Provider
     :members:
 
 
+
 Exceptions
-----------
+==========
 
 .. automodule:: antidote.exceptions
     :members:

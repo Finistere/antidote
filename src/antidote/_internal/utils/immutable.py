@@ -1,4 +1,5 @@
 import inspect
+from typing import Dict
 
 from .slots import SlotsRepr
 from .. import API
@@ -58,7 +59,7 @@ class Immutable(SlotsRepr, metaclass=ImmutableMeta, abstract=True):
     def __init__(self, *args, **kwargs):
         # quick way to initialize an Immutable through args. It won't take into
         # account parent classes though.
-        attrs = dict(zip(self.__slots__, args))
+        attrs: Dict[str, object] = dict(zip(self.__slots__, args))
         attrs.update(kwargs)
         for attr, value in attrs.items():
             object.__setattr__(self, attr, value)

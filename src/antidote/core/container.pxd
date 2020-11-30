@@ -8,11 +8,6 @@ from antidote._internal.stack cimport DependencyStack
 cdef:
     size_t FLAG_DEFINED, FLAG_SINGLETON
 
-cdef class DependencyInstance:
-    cdef:
-        readonly object value
-        readonly bint singleton
-
 cdef class PyObjectBox:
     cdef:
         object obj
@@ -33,14 +28,14 @@ cdef class Container:
 
 cdef class RawContainer(Container):
     cdef:
-        DependencyStack __dependency_stack
+        list _providers
+        dict _singletons
+        object _singleton_lock
+        unsigned long _singletons_clock
+        DependencyStack _dependency_stack
         ProviderCache __cache
-        list __providers
-        dict __singletons
         bint __frozen
-        object __singleton_lock
         object __freeze_lock
-        unsigned long __singletons_clock
         object __weakref__
 
     cdef fast_get(self, PyObject*dependency, DependencyResult*result)
@@ -51,7 +46,6 @@ cdef class RawProvider:
     cdef:
         object _container_ref
 
-    cpdef DependencyInstance maybe_provide(self, object dependency, Container container)
     cdef fast_provide(self, PyObject*dependency, PyObject*container,
                       DependencyResult*result)
 
