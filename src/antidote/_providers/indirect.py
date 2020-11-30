@@ -33,7 +33,7 @@ class IndirectProvider(Provider):
             pass
         else:
             repr_d = debug_repr(dependency)
-            linker = link.get_linker()
+            linker = link.linker  # type: ignore  # Mypy treats linker as a method
             repr_linker = debug_repr(linker)
             if link.permanent:
                 if dependency in self.__static_links:
@@ -79,7 +79,7 @@ class IndirectProvider(Provider):
         except KeyError:
             pass
         else:
-            target = link.get_target()
+            target = link.linker()  # type: ignore  # Mypy treats linker as a method
             if link.permanent:
                 self.__static_links[dependency] = target
             t = container.provide(target)
@@ -105,9 +105,3 @@ class Link(FinalImmutable):
     __slots__ = ('linker', 'permanent')
     linker: Callable[[], Hashable]
     permanent: bool
-
-    def get_linker(self) -> Callable[[], Hashable]:  # For Mypy
-        return getattr(self, 'linker')
-
-    def get_target(self):  # For Mypy
-        return self.linker()

@@ -1,5 +1,6 @@
+***************
 Getting started
-===============
+***************
 
 This is a beginner friendly tutorial on how to use Antidote features to write better code.
 It is a series of steps to show what can be done easily. It will focus on how to declare
@@ -8,7 +9,7 @@ don't hesitate to check out the recipes and references for more in depth documen
 
 
 1. World
---------
+========
 
 First of all, let's start with a quick example:
 
@@ -89,7 +90,11 @@ If you need to declare multiple of them :py:mod:`.world` provides a shortcut
 
 .. doctest:: tutorial_overview
 
-    >>> world.singletons.add_all({'favorite number': 11})
+    >>> world.singletons.add({'favorite number': 11})
+
+        And on top of that, you can retrieve dependencies directly with :py
+
+    And on top of that, you can retrieve dependencies directly with :py
 
     And on top of that, you can retrieve dependencies directly with :py
 
@@ -120,7 +125,7 @@ provides out of the box.
 
 
 2. Services
------------
+===========
 
 We declared :code:`MyService` before as a singleton by hand, but Antidote provides a
 better way to do this, defining a :py:class:`.Service` ! A service is a class which
@@ -239,7 +244,7 @@ arguments are specified.
 
 
 3. Injection & Wiring
----------------------
+=====================
 
 As seen in the previous sections, injection is done with the decorator :py:func:`.inject`.
 By default it relies on type hints to determine what must be injected but you it supports
@@ -268,15 +273,15 @@ a lot more. Here are a few examples:
 .. doctest:: tutorial_injection
 
     >>> from antidote import world
-    >>> world.singletons.add_all({'country': 'FR',
-    ...                           'app:name': "Hello World !",
-    ...                           'timezone': 'UTC'})
-    >>> get_country()
-    'FR'
-    >>> get_app_name()
-    'Hello World !'
-    >>> get_timezone()
-    'UTC'
+        >>> world.singletons.add({'country': 'FR',
+        ...                           'app:name': "Hello World !",
+        ...                           'timezone': 'UTC'})
+        >>> get_country()
+        'FR'
+        >>> get_app_name()
+        'Hello World !'
+        >>> get_timezone()
+        'UTC'
 
 
 An important thing to keep in mind is that Antidote has a specific priority:
@@ -383,7 +388,7 @@ for all methods that have be to wired:
 
 
 4. Configuration
-----------------
+================
 
 Antidote main goal for configuration is to enable you to trace back where it comes from
 easily, like a service where you only need to go to the class definition.
@@ -465,7 +470,7 @@ You customize :code:`Config` in multiple ways. On top of the wiring that you cha
 
 
 5. Factories & External dependencies
-------------------------------------
+====================================
 
 Factories can be used for a lot more, but they're the best way to handle external
 dependencies which you don't own, like library classes.
@@ -530,7 +535,7 @@ If you need more complex factories, you can use a class instead:
 
 
 6. Test & Debug
----------------
+===============
 
 You've seen until now that Antidote's :py:func:`.inject` does not force you to rely on
 the injection to be used:
@@ -623,11 +628,11 @@ While Antidote does not accept support overriding dependencies, you may do it in
     ...     # This fails because MyService already exists as a dependency
     ...     world.singletons.add(MyService, MyService())
     Traceback (most recent call last):
-      File "<stdin>", line 1, in ?
+    ...
     DuplicateDependencyError
     >>> with world.test.clone(overridable=True):
     ...     test_service = MyService()
-    ...     world.singletons.add(MyService, test_service)
+    ...     world.test.override.singleton(MyService, test_service)
     ...     assert world.get[MyService]() is test_service
 
 

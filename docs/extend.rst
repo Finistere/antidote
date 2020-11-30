@@ -1,5 +1,6 @@
+***************
 Extend Antidote
-===============
+***************
 
 While Antidote provides several ways to handle your dependencies out of the box, it may
 not be enough. But don't worry, Antidote got you covered ! It is designed from the ground

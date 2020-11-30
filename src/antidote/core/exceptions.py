@@ -89,13 +89,6 @@ class FrozenWorldError(AntidoteError):
     """
 
 
-@API.experimental
-class FrozenContainerError(FrozenWorldError):
-    """
-    Whenever ensure_not_frozen() fails.
-    """
-
-
 @API.private
 class DebugNotAvailableError(AntidoteError):
     """

@@ -3,10 +3,10 @@ from typing import Hashable
 cimport cython
 from cpython.object cimport PyObject, PyObject_CallMethodObjArgs
 
-from antidote.core.container cimport (Container, DependencyInstance, DependencyResult,
-                                      FastProvider, FLAG_DEFINED, FLAG_SINGLETON,
-                                      PyObjectBox, RawContainer)
-from .._internal.utils import debug_repr
+from antidote.core.container cimport (Container, DependencyResult, FastProvider,
+                                      FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox,
+                                      RawContainer)
+from .._internal.utils import debug_repr, short_id
 from ..core.exceptions import DependencyNotFoundError
 from ..core.utils import DependencyDebug
 
@@ -21,9 +21,6 @@ cdef class Lazy:
         raise NotImplementedError()  # pragma: no cover
 
     cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
-        cdef:
-            DependencyInstance dependency_instance
-
         dependency_instance = self.lazy_get(<Container> container)
         if dependency_instance is not None:
             result.flags = FLAG_DEFINED | (
@@ -51,8 +48,8 @@ cdef class FastLazyConst(Lazy):
             cls = self.dependency.func
         else:
             cls = self.dependency
-        return DependencyDebug(f"Const calling {self.method_name} with {self.value!r} on "
-                               f"{debug_repr(self.dependency)}",
+        return DependencyDebug(f"Const: {self.method_name}({self.value!r}) "
+                               f"on {debug_repr(cls)}  #{short_id(self)}",
                                singleton=True,
                                dependencies=[self.dependency],
                                wired=[getattr(cls, self.method_name)])

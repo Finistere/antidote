@@ -128,7 +128,7 @@ def test_link_permanent_singleton(service: ServiceProvider,
 def test_copy(indirect: IndirectProvider,
               keep_singletons_cache: bool,
               register: Callable[[IndirectProvider, type, type], object]):
-    world.singletons.add_all({A: A()})
+    world.singletons.add({A: A()})
 
     register(indirect, Interface, A)
     a = world.get(Interface)
@@ -140,7 +140,7 @@ def test_copy(indirect: IndirectProvider,
             assert world.test.maybe_provide_from(clone, Interface).value is a
     else:
         with world.test.empty():
-            world.singletons.add_all({A: A(), B: B()})
+            world.singletons.add({A: A(), B: B()})
             clone = indirect.clone(False)
             instance = world.test.maybe_provide_from(clone, Interface).value
             assert instance is world.get(A)
@@ -158,7 +158,7 @@ def test_copy(indirect: IndirectProvider,
     class A3(Interface3):
         pass
 
-    world.singletons.add_all({A2: A2(), A3: A3()})
+    world.singletons.add({A2: A2(), A3: A3()})
     # Original does not modify clone
     register(indirect, Interface2, A2)
     assert world.get(Interface2) is world.get(A2)

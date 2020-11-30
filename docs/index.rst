@@ -20,4 +20,5 @@ Table of Content
     recipes
     extend
     reference
+    changelog
 

@@ -1,4 +1,4 @@
-from typing import cast, Generic, Hashable, Sequence, TypeVar
+from typing import Any, cast, Generic, Hashable, Sequence, TypeVar
 
 from .._compatibility.typing import final
 from .._internal import API
@@ -53,6 +53,27 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
 
 
 @API.public
+@final
+class DependencyInstance(FinalImmutable):
+    """
+    Simple wrapper of a dependency instance given by a
+    :py:class:`~.provider.Provider`.
+    """
+    __slots__ = ('value', 'singleton')
+    value: Any
+    singleton: bool
+
+    def __init__(self, value: Any, *, singleton: bool = False):
+        super().__init__(value, singleton)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyInstance) \
+               and self.singleton == other.singleton \
+               and self.value == other.value  # noqa: E126
+
+
+@API.public
+@final
 class DependencyDebug(FinalImmutable):
     """
     Debug information on a dependency. Used by :py:mod:`.world.debug` to provide runtime
@@ -79,3 +100,10 @@ class DependencyDebug(FinalImmutable):
             dependencies: Any transient dependency, so dependencies of this dependency.
         """
         super().__init__(info, singleton, wired, dependencies)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyDebug) \
+               and self.info == other.info \
+               and self.singleton == other.singleton \
+               and self.wired == other.wired \
+               and self.dependencies == other.dependencies  # noqa: E126

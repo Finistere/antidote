@@ -26,7 +26,7 @@ class FactoryProvider(Provider):
             }
         else:
             factories = {
-                k: (f.copy(function=None) if f.dependency is not None else f)
+                k: (f.copy(keep_function=False) if f.dependency is not None else f)
                 for k, f in self.__factories.items()
             }
         p.__factories = factories
@@ -147,3 +147,8 @@ class Factory(SlotRecord):
                  dependency: Any = None):
         assert function is not None or dependency is not None
         super().__init__(singleton, function, dependency)
+
+    def copy(self, keep_function: bool = True) -> 'Factory':
+        return Factory(self.singleton,
+                       self.function if keep_function else None,
+                       self.dependency)

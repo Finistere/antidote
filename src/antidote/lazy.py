@@ -3,7 +3,7 @@ from typing import Callable, Union
 
 from ._compatibility.typing import final
 from ._internal import API
-from ._internal.utils import debug_repr, FinalImmutable
+from ._internal.utils import debug_repr, short_id, FinalImmutable
 from ._lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
                     LazyMethodCallWithArgsKwargs)
 from ._providers import Lazy
@@ -61,15 +61,18 @@ class LazyCall(FinalImmutable, Lazy):
         return LazyCallWithArgsKwargs(self.func, self.singleton, args, kwargs)
 
     def __antidote_debug_repr__(self):
-        return f"LazyCall(func={debug_repr(self.func)}, singleton={self.singleton})"
+        s = f"Lazy {debug_repr(self.func)}()"
+        if self.singleton:
+            s += f"  #{short_id(self)}"
+        return s
 
     def debug_info(self) -> DependencyDebug:
-        return DependencyDebug(f"LazyCall {debug_repr(self.func)}",
+        return DependencyDebug(self.__antidote_debug_repr__(),
                                singleton=self.singleton,
                                wired=[self.func])
 
     def lazy_get(self, container: Container) -> DependencyInstance:
-        return DependencyInstance(self.func(), self.singleton)
+        return DependencyInstance(self.func(), singleton=self.singleton)
 
 
 @API.public
@@ -117,7 +120,7 @@ class LazyMethodCall(FinalImmutable, copy=False):
     singleton: bool
     _cache_attr: str
 
-    def __init__(self, method: Union[Callable, str], singleton: bool = True):
+    def __init__(self, method: Union[Callable, str], *, singleton: bool = True):
         """
         Args:
             method: Method name or the method itself that must be called.
@@ -140,11 +143,13 @@ class LazyMethodCall(FinalImmutable, copy=False):
         """
         return LazyMethodCallWithArgsKwargs(self.method_name,
                                             self.singleton,
-                                            self._cache_attr,
                                             args, kwargs)
 
     def __str__(self):
-        return f"Lazy Method '{self.method_name}'"
+        s = f"Lazy Method {self.method_name}()"
+        if self.singleton:
+            s += f"  #{short_id(self)}"
+        return s
 
     def __get__(self, instance, owner):
         if instance is None:

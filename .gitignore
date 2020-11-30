@@ -12,6 +12,8 @@ cov_html
 *.egg-info
 *.so
 *.cpp
+*.ipynb
+!benchmark.ipynb
 /src/**/*.html
 /build/
 /wheelhouse

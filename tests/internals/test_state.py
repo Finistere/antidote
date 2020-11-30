@@ -16,3 +16,8 @@ def test_reset():
 
     state.init()
     assert state.get_container() is not None
+
+
+def test_overridable_container():
+    with pytest.raises(RuntimeError):
+        state.get_overridable_container()

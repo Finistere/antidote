@@ -3,7 +3,7 @@ from typing import Callable, TYPE_CHECKING, Union
 
 from ._compatibility.typing import final
 from ._internal import API
-from ._internal.utils import debug_repr, FinalImmutable
+from ._internal.utils import debug_repr, FinalImmutable, short_id
 from ._providers import Lazy
 from .core import Container, DependencyInstance
 from .core.utils import DependencyDebug
@@ -25,19 +25,19 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
     kwargs: dict
 
     def __antidote_debug_repr__(self):
-        return f"LazyCall(func={debug_repr(self.func)}, " \
-               f"args={self.args}, kwargs={self.kwargs}" \
-               f"singleton={self.singleton})"
+        s = f"Lazy {debug_repr(self.func)}(*{self.args}, **{self.kwargs})"
+        if self.singleton:
+            s += f"  #{short_id(self)}"
+        return s
 
     def debug_info(self) -> DependencyDebug:
-        return DependencyDebug(
-            f"Lazy '{debug_repr(self.func)}' "
-            f"with args={self.args!r} and kwargs={self.kwargs!r}",
-            singleton=self.singleton,
-            wired=[self.func])
+        return DependencyDebug(self.__antidote_debug_repr__(),
+                               singleton=self.singleton,
+                               wired=[self.func])
 
     def lazy_get(self, container: Container) -> DependencyInstance:
-        return DependencyInstance(self.func(*self.args, **self.kwargs), self.singleton)
+        return DependencyInstance(self.func(*self.args, **self.kwargs),
+                                  singleton=self.singleton)
 
 
 @API.private
@@ -46,12 +46,16 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable, copy=False):
     """
     :meta private:
     """
-    __slots__ = ('method_name', 'singleton', '_cache_attr', 'args', 'kwargs')
+    __slots__ = ('method_name', 'singleton', 'args', 'kwargs', '_cache_attr')
     method_name: str
     singleton: bool
     args: tuple
     kwargs: dict
     _cache_attr: str
+
+    def __init__(self, method_name: str, singleton: bool, args: tuple, kwargs: dict):
+        super().__init__(method_name, singleton, args, kwargs,
+                         f"__antidote_dependency_{hex(id(self))}")
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -66,8 +70,10 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable, copy=False):
         return getattr(instance, self.method_name)(*self.args, **self.kwargs)
 
     def __str__(self):
-        return f"Lazy Method '{self.method_name}' " \
-               f"with args={self.args} and kwargs={self.kwargs}"
+        s = f"Lazy Method {self.method_name}(*{self.args}, **{self.kwargs})"
+        if self.singleton:
+            s += f"  #{short_id(self)}"
+        return s
 
 
 @API.private
@@ -93,7 +99,5 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
     def lazy_get(self, container: Container) -> DependencyInstance:
         owner = self.owner_ref()
         assert owner is not None
-        return DependencyInstance(
-            self.descriptor.__get__(container.get(owner), owner),
-            self.singleton
-        )
+        return DependencyInstance(self.descriptor.__get__(container.get(owner), owner),
+                                  singleton=self.singleton)

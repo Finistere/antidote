@@ -1,6 +1,7 @@
 import pytest
 
 from antidote import world
+from antidote._internal.utils import short_id
 from antidote._providers import Tag, Tagged, TagProvider
 from antidote.core import DependencyInstance
 from antidote.exceptions import (DependencyNotFoundError, DuplicateTagError,
@@ -49,7 +50,7 @@ def test_repr(provider: TagProvider):
 
 def test_tagged_dependencies():
     with world.test.empty():
-        world.singletons.add_all({
+        world.singletons.add({
             'd': object(),
             'd2': object()
         })
@@ -70,7 +71,7 @@ def test_tagged_dependencies():
 
         # tagged dependencies should only be retrieved once.
         with world.test.empty():
-            world.singletons.add_all({
+            world.singletons.add({
                 'd': object(),
                 'd2': object()
             })
@@ -111,7 +112,7 @@ def test_provide_unknown_tag():
 def test_provide_tags():
     with world.test.empty():
         provider = TagProvider()
-        world.singletons.add_all(dict(test=object(), test2=object()))
+        world.singletons.add(dict(test=object(), test2=object()))
         tagA = Tag()
         tagB = Tag()
         provider.register('test', tags=[tagA, tagB])
@@ -149,7 +150,7 @@ def test_custom_tags(provider: TagProvider):
         def group(self):
             return self.name
 
-    world.singletons.add_all(dict(test=object(), test2=object()))
+    world.singletons.add(dict(test=object(), test2=object()))
     test_tags = [CustomTag("A", attr=1), CustomTag("B", attr=1)]
     provider.register('test', tags=test_tags)
     test2_tags = [CustomTag("B", attr=2)]
@@ -174,13 +175,17 @@ def test_duplicate_tag_error(provider: TagProvider):
     with world.test.clone():
         provider = world.get(TagProvider)
         provider.register('test', tags=[tag])
-        with pytest.raises(DuplicateTagError, match=f".*{hex(id(tag))}.*"):
+        with pytest.raises(DuplicateTagError) as exc_info:
             provider.register('test', tags=[tag])
+        # short_id being base64 can contain the chars '+/' which interfere with regex
+        # matching.
+        assert short_id(tag) in str(exc_info.value)
 
     with world.test.clone():
         provider = world.get(TagProvider)
-        with pytest.raises(DuplicateTagError, match=f".*{hex(id(tag))}.*"):
+        with pytest.raises(DuplicateTagError) as exc_info:
             provider.register('test', tags=[tag, tag])
+        assert short_id(tag) in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -214,7 +219,7 @@ def test_unknown_dependency(dependency):
 @pytest.mark.parametrize('keep_singletons_cache', [True, False])
 def test_copy(provider: TagProvider,
               keep_singletons_cache: bool):
-    world.singletons.add_all(dict(test=object(), test2=object(), test3=object()))
+    world.singletons.add(dict(test=object(), test2=object(), test3=object()))
     tag = Tag()
     provider.register('test', tags=[tag])
     cloned = provider.clone(keep_singletons_cache=keep_singletons_cache)

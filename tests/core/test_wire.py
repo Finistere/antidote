@@ -6,7 +6,7 @@ from antidote import wire, world
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.empty():
-        world.singletons.add_all(dict(x=object(), y=object()))
+        world.singletons.add(dict(x=object(), y=object()))
         yield
 
 
@@ -53,7 +53,7 @@ def test_multi_wire():
     assert xx == d2.f()
     assert (xx, yy) == d2.g()
 
-    world.singletons.add_all({Dummy: d1, Dummy2: d2})
+    world.singletons.add({Dummy: d1, Dummy2: d2})
 
     @wire(methods=['f', 'g'],
           use_type_hints=['x', 'y'])

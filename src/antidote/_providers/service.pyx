@@ -36,10 +36,10 @@ cdef class Build:
         return self._hash
 
     def __repr__(self):
-        return f"{type(self).__name__}(dependency={self.dependency}, kwargs={self.kwargs})"
+        return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
 
     def __antidote_debug_repr__(self):
-        return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
+        return f"{debug_repr(self.dependency)}(**{self.kwargs})"
 
     def __eq__(self, other):
         return (isinstance(other, Build)

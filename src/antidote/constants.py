@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Union
+from typing import Callable, cast, Optional, Union
 
 from ._compatibility.typing import final
 from ._constants import ConstantsMeta, MakeConst
@@ -93,7 +93,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         """
         __slots__ = ('wiring', 'is_const', 'public')
         wiring: Optional[Wiring]
-        is_const: Optional[Callable[[str], bool]]
+        is_const: Callable[[str], bool]
         public: bool
 
         def __init__(self,
@@ -135,11 +135,15 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                  *,
                  public: Union[bool, Copy] = Copy.IDENTICAL,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
-                 is_const: Union[Callable[[str], bool], Copy] = Copy.IDENTICAL):
+                 is_const: Union[Optional[Callable[[str], bool]], Copy] = Copy.IDENTICAL):
+
             return Constants.Conf(
                 public=self.public if public is Copy.IDENTICAL else public,
                 wiring=self.wiring if wiring is Copy.IDENTICAL else wiring,
-                is_const=self.is_const if is_const is Copy.IDENTICAL else is_const
+                # Waiting for a fix: https://github.com/python/mypy/issues/6910
+                is_const=(cast(Callable[[str], bool], getattr(self, 'is_const'))
+                          if is_const is Copy.IDENTICAL else
+                          is_const)
             )
 
     __antidote__: Conf = Conf()

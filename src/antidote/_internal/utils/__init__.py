@@ -1,6 +1,6 @@
 import enum
 
-from .debug import debug_repr
+from .debug import debug_repr, short_id
 from .immutable import FinalImmutable, Immutable
 from .meta import AbstractMeta, FinalMeta
 from .slots import SlotRecord
@@ -13,7 +13,7 @@ class Copy(enum.Enum):
 
 
 @API.private
-def raw_getattr(cls: type, attr: str, with_super: bool):
+def raw_getattr(cls: type, attr: str, with_super: bool = False):
     """
     Used to retrieve the 'raw' attribute from a class, typically the descriptor itself
     and not whatever it outputs.
