@@ -77,8 +77,7 @@ class DependencyTask(Task):
 
 @API.private
 class InjectionTask(Task):
-    __slots__ = ('name', 'symbol', 'injections')
-    symbol: str
+    __slots__ = ('name', 'injections')
     name: str
     injections: List[Hashable]
 

@@ -31,25 +31,9 @@ def test_invalid_immutable(cls: type):
         class B(cls):
             __slots__ = ('__value',)
 
-    with pytest.raises(TypeError, match=".*__init__.*"):
-        class C(cls):
-            __slots__ = ('value',)
-
-            def __init__(self, x):  # Should have a value argument or override copy()
-                pass
-
     with pytest.raises(ValueError, match=".*abstract.*"):
         class D(cls, abstract=True):
             __slots__ = ('value',)
-
-    class E(cls, copy=False):
-        __slots__ = ('value', '_dummy')
-
-        def __init__(self, value):
-            pass
-
-    with pytest.raises(RuntimeError, match="(?i).*copy.*"):
-        E('x').copy()
 
 
 def test_immutability(cls: type):

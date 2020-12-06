@@ -15,7 +15,7 @@ from antidote._internal.stack cimport DependencyStack
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError, FrozenWorldError)
 # @formatter:on
-from .utils import DependencyDebug, DependencyInstance
+from .utils import DependencyDebug
 
 
 cdef extern from "Python.h":
@@ -28,6 +28,22 @@ cdef extern from "Python.h":
 
 FLAG_DEFINED = 1
 FLAG_SINGLETON = 2
+
+
+@cython.freelist(64)
+@cython.final
+cdef class DependencyInstance:
+    def __cinit__(self, value, *, bint singleton = False):
+        self.value = value
+        self.singleton = singleton
+
+    def __repr__(self):
+        return f"DependencyInstance(value={self.value}, singleton={self.singleton})"
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyInstance) \
+               and self.singleton == other.singleton \
+               and self.value == other.value
 
 
 @cython.freelist(64)
@@ -70,6 +86,8 @@ cdef class RawProvider:
                       PyObject*dependency,
                       PyObject*container,
                       DependencyResult*result):
+        cdef:
+            DependencyInstance dependency_instance
         dependency_instance = self.maybe_provide(<object> dependency,
                                                  <Container> container)
         if dependency_instance is not None:

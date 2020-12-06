@@ -1,12 +1,12 @@
 # @formatter:off
 from typing import Hashable
 cimport cython
-from cpython.object cimport PyObject, PyObject_CallMethodObjArgs
+from cpython.object cimport PyObject, PyObject_CallMethodObjArgs, PyObject_CallObject
 
 from antidote.core.container cimport (Container, DependencyResult, FastProvider,
                                       FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox,
-                                      RawContainer)
-from .._internal.utils import debug_repr, short_id
+                                      RawContainer, DependencyInstance)
+from .._internal.utils import debug_repr
 from ..core.exceptions import DependencyNotFoundError
 from ..core.utils import DependencyDebug
 
@@ -21,6 +21,8 @@ cdef class Lazy:
         raise NotImplementedError()  # pragma: no cover
 
     cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
+        cdef:
+            DependencyInstance dependency_instance
         dependency_instance = self.lazy_get(<Container> container)
         if dependency_instance is not None:
             result.flags = FLAG_DEFINED | (
@@ -33,14 +35,19 @@ cdef class Lazy:
 @cython.final
 cdef class FastLazyConst(Lazy):
     cdef:
+        str name
         object dependency
         str method_name
         object value
+        object cast
 
-    def __init__(self, object dependency, str method_name, object value):
+    def __init__(self, str name, object dependency, str method_name, object value,
+                 object cast):
+        self.name = name
         self.dependency = dependency
         self.method_name = method_name
         self.value = value
+        self.cast = cast
 
     def debug_info(self) -> DependencyDebug:
         from ..lazy import LazyCall
@@ -48,8 +55,7 @@ cdef class FastLazyConst(Lazy):
             cls = self.dependency.func
         else:
             cls = self.dependency
-        return DependencyDebug(f"Const: {self.method_name}({self.value!r}) "
-                               f"on {debug_repr(cls)}  #{short_id(self)}",
+        return DependencyDebug(f"Const: {debug_repr(cls)}.{self.name}",
                                singleton=True,
                                dependencies=[self.dependency],
                                wired=[getattr(cls, self.method_name)])
@@ -58,11 +64,13 @@ cdef class FastLazyConst(Lazy):
         (<RawContainer> container).fast_get(<PyObject*> self.dependency, result)
         if result.flags != 0:
             result.flags = FLAG_DEFINED | FLAG_SINGLETON
-            (<PyObjectBox> result.box).obj = PyObject_CallMethodObjArgs(
-                (<PyObjectBox> result.box).obj,
-                self.method_name,
-                <PyObject*> self.value,
-                NULL)
+            (<PyObjectBox> result.box).obj = PyObject_CallObject(
+                self.cast,
+                (PyObject_CallMethodObjArgs((<PyObjectBox> result.box).obj,
+                                           self.method_name,
+                                           <PyObject*> self.value,
+                                           NULL),)
+            )
         else:
             raise DependencyNotFoundError(self.dependency)
 

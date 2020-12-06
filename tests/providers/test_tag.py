@@ -103,6 +103,14 @@ def test_exists():
     provider.register('test', tags=[tag])
     assert provider.exists(tag)
 
+    class CustomTag(Tag):
+        def group(self):
+            return 'group'
+
+    assert not provider.exists(CustomTag())
+    provider.register('test2', tags=[CustomTag()])
+    assert provider.exists(CustomTag())
+
 
 def test_provide_unknown_tag():
     provider = TagProvider()

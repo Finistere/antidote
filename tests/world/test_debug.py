@@ -97,13 +97,13 @@ def test_lazy_call_debug():
             DebugTestCase(
                 value=l1,
                 expected=f"""
-                    Lazy {prefix}.f(*('arg',), **{{'hello': 'world'}})  #{short_id(l1)}
+                    Lazy: {prefix}.f(*('arg',), **{{'hello': 'world'}})  #{short_id(l1)}
                     """
             ),
             DebugTestCase(
                 value=LazyCall(f, singleton=False)("arg", hello="world"),
                 expected=f"""
-                    * Lazy {prefix}.f(*('arg',), **{{'hello': 'world'}})
+                    * Lazy: {prefix}.f(*('arg',), **{{'hello': 'world'}})
 
                     * = not singleton
                     """
@@ -122,7 +122,7 @@ def test_lazy_call_debug():
             DebugTestCase(
                 value=l2,
                 expected=f"""
-                    Lazy {prefix}.f()  #{short_id(l2)}
+                    Lazy: {prefix}.f()  #{short_id(l2)}
                     └── {prefix}.f
                         └── {prefix}.MyService
                     """
@@ -130,7 +130,7 @@ def test_lazy_call_debug():
             DebugTestCase(
                 value=LazyCall(f, singleton=False),
                 expected=f"""
-                    * Lazy {prefix}.f()
+                    * Lazy: {prefix}.f()
                     └── {prefix}.f
                         └── {prefix}.MyService
 
@@ -222,6 +222,41 @@ def test_multiline_debug():
         ))
 
 
+def test_tag():
+    prefix = "tests.world.test_debug.test_tag.<locals>"
+
+    with world.test.new():
+        tag = Tag()
+
+        class CustomTag(Tag):
+            def group(self):
+                return 'dummy'
+
+        class S1(Service):
+            __antidote__ = Service.Conf(tags=[tag, CustomTag()])
+
+        assert_valid(
+            DebugTestCase(
+                value=tag,
+                expected=f"""
+                * Tag: Tag#{short_id(tag)}
+                └── {prefix}.S1
+
+                * = not singleton
+                """
+            ),
+            DebugTestCase(
+                value=CustomTag(),
+                expected=f"""
+                * Tag: 'dummy'
+                └── {prefix}.S1
+
+                * = not singleton
+                """
+            )
+        )
+
+
 def test_lazy_method_debug():
     prefix = "tests.world.test_debug.test_lazy_method_debug.<locals>"
 
@@ -243,7 +278,7 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.DATA,
                 expected=f"""
-                    Lazy Method fetch()  #{short_id(raw_getattr(Conf, 'DATA'))}
+                    Lazy Method: fetch()  #{short_id(raw_getattr(Conf, 'DATA'))}
                     ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
@@ -252,7 +287,7 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.KW,
                 expected=f"""
-        Lazy Method fetch(*(), **{{'value': '1'}})  #{short_id(raw_getattr(Conf, 'KW'))}
+        Lazy Method: fetch(*(), **{{'value': '1'}})  #{short_id(raw_getattr(Conf, 'KW'))}
         ├── {prefix}.Conf.fetch
         │   └── {prefix}.MyService
         └── {prefix}.Conf
@@ -261,7 +296,7 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.DATA2,
                 expected=f"""
-                    * Lazy Method fetch()
+                    * Lazy Method: fetch()
                     ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
@@ -272,7 +307,7 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.KW2,
                 expected=f"""
-                    * Lazy Method fetch(*(), **{{'value': '2'}})
+                    * Lazy Method: fetch(*(), **{{'value': '2'}})
                     ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
@@ -297,8 +332,8 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-            Const: get('1') on {prefix}.Conf  #{short_id(Conf.TEST)}
-            └── Lazy {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
+            Const: {prefix}.Conf.TEST
+            └── Lazy: {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
                     """
             ))
 
@@ -315,7 +350,7 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-                    Const: get('1') on {prefix}.Conf  #{short_id(Conf.TEST)}
+                    Const: {prefix}.Conf.TEST
                     └── {prefix}.Conf
                     """
             ))
@@ -335,10 +370,10 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-            Const: get('1') on {prefix}.Conf  #{short_id(Conf.TEST)}
+            Const: {prefix}.Conf.TEST
             ├── {prefix}.Conf.get
             │   └── {prefix}.MyService
-            └── Lazy {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
+            └── Lazy: {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
                     """
             ))
 
@@ -403,7 +438,7 @@ def test_complex_debug():
                 value=tag,
                 depth=0,
                 expected=f"""
-                    * Tag(group={short_id(tag)})
+                    * Tag: Tag#{short_id(tag)}
 
                     * = not singleton
                         """
@@ -412,7 +447,7 @@ def test_complex_debug():
                 value=tag,
                 depth=1,
                 expected=f"""
-                    * Tag(group={short_id(tag)})
+                    * Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
                     └── * {prefix}.Service3
 
@@ -423,7 +458,7 @@ def test_complex_debug():
                 value=tag,
                 depth=2,
                 expected=f"""
-                    * Tag(group={short_id(tag)})
+                    * Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
                     │   ├── * {prefix}.Service3
                     │   ├── {prefix}.Service2 @ {prefix}.build_s2
@@ -440,7 +475,7 @@ def test_complex_debug():
                 value=tag,
                 depth=3,
                 expected=f"""
-                    * Tag(group={short_id(tag)})
+                    * Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
                     │   ├── * {prefix}.Service3
                     │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
@@ -464,7 +499,7 @@ def test_complex_debug():
             DebugTestCase(
                 value=tag,
                 expected=f"""
-                    * Tag(group={short_id(tag)})
+                    * Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
                     │   ├── * {prefix}.Service3
                     │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4

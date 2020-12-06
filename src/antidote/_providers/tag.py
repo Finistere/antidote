@@ -4,7 +4,7 @@ from typing import (Any, Dict, Generic, Hashable, Iterable, Iterator, List,
 
 from .._compatibility.typing import final
 from .._internal import API
-from .._internal.utils import short_id
+from .._internal.utils import debug_repr, short_id
 from ..core import Container, DependencyInstance, Provider
 from ..core.exceptions import AntidoteError
 from ..core.utils import DependencyDebug
@@ -81,10 +81,20 @@ class Tag:
     def __setattr__(self, name, value):
         raise AttributeError(f"{type(self)} is immutable")
 
+    def __antidote_debug_repr__(self):
+        group = self.group()
+        if group is self:
+            group = f"Tag#{short_id(self)}"
+        else:
+            group = repr(group)
+        return f"Tag: {group}"
+
     def __repr__(self):
         group = self.group()
         if group is self:
-            group = short_id(self)
+            group = f"Tag#{short_id(self)}"
+        else:
+            group = repr(group)
         return f"{type(self).__name__}(group={group})"
 
     def group(self):
@@ -186,12 +196,14 @@ class TagProvider(Provider[Tag]):
         return p
 
     def exists(self, dependency: Hashable) -> bool:
-        return isinstance(dependency, Tag) and dependency in self.__tag_to_tagged
+        return isinstance(dependency, Tag) and dependency.group() in self.__tag_to_tagged
 
     def debug(self, dependency: Tag) -> DependencyDebug:
-        return DependencyDebug(repr(dependency),
-                               singleton=False,
-                               dependencies=list(self.__tag_to_tagged[dependency].keys()))
+        return DependencyDebug(
+            debug_repr(dependency),
+            singleton=False,
+            dependencies=list(self.__tag_to_tagged[dependency.group()].keys())
+        )
 
     def maybe_provide(self, dependency: Hashable, container: Container
                       ) -> Optional[DependencyInstance]:
@@ -219,7 +231,7 @@ class TagProvider(Provider[Tag]):
         for tag in tags:
             if not isinstance(tag, Tag):
                 raise TypeError(f"Expecting tag of type Tag, not {type(tag)}")
-            if tag not in self.__tag_to_tagged:
+            if tag.group() not in self.__tag_to_tagged:
                 self._assert_not_duplicate(tag)
             # else:
             #   the tag could not be declared elsewhere if other _providers also
@@ -227,11 +239,11 @@ class TagProvider(Provider[Tag]):
             #   enforced @does_not_freeze)
 
         for tag in tags:
-            key = tag.group()
-            if key not in self.__tag_to_tagged:
-                self.__tag_to_tagged[key] = {dependency: tag}
-            elif dependency not in self.__tag_to_tagged[key]:
-                self.__tag_to_tagged[key][dependency] = tag
+            group = tag.group()
+            if group not in self.__tag_to_tagged:
+                self.__tag_to_tagged[group] = {dependency: tag}
+            elif dependency not in self.__tag_to_tagged[group]:
+                self.__tag_to_tagged[group][dependency] = tag
             else:
                 raise DuplicateTagError(dependency,
-                                        self.__tag_to_tagged[key][dependency])
+                                        self.__tag_to_tagged[group][dependency])

@@ -47,9 +47,12 @@ def test_fast_lazy_method(lazy_provider: LazyProvider):
 
     world.singletons.add(A, A())
     x = object()
-    (owner, value) = world.get(FastLazyConst(A, 'method', x))
+
+    (owner, value) = world.get(FastLazyConst('X', A, 'method', x, lambda v: v))
     assert owner is world.get(A)
     assert value is x
+
+    assert world.get(FastLazyConst('X', A, 'method', x, lambda v: 1)) == 1
 
 
 def test_copy(lazy_provider: LazyProvider):

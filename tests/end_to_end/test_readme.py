@@ -1,80 +1,4 @@
-********
-Antidote
-********
-
-
-.. image:: https://img.shields.io/pypi/v/antidote.svg
-  :target: https://pypi.python.org/pypi/antidote
-
-.. image:: https://img.shields.io/pypi/l/antidote.svg
-  :target: https://pypi.python.org/pypi/antidote
-
-.. image:: https://img.shields.io/pypi/pyversions/antidote.svg
-  :target: https://pypi.python.org/pypi/antidote
-
-.. image:: https://travis-ci.org/Finistere/antidote.svg?branch=master
-  :target: https://travis-ci.org/Finistere/antidote
-
-.. image:: https://codecov.io/gh/Finistere/antidote/branch/master/graph/badge.svg
-  :target: https://codecov.io/gh/Finistere/antidote
-
-.. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
-  :target: http://antidote.readthedocs.io/en/stable/?badge=stable
-
-Antidotes is a declarative dependency injection micro-framework for Python 3.6+. It is designed
-on two core ideas:
-
-- Keep dependency declaration close to the actual code as it's deeply related. Dependency injection
-  is about removing the responsibility of building dependencies from their clients. Not separating
-  how a dependency is built from its implementation.
-- It should help creating maintainable code in a straightforward way and offer effortless integration.
-
-Hence it provides the following features:
-
-- Ease of use
-    - injection anywhere you need through a decorator `@inject`, be it static methods, functions, etc..
-      By default it will only rely on type hints, but it supports a lot more !
-    - no \*\*kwargs arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
-    - documented, see `<https://antidote.readthedocs.io/en/stable>`_. If you don't find what you need, open an issue ;)
-    - thread-safe, cycle detection
-    - magic is frowned upon and avoided as much as possible. But it is used when it doesn't hurt
-      understandability and improves readability.
-- Flexibility
-    - A rich ecosystem of dependencies out of the box: services, configuration, factories, interface/implementation, tags.
-    - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
-      a good chance you can implement it yourself quickly.
-- Maintainability
-    - The different kind of dependencies are designed to be easy to track back. Finding where a
-      dependency is defined is easy.
-    - Overriding dependencies will raise an exception (no duplicates) and one can freeze the
-      dependency space. Once frozen, no new dependencies can be defined.
-- Testability
-    - `@inject` lets you override any injections by passing explicitly the arguments.
-    - Override dependencies locally within a context manager.
-- Performance
-    - Antidote has two implementations: the pure Python one which is the reference and the
-      Cython one which is heavily tuned for fast injection. Injection is roughly 10x times faster
-      than with the pure Python. It allows using injections without impact on most functions.
-      See `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_
-
-
-Installation
-============
-
-To install Antidote, simply run this command:
-
-.. code-block:: bash
-
-    pip install antidote
-
-
-Quick Start
-===========
-
-How does injection looks like ? Here is a very simple example:
-
-.. code-block:: python
-
+def test_readme_simple() -> None:
     from antidote import inject, Service, Constants
 
     class Conf(Constants):
@@ -115,10 +39,7 @@ How does injection looks like ? Here is a very simple example:
     f(Database('localhost:6789'))  # but you can still use the function normally
 
 
-Want more ? Here is a more complex example:
-
-.. code-block:: python
-
+def test_readme() -> None:
     """
     Simple example where a MovieDB interface is defined which can be used
     to retrieve the best movies. In our case the implementation uses IMDB
@@ -208,10 +129,6 @@ Want more ? Here is a more complex example:
     # Like before you can call f() without any arguments:
     f()
 
-That looks all good, but what about testability ?
-
-.. code-block:: python
-
     # You can still explicitly pass the arguments to override
     # injection.
     conf = Conf('/path')
@@ -229,14 +146,10 @@ That looks all good, but what about testability ?
         })
         f()
 
-If you ever need to debug your dependency injections, Antidote also provides a tool to
-have a quick summary of what is actually going on. This would be especially helpful if
-you encounter cyclic dependencies for example.
-
-.. code-block:: python
-
+    # If you encounter issues you can ask Antidote for a summary of what's happening
+    # for a specific dependency. It becomes useful as an cycle/instantiation error
+    # deep within the dependency tree results in a complex error stack.
     world.debug(f)
-    # will output:
     """
     f
     └── Static link: MovieDB -> IMDBMovieDB
@@ -254,8 +167,8 @@ you encounter cyclic dependencies for example.
     # For example suppose we don't have the singleton `'conf_path'`
     with world.test.clone(keep_singletons=False):
         world.debug(f)
-        # As you can see, 'conf_path` is not found. Hence when Conf will be instantiated
-        # it will fail.
+        # will output the following. As you can see, 'conf_path` is not found. Hence
+        # when Conf will be instantiated it will fail.
         """
         f
         └── Static link: MovieDB -> IMDBMovieDB
@@ -269,52 +182,3 @@ you encounter cyclic dependencies for example.
                             └── Lazy: Conf()  #0BjHAQ
                                 └── /!\\ Unknown: 'conf_path'
         """
-
-
-Hooked ? Check out the documentation ! There are still features not presented here !
-
-
-Cython
-======
-
-The cython implementation is roughly 10x faster than the Python one and strictly follows the
-same API than the pure Python implementation. This implies that you cannot depend on it in your
-own Cython code if any. It may be moved to another language.
-
-If you encounter any inconsistencies, please open an issue !
-You can avoid the pre-compiled wheels from PyPI with the following:
-
-.. code-block:: bash
-
-    pip install --no-binary antidote
-
-Note that it will nonetheless try to compile with Cython if available.
-
-
-Issues / Feature Requests / Questions
-=====================================
-
-Feel free to open an issue on Github for questions, requests or issues ! ;)
-
-
-How to Contribute
-=================
-
-1. Check for open issues or open a fresh issue to start a discussion around a
-   feature or a bug.
-2. Fork the repo on GitHub. Run the tests to confirm they all pass on your
-   machine. If you cannot find why it fails, open an issue.
-3. Start making your changes to the master branch.
-4. Writes tests which shows that your code is working as intended. (This also
-   means 100% coverage.)
-5. Send a pull request.
-
-*Be sure to merge the latest from "upstream" before making a pull request!*
-
-If you have any issue during development or just want some feedback, don't hesitate
-to open a pull request and ask for help !
-
-Pull requests **will not** be accepted if:
-
-- classes and non trivial functions have not docstrings documenting their behavior.
-- tests do not cover all of code changes (100% coverage).

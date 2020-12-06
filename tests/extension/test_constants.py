@@ -33,6 +33,44 @@ def test_lazy_constants():
     assert conf.B == 'bb'
 
 
+@pytest.mark.parametrize('auto_cast, a, b, c', [
+    pytest.param(True, 109, 3.14, '199', id='True'),
+    pytest.param(False, '109', '3.14', 199, id='False'),
+    pytest.param([str, int], 109, '3.14', '199', id='(str, int)'),
+    pytest.param([float], '109', 3.14, 199, id='(float,)'),
+])
+def test_auto_cast(auto_cast, a, b, c):
+    D = object()
+
+    class Config(Constants):
+        __antidote__ = Constants.Conf(auto_cast=auto_cast)
+
+        A = const[int]('a')
+        B = const[float]('b')
+        C = const[str]('c')
+        D = const[dict]('d')
+
+        def get(self, key):
+            if key == 'a':
+                return '109'
+            if key == 'b':
+                return '3.14'
+            if key == 'c':
+                return 199
+            if key == 'd':
+                return D
+
+    assert world.get(Config.A) == a
+    assert world.get(Config.B) == b
+    assert world.get(Config.C) == c
+    assert world.get(Config.D) is D
+
+    assert Config().A == a
+    assert Config().B == b
+    assert Config().C == c
+    assert Config().D is D
+
+
 def test_no_rule():
     class Config(Constants):
         __antidote__ = Constants.Conf(is_const=None)
@@ -172,6 +210,8 @@ def test_no_subclass_of_service():
     (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
     (dict(is_const=object()), pytest.raises(TypeError, match=".*is_const.*")),
     (dict(public=object()), pytest.raises(TypeError, match=".*public.*")),
+    (dict(auto_cast=object()), pytest.raises(TypeError, match=".*auto_cast.*")),
+    (dict(auto_cast=['1']), pytest.raises(TypeError, match=".*auto_cast.*")),
 ])
 def test_conf_error(kwargs, expectation):
     with expectation:
@@ -182,6 +222,7 @@ def test_conf_error(kwargs, expectation):
     dict(wiring=Wiring(methods=['method'])),
     dict(public=True),
     dict(is_const=lambda name: False),
+    dict(auto_cast=frozenset((str,))),
 ])
 def test_conf_copy(kwargs):
     conf = Constants.Conf().copy(**kwargs)

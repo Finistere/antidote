@@ -25,7 +25,7 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
     kwargs: dict
 
     def __antidote_debug_repr__(self):
-        s = f"Lazy {debug_repr(self.func)}(*{self.args}, **{self.kwargs})"
+        s = f"Lazy: {debug_repr(self.func)}(*{self.args}, **{self.kwargs})"
         if self.singleton:
             s += f"  #{short_id(self)}"
         return s
@@ -42,7 +42,7 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
 
 @API.private
 @final
-class LazyMethodCallWithArgsKwargs(FinalImmutable, copy=False):
+class LazyMethodCallWithArgsKwargs(FinalImmutable):
     """
     :meta private:
     """
@@ -70,7 +70,7 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable, copy=False):
         return getattr(instance, self.method_name)(*self.args, **self.kwargs)
 
     def __str__(self):
-        s = f"Lazy Method {self.method_name}(*{self.args}, **{self.kwargs})"
+        s = f"Lazy Method: {self.method_name}(*{self.args}, **{self.kwargs})"
         if self.singleton:
             s += f"  #{short_id(self)}"
         return s
