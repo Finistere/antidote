@@ -23,6 +23,11 @@ cdef struct ProviderCache:
     size_t*counters
     PyObject** providers
 
+cdef class DependencyInstance:
+    cdef:
+        readonly bint singleton
+        readonly object value
+
 cdef class Container:
     pass
 

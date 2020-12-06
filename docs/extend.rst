@@ -7,17 +7,17 @@ not be enough. But don't worry, Antidote got you covered ! It is designed from t
 up to have an easily extendable core mechanism. Services, resources and tags are all
 handled in the same way, through a custom :py:class:`.Provider` ::
 
-                      +-------------+
-       tag=...  +-----> TagProvider +----+
-                      +-------------+    |
-                                         |
-                   +------------------+  |    +----------+    +-----------+
-    @implements +--> IndirectProvider +-------> Provider +----> Container +---> @inject
-                   +------------------+  |    +----------+    +-----------+
-                                         |
-                    +-----------------+  |
-     @register  +---> ServiceProvider +--+
-                    +-----------------+
+                            +-------------+
+             tag=...  +-----> TagProvider +----+
+                            +-------------+    |
+                                               |
+                         +------------------+  |    +----------+    +-------------------+
+     @implementation  +--> IndirectProvider +-------> Provider +----> Container (world) +---> @inject
+                         +------------------+  |    +----------+    +-------------------+
+                                               |
+                          +-----------------+  |
+             Service  +---> ServiceProvider +--+
+                          +-----------------+
 
 
 The container never handles the instantiation of the dependencies itself, it mostly

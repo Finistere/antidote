@@ -8,8 +8,7 @@ from ..._compatibility.typing import GenericMeta
 
 @API.private
 class ImmutableMeta(type):
-    def __new__(mcls, name, bases, namespace, abstract: bool = False, copy: bool = True,
-                **kwargs):
+    def __new__(mcls, name, bases, namespace, abstract: bool = False, **kwargs):
         if '__slots__' not in namespace:
             raise TypeError("Attributes must be defined in slots")
         slots = set(namespace['__slots__'])
@@ -19,18 +18,6 @@ class ImmutableMeta(type):
         if abstract:
             if len(slots) > 0:
                 raise ValueError("Cannot be abstract and have a non-empty __slots__")
-        else:
-            if copy:
-                if '__init__' in namespace and 'copy' not in namespace:
-                    args = set(list(
-                        inspect.signature(namespace['__init__']).parameters.keys()
-                    )[1:])
-                    if slots != args:
-                        raise TypeError(f"__init__ must be defined with arguments"
-                                        f" matching slots ({', '.join(sorted(slots))}) "
-                                        f"not ({', '.join(sorted(args))})")
-            else:
-                namespace['copy'] = copy_not_supported
 
         # TODO: Type ignore necessary when type checking with Python 3.6
         #       To be removed ASAP.
@@ -41,11 +28,6 @@ class ImmutableMeta(type):
 @API.private
 class ImmutableGenericMeta(ImmutableMeta, GenericMeta):
     pass
-
-
-@API.private
-def copy_not_supported(self):
-    raise RuntimeError(f"Copy is not supported on {type(self)}")
 
 
 @API.private

@@ -16,7 +16,7 @@ Antidote supports the distinction interface/implementation out of the box.
 When the choice of the implementation is straightforward you can simply use
 :py:func:`~.Implementation`:
 
-.. testcode:: how_to_interface_implements
+.. testcode:: recipes_interface_implements
 
     from antidote import Implementation
 
@@ -28,7 +28,7 @@ When the choice of the implementation is straightforward you can simply use
     class MyService(Interface, Implementation):
         pass
 
-.. doctest:: how_to_interface_implements
+.. doctest:: recipes_interface_implements
 
     >>> from antidote import world
     >>> world.get[Interface]()
@@ -39,7 +39,7 @@ If you have multiple possible implementation you'll need to rely on the function
 for the specified interface. Typically this means a class registered as a service or one
 that can be provided by a factory.
 
-.. testcode:: how_to_interface_implementation
+.. testcode:: recipes_interface_implementation
 
     from antidote import implementation, Service, inject
 
@@ -69,7 +69,7 @@ that can be provided by a factory.
             raise RuntimeError(f"{db} is not a supported database")
 
 
-.. doctest:: how_to_interface_implementation
+.. doctest:: recipes_interface_implementation
 
     >>> from antidote import world
     >>> world.singletons.add('db_conn_str', 'postgres:localhost:my_project')
@@ -106,7 +106,7 @@ and can either be singletons or not.
 Function call
 -------------
 
-.. testsetup:: how_to_lazy
+.. testsetup:: recipes_lazy
 
     import sys
 
@@ -116,7 +116,7 @@ Function call
 
     sys.modules['requests'] = DummyRequests()
 
-.. testcode:: how_to_lazy
+.. testcode:: recipes_lazy
 
     import requests
     from antidote import LazyCall, inject
@@ -138,7 +138,7 @@ be aware on how to call :code:`fetch_remote_conf`.
 Method call
 -----------
 
-.. testcode:: how_to_lazy
+.. testcode:: recipes_lazy
 
     from antidote import LazyMethodCall, Service
 
@@ -169,7 +169,7 @@ can simply be retrieved by requesting this specific tag from Antidote. You'll ge
 :py:class:`.Tagged` instances containing both your dependencies and their associated
 instance of :py:class:`.Tag`.
 
-.. testcode:: how_to_tags
+.. testcode:: recipes_tags
 
     from antidote import Service, Tag
 
@@ -181,7 +181,7 @@ instance of :py:class:`.Tag`.
     class PluginB(Service):
         __antidote__ = Service.Conf(tags=[tag])
 
-.. doctest:: how_to_tags
+.. doctest:: recipes_tags
 
     >>> from antidote import world, Tagged
     >>> tagged = world.get[Tagged](tag)
@@ -195,7 +195,7 @@ You can do more than that with tags though, you can
 
 To do so, just create your own subclass:
 
-.. testcode:: how_to_tags
+.. testcode:: recipes_tags
 
     class CustomTag(Tag):
         __slots__ = ('name',)  # __slots__ isn't required
@@ -227,7 +227,7 @@ Create a stateful factory
 
 Antidote supports stateful factories simply by using defining a class as a factory:
 
-.. testcode:: how_to_stateful_factory
+.. testcode:: recipes_stateful_factory
 
     from antidote import Factory
 
@@ -250,7 +250,7 @@ Antidote supports stateful factories simply by using defining a class as a facto
             self._next += 1
             return id
 
-.. doctest:: how_to_stateful_factory
+.. doctest:: recipes_stateful_factory
 
     >>> from antidote import world
     >>> world.singletons.add('id_prefix', "example")
@@ -274,3 +274,94 @@ them through :code:`__call__()`. Obviously you can change that behavior through 
     scope than Antidote provides (singleton or not). Although, if you need to handle some
     scope for multiples dependencies it might be worth just extending Antidote through a
     :py:class:`.Provider`.
+
+
+
+Configuration
+=============
+
+Here are some examples on how to use :py:class:`.Constants` to handle configuration coming
+from different sources.
+
+
+From the environment
+--------------------
+
+.. testcode:: recipes_configuration_environment
+
+    import os
+    from antidote import Constants
+
+    class Env(Constants):
+        SECRET = 'SECRET'
+
+        def get(self, value):
+            return os.environ[value]
+
+.. doctest:: recipes_configuration_environment
+
+    >>> from antidote import world
+    >>> os.environ['SECRET'] = 'my_secret'
+    >>> world.get[str](Env.SECRET)
+    'my_secret'
+
+
+Specifying a type
+-----------------
+
+You can specify a type when using :py:func:`.const`. It's main pupose is to provide
+a type for Mypy when the constants are directly accessed from an instance. However
+:py:class:`.Constants` will also automatically force the cast  if the type is one
+of :code:`str`, :code:`float` or :code:`int`. You can control this behavior with
+the :code:`auto_cast` argument of :py:attr:`~.Constants.Conf`. A typical use case
+would be to support enums as presented here:
+
+
+.. testcode:: recipes_configuration_specify_type
+
+    from enum import Enum
+    from antidote import Constants, const
+
+    class Env(Enum):
+        PROD = 'prod'
+        PREPRDO = 'preprod'
+
+    class Conf(Constants):
+        __antidote__ = Constants.Conf(auto_cast=[int, Env])
+
+        DB_PORT = const[int]('db.port')
+        ENV = const[Env]('env')
+
+        def get(self, key):
+            return {'db.port': '6789', 'env': 'prod'}[key]
+
+
+.. doctest:: recipes_configuration_specify_type
+
+    >>> from antidote import world
+    >>> Conf().DB_PORT # will be treated as an int by Mypy
+    6789
+    >>> # will be treated as a Env instance by Mypy even
+    ... Conf().ENV
+    <Env.PROD: 'prod'>
+    >>> world.get[int](Conf.DB_PORT)
+    6789
+    >>> world.get[Env](Conf.ENV)
+    <Env.PROD: 'prod'>
+
+The goal of this is to simplify common operations when manipulating the environment
+or configuration files. If you need complex behavior, consider using a service for this
+or define your Configuration class as :code:`public=True` in :py:attr:`~.Constants.Conf`
+and use it as a one.
+
+.. warning::
+
+    They are two "cast" to differentiate here. When using :code:`ENV = const[T]('env')`
+    there is a first cast done by :py:func:`.const` that will make mypy consider
+    :code:`Conf().ENV` to be a :code:`Env` instance whether this is the case or not. It is
+    up to you to guarantee it. This only gives the necessary type hints to Mypy for it to
+    work as :code:`Conf.ENV` is a descriptor and it can't infer the actual return type.
+    The second cast is done by :py:class:`.Constants`, controlled by :code:`auto_cast`.
+    This will do an actual cast, which provides a nice syntactic sugar to cast integers or
+    floats typically as configuration may be stored as a string.
+

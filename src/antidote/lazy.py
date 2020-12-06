@@ -61,7 +61,7 @@ class LazyCall(FinalImmutable, Lazy):
         return LazyCallWithArgsKwargs(self.func, self.singleton, args, kwargs)
 
     def __antidote_debug_repr__(self):
-        s = f"Lazy {debug_repr(self.func)}()"
+        s = f"Lazy: {debug_repr(self.func)}()"
         if self.singleton:
             s += f"  #{short_id(self)}"
         return s
@@ -77,7 +77,7 @@ class LazyCall(FinalImmutable, Lazy):
 
 @API.public
 @final
-class LazyMethodCall(FinalImmutable, copy=False):
+class LazyMethodCall(FinalImmutable):
     """
     Similar to :py:class:`~.LazyCall` but adapted to methods within a class definition.
     The class has to be a registered service, as the class instantiation itself is also
@@ -146,7 +146,7 @@ class LazyMethodCall(FinalImmutable, copy=False):
                                             args, kwargs)
 
     def __str__(self):
-        s = f"Lazy Method {self.method_name}()"
+        s = f"Lazy Method: {self.method_name}()"
         if self.singleton:
             s += f"  #{short_id(self)}"
         return s

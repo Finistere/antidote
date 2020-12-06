@@ -1,7 +1,7 @@
 """
 Utilities used by world, mostly for syntactic sugar.
 """
-from typing import Any, Callable, cast, Type, TypeVar
+from typing import Any, Callable, cast, Type, TypeVar, TYPE_CHECKING
 
 from .meta import FinalMeta
 from ..._compatibility.typing import final
@@ -11,6 +11,9 @@ from ...core.utils import Dependency
 
 T = TypeVar('T')
 
+if TYPE_CHECKING:
+    from mypy_extensions import DefaultArg
+
 
 @API.private
 @final
@@ -19,7 +22,8 @@ class WorldGet(metaclass=FinalMeta):
         from ..state import get_container
         return get_container().get(dependency)
 
-    def __getitem__(self, tpe: Type[T]) -> Callable[[object], T]:
+    def __getitem__(self, tpe: Type[T]
+                    ) -> 'Callable[[DefaultArg(object)], T]':
         def f(dependency=None) -> T:
             from ..state import get_container
             if dependency is None:
@@ -35,7 +39,8 @@ class WorldLazy(metaclass=FinalMeta):
     def __call__(self, dependency: object) -> Dependency[Any]:
         return Dependency(dependency)
 
-    def __getitem__(self, tpe: Type[T]) -> Callable[[object], Dependency[T]]:
+    def __getitem__(self, tpe: Type[T]
+                    ) -> 'Callable[[DefaultArg(object)], Dependency[T]]':
         def f(dependency=None) -> Dependency[T]:
             if dependency is None:
                 dependency = tpe

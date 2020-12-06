@@ -8,13 +8,34 @@ from weakref import ref, ReferenceType
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError,
                          FrozenWorldError)
-from .utils import DependencyDebug, DependencyInstance
+from .utils import DependencyDebug
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.stack import DependencyStack
-
 # PRIVATE
+from .._internal.utils import FinalImmutable
+
 _CONTAINER_REF_ATTR = "_antidote__container_ref"
+
+
+@API.public
+@final
+class DependencyInstance(FinalImmutable):
+    """
+    Simple wrapper of a dependency instance given by a
+    :py:class:`~.provider.Provider`.
+    """
+    __slots__ = ('value', 'singleton')
+    value: Any
+    singleton: bool
+
+    def __init__(self, value: Any, *, singleton: bool = False):
+        super().__init__(value, singleton)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyInstance) \
+               and self.singleton == other.singleton \
+               and self.value == other.value  # noqa: E126
 
 
 @API.public

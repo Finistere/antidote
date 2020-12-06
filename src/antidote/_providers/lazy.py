@@ -1,8 +1,8 @@
-from typing import Hashable
+from typing import Any, Callable, cast, Hashable
 
 from .._compatibility.typing import final
 from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable, short_id
+from .._internal.utils import debug_repr, FinalImmutable
 from ..core import Container, DependencyInstance, StatelessProvider
 from ..core.utils import DependencyDebug
 
@@ -19,26 +19,42 @@ class Lazy:
 @API.private
 @final
 class FastLazyConst(FinalImmutable, Lazy):
-    __slots__ = ('dependency', 'method_name', 'value')
+    __slots__ = ('name', 'dependency', 'method_name', 'value', 'cast')
+    name: str
     dependency: object
     method_name: str
     value: object
+    cast: Callable[[Any], Any]
+
+    def __init__(self, name: str, dependency, method_name: str, value: object,
+                 cast: Callable[[Any], Any]):
+        super().__init__(
+            name=name,
+            dependency=dependency,
+            method_name=method_name,
+            value=value,
+            cast=cast
+        )
 
     def debug_info(self) -> DependencyDebug:
         from ..lazy import LazyCall
         if isinstance(self.dependency, LazyCall):
-            cls: object = self.dependency.func
+            cls: type = cast(type, self.dependency.func)
         else:
-            cls = self.dependency
-        return DependencyDebug(f"Const: {self.method_name}({self.value!r}) "
-                               f"on {debug_repr(cls)}  #{short_id(self)}",
+            cls = cast(type, self.dependency)
+        return DependencyDebug(f"Const: {debug_repr(cls)}.{self.name}",
                                singleton=True,
                                dependencies=[self.dependency],
+                               # TODO: Would be great if the first argument of the method
+                               #       didn't show as unknown as it's always provided.
                                wired=[getattr(cls, self.method_name)])
 
     def lazy_get(self, container: Container) -> DependencyInstance:
+        # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
+        _cast = cast(Callable[[Any], Any], getattr(self, 'cast'))
         return DependencyInstance(
-            getattr(container.get(self.dependency), self.method_name)(self.value),
+            _cast(getattr(container.get(self.dependency),
+                          self.method_name)(self.value)),
             singleton=True
         )
 

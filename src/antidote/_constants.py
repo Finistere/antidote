@@ -1,6 +1,6 @@
-from typing import Any, Callable, cast, Type, TypeVar
+from typing import Any, Callable, cast, Optional, Type, TypeVar
 
-from ._compatibility.typing import final
+from ._compatibility.typing import final, Protocol
 from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
 from ._providers.lazy import FastLazyConst
@@ -14,11 +14,12 @@ _CONST_CONSTRUCTOR_METHOD = 'get'
 @final
 class MakeConst(metaclass=FinalMeta):
     def __call__(self, value: Any) -> Any:
-        return LazyConstToDo(value, )
+        # Not true yet, but will be changed by ConstantsMeta
+        return LazyConstToDo(value, None)
 
     def __getitem__(self, tpe: Type[T]) -> Callable[[Any], T]:
         def f(value: Any) -> T:
-            return cast(T, LazyConstToDo(value, ))
+            return cast(T, LazyConstToDo(value, tpe))
 
         return f
 
@@ -26,8 +27,9 @@ class MakeConst(metaclass=FinalMeta):
 @API.private
 @final
 class LazyConstToDo(FinalImmutable):
-    __slots__ = ('value',)
+    __slots__ = ('value', 'type_')
     value: object
+    type_: Optional[type]
 
 
 @API.private
@@ -63,29 +65,43 @@ def _configure_constants(cls):
     else:
         dependency = LazyCall(cls, singleton=True)
 
-    # Waiting for a fix: https://github.com/python/mypy/issues/6910
+    # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
     is_const = cast(Callable[[str], bool], getattr(conf, 'is_const'))
     for name, v in list(cls.__dict__.items()):
         if isinstance(v, LazyConstToDo):
-            setattr(cls, name, LazyConst(dependency, _CONST_CONSTRUCTOR_METHOD, v.value))
+            setattr(cls,
+                    name,
+                    LazyConst(name,
+                              dependency,
+                              _CONST_CONSTRUCTOR_METHOD,
+                              v.value,
+                              v.type_ if v.type_ in conf.auto_cast else None))
         elif is_const(name):
-            setattr(cls, name, LazyConst(dependency, _CONST_CONSTRUCTOR_METHOD, v))
+            setattr(cls, name, LazyConst(name,
+                                         dependency,
+                                         _CONST_CONSTRUCTOR_METHOD,
+                                         v))
 
 
 @API.private
 @final
-class LazyConst(FinalImmutable, copy=False):
-    __slots__ = ('dependency', 'method_name', 'value', '_cache')
+class LazyConst(FinalImmutable):
+    __slots__ = ('name', 'dependency', 'method_name', 'value', 'cast', '_cache')
+    name: str
     dependency: object
     method_name: str
     value: object
+    cast: Callable[[Any], Any]
     _cache: str
 
-    def __init__(self, dependency, method_name: str, value):
+    def __init__(self, name: str, dependency, method_name: str, value,
+                 cast: Callable[[Any], Any] = None):
         super().__init__(
+            name=name,
             dependency=dependency,
             method_name=method_name,
             value=value,
+            cast=cast or (lambda x: x),
             _cache=f"__antidote_dependency_{hex(id(self))}"
         )
 
@@ -94,9 +110,14 @@ class LazyConst(FinalImmutable, copy=False):
             try:
                 return getattr(owner, self._cache)
             except AttributeError:
-                dependency = FastLazyConst(self.dependency,
+                # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
+                _cast = cast(Callable[[Any], Any], getattr(self, 'cast'))
+                dependency = FastLazyConst(self.name,
+                                           self.dependency,
                                            self.method_name,
-                                           self.value)
+                                           self.value,
+                                           _cast)
                 setattr(owner, self._cache, dependency)
                 return dependency
-        return getattr(instance, self.method_name)(self.value)
+        _cast = cast(Callable[[Any], Any], getattr(self, 'cast'))
+        return _cast(getattr(instance, self.method_name)(self.value))

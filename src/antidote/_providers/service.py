@@ -8,7 +8,7 @@ from ..core.utils import DependencyDebug
 
 
 @API.private
-class Build(FinalImmutable, copy=False):
+class Build(FinalImmutable):
     __slots__ = ('dependency', 'kwargs', '_hash')
     dependency: Hashable
     kwargs: dict
