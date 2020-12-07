@@ -7,6 +7,7 @@
 .python-version
 .tox
 .eggs
+.docker
 cov_html
 *.pyc
 *.egg-info

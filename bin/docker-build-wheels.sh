@@ -14,12 +14,12 @@ clean() {
   done
 }
 
-PYTHON_VERSIONS="35 36 37 38"
+PYTHON_VERSIONS="36 37 38 39"
 
 pybin() {
   PYTHON_VERSION="$1"
   case $PYTHON_VERSION in
-  35 | 36 | 37)
+  36 | 37)
     echo "/opt/python/cp$PYTHON_VERSION-cp${PYTHON_VERSION}m/bin"
     ;;
   *)
@@ -51,6 +51,7 @@ done
 for PYTHON_VERSION in $PYTHON_VERSIONS; do
   PYBIN="$(pybin "$PYTHON_VERSION")"
   "${PYBIN}/pip" install -r requirements/tests.txt
+  "${PYBIN}/pip" install -r requirements/dist.txt
   "${PYBIN}/pip" install antidote --no-index -f wheelhouse
   "${PYBIN}/pytest"
 done

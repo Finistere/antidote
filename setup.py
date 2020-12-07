@@ -8,11 +8,11 @@ here = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
 
-ext_modules = []
-requires = [
-    'typing_extensions; python_version < "3.8.0"'
-]
+with open(str(here / 'requirements' / 'dist.txt'), 'r') as f:
+    requires = list(f)
+
 setup_requires = ['setuptools_scm']
+ext_modules = []
 
 try:
     from Cython.Build import cythonize
