@@ -4,7 +4,7 @@ Changelog
 
 
 
-0.8.0 (2020-11-30)
+0.8.0 (2020-12-09)
 ==================
 
 
@@ -19,7 +19,8 @@ Features
     - Test utilities in :py:mod:`.world.test`. Those allow you to change locally, withing a
       context manager, dependencies declarations. Hence you can replace an existing
       dependency by a mock for example.
-    - Debug utility :py:func:`.world.debug.info` which returns a tree of all the dependencies
+    - Override utilities in :py:mod:`.world.test.override` to be used in tests.
+    - Debug utility :py:func:`.world.debug` which returns a tree of all the dependencies
       that will/may be retrieved by Antidote.
     - Add type hints to :py:func:`.world.get` which can now be used like :code:`world.get[<class>]("x")`
     - Add :py:func:`.world.lazy` for dependencies to retrieve dependencies lazily.
