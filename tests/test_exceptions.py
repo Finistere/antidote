@@ -27,14 +27,6 @@ def test_dependency_not_found():
 
 
 def test_duplicate_dependency_error():
-    dependency = object()
-    existing_dependency = object()
-    error = DuplicateDependencyError(dependency, existing_dependency)
-
-    for f in [str, repr]:
-        assert f(dependency) in f(error)
-        assert f(existing_dependency) in f(error)
-
     message = "hello"
     error = DuplicateDependencyError(message)
     assert message in str(error)

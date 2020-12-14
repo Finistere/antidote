@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Any, Callable, Dict, get_type_hints
+from typing import Callable, cast, Dict, get_type_hints, Hashable, Tuple, Type
 
 from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
@@ -18,27 +18,35 @@ _ABSTRACT_FLAG = '__antidote_abstract'
 class FactoryMeta(AbstractMeta):
     __factory_dependency: FactoryDependency
 
-    def __new__(mcls, name, bases, namespace, **kwargs):
+    def __new__(mcs: 'Type[FactoryMeta]',
+                name: str,
+                bases: Tuple[type, ...],
+                namespace: Dict[str, object],
+                **kwargs: object
+                ) -> 'FactoryMeta':
         abstract = kwargs.get('abstract')
 
         if '__call__' not in namespace and not abstract:
             raise TypeError(f"The class {name} must implement __call__()")
 
-        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+        cls = cast(
+            FactoryMeta,
+            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+        )
         if not abstract:
             cls.__factory_dependency = _configure_factory(cls)
 
         return cls
 
     @API.public
-    def __rmatmul__(cls, dependency) -> Any:
+    def __rmatmul__(cls, dependency: Hashable) -> object:
         assert cls.__factory_dependency is not None
         if dependency != cls.__factory_dependency.dependency:
             raise ValueError(f"Unsupported dependency {dependency}")
         return cls.__factory_dependency
 
     @API.public
-    def with_kwargs(cls, **kwargs) -> 'PreBuild':
+    def with_kwargs(cls, **kwargs: object) -> 'PreBuild':
         """
         Creates a new dependency based on the factory which will have the keyword
         arguments provided. If the factory provides a singleton and identical kwargs are
@@ -56,10 +64,11 @@ class FactoryMeta(AbstractMeta):
 
 @API.private
 @inject
-def _configure_factory(cls,
-                       factory_provider: FactoryProvider,
-                       tag_provider: TagProvider = None):
+def _configure_factory(cls: FactoryMeta,
+                       factory_provider: FactoryProvider = None,
+                       tag_provider: TagProvider = None) -> FactoryDependency:
     from .factory import Factory
+    assert factory_provider is not None
 
     conf = getattr(cls, '__antidote__', None)
     if not isinstance(conf, Factory.Conf):
@@ -95,20 +104,21 @@ def _configure_factory(cls,
 
 @API.private
 class LambdaFactory:
-    def __init__(self, factory: Callable, dependency_factory: FactoryDependency):
+    def __init__(self, factory: Callable[..., object],
+                 dependency_factory: FactoryDependency) -> None:
         self.__factory = factory
         self.__dependency_factory = dependency_factory
         functools.wraps(factory, updated=())(self)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: object, **kwargs: object) -> object:
         return self.__factory(*args, **kwargs)
 
-    def __rmatmul__(self, dependency) -> Any:
+    def __rmatmul__(self, dependency: Hashable) -> object:
         if dependency != self.__dependency_factory.dependency:
             raise ValueError(f"Unsupported dependency {dependency}")
         return self.__dependency_factory
 
-    def with_kwargs(self, **kwargs) -> 'PreBuild':
+    def with_kwargs(self, **kwargs: object) -> 'PreBuild':
         return PreBuild(self.__dependency_factory, kwargs)
 
 
@@ -116,15 +126,16 @@ class LambdaFactory:
 class PreBuild(FinalImmutable):
     __slots__ = ('dependency_factory', 'kwargs')
     dependency_factory: FactoryDependency
-    kwargs: Dict
+    kwargs: Dict[str, object]
 
-    def __init__(self, dependency_factory: FactoryDependency, kwargs: Dict):
+    def __init__(self, dependency_factory: FactoryDependency,
+                 kwargs: Dict[str, object]) -> None:
         if not kwargs:
             raise ValueError("When calling with_kwargs, "
                              "at least one argument must be provided.")
         super().__init__(dependency_factory=dependency_factory, kwargs=kwargs)
 
-    def __rmatmul__(self, dependency) -> Any:
+    def __rmatmul__(self, dependency: Hashable) -> object:
         if dependency != self.dependency_factory.dependency:
             raise ValueError(f"Unsupported dependency {dependency}")
         return Build(self.dependency_factory, self.kwargs)

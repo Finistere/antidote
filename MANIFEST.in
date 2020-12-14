@@ -1,10 +1,11 @@
-include LICENSE *.rst *.md benchmark.ipynb pyproject.toml
+include LICENSE pyproject.toml
 
 # Sources
 recursive-include src *.py
 recursive-include src *.pxd
 recursive-include src *.pyx
 recursive-include src *.pyi
+include src/antidote/py.typed
 
 # Don't package GitHub-specific files.
 exclude .travis.yml .readthedocs.yml
@@ -12,11 +13,13 @@ exclude .travis.yml .readthedocs.yml
 # Tests
 include tox.ini .coveragerc conftest.py
 recursive-include tests *.py
+include benchmark.ipynb
 
 # Requirements
 recursive-include requirements *.txt
 
 # Documentation
+include *.rst *.md
 include docs/Makefile
 recursive-include docs *.png
 recursive-include docs *.svg

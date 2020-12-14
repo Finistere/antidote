@@ -1,6 +1,6 @@
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, get_type_hints, Iterable, Optional,
+from typing import (Any, Callable, cast, get_type_hints, Hashable, Iterable, Optional,
                     overload, Tuple, TypeVar, Union)
 
 from ._compatibility.typing import final, Protocol
@@ -20,10 +20,10 @@ class FactoryProtocol(Protocol[F]):
     :meta private:
     """
 
-    def __rmatmul__(self, dependency) -> Any:
+    def __rmatmul__(self, dependency: Hashable) -> object:
         pass  # pragma: no cover
 
-    def with_kwargs(self, **kwargs) -> PreBuild:
+    def with_kwargs(self, **kwargs: object) -> PreBuild:
         pass  # pragma: no cover
 
     __call__: F
@@ -167,7 +167,8 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
                  tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL,
-                 public: Union[bool, Copy] = Copy.IDENTICAL):
+                 public: Union[bool, Copy] = Copy.IDENTICAL
+                 ) -> 'Factory.Conf':
             """
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
@@ -218,7 +219,7 @@ def factory(f: F = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
             tags: Iterable[Tag] = None
-            ):
+            ) -> Union[FactoryProtocol[F], Callable[[F], FactoryProtocol[F]]]:
     """
     Registers a factory which provides as single dependency, defined through the return
     type annotation.
@@ -297,9 +298,11 @@ def factory(f: F = None,
         raise TypeError(f"auto_wire can be None or a boolean, not {type(auto_wire)}")
 
     @inject
-    def register_factory(func,
-                         factory_provider: FactoryProvider,
-                         tag_provider: TagProvider = None):
+    def register_factory(func: F,
+                         factory_provider: FactoryProvider = None,
+                         tag_provider: TagProvider = None) -> FactoryProtocol[F]:
+        assert factory_provider is not None
+
         if not inspect.isfunction(func):
             raise TypeError(f"{func} is not a function")
 
@@ -326,6 +329,6 @@ def factory(f: F = None,
                 raise RuntimeError("No TagProvider registered, cannot use tags.")
             tag_provider.register(dependency=factory_id, tags=tags)
 
-        return LambdaFactory(func, factory_id)
+        return cast(FactoryProtocol[F], LambdaFactory(func, factory_id))
 
     return f and register_factory(f) or register_factory

@@ -69,7 +69,7 @@ class Tag:
     """
     __slots__ = ()
 
-    def __init__(self, **attrs):
+    def __init__(self, **attrs: object) -> None:
         """
         :py:meth:`.__init__` is the only way to actually set attributes, to be used by
         subclasses.
@@ -78,10 +78,10 @@ class Tag:
             object.__setattr__(self, attr, value)
 
     @final
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError(f"{type(self)} is immutable")
 
-    def __antidote_debug_repr__(self):
+    def __antidote_debug_repr__(self) -> str:
         group = self.group()
         if group is self:
             group = f"Tag#{short_id(self)}"
@@ -89,7 +89,7 @@ class Tag:
             group = repr(group)
         return f"Tag: {group}"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         group = self.group()
         if group is self:
             group = f"Tag#{short_id(self)}"
@@ -97,7 +97,7 @@ class Tag:
             group = repr(group)
         return f"{type(self).__name__}(group={group})"
 
-    def group(self):
+    def group(self) -> object:
         """Tags will be grouped by this value. By default it's the tag instance itself."""
         return self
 
@@ -108,11 +108,11 @@ class DuplicateTagError(AntidoteError):
     A dependency has multiple times the same tag.
     """
 
-    def __init__(self, dependency: Hashable, existing_tag: Tag):
+    def __init__(self, dependency: Hashable, existing_tag: Tag) -> None:
         self.dependency = dependency
         self.existing_tag = existing_tag
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Dependency {self.dependency} already has a tag {self.existing_tag}"
 
 
@@ -141,7 +141,7 @@ class Tagged(Generic[T, D]):
         self._instances: List[Any] = []
         self._tags = list(tags)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._tags)
 
     def items(self) -> Iterator[Tuple[T, D]]:
@@ -183,11 +183,11 @@ class Tagged(Generic[T, D]):
 
 @API.private
 class TagProvider(Provider[Tag]):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__tag_to_tagged: Dict[Any, Dict[Hashable, Tag]] = {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}(tagged_dependencies={self.__tag_to_tagged})"
 
     def clone(self, keep_singletons_cache: bool) -> 'TagProvider':
@@ -226,7 +226,7 @@ class TagProvider(Provider[Tag]):
             singleton=False
         )
 
-    def register(self, dependency: Hashable, *, tags: Iterable[Tag]):
+    def register(self, dependency: Hashable, *, tags: Iterable[Tag]) -> None:
         tags = list(tags)
         for tag in tags:
             if not isinstance(tag, Tag):

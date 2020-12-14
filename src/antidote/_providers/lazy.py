@@ -21,13 +21,13 @@ class Lazy:
 class FastLazyConst(FinalImmutable, Lazy):
     __slots__ = ('name', 'dependency', 'method_name', 'value', 'cast')
     name: str
-    dependency: object
+    dependency: Hashable
     method_name: str
     value: object
     cast: Callable[[Any], Any]
 
-    def __init__(self, name: str, dependency, method_name: str, value: object,
-                 cast: Callable[[Any], Any]):
+    def __init__(self, name: str, dependency: Hashable, method_name: str, value: object,
+                 cast: Callable[[Any], Any]) -> None:
         super().__init__(
             name=name,
             dependency=dependency,

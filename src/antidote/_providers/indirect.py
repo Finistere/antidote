@@ -7,13 +7,13 @@ from ..core.utils import DependencyDebug
 
 
 @API.private
-class IndirectProvider(Provider):
-    def __init__(self):
+class IndirectProvider(Provider[Hashable]):
+    def __init__(self) -> None:
         super().__init__()
         self.__links: Dict[Hashable, Link] = dict()
         self.__static_links: Dict[Hashable, Hashable] = dict()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}(links={self.__links}, " \
                f"static_links={self.__static_links})"
 
@@ -90,12 +90,12 @@ class IndirectProvider(Provider):
 
         return None
 
-    def register_static(self, dependency: Hashable, target_dependency: Hashable):
+    def register_static(self, dependency: Hashable, target_dependency: Hashable) -> None:
         self._assert_not_duplicate(dependency)
         self.__static_links[dependency] = target_dependency
 
     def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
-                      permanent: bool = True):
+                      permanent: bool = True) -> None:
         self._assert_not_duplicate(dependency)
         self.__links[dependency] = Link(linker, permanent)
 

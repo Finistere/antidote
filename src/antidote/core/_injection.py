@@ -1,7 +1,8 @@
 import builtins
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Dict, Iterable, Mapping, Set, TYPE_CHECKING, Union)
+from typing import (Any, Callable, cast, Dict, Hashable, Iterable, Mapping, overload,
+                    Set, TYPE_CHECKING, TypeVar, Union)
 
 from .._internal import API
 from .._internal.argspec import Arguments
@@ -12,15 +13,38 @@ _BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 if TYPE_CHECKING:
     from .injection import DEPENDENCIES_TYPE
 
+F = TypeVar('F', Callable[..., Any], staticmethod, classmethod)
+AnyF = Union[Callable[..., Any], staticmethod, classmethod]
 
-@API.private  # Use inject instead
-def raw_inject(func=None,
+
+@overload
+def raw_inject(func: F,  # noqa: E704  # pragma: no cover
                *,
                arguments: Arguments = None,
                dependencies: 'DEPENDENCIES_TYPE' = None,
                use_names: Union[bool, Iterable[str]] = None,
-               use_type_hints: Union[bool, Iterable[str]] = None):
-    def _inject(wrapped):
+               use_type_hints: Union[bool, Iterable[str]] = None
+               ) -> F: ...
+
+
+@overload
+def raw_inject(*,  # noqa: E704  # pragma: no cover
+               arguments: Arguments = None,
+               dependencies: 'DEPENDENCIES_TYPE' = None,
+               use_names: Union[bool, Iterable[str]] = None,
+               use_type_hints: Union[bool, Iterable[str]] = None
+               ) -> Callable[[F], F]: ...
+
+
+@API.private  # Use inject instead
+def raw_inject(func: AnyF = None,
+               *,
+               arguments: Arguments = None,
+               dependencies: 'DEPENDENCIES_TYPE' = None,
+               use_names: Union[bool, Iterable[str]] = None,
+               use_type_hints: Union[bool, Iterable[str]] = None
+               ) -> AnyF:
+    def _inject(wrapped: AnyF) -> AnyF:
         nonlocal arguments
 
         if inspect.isclass(wrapped):
@@ -52,7 +76,7 @@ def raw_inject(func=None,
         if blueprint.is_empty():
             return wrapped
 
-        return build_wrapper(blueprint=blueprint, wrapped=wrapped)
+        return cast(AnyF, build_wrapper(blueprint=blueprint, wrapped=wrapped))
 
     return func and _inject(func) or _inject
 
@@ -97,10 +121,10 @@ def _build_injection_blueprint(arguments: Arguments,
 @API.private
 def _build_arg_to_dependency(arguments: Arguments,
                              dependencies: 'DEPENDENCIES_TYPE' = None
-                             ) -> Dict[str, Any]:
+                             ) -> Dict[str, Hashable]:
     from .injection import Arg
     if dependencies is None:
-        arg_to_dependency: Mapping = {}
+        arg_to_dependency: Mapping[str, Hashable] = {}
     elif isinstance(dependencies, str):
         if "{arg_name}" not in dependencies:
             raise ValueError("Missing formatting parameter {arg_name} in dependencies. "
@@ -137,7 +161,7 @@ def _build_arg_to_dependency(arguments: Arguments,
 
 @API.private
 def _build_type_hints(arguments: Arguments,
-                      use_type_hints: Union[bool, Iterable[str]]) -> Dict[str, Any]:
+                      use_type_hints: Union[bool, Iterable[str]]) -> Dict[str, Hashable]:
     if use_type_hints is True:
         type_hints = {arg.name: arg.type_hint for arg in arguments.without_self}
     elif use_type_hints is False:
@@ -156,8 +180,8 @@ def _build_type_hints(arguments: Arguments,
     for arg_name in list(type_hints.keys()):
         type_hint = type_hints[arg_name]
         if getattr(type_hint, '__origin__', None) is Union \
-                and len(type_hint.__args__) == 2:
-            a = type_hint.__args__
+                and len(type_hint.__args__) == 2:  # type: ignore
+            a = type_hint.__args__  # type: ignore
             if isinstance(None, a[1]):
                 type_hints[arg_name] = a[0]
 
@@ -191,7 +215,7 @@ def _build_dependency_names(arguments: Arguments,
 
 
 @API.private
-def _check_valid_arg_names(names: Iterable[str], arguments: Arguments):
+def _check_valid_arg_names(names: Iterable[str], arguments: Arguments) -> None:
     for name in names:
         if not isinstance(name, str):
             raise TypeError(f"Expected argument name (str), "

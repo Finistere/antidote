@@ -7,7 +7,7 @@ from .. import API
 class SlotsRepr:
     __slots__ = ()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         slots_attrs = []
         for cls in type(self).__mro__:
             for name in getattr(cls, '__slots__', []):
@@ -23,7 +23,7 @@ class SlotRecord(SlotsRepr):
     """
     __slots__ = ()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__()
         attrs: Dict[str, object] = dict(zip(self.__slots__, args))
         attrs.update(kwargs)

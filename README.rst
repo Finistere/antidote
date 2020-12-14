@@ -108,7 +108,9 @@ How does injection looks like ? Here is a very simple example:
     # Inject dependencies in f(), by default only type annotations are used. But
     # arguments name, explicit mapping, etc.. can also be used.
     @inject
-    def f(db: Database):
+    def f(db: Database = None):
+        # Defaulting to None allows for MyPy compatibility but isn't required to work.
+        assert db is not None
         pass
 
     f()  # Service will be automatically injected if not provided
@@ -188,7 +190,8 @@ Want more ? Here is a more complex example:
             pass
 
     @inject
-    def f(movie_db: MovieDB):
+    def f(movie_db: MovieDB = None):
+        assert movie_db is not None
         pass
 
     # You can also retrieve dependencies by hand
@@ -289,6 +292,57 @@ You can avoid the pre-compiled wheels from PyPI with the following:
     pip install --no-binary antidote
 
 Note that it will nonetheless try to compile with Cython if available.
+
+
+Mypy
+====
+
+Antidote passes the strict Mypy check and exposes its type information (PEP 561). Unfortunately
+static typing for decorators is limited to simple cases, hence Antidote :code:`@inject` will just
+return the same signature from Mypys point of view. The best way, currently that I know of, is to
+define arguments as optional as shown below:
+
+.. code-block:: python
+
+    from antidote import inject, Service
+
+    class MyService(Service):
+        pass
+
+    @inject
+    def f(my_service: MyService = None) -> MyService:
+        # We never expect it to be None, but it Mypy will now
+        # understand that my_service may not be provided.
+        assert my_service is not None
+        return my_service
+
+
+    s: MyService = f()
+
+    # You can also overload the function, if you want a more accurate type definition:
+    from typing import overload
+
+    @overload
+    def g(my_service: MyService) -> MyService: ...
+
+    @overload
+    def g() -> MyService: ...
+
+    @inject
+    def g(my_service: MyService = None) -> MyService:
+        assert my_service is not None
+        return my_service
+
+
+    s2: MyService = g()
+
+
+
+
+Note that any of this is only necessary if you're calling _explicitly_ the function, if only
+instantiate :code:`MyService` through Antidote for example, you won't need this for its
+:code:`__init__()` function typically. You could also use a :code:`Protocol` to define
+a different signature, but it's more complex.
 
 
 Issues / Feature Requests / Questions

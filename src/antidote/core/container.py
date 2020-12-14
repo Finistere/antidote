@@ -1,8 +1,8 @@
 import threading
 from collections import deque
 from contextlib import contextmanager
-from typing import (Any, Callable, cast, Deque, Dict, Hashable, List, Mapping, Optional,
-                    Sequence, Tuple, Type)
+from typing import (Any, Callable, cast, Deque, Dict, Hashable, Iterator, List, Mapping,
+                    Optional, Sequence, Tuple, Type)
 from weakref import ref, ReferenceType
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
@@ -12,9 +12,9 @@ from .utils import DependencyDebug
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.stack import DependencyStack
-# PRIVATE
 from .._internal.utils import FinalImmutable
 
+# PRIVATE
 _CONTAINER_REF_ATTR = "_antidote__container_ref"
 
 
@@ -29,10 +29,10 @@ class DependencyInstance(FinalImmutable):
     value: Any
     singleton: bool
 
-    def __init__(self, value: Any, *, singleton: bool = False):
+    def __init__(self, value: Any, *, singleton: bool = False) -> None:
         super().__init__(value, singleton)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, DependencyInstance) \
                and self.singleton == other.singleton \
                and self.value == other.value  # noqa: E126
@@ -92,7 +92,7 @@ class RawProvider:
     :meta private:
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         setattr(self, _CONTAINER_REF_ATTR, None)
 
     def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
@@ -111,7 +111,7 @@ class RawProvider:
     @API.private
     @final
     @contextmanager
-    def _ensure_not_frozen(self):
+    def _ensure_not_frozen(self) -> Iterator[None]:
         container_ref: ReferenceType[RawContainer] = getattr(self,
                                                              _CONTAINER_REF_ATTR)
         if container_ref is None:
@@ -124,7 +124,7 @@ class RawProvider:
 
     @API.private
     @final
-    def _raise_if_exists(self, dependency):
+    def _raise_if_exists(self, dependency: Hashable) -> None:
         container_ref: ReferenceType[RawContainer] = getattr(self,
                                                              _CONTAINER_REF_ATTR)
         if container_ref is not None:
@@ -138,14 +138,14 @@ class RawProvider:
 
     @final
     @property
-    def is_registered(self):
+    def is_registered(self) -> bool:
         return getattr(self, _CONTAINER_REF_ATTR) is not None
 
 
 @API.private  # Not meant for direct use. You should go through world to manipulate it.
 class RawContainer(Container):
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._dependency_stack = DependencyStack()
         self._singleton_lock = threading.RLock()
         self._providers: List[RawProvider] = list()
@@ -153,7 +153,7 @@ class RawContainer(Container):
         self.__freeze_lock = threading.RLock()
         self.__frozen = False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}(providers={', '.join(map(str, self._providers))})"
 
     @property
@@ -161,17 +161,17 @@ class RawContainer(Container):
         return self._providers.copy()
 
     @contextmanager
-    def ensure_not_frozen(self):
+    def ensure_not_frozen(self) -> Iterator[None]:
         with self.__freeze_lock:
             if self.__frozen:
                 raise FrozenWorldError()
             yield
 
-    def freeze(self):
+    def freeze(self) -> None:
         with self.__freeze_lock:
             self.__frozen = True
 
-    def add_provider(self, provider_cls: Type[RawProvider]):
+    def add_provider(self, provider_cls: Type[RawProvider]) -> None:
         if not isinstance(provider_cls, type) \
                 or not issubclass(provider_cls, RawProvider):
             raise TypeError(
@@ -186,13 +186,13 @@ class RawContainer(Container):
             self._providers.append(provider)
             self._singletons[provider_cls] = provider
 
-    def add_singletons(self, dependencies: Mapping):
+    def add_singletons(self, dependencies: Mapping[Hashable, object]) -> None:
         with self.ensure_not_frozen(), self._singleton_lock:
             for k, v in dependencies.items():
                 self.raise_if_exists(k)
             self._singletons.update(dependencies)
 
-    def raise_if_exists(self, dependency: Hashable):
+    def raise_if_exists(self, dependency: Hashable) -> None:
         with self.__freeze_lock:
             if dependency in self._singletons:
                 raise DuplicateDependencyError(
@@ -294,12 +294,12 @@ class RawContainer(Container):
 
 
 class OverridableRawContainer(RawContainer):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.__override_lock = threading.RLock()
         # Used to differentiate singletons from the overrides and the "normal" ones.
-        self.__singletons_override = dict()
-        self.__factory_overrides: Dict[Any, Tuple[Callable[[], Any], bool]] = {}
+        self.__singletons_override: Dict[Hashable, object] = dict()
+        self.__factory_overrides: Dict[Hashable, Tuple[Callable[[], object], bool]] = {}
         self.__provider_overrides: Deque[
             Callable[[Any], Optional[DependencyInstance]]] = deque()
 
@@ -317,7 +317,7 @@ class OverridableRawContainer(RawContainer):
             container.__provider_overrides = clone.__provider_overrides
         return container
 
-    def override_singletons(self, singletons: dict):
+    def override_singletons(self, singletons: Dict[Hashable, object]) -> None:
         if not isinstance(singletons, dict):
             raise TypeError(f"singletons must be a dict, not a {type(singletons)}")
         with self.__override_lock:
@@ -327,7 +327,7 @@ class OverridableRawContainer(RawContainer):
                          dependency: Hashable,
                          *,
                          factory: Callable[[], Any],
-                         singleton: bool):
+                         singleton: bool) -> None:
         if not callable(factory):
             raise TypeError(f"factory must be a callable, not a {type(factory)}")
         if not isinstance(singleton, bool):
@@ -336,7 +336,8 @@ class OverridableRawContainer(RawContainer):
             self.__factory_overrides[dependency] = (factory, singleton)
 
     def override_provider(self,
-                          provider: Callable[[Any], Optional[DependencyInstance]]):
+                          provider: Callable[[Any], Optional[DependencyInstance]]
+                          ) -> None:
         if not callable(provider):
             raise TypeError(f"provider must be a callable, not a {type(provider)}")
         with self.__override_lock:
@@ -345,7 +346,7 @@ class OverridableRawContainer(RawContainer):
     def provide(self, dependency: Hashable) -> DependencyInstance:
         return self._safe_provide(dependency)
 
-    def get(self, dependency: Hashable) -> Any:
+    def get(self, dependency: Hashable) -> object:
         return self._safe_provide(dependency).value
 
     def clone(self,

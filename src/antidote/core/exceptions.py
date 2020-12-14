@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Hashable, List, Optional
+from typing import Any, Hashable, List, Optional, Tuple
 
 from .._internal import API
 
@@ -8,7 +8,7 @@ from .._internal import API
 class AntidoteError(Exception):
     """ Base class of all errors of antidote. """
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({self})"
 
 
@@ -18,22 +18,6 @@ class DuplicateDependencyError(AntidoteError):
     A dependency already exists with the same id.
     *May* be raised by _providers.
     """
-    message: Optional[str]
-
-    def __init__(self, dependency_or_message: Hashable, existing_definition: Any = None):
-        if isinstance(dependency_or_message, str) and existing_definition is None:
-            self.message = dependency_or_message
-        else:
-            self.message = None
-            self.dependency = dependency_or_message
-            self.existing_definition = existing_definition
-
-    def __str__(self):
-        if self.message is not None:
-            return self.message
-        else:
-            return f"The dependency {self.dependency} already exists. " \
-                   f"It points to {self.existing_definition}."
 
 
 @API.public
@@ -42,7 +26,7 @@ class DependencyInstantiationError(AntidoteError):
     The dependency could not be instantiated.
     """
 
-    def __init__(self, dependency):
+    def __init__(self, dependency: Hashable) -> None:
         super().__init__(f"Could not instantiate {dependency}")
 
 
@@ -52,14 +36,14 @@ class DependencyCycleError(AntidoteError):
     A dependency cycle is found.
     """
 
-    def __init__(self, dependencies: List):
+    def __init__(self, dependencies: List[Hashable]) -> None:
         self.dependencies = dependencies
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Cycle:" + ''.join(map(self._repr, enumerate(self.dependencies))) + "\n"
 
     @staticmethod
-    def _repr(i_dep) -> str:
+    def _repr(i_dep: Tuple[int, Hashable]) -> str:
         index, dependency = i_dep
         if inspect.isclass(dependency):
             return f"\n    {index}: {dependency.__module__}" \
@@ -74,10 +58,10 @@ class DependencyNotFoundError(AntidoteError):
     The dependency could not be found.
     """
 
-    def __init__(self, dependency: Hashable):
+    def __init__(self, dependency: Hashable) -> None:
         self.missing_dependency = dependency
 
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self.missing_dependency)
 
 

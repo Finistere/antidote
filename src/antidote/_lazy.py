@@ -1,5 +1,5 @@
 import weakref
-from typing import Callable, TYPE_CHECKING, Union
+from typing import Callable, cast, Dict, Tuple, Type, TYPE_CHECKING, Union
 
 from ._compatibility.typing import final
 from ._internal import API
@@ -19,12 +19,12 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
     :meta private:
     """
     __slots__ = ('func', 'singleton', 'args', 'kwargs')
-    func: Callable
+    func: Callable[..., object]
     singleton: bool
-    args: tuple
-    kwargs: dict
+    args: Tuple[object, ...]
+    kwargs: Dict[str, object]
 
-    def __antidote_debug_repr__(self):
+    def __antidote_debug_repr__(self) -> str:
         s = f"Lazy: {debug_repr(self.func)}(*{self.args}, **{self.kwargs})"
         if self.singleton:
             s += f"  #{short_id(self)}"
@@ -49,15 +49,16 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable):
     __slots__ = ('method_name', 'singleton', 'args', 'kwargs', '_cache_attr')
     method_name: str
     singleton: bool
-    args: tuple
-    kwargs: dict
+    args: Tuple[object, ...]
+    kwargs: Dict[str, object]
     _cache_attr: str
 
-    def __init__(self, method_name: str, singleton: bool, args: tuple, kwargs: dict):
+    def __init__(self, method_name: str, singleton: bool, args: Tuple[object, ...],
+                 kwargs: Dict[str, object]) -> None:
         super().__init__(method_name, singleton, args, kwargs,
                          f"__antidote_dependency_{hex(id(self))}")
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: object, owner: type) -> object:
         if instance is None:
             try:
                 return getattr(owner, self._cache_attr)
@@ -69,7 +70,7 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable):
                 return dependency
         return getattr(instance, self.method_name)(*self.args, **self.kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = f"Lazy Method: {self.method_name}(*{self.args}, **{self.kwargs})"
         if self.singleton:
             s += f"  #{short_id(self)}"
@@ -84,20 +85,21 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
     """
     __slots__ = ('descriptor', 'owner_ref', 'singleton')
     descriptor: 'Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]'
-    owner_ref: weakref.ReferenceType
+    owner_ref: 'weakref.ReferenceType[type]'
     singleton: bool
 
     def debug_info(self) -> DependencyDebug:
         owner = self.owner_ref()
         assert owner is not None
-        method = self.descriptor.method_name
-        return DependencyDebug(str(self.descriptor),
-                               singleton=self.descriptor.singleton,
-                               wired=[getattr(owner, method)],
+        descriptor = cast('LazyMethodCall', self.descriptor)
+        return DependencyDebug(str(descriptor),
+                               singleton=descriptor.singleton,
+                               wired=[getattr(owner, descriptor.method_name)],
                                dependencies=[owner])
 
     def lazy_get(self, container: Container) -> DependencyInstance:
         owner = self.owner_ref()
         assert owner is not None
-        return DependencyInstance(self.descriptor.__get__(container.get(owner), owner),
+        descriptor = cast('LazyMethodCall', self.descriptor)
+        return DependencyInstance(descriptor.__get__(container.get(owner), owner),
                                   singleton=self.singleton)

@@ -1,13 +1,13 @@
 import collections.abc as c_abc
-from typing import (Any, Callable, Hashable, Iterable, Mapping,
-                    Optional, overload, Sequence, TypeVar, Union)
-
+from typing import (Any, Callable, cast, Generic, Hashable, Iterable, Mapping,
+                    Optional, overload, Sequence, Type, TypeVar, Union)
 from ._injection import raw_inject
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import FinalImmutable
 
-F = TypeVar('F', Callable, staticmethod, classmethod)
+F = TypeVar('F', bound=Callable[..., Any])
+AnyF = Union[Callable[..., Any], staticmethod, classmethod]
 
 
 @API.public
@@ -21,7 +21,7 @@ class Arg(FinalImmutable):
     name: str
     type_hint: Any
 
-    def __init__(self, name: str, type_hint: Any):
+    def __init__(self, name: str, type_hint: Any) -> None:
         super().__init__(name=name, type_hint=type_hint)
 
 
@@ -32,6 +32,24 @@ DEPENDENCIES_TYPE = Union[
     Callable[[Arg], Optional[Hashable]],  # arg -> dependency
     str  # str.format(arg_name=arg_name) -> dependency
 ]
+
+
+@overload
+def inject(func: staticmethod,  # noqa: E704  # pragma: no cover
+           *,
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None
+           ) -> staticmethod: ...
+
+
+@overload
+def inject(func: classmethod,  # noqa: E704  # pragma: no cover
+           *,
+           dependencies: DEPENDENCIES_TYPE = None,
+           use_names: Union[bool, Iterable[str]] = None,
+           use_type_hints: Union[bool, Iterable[str]] = None
+           ) -> classmethod: ...
 
 
 @overload
@@ -52,11 +70,12 @@ def inject(*,  # noqa: E704  # pragma: no cover
 
 
 @API.public
-def inject(func=None,
+def inject(func: AnyF = None,
            *,
            dependencies: DEPENDENCIES_TYPE = None,
            use_names: Union[bool, Iterable[str]] = None,
-           use_type_hints: Union[bool, Iterable[str]] = None):
+           use_type_hints: Union[bool, Iterable[str]] = None
+           ) -> AnyF:
     """
     Inject the dependencies into the function lazily, they are only retrieved
     upon execution. As several options can apply to the same argument, the priority is
@@ -135,16 +154,21 @@ def inject(func=None,
         argument :code:`func` was supplied.
 
     """
-    return raw_inject(func,
-                      dependencies=dependencies,
-                      use_names=use_names,
-                      use_type_hints=use_type_hints)
+    if func is None:
+        return raw_inject(dependencies=dependencies,
+                          use_names=use_names,
+                          use_type_hints=use_type_hints)
+    else:
+        return raw_inject(func,
+                          dependencies=dependencies,
+                          use_names=use_names,
+                          use_type_hints=use_type_hints)
 
 
 @API.experimental  # Function will be kept in sync with @inject, so you may use it.
 def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
                        use_names: Union[bool, Iterable[str]] = None,
-                       use_type_hints: Union[bool, Iterable[str]] = None):
+                       use_type_hints: Union[bool, Iterable[str]] = None) -> None:
     if not (dependencies is None
             or isinstance(dependencies, (str, c_abc.Sequence, c_abc.Mapping))
             or callable(dependencies)):

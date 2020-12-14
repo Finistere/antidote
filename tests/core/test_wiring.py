@@ -396,3 +396,13 @@ def test_with_wiring(kwargs):
 def test_invalid_with_wiring():
     with pytest.raises(TypeError):
         DummyConf().with_wiring()
+
+
+def test_invalid_methods():
+    wiring = Wiring(methods=['not_a_method'],
+                    use_names=True)  # use_names to force injection
+
+    with pytest.raises(TypeError, match='.*not_a_method.*'):
+        @wiring.wire
+        class Dummy:
+            not_a_method = 1
