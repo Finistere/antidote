@@ -1,7 +1,7 @@
 """
 Utilities used by world, mostly for syntactic sugar.
 """
-from typing import Any, Callable, cast, Type, TypeVar, TYPE_CHECKING
+from typing import Any, Callable, cast, Hashable, Type, TypeVar, TYPE_CHECKING
 
 from .meta import FinalMeta
 from ..._compatibility.typing import final
@@ -18,16 +18,17 @@ if TYPE_CHECKING:
 @API.private
 @final
 class WorldGet(metaclass=FinalMeta):
-    def __call__(self, dependency: object) -> Any:
+    def __call__(self, dependency: Hashable) -> Any:
         from ..state import get_container
         return get_container().get(dependency)
 
-    def __getitem__(self, tpe: Type[T]
+    def __getitem__(self,
+                    tpe: Type[T]
                     ) -> 'Callable[[DefaultArg(object)], T]':
-        def f(dependency=None) -> T:
+        def f(dependency: Hashable = None) -> T:
             from ..state import get_container
             if dependency is None:
-                dependency = tpe
+                dependency = tpe  # type: ignore
             return cast(T, get_container().get(dependency))
 
         return f
@@ -36,21 +37,22 @@ class WorldGet(metaclass=FinalMeta):
 @API.private
 @final
 class WorldLazy(metaclass=FinalMeta):
-    def __call__(self, dependency: object) -> Dependency[Any]:
+    def __call__(self, dependency: Hashable) -> Dependency[Any]:
         return Dependency(dependency)
 
-    def __getitem__(self, tpe: Type[T]
+    def __getitem__(self,
+                    tpe: Type[T]
                     ) -> 'Callable[[DefaultArg(object)], Dependency[T]]':
-        def f(dependency=None) -> Dependency[T]:
+        def f(dependency: Hashable = None) -> Dependency[T]:
             if dependency is None:
-                dependency = tpe
+                dependency = tpe  # type: ignore
             return Dependency(dependency)
 
         return f
 
 
 @API.private
-def new_container():
+def new_container() -> RawContainer:
     """ default new container in Antidote """
 
     from ..._providers import (LazyProvider, ServiceProvider, TagProvider,

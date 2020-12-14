@@ -210,6 +210,9 @@ def test_invalid():
             world.test.override.singleton(1)
 
         with pytest.raises(TypeError):
+            world.test.override.singleton(dict(), 1)
+
+        with pytest.raises(TypeError):
             @world.test.override.factory('test', singleton=object())
             def f():
                 pass

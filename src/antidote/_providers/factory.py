@@ -9,12 +9,12 @@ from ..core.utils import DependencyDebug
 
 
 @API.private
-class FactoryProvider(Provider):
-    def __init__(self):
+class FactoryProvider(Provider[Hashable]):
+    def __init__(self) -> None:
         super().__init__()
         self.__factories: Dict[Hashable, Factory] = dict()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}(factories={self.__factories})"
 
     def clone(self, keep_singletons_cache: bool) -> 'FactoryProvider':
@@ -83,7 +83,7 @@ class FactoryProvider(Provider):
 
     def register(self,
                  dependency: Hashable,
-                 factory: Union[Callable, Dependency],
+                 factory: Union[Callable[..., object], Dependency[Hashable]],
                  singleton: bool = True) -> 'FactoryDependency':
         # For now we don't support multiple factories for a single dependency.
         # Simply because I don't see a use case where it would make sense. In
@@ -104,7 +104,8 @@ class FactoryProvider(Provider):
         return factory_dependency
 
     def debug_get_registered_factory(self, dependency: Hashable
-                                     ) -> Union[Callable, Dependency]:
+                                     ) -> Union[Callable[..., object],
+                                                Dependency[Hashable]]:
         factory = self.__factories[dependency]
         if factory.dependency is not None:
             return Dependency(factory.dependency)
@@ -118,13 +119,13 @@ class FactoryDependency(FinalImmutable):
     dependency: Hashable
     _provider_ref: 'weakref.ReferenceType[FactoryProvider]'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"FactoryDependency({self})"
 
-    def __antidote_debug_repr__(self):
+    def __antidote_debug_repr__(self) -> str:
         return str(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         provider = self._provider_ref()
         dependency = debug_repr(self.dependency)
         if provider is not None:
@@ -138,13 +139,13 @@ class FactoryDependency(FinalImmutable):
 class Factory(SlotRecord):
     __slots__ = ('singleton', 'function', 'dependency')
     singleton: bool
-    function: Callable
-    dependency: Any
+    function: Callable[..., object]
+    dependency: Hashable
 
     def __init__(self,
                  singleton: bool = True,
-                 function: Callable = None,
-                 dependency: Any = None):
+                 function: Callable[..., object] = None,
+                 dependency: Hashable = None):
         assert function is not None or dependency is not None
         super().__init__(singleton, function, dependency)
 

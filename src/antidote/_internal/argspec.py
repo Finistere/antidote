@@ -3,12 +3,12 @@ from typing import Callable, get_type_hints, Iterator, List, Sequence, Set, Unio
 
 
 class Argument:
-    def __init__(self, name: str, has_default: bool, type_hint):
+    def __init__(self, name: str, has_default: bool, type_hint: object) -> None:
         self.name = name
         self.has_default = has_default
         self.type_hint = type_hint
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         type_hint = getattr(self.type_hint, "__name__", repr(self.type_hint))
         common = f'{self.name}:{type_hint}'
         return common + " = ?" if self.has_default else common
@@ -19,7 +19,7 @@ class Arguments:
 
     @classmethod
     def from_callable(cls,
-                      func: Union[Callable, staticmethod, classmethod]
+                      func: object
                       ) -> 'Arguments':
         if not (callable(func) or isinstance(func, (staticmethod, classmethod))):
             raise TypeError(f"func must be a callable or a static/class-method. "
@@ -30,7 +30,7 @@ class Arguments:
         return cls._build(func, unbound_method)
 
     @classmethod
-    def _build(cls, func: Callable, unbound_method: bool) -> 'Arguments':
+    def _build(cls, func: Callable[..., object], unbound_method: bool) -> 'Arguments':
         arguments: List[Argument] = []
         has_var_positional = False
         has_var_keyword = False
@@ -77,7 +77,7 @@ class Arguments:
     def arg_names(self) -> Set[str]:
         return set(self.name_to_argument.keys())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         args = [repr(arg) for arg in self.name_to_argument.values()]
         if self.has_var_positional:
             args.append("*args")
@@ -94,17 +94,18 @@ class Arguments:
         else:
             raise TypeError(f"Unsupported index {index!r}")
 
-    def __contains__(self, name):
+    def __contains__(self, name: str) -> bool:
         return name in self.name_to_argument
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.arguments)
 
     def __iter__(self) -> Iterator[Argument]:
         return iter(self.arguments)
 
 
-def is_unbound_method(func: Union[Callable, staticmethod, classmethod]) -> bool:
+def is_unbound_method(func: Union[Callable[..., object], staticmethod, classmethod]
+                      ) -> bool:
     """
     Methods and nested function will have a different __qualname__ than
     __name__ (See PEP-3155).

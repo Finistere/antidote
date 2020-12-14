@@ -1,4 +1,4 @@
-from typing import Any, cast, Generic, Hashable, Sequence, TypeVar
+from typing import cast, Generic, Hashable, Sequence, TypeVar
 
 from .._compatibility.typing import final
 from .._internal import API
@@ -32,7 +32,7 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
     value: Hashable
     """Dependency to be retrieved"""
 
-    def __init__(self, value: Hashable):
+    def __init__(self, value: Hashable) -> None:
         """
         Args:
             value: actual dependency to be retrieved later.
@@ -62,14 +62,14 @@ class DependencyDebug(FinalImmutable):
     __slots__ = ('info', 'singleton', 'wired', 'dependencies')
     info: str
     singleton: bool
-    wired: Sequence
+    wired: Sequence[object]
     dependencies: Sequence[Hashable]
 
     def __init__(self,
                  info: str,
                  *,
                  singleton: bool,
-                 wired: Sequence = tuple(),
+                 wired: Sequence[object] = tuple(),
                  dependencies: Sequence[Hashable] = tuple()):
         """
         Args:
@@ -81,7 +81,7 @@ class DependencyDebug(FinalImmutable):
         """
         super().__init__(info, singleton, wired, dependencies)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, DependencyDebug) \
                and self.info == other.info \
                and self.singleton == other.singleton \

@@ -1,4 +1,4 @@
-def test_readme_simple() -> None:
+def test_readme_simple():
     from antidote import inject, Service, Constants
 
     class Conf(Constants):
@@ -32,14 +32,16 @@ def test_readme_simple() -> None:
     # Inject dependencies in f(), by default only type annotations are used. But
     # arguments name, explicit mapping, etc.. can also be used.
     @inject
-    def f(db: Database):
+    def f(db: Database = None):
+        # Defaulting to None allows for MyPy compatibility but isn't required to work.
+        assert db is not None
         pass
 
     f()  # Service will be automatically injected if not provided
     f(Database('localhost:6789'))  # but you can still use the function normally
 
 
-def test_readme() -> None:
+def test_readme():
     """
     Simple example where a MovieDB interface is defined which can be used
     to retrieve the best movies. In our case the implementation uses IMDB
@@ -109,7 +111,8 @@ def test_readme() -> None:
             pass
 
     @inject
-    def f(movie_db: MovieDB):
+    def f(movie_db: MovieDB = None):
+        assert movie_db is not None
         pass
 
     # You can also retrieve dependencies by hand

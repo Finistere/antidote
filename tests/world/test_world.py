@@ -34,6 +34,9 @@ def test_invalid_singletons():
     with pytest.raises(TypeError):
         world.singletons.add(1)
 
+    with pytest.raises(TypeError):
+        world.singletons.add(dict(), 1)
+
 
 def test_duplicate_singletons():
     world.singletons.add("singleton", 12342)

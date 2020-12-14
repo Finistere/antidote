@@ -11,10 +11,10 @@ from ..core.utils import DependencyDebug
 class Build(FinalImmutable):
     __slots__ = ('dependency', 'kwargs', '_hash')
     dependency: Hashable
-    kwargs: dict
+    kwargs: Dict[str, object]
     _hash: int
 
-    def __init__(self, dependency: Hashable, kwargs: dict):
+    def __init__(self, dependency: Hashable, kwargs: Dict[str, object]) -> None:
         assert isinstance(kwargs, dict) and len(kwargs) > 0
 
         try:
@@ -26,16 +26,16 @@ class Build(FinalImmutable):
 
         super().__init__(dependency, kwargs, _hash)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self._hash
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
 
-    def __antidote_debug_repr__(self):
+    def __antidote_debug_repr__(self) -> str:
         return f"{debug_repr(self.dependency)}(**{self.kwargs})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return (isinstance(other, Build)
                 and self._hash == other._hash
                 and (self.dependency is other.dependency
@@ -44,12 +44,12 @@ class Build(FinalImmutable):
 
 
 @API.private
-class ServiceProvider(Provider):
-    def __init__(self):
+class ServiceProvider(Provider[Hashable]):
+    def __init__(self) -> None:
         super().__init__()
         self.__services: Dict[Hashable, bool] = dict()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
 
     def exists(self, dependency: Hashable) -> bool:
@@ -88,7 +88,7 @@ class ServiceProvider(Provider):
 
         return DependencyInstance(instance, singleton=singleton)
 
-    def register(self, klass: type, *, singleton: bool = True):
+    def register(self, klass: type, *, singleton: bool = True) -> None:
         if not (isinstance(klass, type) and inspect.isclass(klass)):
             raise TypeError(f"service must be a class, not {klass!r}")
         if not isinstance(singleton, bool):

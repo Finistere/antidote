@@ -1,6 +1,6 @@
-from typing import Any, Callable, cast, Optional, Type, TypeVar
+from typing import Any, Callable, cast, Dict, Hashable, Optional, Tuple, Type, TypeVar
 
-from ._compatibility.typing import final, Protocol
+from ._compatibility.typing import final
 from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
 from ._providers.lazy import FastLazyConst
@@ -34,15 +34,23 @@ class LazyConstToDo(FinalImmutable):
 
 @API.private
 class ConstantsMeta(AbstractMeta):
-    def __new__(mcls, name, bases, namespace, **kwargs):
-        cls = super().__new__(mcls, name, bases, namespace, **kwargs)
+    def __new__(mcs: 'Type[ConstantsMeta]',
+                name: str,
+                bases: Tuple[type, ...],
+                namespace: Dict[str, object],
+                **kwargs: object
+                ) -> 'ConstantsMeta':
+        cls = cast(
+            ConstantsMeta,
+            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+        )
         if not kwargs.get('abstract'):
             _configure_constants(cls)
         return cls
 
 
 @API.private
-def _configure_constants(cls):
+def _configure_constants(cls: ConstantsMeta) -> None:
     from .constants import Constants
     from .lazy import LazyCall
     from .service import service
@@ -61,7 +69,7 @@ def _configure_constants(cls):
         conf.wiring.wire(cls)
 
     if conf.public:
-        dependency = service(cls, singleton=True)
+        dependency: Hashable = service(cls, singleton=True)
     else:
         dependency = LazyCall(cls, singleton=True)
 
@@ -83,19 +91,22 @@ def _configure_constants(cls):
                                          v))
 
 
+Cast = Callable[[object], object]
+
+
 @API.private
 @final
 class LazyConst(FinalImmutable):
     __slots__ = ('name', 'dependency', 'method_name', 'value', 'cast', '_cache')
     name: str
-    dependency: object
+    dependency: Hashable
     method_name: str
     value: object
-    cast: Callable[[Any], Any]
+    cast: Cast
     _cache: str
 
-    def __init__(self, name: str, dependency, method_name: str, value,
-                 cast: Callable[[Any], Any] = None):
+    def __init__(self, name: str, dependency: Hashable, method_name: str, value: object,
+                 cast: Cast = None):
         super().__init__(
             name=name,
             dependency=dependency,
@@ -105,13 +116,13 @@ class LazyConst(FinalImmutable):
             _cache=f"__antidote_dependency_{hex(id(self))}"
         )
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: object, owner: type) -> object:
         if instance is None:
             try:
                 return getattr(owner, self._cache)
             except AttributeError:
                 # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
-                _cast = cast(Callable[[Any], Any], getattr(self, 'cast'))
+                _cast = cast(Cast, getattr(self, 'cast'))
                 dependency = FastLazyConst(self.name,
                                            self.dependency,
                                            self.method_name,
@@ -119,5 +130,5 @@ class LazyConst(FinalImmutable):
                                            _cast)
                 setattr(owner, self._cache, dependency)
                 return dependency
-        _cast = cast(Callable[[Any], Any], getattr(self, 'cast'))
+        _cast = cast(Cast, getattr(self, 'cast'))
         return _cast(getattr(instance, self.method_name)(self.value))

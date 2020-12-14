@@ -31,10 +31,6 @@ def test_invalid_immutable(cls: type):
         class B(cls):
             __slots__ = ('__value',)
 
-    with pytest.raises(ValueError, match=".*abstract.*"):
-        class D(cls, abstract=True):
-            __slots__ = ('value',)
-
 
 def test_immutability(cls: type):
     class A(cls):

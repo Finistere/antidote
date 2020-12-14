@@ -37,10 +37,10 @@ class LazyCall(FinalImmutable, Lazy):
 
     """
     __slots__ = ('func', 'singleton')
-    func: Callable
+    func: Callable[..., object]
     singleton: bool
 
-    def __init__(self, func: Callable, *, singleton: bool = True):
+    def __init__(self, func: Callable[..., object], *, singleton: bool = True) -> None:
         """
         Args:
             func: Function to lazily call, any (keyword-)arguments given by the returned
@@ -54,13 +54,13 @@ class LazyCall(FinalImmutable, Lazy):
             raise TypeError(f"singleton must be a boolean, not {type(singleton)!r}")
         super().__init__(func=func, singleton=singleton)
 
-    def __call__(self, *args, **kwargs) -> 'LazyCallWithArgsKwargs':
+    def __call__(self, *args: object, **kwargs: object) -> 'LazyCallWithArgsKwargs':
         """
         All argument are passed on to the lazily called function.
         """
         return LazyCallWithArgsKwargs(self.func, self.singleton, args, kwargs)
 
-    def __antidote_debug_repr__(self):
+    def __antidote_debug_repr__(self) -> str:
         s = f"Lazy: {debug_repr(self.func)}()"
         if self.singleton:
             s += f"  #{short_id(self)}"
@@ -120,7 +120,10 @@ class LazyMethodCall(FinalImmutable):
     singleton: bool
     _cache_attr: str
 
-    def __init__(self, method: Union[Callable, str], *, singleton: bool = True):
+    def __init__(self,
+                 method: Union[Callable[..., object], str],
+                 *,
+                 singleton: bool = True) -> None:
         """
         Args:
             method: Method name or the method itself that must be called.
@@ -137,7 +140,7 @@ class LazyMethodCall(FinalImmutable):
             _cache_attr=f"__antidote_dependency_{hex(id(self))}"
         )
 
-    def __call__(self, *args, **kwargs) -> 'LazyMethodCallWithArgsKwargs':
+    def __call__(self, *args: object, **kwargs: object) -> 'LazyMethodCallWithArgsKwargs':
         """
         All argument are passed on to the lazily called method.
         """
@@ -145,13 +148,13 @@ class LazyMethodCall(FinalImmutable):
                                             self.singleton,
                                             args, kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = f"Lazy Method: {self.method_name}()"
         if self.singleton:
             s += f"  #{short_id(self)}"
         return s
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: object, owner: type) -> object:
         if instance is None:
             try:
                 return getattr(owner, self._cache_attr)

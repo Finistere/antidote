@@ -1,10 +1,12 @@
 import functools
-from typing import Callable, Hashable, List, Sequence
+from typing import Callable, Dict, Hashable, List, Sequence, Union
 
 from . import API
 from .utils import FinalImmutable
 from ..core.container import Container
 from ..core.exceptions import DependencyNotFoundError
+
+F = Union[Callable[..., object], staticmethod, classmethod]
 
 compiled = False
 
@@ -29,20 +31,20 @@ class InjectionBlueprint(FinalImmutable):
     __slots__ = ('injections',)
     injections: Sequence[Injection]
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return all(injection.dependency is None for injection in self.injections)
 
 
 @API.private
 def build_wrapper(blueprint: InjectionBlueprint,
-                  wrapped: Callable,
-                  skip_self: bool = False):
+                  wrapped: F,
+                  skip_self: bool = False) -> 'InjectedWrapper':
     """Used for consistency with Cython implementation."""
     return InjectedWrapper(blueprint, wrapped, skip_self)
 
 
 @API.private
-def get_wrapper_dependencies(wrapper: 'InjectedWrapper') -> List[Hashable]:
+def get_wrapper_dependencies(wrapper: Callable[..., object]) -> List[Hashable]:
     if not isinstance(wrapper, InjectedWrapper):
         raise TypeError(f"Argument must be an {InjectedWrapper}")
 
@@ -52,7 +54,7 @@ def get_wrapper_dependencies(wrapper: 'InjectedWrapper') -> List[Hashable]:
 
 
 @API.private
-def is_wrapper(x) -> bool:
+def is_wrapper(x: object) -> bool:
     return isinstance(x, InjectedWrapper)
 
 
@@ -66,7 +68,7 @@ class InjectedWrapper:
 
     def __init__(self,
                  blueprint: InjectionBlueprint,
-                 wrapped: Callable,
+                 wrapped: F,
                  skip_self: bool = False):
         """
         Args:
@@ -77,9 +79,9 @@ class InjectedWrapper:
         self.__blueprint = blueprint
         self.__wrapped__ = wrapped
         self.__injection_offset = 1 if skip_self else 0
-        functools.wraps(wrapped, updated=())(self)
+        functools.wraps(wrapped, updated=())(self)  # type: ignore
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: object, **kwargs: object) -> object:
         from .state import get_container
         kwargs = _inject_kwargs(
             get_container(),
@@ -87,9 +89,9 @@ class InjectedWrapper:
             self.__injection_offset + len(args),
             kwargs
         )
-        return self.__wrapped__(*args, **kwargs)
+        return self.__wrapped__(*args, **kwargs)  # type: ignore
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: object, owner: type) -> object:
         return InjectedBoundWrapper(
             self.__blueprint,
             self.__wrapped__.__get__(instance, owner),  # type: ignore
@@ -97,7 +99,7 @@ class InjectedWrapper:
             or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
         )
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str) -> object:
         return getattr(self.__wrapped__, item)
 
 
@@ -108,7 +110,7 @@ class InjectedBoundWrapper(InjectedWrapper):
     or not.
     """
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: object, owner: type) -> object:
         return self  # pragma: no cover
 
 
@@ -116,7 +118,7 @@ class InjectedBoundWrapper(InjectedWrapper):
 def _inject_kwargs(container: Container,
                    blueprint: InjectionBlueprint,
                    offset: int,
-                   kwargs: dict) -> dict:
+                   kwargs: Dict[str, object]) -> Dict[str, object]:
     """
     Does the actual injection of the dependencies. Used by InjectedCallableWrapper.
     """
