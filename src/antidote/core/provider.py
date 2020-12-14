@@ -8,10 +8,11 @@ from .._compatibility.typing import final
 from .._internal import API
 
 T = TypeVar('T', bound=Hashable)
+M = TypeVar('M')
 
 
 @API.public
-def does_not_freeze(method):
+def does_not_freeze(method: M) -> M:
     """
     Decorated methods won't freeze when :py:func:`~antidote.world.freeze` is called
     """
@@ -101,7 +102,7 @@ class Provider(RawProvider, Generic[T],
     """
     __antidote__ = None  # reserved
 
-    def clone(self, keep_singletons_cache: bool) -> 'Provider':
+    def clone(self, keep_singletons_cache: bool) -> 'Provider[T]':
         """
         If you have no internal state, consider implementing
         :py:class:`~.StatelessProvider` instead.
@@ -231,7 +232,7 @@ class Provider(RawProvider, Generic[T],
 
     @does_not_freeze
     @final
-    def _assert_not_duplicate(self, dependency: Hashable):
+    def _assert_not_duplicate(self, dependency: Hashable) -> None:
         """
         To be used whenever registering new dependencies to check that a dependency has
         not been declared before.
@@ -270,5 +271,5 @@ class StatelessProvider(Provider[T], abstract=True):
     """
 
     @final
-    def clone(self, keep_singletons_cache: bool) -> 'StatelessProvider':
+    def clone(self, keep_singletons_cache: bool) -> 'StatelessProvider[T]':
         return type(self)()

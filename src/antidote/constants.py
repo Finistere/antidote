@@ -162,7 +162,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                 raise TypeError("auto_cast must a boolean or a iterable of types")
 
             if is_const is None:
-                def is_const(name):
+                def is_const(name: str) -> bool:
                     return False
 
             if not callable(is_const):
@@ -175,7 +175,8 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                  public: Union[bool, Copy] = Copy.IDENTICAL,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  auto_cast: Union[Union[Sequence[type], bool], Copy] = Copy.IDENTICAL,
-                 is_const: Union[Optional[Callable[[str], bool]], Copy] = Copy.IDENTICAL):
+                 is_const: Union[Optional[Callable[[str], bool]], Copy] = Copy.IDENTICAL
+                 ) -> 'Constants.Conf':
 
             return Constants.Conf(
                 public=self.public if public is Copy.IDENTICAL else public,

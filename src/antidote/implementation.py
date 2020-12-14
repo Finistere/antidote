@@ -44,7 +44,8 @@ def implementation(interface: type,
                    auto_wire: bool = True,
                    dependencies: DEPENDENCIES_TYPE = None,
                    use_names: Union[bool, Iterable[str]] = None,
-                   use_type_hints: Union[bool, Iterable[str]] = None) -> Callable[[F], F]:
+                   use_type_hints: Union[bool, Iterable[str]] = None
+                   ) -> Callable[[F], F]:
     """
     Function decorator which decides which implementation should be used for
     :code:`interface`.
@@ -101,9 +102,10 @@ def implementation(interface: type,
         raise TypeError(f"auto_wire can be None or a boolean, not {type(auto_wire)}")
 
     @inject
-    def register(func, indirect_provider: IndirectProvider):
+    def register(func: F, indirect_provider: IndirectProvider = None) -> F:
         from ._providers.factory import FactoryDependency
         from ._providers.service import Build
+        assert indirect_provider is not None
 
         if inspect.isfunction(func):
             if auto_wire:
@@ -113,9 +115,9 @@ def implementation(interface: type,
                               use_type_hints=use_type_hints)
 
             @functools.wraps(func)
-            def linker():
+            def linker() -> object:
                 dependency = func()
-                cls = dependency
+                cls: object = dependency
                 if isinstance(cls, Build):
                     cls = cls.dependency
                 if isinstance(cls, FactoryDependency):

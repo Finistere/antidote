@@ -1,15 +1,17 @@
 import collections.abc as c_abc
 import enum
 import inspect
-from typing import Callable, FrozenSet, Iterable, Optional, overload, TypeVar, Union
+from typing import Callable, cast, FrozenSet, Iterable, Optional, overload, TypeVar, Union
 
-from .injection import DEPENDENCIES_TYPE, raw_inject, validate_injection
+from ._injection import raw_inject
+from .injection import DEPENDENCIES_TYPE, validate_injection
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.argspec import Arguments
 from .._internal.utils import Copy, FinalImmutable, raw_getattr
 
 C = TypeVar('C', bound=type)
+AnyF = Union[Callable[..., object], staticmethod, classmethod]
 _empty_set: FrozenSet[str] = frozenset()
 
 
@@ -105,8 +107,8 @@ class Wiring(FinalImmutable):
                                  f"Method names {wire_super - methods!r} are unknown.")
 
         if isinstance(ignore_missing_method, str) \
-                or not (ignore_missing_method is None
-                        or isinstance(ignore_missing_method, (bool, c_abc.Iterable))):
+            or not (ignore_missing_method is None
+                    or isinstance(ignore_missing_method, (bool, c_abc.Iterable))):
             raise TypeError(f"ignore_missing_method must be a boolean or a list of "
                             f"methods names for which an exception must be raised if "
                             f"it's missing, not {type(ignore_missing_method)}")
@@ -198,13 +200,13 @@ def wire(*,  # noqa: E704  # pragma: no cover
 
 
 @API.public
-def wire(klass: type = None,
+def wire(klass: C = None,
          *,
          methods: Iterable[str],
          dependencies: DEPENDENCIES_TYPE = None,
          use_names: Union[bool, Iterable[str]] = None,
          use_type_hints: Union[bool, Iterable[str]] = None,
-         wire_super: Union[bool, Iterable[str]] = None):
+         wire_super: Union[bool, Iterable[str]] = None) -> Union[C, Callable[[C], C]]:
     """Wire a class by injecting specified methods.
 
     Injection arguments (:code:`dependencies`, :code:`use_names`,  :code:`use_type_hints`)
@@ -233,7 +235,7 @@ def wire(klass: type = None,
         use_type_hints=use_type_hints
     )
 
-    def wire_methods(cls):
+    def wire_methods(cls: C) -> C:
         return _wire_class(cls, wiring)
 
     return klass and wire_methods(klass) or wire_methods
@@ -307,12 +309,20 @@ def _wire_class(cls: C, wiring: Wiring) -> C:
 
     for method_name in wiring.methods:
         try:
-            method = raw_getattr(cls, method_name,
-                                 with_super=method_name in wiring.wire_super)
+            attr = raw_getattr(cls,
+                               method_name,
+                               with_super=method_name in wiring.wire_super)
         except AttributeError:
             if method_name not in wiring.ignore_missing_method:
                 raise
         else:
+
+            if not (inspect.isfunction(attr)
+                    or isinstance(attr, (staticmethod, classmethod))):
+                raise TypeError(f"{method_name} is neither a method,"
+                                f" nor a static/class method. Found: {type(attr)}")
+
+            method = cast(AnyF, attr)
             arguments = Arguments.from_callable(method)
             use_names = wiring.use_names
             use_type_hints = wiring.use_type_hints
@@ -337,10 +347,11 @@ def _wire_class(cls: C, wiring: Wiring) -> C:
 
             # If we're wrapping a static/class-method, we can just re-wrap it so
             # that isinstance(..., classmethod) still works as one would expect.
-            injected_method = raw_inject(
-                method.__func__
-                if isinstance(method, (classmethod, staticmethod)) else
-                method,
+            injected: Callable[..., object] = raw_inject(
+                cast(Callable[..., object],
+                     method.__func__
+                     if isinstance(method, (classmethod, staticmethod)) else
+                     method),
                 arguments=arguments,
                 dependencies=dependencies,
                 use_names=use_names,
@@ -348,9 +359,11 @@ def _wire_class(cls: C, wiring: Wiring) -> C:
             )
 
             if isinstance(method, classmethod):
-                injected_method = classmethod(injected_method)
+                injected_method: AnyF = classmethod(injected)
             elif isinstance(method, staticmethod):
-                injected_method = staticmethod(injected_method)
+                injected_method = staticmethod(injected)
+            else:
+                injected_method = injected
 
             if injected_method is not method:  # If something has changed
                 setattr(cls, method_name, injected_method)

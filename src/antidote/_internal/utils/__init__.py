@@ -13,7 +13,7 @@ class Copy(enum.Enum):
 
 
 @API.private
-def raw_getattr(cls: type, attr: str, with_super: bool = False):
+def raw_getattr(cls: type, attr: str, with_super: bool = False) -> object:
     """
     Used to retrieve the 'raw' attribute from a class, typically the descriptor itself
     and not whatever it outputs.
@@ -44,3 +44,7 @@ def raw_getattr(cls: type, attr: str, with_super: bool = False):
             f"Attribute '{attr}' is not defined in {cls}. "
             f"Mother classes are not taken into account. "
             f"This may indicate that 'wire_super' is not configured properly.")
+
+
+__all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
+           'FinalMeta', 'SlotRecord', 'API', 'Copy', 'raw_getattr']

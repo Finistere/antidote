@@ -1,5 +1,5 @@
 import collections.abc as c_abc
-from typing import Callable, Iterable, Optional, overload, Tuple, TypeVar, Union
+from typing import Callable, cast, Iterable, Optional, overload, Tuple, TypeVar, Union
 
 from ._compatibility.typing import final
 from ._internal import API
@@ -113,7 +113,8 @@ class Service(metaclass=ServiceMeta, abstract=True):
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
-                 tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL):
+                 tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL
+                 ) -> 'Service.Conf':
             """
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
@@ -146,10 +147,10 @@ def service(*,  # noqa: E704  # pragma: no cover
 
 
 @API.experimental
-def service(klass=None,
+def service(klass: C = None,
             *,
             singleton: bool = True,
-            tags: Iterable[Tag] = None):
+            tags: Iterable[Tag] = None) -> Union[C, Callable[[C], C]]:
     """
     Register a service: the class itself is the dependency. Prefer using
     :py:class:`.Service` when possible, it provides more features such as
@@ -181,7 +182,7 @@ def service(klass=None,
 
     """
 
-    def reg(cls):
+    def reg(cls: C) -> C:
         from ._service import _configure_service
 
         if issubclass(cls, Service):
@@ -193,6 +194,6 @@ def service(klass=None,
                                              singleton=singleton,
                                              tags=tags))
 
-        return cls
+        return cast(C, cls)
 
     return klass and reg(klass) or reg

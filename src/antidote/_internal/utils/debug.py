@@ -2,7 +2,8 @@ import base64
 import inspect
 import textwrap
 from collections import deque
-from typing import Deque, Hashable, List, Sequence, Tuple, TYPE_CHECKING
+from typing import (Callable, cast, Deque, Hashable, List, Sequence, Set, Tuple,
+                    TYPE_CHECKING)
 
 from .immutable import Immutable
 from .. import API
@@ -16,7 +17,7 @@ _ID_MASK = id(object())
 
 
 @API.private
-def short_id(obj) -> str:
+def short_id(obj: object) -> str:
     """ Produces a short, human readable, representation of the id of an object. """
     n = id(obj) ^ _ID_MASK
     return (base64
@@ -27,25 +28,25 @@ def short_id(obj) -> str:
 
 
 @API.private
-def debug_repr(x) -> str:
+def debug_repr(obj: object) -> str:
     from ..wrapper import is_wrapper
     try:
-        return x.__antidote_debug_repr__()
+        return str(obj.__antidote_debug_repr__())  # type: ignore
     except AttributeError:
         pass
-    if (isinstance(x, type) and inspect.isclass(x)) \
-            or inspect.isfunction(x) \
-            or is_wrapper(x):
-        module = (x.__module__ + ".") if x.__module__ != "__main__" else ""
-        return f"{module}{x.__qualname__}"
-    return repr(x)
+    if (isinstance(obj, type) and inspect.isclass(obj)) \
+            or inspect.isfunction(obj) \
+            or is_wrapper(obj):
+        module = (obj.__module__ + ".") if obj.__module__ != "__main__" else ""
+        return f"{module}{obj.__qualname__}"  # type: ignore
+    return repr(obj)
 
 
 @API.private
-def get_injections(func) -> Sequence:
+def get_injections(func: object) -> Sequence[object]:
     from ..wrapper import get_wrapper_dependencies
     try:
-        return get_wrapper_dependencies(func)
+        return get_wrapper_dependencies(func)  # type: ignore
     except TypeError:
         return []
 
@@ -57,8 +58,10 @@ class DebugTreeNode(Immutable):
     singleton: bool
     children: 'List[DebugTreeNode]'
 
-    def __init__(self, info: str, *, singleton: bool = True,
-                 children: 'List[DebugTreeNode]' = None):
+    def __init__(self,
+                 info: str, *,
+                 singleton: bool = True,
+                 children: 'List[DebugTreeNode]' = None) -> None:
         super().__init__(info=textwrap.dedent(info),
                          singleton=singleton,
                          children=children or [])
@@ -72,7 +75,7 @@ class Task(Immutable):
 @API.private
 class DependencyTask(Task):
     __slots__ = ('dependency',)
-    dependency: object
+    dependency: Hashable
 
 
 @API.private
@@ -84,7 +87,7 @@ class InjectionTask(Task):
 
 @API.private
 def tree_debug_info(container: 'RawContainer',
-                    origin,
+                    origin: object,
                     depth: int = -1) -> str:
     from ...core.wiring import WithWiringMixin
     from ...core.exceptions import DependencyNotFoundError
@@ -95,11 +98,13 @@ def tree_debug_info(container: 'RawContainer',
     depth += 1  # To match root = depth 0
     root = DebugTreeNode(info=debug_repr(origin))
     original_root = root
-    tasks: Deque[Tuple[DebugTreeNode, set, Task]] = deque([
+    tasks: Deque[Tuple[DebugTreeNode, Set[object], Task]] = deque([
         (root, set(), DependencyTask(origin))
     ])
 
-    def add_root_injections(parent: DebugTreeNode, parent_dependencies: set, dependency):
+    def add_root_injections(parent: DebugTreeNode,
+                            parent_dependencies: Set[object],
+                            dependency: Hashable) -> None:
         if isinstance(dependency, type) and inspect.isclass(dependency):
             cls = dependency
             conf = getattr(cls, '__antidote__', None)

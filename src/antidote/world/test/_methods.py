@@ -1,5 +1,6 @@
 from contextlib import contextmanager
-from typing import Any, Callable, Hashable, Optional, overload, TypeVar, Union
+from typing import (Any, Callable, Dict, Hashable, Iterator, Optional, overload, TypeVar,
+                    Union)
 
 from ..._internal import API, state
 from ...core.container import (DependencyInstance, OverridableRawContainer, RawContainer,
@@ -8,7 +9,7 @@ from ...core.container import (DependencyInstance, OverridableRawContainer, RawC
 
 @API.public
 @contextmanager
-def clone(*, keep_singletons: bool = False, overridable: bool = False):
+def clone(*, keep_singletons: bool = False, overridable: bool = False) -> Iterator[None]:
     """
     Clone current Antidote state (singletons & providers) into a new container. It should
     be used when you need to rely on existing dependencies defined in your source code.
@@ -75,7 +76,7 @@ def clone(*, keep_singletons: bool = False, overridable: bool = False):
 
 @API.public
 @contextmanager
-def new(*, default_providers: bool = False):
+def new(*, default_providers: bool = False) -> Iterator[None]:
     """
     Creates a new container void of any dependencies.
 
@@ -119,7 +120,7 @@ def new(*, default_providers: bool = False):
 
 @API.public
 @contextmanager
-def empty():
+def empty() -> Iterator[None]:
     """
     Only used to test providers.
 
@@ -158,15 +159,16 @@ __sentinel = object()
 
 
 @overload
-def singleton(dependency: Hashable, value) -> None: ...  # noqa: E704
+def singleton(dependency: Hashable, value: object) -> None: ...  # noqa: E704
 
 
 @overload
-def singleton(dependency: dict) -> None: ...  # noqa: E704
+def singleton(dependency: Dict[Hashable, object]) -> None: ...  # noqa: E704
 
 
 @API.public
-def singleton(dependency: Union[dict, Hashable], value=__sentinel) -> None:
+def singleton(dependency: Union[Dict[Hashable, object], Hashable],
+              value: object = __sentinel) -> None:
     """
     Override one or multiple dependencies with one/multiple singletons.
 
@@ -198,6 +200,8 @@ def singleton(dependency: Union[dict, Hashable], value=__sentinel) -> None:
             raise TypeError("If only a single argument is provided, "
                             "it must be a dictionary of singletons.")
     else:
+        if isinstance(dependency, dict):
+            raise TypeError("A dictionary cannot be used as a key.")
         state.get_overridable_container().override_singletons({dependency: value})
 
 
@@ -242,7 +246,7 @@ def factory(dependency: Hashable, *, singleton: bool = False) -> Callable[[F], F
     Returns:
         The decorated function, unchanged.
     """
-    def decorate(f: 'Callable[..., Any]'):
+    def decorate(f: F) -> F:
         state.get_overridable_container().override_factory(dependency,
                                                            factory=f,
                                                            singleton=singleton)

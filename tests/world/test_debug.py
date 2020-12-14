@@ -403,7 +403,10 @@ def test_complex_debug():
                 dependencies=dict(
                     service2=Service2 @ build_s2))
 
-            def __init__(self, service1: Service1, service2: Service2, i: Interface):
+            def __init__(self,
+                         service1: Service1,
+                         service2: Service2,
+                         i: Interface):
                 self.service1 = service1
                 self.service2 = service2
                 self.i = i

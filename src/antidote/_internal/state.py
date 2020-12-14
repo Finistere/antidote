@@ -3,7 +3,7 @@ Antidote has a global container which is managed in this module.
 """
 import threading
 from contextlib import contextmanager
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional
 
 from ..core.container import OverridableRawContainer, RawContainer
 
@@ -12,12 +12,12 @@ __container_lock = threading.RLock()
 
 
 # Used only for tests
-def reset():
+def reset() -> None:
     global __container
     __container = None
 
 
-def init():
+def init() -> None:
     global __container
     if __container is None:
         with __container_lock:
@@ -40,7 +40,7 @@ def get_overridable_container() -> OverridableRawContainer:
 
 
 @contextmanager
-def override(create: Callable[[RawContainer], RawContainer]):
+def override(create: Callable[[RawContainer], RawContainer]) -> Iterator[None]:
     global __container
     with __container_lock:
         assert __container is not None

@@ -8,19 +8,16 @@ here = pathlib.Path(os.path.dirname(os.path.abspath(__file__)))
 with open(str(here / 'README.rst'), 'r') as f:
     readme = f.read()
 
-with open(str(here / 'requirements' / 'dist.txt'), 'r') as f:
-    requires = list(f)
-
+requires = ['typing_extensions; python_version < "3.8.0"']
 setup_requires = ['setuptools_scm']
 ext_modules = []
 
 try:
     from Cython.Build import cythonize
+    from Cython.Compiler import Options
 except ImportError:
     pass
 else:
-    from Cython.Compiler import Options
-
     cython_options = set(os.environ.get("ANTIDOTE_CYTHON_OPTIONS", "").split(","))
     extension_extras = {}
     cythonize_extras = {}
@@ -73,6 +70,7 @@ setup(
     url='https://github.com/Finistere/antidote',
     packages=find_packages('src'),
     package_dir={'': 'src'},
+    package_data={"antidote": ["py.typed"]},
     include_dirs=["src"],
     ext_modules=ext_modules,
     install_requires=requires,

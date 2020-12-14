@@ -1,4 +1,4 @@
-from typing import Hashable, overload, Type, TypeVar, Union
+from typing import Dict, Hashable, overload, Type, TypeVar, Union
 
 from .._internal import API
 from .._internal.state import init
@@ -129,15 +129,16 @@ def freeze() -> None:
 
 
 @overload
-def add(dependency: Hashable, value) -> None: ...  # noqa: E704
+def add(dependency: Hashable, value: object) -> None: ...  # noqa: E704
 
 
 @overload
-def add(dependency: dict) -> None: ...  # noqa: E704
+def add(dependency: Dict[Hashable, object]) -> None: ...  # noqa: E704
 
 
 @API.public
-def add(dependency: Union[dict, Hashable], value=__sentinel) -> None:
+def add(dependency: Union[Dict[Hashable, object], Hashable],
+        value: object = __sentinel) -> None:
     """
     Declare one or multiple singleton dependencies with its associated instance.
 
@@ -165,11 +166,13 @@ def add(dependency: Union[dict, Hashable], value=__sentinel) -> None:
             raise TypeError("If only a single argument is provided, "
                             "it must be a dictionary of singletons.")
     else:
+        if isinstance(dependency, dict):
+            raise TypeError("A dictionary cannot be used as a key.")
         state.get_container().add_singletons({dependency: value})
 
 
 @API.experimental
-def debug(dependency, *, depth: int = -1) -> str:
+def debug(dependency: Hashable, *, depth: int = -1) -> str:
     """
     To help you debug issues you may encounter with your injections, this will provide
     a tree representing all the dependencies that will be retrieved by Antidote when
