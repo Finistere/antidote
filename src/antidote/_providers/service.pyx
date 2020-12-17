@@ -97,12 +97,12 @@ cdef class ServiceProvider(FastProvider):
 
         if PyObject_IsInstance(dependency, <PyObject*> Build):
             singleton = PyDict_GetItem(<PyObject*> self.__services,
-                                       <PyObject*> (<Build> dependency).dependency)
+                                       <PyObject*> (<Build> dependency)._dependency)
 
             if singleton == NULL:
                 return
             (<PyObjectBox> result.box).obj = PyObject_Call(
-                (<Build> dependency).dependency,
+                (<Build> dependency)._dependency,
                 self.__empty_tuple,
                 (<Build> dependency).kwargs
             )

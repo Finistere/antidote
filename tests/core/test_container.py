@@ -9,17 +9,17 @@ from antidote.exceptions import (DependencyCycleError, DependencyInstantiationEr
 from .utils import DummyFactoryProvider, DummyProvider
 
 
-class Service:
+class A:
     def __init__(self, *args):
         pass
 
 
-class AnotherService:
+class B:
     def __init__(self, *args):
         pass
 
 
-class YetAnotherService:
+class C:
     def __init__(self, *args):
         pass
 
@@ -66,14 +66,14 @@ def test_duplicate_singletons(container: RawContainer):
 def test_getitem(container: RawContainer):
     container.add_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
-        Service: lambda _: Service(),
+        A: lambda _: A(),
         ServiceWithNonMetDependency: lambda _: ServiceWithNonMetDependency(),
     }
     container.add_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
 
-    assert isinstance(container.get(Service), Service)
-    assert isinstance(container.provide(Service), DependencyInstance)
+    assert isinstance(container.get(A), A)
+    assert isinstance(container.provide(A), DependencyInstance)
     assert 'Antidote' == container.get('name')
     assert 'Antidote' == container.provide('name').value
 
@@ -87,40 +87,59 @@ def test_getitem(container: RawContainer):
 def test_singleton(container: RawContainer):
     container.add_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
-        Service: lambda _: Service(),
-        AnotherService: lambda _: AnotherService(),
+        A: lambda _: A(),
+        B: lambda _: B(),
     }
 
-    service = container.get(Service)
-    assert container.get(Service) is service
-    assert container.provide(Service).value is service
-    assert container.provide(Service).singleton is True
+    service = container.get(A)
+    assert container.get(A) is service
+    assert container.provide(A).value is service
+    assert container.provide(A).singleton is True
 
     container.get(DummyFactoryProvider).singleton = False
-    another_service = container.get(AnotherService)
-    assert container.get(AnotherService) is not another_service
-    assert container.provide(AnotherService).value is not another_service
-    assert container.provide(AnotherService).singleton is False
+    another_service = container.get(B)
+    assert container.get(B) is not another_service
+    assert container.provide(B).value is not another_service
+    assert container.provide(B).singleton is False
 
-    assert container.get(Service) == service
+    assert container.get(A) == service
 
 
 def test_dependency_cycle_error(container: RawContainer):
     container.add_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
-        Service: lambda _: Service(container.get(AnotherService)),
-        AnotherService: lambda _: AnotherService(container.get(YetAnotherService)),
-        YetAnotherService: lambda _: YetAnotherService(container.get(Service)),
+        A: lambda _: container.get(B),
+        B: lambda _: container.get(C),
+        C: lambda _: container.get(A),
     }
 
     with pytest.raises(DependencyCycleError):
-        container.get(Service)
+        container.get(A)
 
     with pytest.raises(DependencyCycleError):
-        container.get(AnotherService)
+        container.get(B)
 
     with pytest.raises(DependencyCycleError):
-        container.get(YetAnotherService)
+        container.get(C)
+
+
+def test_dependency_instantiation_error(container: RawContainer):
+    container.add_provider(DummyFactoryProvider)
+
+    def raise_error():
+        raise RuntimeError()
+
+    container.get(DummyFactoryProvider).data = {
+        A: lambda _: container.get(B),
+        B: lambda _: container.get(C),
+        C: lambda _: raise_error(),
+    }
+
+    with pytest.raises(DependencyInstantiationError, match=".*C.*"):
+        container.get(C)
+
+    with pytest.raises(DependencyInstantiationError, match=".*A.*"):
+        container.get(A)
 
 
 def test_providers(container: RawContainer):

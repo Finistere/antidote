@@ -112,8 +112,8 @@ class RawProvider:
     @final
     @contextmanager
     def _ensure_not_frozen(self) -> Iterator[None]:
-        container_ref: ReferenceType[RawContainer] = getattr(self,
-                                                             _CONTAINER_REF_ATTR)
+        container_ref: 'ReferenceType[RawContainer]' = getattr(self,
+                                                               _CONTAINER_REF_ATTR)
         if container_ref is None:
             yield
         else:
@@ -125,8 +125,8 @@ class RawProvider:
     @API.private
     @final
     def _raise_if_exists(self, dependency: Hashable) -> None:
-        container_ref: ReferenceType[RawContainer] = getattr(self,
-                                                             _CONTAINER_REF_ATTR)
+        container_ref: 'ReferenceType[RawContainer]' = getattr(self,
+                                                               _CONTAINER_REF_ATTR)
         if container_ref is not None:
             container = container_ref()
             assert container is not None, "Associated container does not exist anymore."
@@ -267,30 +267,38 @@ class RawContainer(Container):
         return self._safe_provide(dependency).value
 
     def _safe_provide(self, dependency: Hashable) -> DependencyInstance:
-        try:
-            with self._singleton_lock, \
-                 self._dependency_stack.instantiating(dependency):
+        with self._singleton_lock:
+            try:
                 try:
                     return DependencyInstance(self._singletons[dependency],
                                               singleton=True)
                 except KeyError:
                     pass
 
-                for provider in self._providers:
-                    dependency_instance = provider.maybe_provide(dependency, self)
-                    if dependency_instance is not None:
-                        if dependency_instance.singleton:
-                            self._singletons[dependency] = dependency_instance.value
+                with self._dependency_stack.instantiating(dependency):
+                    for provider in self._providers:
+                        dependency_instance = provider.maybe_provide(dependency, self)
+                        if dependency_instance is not None:
+                            if dependency_instance.singleton:
+                                self._singletons[dependency] = dependency_instance.value
 
-                        return dependency_instance
+                            return dependency_instance
 
-        except DependencyCycleError:
-            raise
+            except DependencyCycleError:
+                raise
 
-        except Exception as e:
-            raise DependencyInstantiationError(dependency) from e
+            except DependencyInstantiationError as e:
+                if self._dependency_stack.is_empty():
+                    raise DependencyInstantiationError(dependency) from e
+                else:
+                    raise
 
-        raise DependencyNotFoundError(dependency)
+            except Exception as e:
+                raise DependencyInstantiationError(
+                    dependency,
+                    self._dependency_stack.to_list()) from e
+
+            raise DependencyNotFoundError(dependency)
 
 
 class OverridableRawContainer(RawContainer):
