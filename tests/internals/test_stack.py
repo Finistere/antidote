@@ -47,17 +47,17 @@ def test_is_empty():
     a = object()
     b = object()
 
-    assert stack.is_empty()
+    assert stack.depth == 0
 
     with stack.instantiating(a):
-        assert not stack.is_empty()
+        assert stack.depth == 1
 
         with stack.instantiating(b):
-            assert not stack.is_empty()
+            assert stack.depth == 2
 
-        assert not stack.is_empty()
+        assert stack.depth == 1
 
-    assert stack.is_empty()
+    assert stack.depth == 0
 
 
 def test_to_list():

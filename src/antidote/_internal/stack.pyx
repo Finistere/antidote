@@ -41,6 +41,20 @@ cdef class DependencyStack:
         finally:
             self.pop()
 
+    @property
+    def depth(self):
+        return self._depth
+
+    def to_list(self):
+        cdef:
+            list l = []
+            PyObject*t
+
+        for t in self._trace[:self._depth]:
+            l.append(<object> t)
+
+        return l
+
     cdef Exception reset_with_error(self, PyObject*dependency):
         cdef:
             list l = []

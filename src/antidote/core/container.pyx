@@ -29,7 +29,6 @@ cdef extern from "Python.h":
 FLAG_DEFINED = 1
 FLAG_SINGLETON = 2
 
-
 @cython.freelist(64)
 @cython.final
 cdef class DependencyInstance:
@@ -44,7 +43,6 @@ cdef class DependencyInstance:
         return isinstance(other, DependencyInstance) \
                and self.singleton == other.singleton \
                and self.value == other.value
-
 
 @cython.freelist(64)
 cdef class PyObjectBox:
@@ -210,7 +208,7 @@ cdef class RawContainer(Container):
             RawProvider provider
 
         if not isinstance(provider_cls, type) \
-                or not issubclass(provider_cls, RawProvider):
+            or not issubclass(provider_cls, RawProvider):
             raise TypeError(
                 f"provider must be a Provider, not a {provider_cls}")
 
@@ -406,7 +404,14 @@ cdef class RawContainer(Container):
         except Exception as error:
             if isinstance(error, DependencyCycleError):
                 raise
-            raise DependencyInstantiationError(<object> dependency) from error
+
+            if isinstance(error, DependencyInstantiationError):
+                if (<DependencyStack> stack).depth == 1:
+                    raise DependencyInstantiationError(<object> dependency) from error
+                else:
+                    raise
+            raise DependencyInstantiationError(<object> dependency,
+                                               (<DependencyStack> stack).to_list()[1:]) from error
         finally:
             (<DependencyStack> stack).pop()
             unlock_fastrlock(lock)
@@ -433,7 +438,6 @@ cdef inline void cache_update(ProviderCache*cache, size_t pos) nogil:
         cache.dependencies[new_pos] = dependency
         cache.providers[new_pos] = provider
     cache.counters[new_pos] = counter
-
 
 cdef class OverridableRawContainer(RawContainer):
     cdef:
@@ -463,9 +467,12 @@ cdef class OverridableRawContainer(RawContainer):
         container._singletons = clone._singletons
         container._providers = clone._providers
         if isinstance(clone, OverridableRawContainer):
-            container.__singletons_override = (<OverridableRawContainer> clone).__singletons_override
-            container.__factory_overrides = (<OverridableRawContainer> clone).__factory_overrides
-            container.__provider_overrides = (<OverridableRawContainer> clone).__provider_overrides
+            container.__singletons_override = (
+                <OverridableRawContainer> clone).__singletons_override
+            container.__factory_overrides = (
+                <OverridableRawContainer> clone).__factory_overrides
+            container.__provider_overrides = (
+                <OverridableRawContainer> clone).__provider_overrides
         return container
 
     def override_singletons(self, singletons: dict):
@@ -557,7 +564,8 @@ cdef class OverridableRawContainer(RawContainer):
                         dependency_instance = provider(dep)
                         if dependency_instance is not None:
                             if dependency_instance.singleton:
-                                self.__singletons_override[dep] = dependency_instance.value
+                                self.__singletons_override[
+                                    dep] = dependency_instance.value
                                 result.flags = FLAG_DEFINED | FLAG_SINGLETON
                             else:
                                 result.flags = FLAG_DEFINED
