@@ -288,7 +288,7 @@ class RawContainer(Container):
                 raise
 
             except DependencyInstantiationError as e:
-                if self._dependency_stack.is_empty():
+                if self._dependency_stack.depth == 0:
                     raise DependencyInstantiationError(dependency) from e
                 else:
                     raise

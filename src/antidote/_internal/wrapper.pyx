@@ -113,11 +113,11 @@ cdef class InjectedWrapper:
         if kwargs:
             for i in range(offset, n):
                 injection = PyTuple_GET_ITEM(injections, i)
-                if (<Injection> injection)._dependency is not None:
+                if (<Injection> injection).dependency is not None:
                     arg_name = <PyObject*> (<Injection> injection).arg_name
                     if PyDict_Contains(<PyObject*> kwargs, arg_name) == 0:
                         container.fast_get(
-                            <PyObject*> (<Injection> injection)._dependency, &result)
+                            <PyObject*> (<Injection> injection).dependency, &result)
                         if result.flags != 0:
                             if not dirty_kwargs:
                                 kwargs = PyDict_Copy(kwargs)
@@ -127,12 +127,12 @@ cdef class InjectedWrapper:
                                            <PyObject*> box.obj)
                         elif (<Injection> injection).required:
                             raise DependencyNotFoundError(
-                                (<Injection> injection)._dependency)
+                                (<Injection> injection).dependency)
         else:
             for i in range(offset, n):
                 injection = PyTuple_GET_ITEM(injections, i)
-                if (<Injection> injection)._dependency is not None:
-                    container.fast_get(<PyObject*> (<Injection> injection)._dependency,
+                if (<Injection> injection).dependency is not None:
+                    container.fast_get(<PyObject*> (<Injection> injection).dependency,
                                        &result)
                     if result.flags != 0:
                         if not dirty_kwargs:
@@ -144,7 +144,7 @@ cdef class InjectedWrapper:
                             <PyObject*> box.obj
                         )
                     elif (<Injection> injection).required:
-                        raise DependencyNotFoundError((<Injection> injection)._dependency)
+                        raise DependencyNotFoundError((<Injection> injection).dependency)
 
         return PyObject_Call(self.__wrapped__, args, kwargs)
 
