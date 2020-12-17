@@ -1,5 +1,4 @@
-import inspect
-from typing import Any, Hashable, List, Optional, Tuple
+from typing import Hashable, Iterable, List
 
 from .._internal import API
 
@@ -26,8 +25,15 @@ class DependencyInstantiationError(AntidoteError):
     The dependency could not be instantiated.
     """
 
-    def __init__(self, dependency: Hashable) -> None:
-        super().__init__(f"Could not instantiate {dependency}")
+    def __init__(self, dependency: Hashable, stack: List[Hashable] = None) -> None:
+        from .._internal.utils import debug_repr
+        msg = f"Could not instantiate {debug_repr(dependency)}"
+        stack = (stack or [])
+        if stack:  # first and last dependency will raise their own errors.
+            stack.append(dependency)
+            msg += f"\nFull dependency stack:\n{_stack_repr(stack)}\n"
+
+        super().__init__(msg)
 
 
 @API.public
@@ -36,20 +42,8 @@ class DependencyCycleError(AntidoteError):
     A dependency cycle is found.
     """
 
-    def __init__(self, dependencies: List[Hashable]) -> None:
-        self.dependencies = dependencies
-
-    def __str__(self) -> str:
-        return "Cycle:" + ''.join(map(self._repr, enumerate(self.dependencies))) + "\n"
-
-    @staticmethod
-    def _repr(i_dep: Tuple[int, Hashable]) -> str:
-        index, dependency = i_dep
-        if inspect.isclass(dependency):
-            return f"\n    {index}: {dependency.__module__}" \
-                   f".{getattr(dependency, '__name__', dependency)}"
-
-        return f"\n    {index}: {repr(dependency)}"
+    def __init__(self, stack: List[Hashable]) -> None:
+        super().__init__(f"Cycle:\n{_stack_repr(stack)}\n")
 
 
 @API.public
@@ -59,10 +53,8 @@ class DependencyNotFoundError(AntidoteError):
     """
 
     def __init__(self, dependency: Hashable) -> None:
-        self.missing_dependency = dependency
-
-    def __str__(self) -> str:
-        return repr(self.missing_dependency)
+        from .._internal.utils import debug_repr
+        super().__init__(debug_repr(dependency))
 
 
 @API.public
@@ -79,3 +71,18 @@ class DebugNotAvailableError(AntidoteError):
     Currently provider do not have to implement the debug behavior. If not, this error
     will be raised and discarded (a warning may be emitted).
     """
+
+
+@API.private
+def _stack_repr(stack: Iterable[object]) -> str:
+    from .._internal.utils import debug_repr
+    import textwrap
+
+    text = []
+    for depth, dependency in enumerate(stack):
+        indent = '    ' * (depth - 1) if depth > 1 else ''
+        first_line, *rest = debug_repr(dependency).split("\n", 1)
+        text.append(f"{indent}{'└── ' if depth else ''}{first_line}")
+        if rest:
+            text.append(textwrap.indent(rest[0], indent + ('    ' if depth > 1 else '')))
+    return '\n'.join(text)

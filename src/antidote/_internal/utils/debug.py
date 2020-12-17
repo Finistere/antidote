@@ -32,7 +32,7 @@ def debug_repr(obj: object) -> str:
     from ..wrapper import is_wrapper
     try:
         return str(obj.__antidote_debug_repr__())  # type: ignore
-    except AttributeError:
+    except Exception:
         pass
     if (isinstance(obj, type) and inspect.isclass(obj)) \
             or inspect.isfunction(obj) \

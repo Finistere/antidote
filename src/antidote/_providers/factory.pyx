@@ -87,7 +87,7 @@ cdef class FactoryProvider(FastProvider):
         cdef:
             PyObject*factory
             bint is_build_dependency = PyObject_IsInstance(dependency, <PyObject*> Build)
-            PyObject*dependency_factory = (<PyObject*> (<Build> dependency).dependency
+            PyObject*dependency_factory = (<PyObject*> (<Build> dependency)._dependency
                                            if is_build_dependency else
                                            dependency)
 
@@ -96,15 +96,15 @@ cdef class FactoryProvider(FastProvider):
 
         factory = PyDict_GetItem(<PyObject*> self.__factories,
                                  <PyObject*> (
-                                     <FactoryDependency> dependency_factory).dependency)
+                                     <FactoryDependency> dependency_factory)._dependency)
         if factory == NULL:
             return
 
         if (<Factory> factory).function is None:
             (<RawContainer> container).fast_get(
-                <PyObject*> (<Factory> factory).dependency, result)
+                <PyObject*> (<Factory> factory)._dependency, result)
             if result.flags == 0:
-                raise DependencyNotFoundError((<Factory> factory).dependency)
+                raise DependencyNotFoundError((<Factory> factory)._dependency)
             assert (result.flags & FLAG_SINGLETON) != 0, "factory dependency is expected to be a singleton"
             (<Factory> factory).function = (<PyObjectBox> result.box).obj
 
