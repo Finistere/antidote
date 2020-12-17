@@ -109,11 +109,7 @@ class DuplicateTagError(AntidoteError):
     """
 
     def __init__(self, dependency: Hashable, existing_tag: Tag) -> None:
-        self.dependency = dependency
-        self.existing_tag = existing_tag
-
-    def __str__(self) -> str:
-        return f"Dependency {self.dependency} already has a tag {self.existing_tag}"
+        super().__init__(f"Dependency {dependency} already has a tag {existing_tag}")
 
 
 T = TypeVar('T', bound=Tag)

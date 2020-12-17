@@ -1,20 +1,31 @@
+import pytest
+
 from antidote import Tag
-from antidote.exceptions import (DependencyCycleError, DependencyNotFoundError,
-                                 DuplicateDependencyError, DuplicateTagError,
-                                 FrozenWorldError)
+from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
+                                 DependencyNotFoundError, DuplicateDependencyError,
+                                 DuplicateTagError, FrozenWorldError)
 
 
 class Service:
     pass
 
 
-def test_dependency_cycle_error():
-    error = DependencyCycleError([Service, 'test', Service])
+class LongRepr:
+    def __repr__(self):
+        return "\n'test'\n"
 
-    service_info = f"{Service.__module__}.{Service.__name__}"
 
+@pytest.mark.parametrize('error', [
+    pytest.param(DependencyCycleError([Service, 'test', Service]), id='cycle'),
+    pytest.param(DependencyCycleError([Service, LongRepr(), Service]), id='cycle-breaks'),
+    pytest.param(DependencyInstantiationError(Service, ['test', Service]),
+                 id='instantiation'),
+    pytest.param(DependencyInstantiationError(Service, [LongRepr(), Service]),
+                 id='instantiation-breaks'),
+])
+def test_stack_error(error):
     for f in [str, repr]:
-        assert service_info in f(error)
+        assert f"{Service.__module__}.{Service.__name__}" in f(error)
         assert "'test'" in f(error)
 
 

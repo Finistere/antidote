@@ -13,23 +13,70 @@ class CustomException(Exception):
 
 
 def test_instantiating():
-    ds = DependencyStack()
+    stack = DependencyStack()
+    a = object()
+    b = object()
 
-    with ds.instantiating(DependencyStack):
-        with ds.instantiating('test'):
+    with stack.instantiating(a):
+        with stack.instantiating(b):
             pass
 
-    with pytest.raises(DependencyCycleError):
-        with ds.instantiating(DependencyStack):
-            with ds.instantiating(DependencyStack):
+        # stack not have b anymore
+        with stack.instantiating(b):
+            pass
+
+        with pytest.raises(DependencyCycleError):
+            with stack.instantiating(a):
                 pass
 
-    try:
-        with ds.instantiating(DependencyStack):
-            raise CustomException()
-    except CustomException:
+    # stack should be clean after cycle error
+    with stack.instantiating(a):
         pass
 
-    # DependencyStack should be clean
-    with ds.instantiating(DependencyStack):
+    with pytest.raises(CustomException):
+        with stack.instantiating(a):
+            raise CustomException()
+
+    # stack should be clean after user error
+    with stack.instantiating(a):
         pass
+
+
+def test_is_empty():
+    stack = DependencyStack()
+    a = object()
+    b = object()
+
+    assert stack.is_empty()
+
+    with stack.instantiating(a):
+        assert not stack.is_empty()
+
+        with stack.instantiating(b):
+            assert not stack.is_empty()
+
+        assert not stack.is_empty()
+
+    assert stack.is_empty()
+
+
+def test_to_list():
+    stack = DependencyStack()
+    a = object()
+    b = object()
+
+    assert stack.to_list() == []
+
+    with stack.instantiating(a):
+        assert stack.to_list() == [a]
+
+        with stack.instantiating(b):
+            assert stack.to_list() == [a, b]
+            stack_copy = stack.to_list()
+            stack_copy.append('dummy')
+            # should not have impacted the actual stack
+            assert stack.to_list() == [a, b]
+
+        assert stack.to_list() == [a]
+
+    assert stack.to_list() == []
