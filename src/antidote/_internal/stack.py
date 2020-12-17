@@ -17,8 +17,9 @@ class DependencyStack:
     def __init__(self) -> None:
         self._stack: List[Hashable] = list()
 
-    def is_empty(self) -> bool:
-        return len(self._stack) == 0
+    @property
+    def depth(self) -> int:
+        return len(self._stack)
 
     def to_list(self) -> List[Hashable]:
         return self._stack.copy()
