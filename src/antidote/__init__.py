@@ -10,11 +10,10 @@ from .utils import is_compiled
 
 
 def __version__() -> str:  # pragma: no cover
-    import pkg_resources
     try:
-        return pkg_resources.get_distribution(__name__).version
-    except pkg_resources.DistributionNotFound:
-        # package is not installed
+        from ._internal.scm_version import version  # type: ignore
+        return str(version)
+    except ImportError:
         return ''
 
 
