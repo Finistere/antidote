@@ -39,6 +39,7 @@ pybin() {
   esac
 }
 
+export ANTIDOTE_COMPILED=true
 
 # Compile wheels
 for PYTHON_VERSION in 36 37 38 39; do
@@ -52,7 +53,6 @@ for PYTHON_VERSION in 36 37 38 39; do
   clean
   step "Installing dependencies"
   pip install -U pip setuptools wheel
-  pip install -r requirements/bindist.txt
   step "Binary distribution"
   python setup.py bdist_wheel --dist-dir "$TMP_WHEELHOUSE/raw"
 
