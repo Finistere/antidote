@@ -12,6 +12,16 @@ class AntidoteError(Exception):
 
 
 @API.public
+class DoubleInjectionError(AntidoteError):
+    """
+    Raised when injecting a function/method that already has been injected.
+    """
+
+    def __init__(self, func: object) -> None:
+        super().__init__(f"Object {func} has already been injected by Antidote.")
+
+
+@API.public
 class DuplicateDependencyError(AntidoteError):
     """
     A dependency already exists with the same id.

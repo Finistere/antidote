@@ -6,7 +6,7 @@ import pytest
 from antidote import world
 from antidote._internal.argspec import Arguments
 from antidote.core.injection import inject, raw_inject, validate_injection
-from antidote.exceptions import DependencyNotFoundError
+from antidote.exceptions import DependencyNotFoundError, DoubleInjectionError
 
 
 @contextmanager
@@ -567,14 +567,59 @@ def test_no_injections():
     assert raw_inject(f) is f
 
 
-def test_already_injected(injector):
-    @injector(use_names=True)
-    def f(x):
-        return x
-
+def test_double_injection(injector):
     # When the function has already its arguments injected, the same function should
     # be returned
-    assert raw_inject(f) is f
+    with pytest.raises(DoubleInjectionError,
+                       match=".*<locals>.f.*"):
+        @injector
+        @injector(use_names=True)
+        def f(x):
+            return x
+
+    with pytest.raises(DoubleInjectionError,
+                       match=".*StaticmethodA.*"):
+        class StaticmethodA:
+            @injector
+            @staticmethod
+            @injector(use_names=True)
+            def f(x, y):
+                pass
+
+    with pytest.raises(DoubleInjectionError,
+                       match=".*StaticmethodB.*"):
+        class StaticmethodB:
+            @injector
+            @injector(use_names=True)
+            @staticmethod
+            def f(x, y):
+                pass
+
+    with pytest.raises(DoubleInjectionError,
+                       match=".*ClassmethodA.*"):
+        class ClassmethodA:
+            @injector
+            @classmethod
+            @injector(use_names=True)
+            def f(cls, x):
+                pass
+
+    with pytest.raises(DoubleInjectionError,
+                       match=".*ClassmethodB.*"):
+        class ClassmethodB:
+            @injector
+            @injector(use_names=True)
+            @classmethod
+            def f(cls, x):
+                pass
+
+    with pytest.raises(DoubleInjectionError,
+                       match=".*Method.*"):
+        class Method:
+            @injector
+            @injector(use_names=True)
+            def f(self, x):
+                pass
 
 
 def test_invalid_inject(injector):
@@ -585,3 +630,19 @@ def test_invalid_inject(injector):
 
     with pytest.raises(TypeError):
         injector(1)
+
+
+def test_static_class_method(injector):
+    class Dummy:
+        @injector(use_names=True)
+        @staticmethod
+        def static(x):
+            pass
+
+        @injector(use_names=True)
+        @classmethod
+        def klass(cls, x):
+            pass
+
+    assert isinstance(Dummy.__dict__['static'], staticmethod)
+    assert isinstance(Dummy.__dict__['klass'], classmethod)

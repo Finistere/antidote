@@ -4,17 +4,39 @@ import inspect
 from typing import (Any, Callable, cast, Dict, Hashable, Iterable, Mapping, overload,
                     Set, TYPE_CHECKING, TypeVar, Union)
 
+from .exceptions import DoubleInjectionError
 from .._internal import API
 from .._internal.argspec import Arguments
-from .._internal.wrapper import (build_wrapper, Injection, InjectionBlueprint, is_wrapper)
+from .._internal.wrapper import (build_wrapper, get_wrapped, Injection,
+                                 InjectionBlueprint, is_wrapper)
 
 _BUILTINS_TYPES = {e for e in builtins.__dict__.values() if isinstance(e, type)}
 
 if TYPE_CHECKING:
     from .injection import DEPENDENCIES_TYPE
 
-F = TypeVar('F', Callable[..., Any], staticmethod, classmethod)
+F = TypeVar('F', bound=Callable[..., Any])
 AnyF = Union[Callable[..., Any], staticmethod, classmethod]
+
+
+@overload
+def raw_inject(func: staticmethod,  # noqa: E704  # pragma: no cover
+               *,
+               arguments: Arguments = None,
+               dependencies: 'DEPENDENCIES_TYPE' = None,
+               use_names: Union[bool, Iterable[str]] = None,
+               use_type_hints: Union[bool, Iterable[str]] = None
+               ) -> staticmethod: ...
+
+
+@overload
+def raw_inject(func: classmethod,  # noqa: E704  # pragma: no cover
+               *,
+               arguments: Arguments = None,
+               dependencies: 'DEPENDENCIES_TYPE' = None,
+               use_names: Union[bool, Iterable[str]] = None,
+               use_type_hints: Union[bool, Iterable[str]] = None
+               ) -> classmethod: ...
 
 
 @overload
@@ -44,39 +66,39 @@ def raw_inject(func: AnyF = None,
                use_names: Union[bool, Iterable[str]] = None,
                use_type_hints: Union[bool, Iterable[str]] = None
                ) -> AnyF:
-    def _inject(wrapped: AnyF) -> AnyF:
-        nonlocal arguments
-
-        if inspect.isclass(wrapped):
+    def _inject(f: AnyF) -> AnyF:
+        if inspect.isclass(f):
             # @inject on a class would not return a class which is
             # counter-intuitive.
             raise TypeError("Classes cannot be wrapped with @inject. "
                             "Consider using @wire")
-        if not (callable(wrapped) or isinstance(wrapped, (classmethod, staticmethod))):
-            raise TypeError(f"wrapped object {wrapped} is not callable "
-                            f"neither a class/static method")
+        if not (callable(f) or isinstance(f, (classmethod, staticmethod))):
+            raise TypeError(f"wrapped object {f} is neither a callable "
+                            f"nor a class/static method")
 
-        # if the function has already its dependencies injected, no need to do
-        # it twice.
-        if is_wrapper(wrapped):
-            return wrapped
-
-        if arguments is None:
-            arguments = Arguments.from_callable(wrapped)
+        real_f = f.__func__ if isinstance(f, (classmethod, staticmethod)) else f
+        if is_wrapper(f):
+            raise DoubleInjectionError(get_wrapped(f))
+        if is_wrapper(real_f):
+            raise DoubleInjectionError(get_wrapped(real_f))
 
         blueprint = _build_injection_blueprint(
-            arguments=arguments,
+            arguments=Arguments.from_callable(f) if arguments is None else arguments,
             dependencies=dependencies,
             use_names=use_names,
             use_type_hints=use_type_hints
         )
-
         # If nothing can be injected, just return the existing function without
         # any overhead.
         if blueprint.is_empty():
-            return wrapped
+            return f
 
-        return cast(AnyF, build_wrapper(blueprint=blueprint, wrapped=wrapped))
+        wrapped_real_f = build_wrapper(blueprint=blueprint, wrapped=real_f)
+        if isinstance(f, staticmethod):
+            return staticmethod(wrapped_real_f)
+        if isinstance(f, classmethod):
+            return classmethod(wrapped_real_f)
+        return cast(AnyF, wrapped_real_f)
 
     return func and _inject(func) or _inject
 
