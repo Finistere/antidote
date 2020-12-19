@@ -1,5 +1,5 @@
 from ._providers import DuplicateTagError
-from .core.exceptions import (AntidoteError, DependencyCycleError,
+from .core.exceptions import (AntidoteError, DependencyCycleError, DoubleInjectionError,
                               DependencyInstantiationError, DependencyNotFoundError,
                               DuplicateDependencyError, FrozenWorldError)
 
@@ -10,5 +10,6 @@ __all__ = [
     'DependencyNotFoundError',
     'DuplicateDependencyError',
     'FrozenWorldError',
-    'DuplicateTagError'
+    'DuplicateTagError',
+    'DoubleInjectionError'
 ]

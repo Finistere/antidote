@@ -18,16 +18,15 @@ class Arguments:
     """ Used when generating the injection wrapper """
 
     @classmethod
-    def from_callable(cls,
-                      func: object
+    def from_callable(cls, f: Union[Callable[..., object], staticmethod, classmethod]
                       ) -> 'Arguments':
-        if not (callable(func) or isinstance(func, (staticmethod, classmethod))):
+        if not (callable(f) or isinstance(f, (staticmethod, classmethod))):
             raise TypeError(f"func must be a callable or a static/class-method. "
-                            f"Not a {type(func)}")
-        unbound_method = is_unbound_method(func)  # doing it before un-wrapping.
-        if isinstance(func, (staticmethod, classmethod)):
-            func = func.__func__
-        return cls._build(func, unbound_method)
+                            f"Not a {type(f)}")
+        return cls._build(
+            f.__func__ if isinstance(f, (staticmethod, classmethod)) else f,
+            is_unbound_method(f)  # doing it before un-wrapping.
+        )
 
     @classmethod
     def _build(cls, func: Callable[..., object], unbound_method: bool) -> 'Arguments':

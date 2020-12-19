@@ -75,8 +75,12 @@ def get_wrapper_dependencies(wrapper):
 
     return (<InjectedWrapper> wrapper).get_injections()
 
-def is_wrapper(x) -> bool:
+def is_wrapper(x):
     return isinstance(x, InjectedWrapper)
+
+def get_wrapped(x):
+    assert isinstance(x, InjectedWrapper)
+    return x.__wrapped__
 
 @cython.freelist(128)
 cdef class InjectedWrapper:

@@ -345,25 +345,13 @@ def _wire_class(cls: C, wiring: Wiring) -> C:
             if use_type_hints is not None and not isinstance(use_type_hints, bool):
                 use_type_hints = use_type_hints.intersection(arguments.arg_names)
 
-            # If we're wrapping a static/class-method, we can just re-wrap it so
-            # that isinstance(..., classmethod) still works as one would expect.
-            injected: Callable[..., object] = raw_inject(
-                cast(Callable[..., object],
-                     method.__func__
-                     if isinstance(method, (classmethod, staticmethod)) else
-                     method),
+            injected_method = raw_inject(
+                method,
                 arguments=arguments,
                 dependencies=dependencies,
                 use_names=use_names,
                 use_type_hints=use_type_hints
             )
-
-            if isinstance(method, classmethod):
-                injected_method: AnyF = classmethod(injected)
-            elif isinstance(method, staticmethod):
-                injected_method = staticmethod(injected)
-            else:
-                injected_method = injected
 
             if injected_method is not method:  # If something has changed
                 setattr(cls, method_name, injected_method)

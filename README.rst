@@ -21,15 +21,14 @@ Antidote
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
-Antidotes is a declarative dependency injection micro-framework for Python 3.6+. It is designed
-on two core ideas:
+Antidotes is a dependency injection micro-framework for Python 3.6+. It is designed on two core ideas:
 
 - Keep dependency declaration close to the actual code as it's deeply related. Dependency injection
   is about removing the responsibility of building dependencies from their clients. Not separating
   how a dependency is built from its implementation.
 - It should help creating maintainable code in a straightforward way and offer effortless integration.
 
-Hence it provides the following features:
+It provides the following features:
 
 - Ease of use
     - injection anywhere you need through a decorator `@inject`, be it static methods, functions, etc..
@@ -71,7 +70,7 @@ To install Antidote, simply run this command:
 Quick Start
 ===========
 
-How does injection looks like ? Here is a very simple example:
+How does injection looks like ? Here is a simple example:
 
 .. code-block:: python
 
@@ -291,14 +290,12 @@ You can avoid the pre-compiled wheels from PyPI with the following:
 
     pip install --no-binary antidote
 
-Note that it will nonetheless try to compile with Cython if available.
-
 
 Mypy
 ====
 
-Antidote passes the strict Mypy check and exposes its type information (PEP 561). Unfortunately
-static typing for decorators is limited to simple cases, hence Antidote :code:`@inject` will just
+Antidote passes the strict Mypy check and exposes its type information (PEP 561).
+Unfortunately static typing for decorators is limited to simple cases, hence Antidote :code:`@inject` will just
 return the same signature from Mypys point of view. The best way, currently that I know of, is to
 define arguments as optional as shown below:
 
