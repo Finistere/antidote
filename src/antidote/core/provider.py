@@ -6,6 +6,7 @@ from .exceptions import DebugNotAvailableError
 from .utils import DependencyDebug
 from .._compatibility.typing import final
 from .._internal import API
+from .._internal.utils import debug_repr
 
 T = TypeVar('T', bound=Hashable)
 M = TypeVar('M')
@@ -226,7 +227,7 @@ class Provider(RawProvider, Generic[T],
                 return self.debug(cast(T, dependency))
             except DebugNotAvailableError:
                 import warnings
-                warnings.warn(f"Debug information for {dependency} "
+                warnings.warn(f"Debug information for {debug_repr(dependency)} "
                               f"not available in {type(self)}")
         return None
 

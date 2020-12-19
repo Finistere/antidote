@@ -2,6 +2,7 @@ import pytest
 
 from antidote import const, Constants, Wiring, world
 from antidote._providers import LazyProvider, ServiceProvider
+from antidote.core.exceptions import DependencyInstantiationError
 from antidote.exceptions import DependencyNotFoundError
 
 
@@ -19,8 +20,8 @@ def test_world():
 
 def test_lazy_constants():
     class Config(Constants):
-        A = 'a'
-        B = 'b'
+        A = const('a')
+        B = const('b')
 
         def get(self, key):
             return key * 2
@@ -71,9 +72,9 @@ def test_auto_cast(auto_cast, a, b, c):
     assert Config().D is D
 
 
-def test_no_rule():
+def test_no_const():
     class Config(Constants):
-        __antidote__ = Constants.Conf(is_const=None)
+        __antidote__ = Constants.Conf()
         A = 'a'
 
         def get(self, key):
@@ -84,77 +85,14 @@ def test_no_rule():
 
     conf = Config()
     assert conf.A == 'a'
-
-
-def test_custom_rule():
-    class Config(Constants):
-        __antidote__ = Constants.Conf(is_const=lambda name: name.startswith('hello'))
-        A = 'a'
-        helloA = 'a'
-
-        def get(self, key):
-            return key * 2
-
-    assert world.get(Config.helloA) == 'aa'
-    with pytest.raises(DependencyNotFoundError):
-        world.get(Config.A)
-
-    conf = Config()
-    assert conf.A == 'a'
-    assert conf.helloA == 'aa'
-
-
-def test_const():
-    class Config(Constants):
-        __antidote__ = Constants.Conf(is_const=None)
-
-        a = const('1')
-        b = const[int]('2')
-
-        def get(self, key):
-            return int(key)
-
-    assert world.get(Config.a) == 1
-    assert world.get(Config.b) == 2
-
-    conf = Config()
-    assert conf.a == 1
-    assert conf.b == 2
-
-
-def test_const_with_is_const():
-    class Config(Constants):
-        A = const('1')
-        B = const[int]('2')
-
-        def get(self, key):
-            return int(key)
-
-    assert world.get(Config.A) == 1
-    assert world.get(Config.B) == 2
-
-    conf = Config()
-    assert conf.A == 1
-    assert conf.B == 2
 
 
 def test_invalid_lazy_method():
-    with pytest.raises(TypeError):
-        class Config(Constants):
-            A = 'a'
-
-
-def test_private_attribute():
     class Config(Constants):
-        _A = 'a'
-        b = 'b'
+        A = const('a')
 
-        def get(self, key):
-            return key * 2
-
-    conf = Config()
-    assert 'a' == conf._A
-    assert 'b' == conf.b
+    with pytest.raises(DependencyInstantiationError):
+        world.get(Config.A)
 
 
 def test_public():
@@ -208,7 +146,6 @@ def test_no_subclass_of_service():
 
 @pytest.mark.parametrize('kwargs, expectation', [
     (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
-    (dict(is_const=object()), pytest.raises(TypeError, match=".*is_const.*")),
     (dict(public=object()), pytest.raises(TypeError, match=".*public.*")),
     (dict(auto_cast=object()), pytest.raises(TypeError, match=".*auto_cast.*")),
     (dict(auto_cast=['1']), pytest.raises(TypeError, match=".*auto_cast.*")),
@@ -221,7 +158,6 @@ def test_conf_error(kwargs, expectation):
 @pytest.mark.parametrize('kwargs', [
     dict(wiring=Wiring(methods=['method'])),
     dict(public=True),
-    dict(is_const=lambda name: False),
     dict(auto_cast=frozenset((str,))),
 ])
 def test_conf_copy(kwargs):

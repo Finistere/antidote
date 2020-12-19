@@ -1,25 +1,33 @@
-from typing import Any, Callable, cast, Dict, Hashable, Optional, Tuple, Type, TypeVar
+from typing import (Any, Callable, cast, Dict, Generic, Hashable, Optional, Tuple, Type,
+                    TypeVar)
 
 from ._compatibility.typing import final
 from ._internal import API
-from ._internal.utils import AbstractMeta, FinalImmutable, FinalMeta
-from ._providers.lazy import FastLazyConst
+from ._internal.utils import AbstractMeta, debug_repr, FinalImmutable, FinalMeta
+from ._providers.lazy import Lazy
+from .core import Container, DependencyInstance
+from .core.utils import DependencyDebug
 
 T = TypeVar('T')
 
 _CONST_CONSTRUCTOR_METHOD = 'get'
 
 
+class Const(Generic[T]):
+    def __get__(self, instance: Any, owner: Any) -> T:  # pragma: no cover
+        pass
+
+
 @API.private
 @final
 class MakeConst(metaclass=FinalMeta):
-    def __call__(self, value: Any) -> Any:
+    def __call__(self, value: object) -> Const[T]:
         # Not true yet, but will be changed by ConstantsMeta
-        return LazyConstToDo(value, None)
+        return cast(Const[T], LazyConstToDo(value, None))
 
-    def __getitem__(self, tpe: Type[T]) -> Callable[[Any], T]:
-        def f(value: Any) -> T:
-            return cast(T, LazyConstToDo(value, tpe))
+    def __getitem__(self, tpe: Type[T]) -> Callable[[object], Const[T]]:
+        def f(value: object) -> Const[T]:
+            return cast(Const[T], LazyConstToDo(value, tpe))
 
         return f
 
@@ -60,11 +68,6 @@ def _configure_constants(cls: ConstantsMeta) -> None:
         raise TypeError(f"Constants configuration (__antidote__) is expected to be a "
                         f"{Constants.Conf}, not a {type(conf)}")
 
-    method = getattr(cls, _CONST_CONSTRUCTOR_METHOD, None)
-    if method is None:
-        raise TypeError(
-            f"{cls} does not implement the lazy method '{_CONST_CONSTRUCTOR_METHOD}'")
-
     if conf.wiring is not None:
         conf.wiring.wire(cls)
 
@@ -73,22 +76,15 @@ def _configure_constants(cls: ConstantsMeta) -> None:
     else:
         dependency = LazyCall(cls, singleton=True)
 
-    # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
-    is_const = cast(Callable[[str], bool], getattr(conf, 'is_const'))
     for name, v in list(cls.__dict__.items()):
         if isinstance(v, LazyConstToDo):
             setattr(cls,
                     name,
-                    LazyConst(name,
-                              dependency,
-                              _CONST_CONSTRUCTOR_METHOD,
-                              v.value,
-                              v.type_ if v.type_ in conf.auto_cast else None))
-        elif is_const(name):
-            setattr(cls, name, LazyConst(name,
-                                         dependency,
-                                         _CONST_CONSTRUCTOR_METHOD,
-                                         v))
+                    LazyConstDescriptor(name,
+                                        dependency,
+                                        _CONST_CONSTRUCTOR_METHOD,
+                                        v.value,
+                                        v.type_ if v.type_ in conf.auto_cast else None))
 
 
 Cast = Callable[[object], object]
@@ -96,7 +92,7 @@ Cast = Callable[[object], object]
 
 @API.private
 @final
-class LazyConst(FinalImmutable):
+class LazyConstDescriptor(FinalImmutable):
     __slots__ = ('name', 'dependency', 'method_name', 'value', 'cast', '_cache')
     name: str
     dependency: Hashable
@@ -123,12 +119,44 @@ class LazyConst(FinalImmutable):
             except AttributeError:
                 # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
                 _cast = cast(Cast, getattr(self, 'cast'))
-                dependency = FastLazyConst(self.name,
-                                           self.dependency,
-                                           self.method_name,
-                                           self.value,
-                                           _cast)
+                dependency = LazyConst(self)
                 setattr(owner, self._cache, dependency)
                 return dependency
         _cast = cast(Cast, getattr(self, 'cast'))
         return _cast(getattr(instance, self.method_name)(self.value))
+
+
+@API.private
+@final
+class LazyConst(FinalImmutable, Lazy):
+    __slots__ = ('descriptor',)
+    descriptor: LazyConstDescriptor
+
+    def __init__(self, descriptor: LazyConstDescriptor) -> None:
+        super().__init__(descriptor=descriptor)
+
+    def debug_info(self) -> DependencyDebug:
+        from .lazy import LazyCall
+        descriptor = cast(LazyConstDescriptor, self.descriptor)
+        dependency = descriptor.dependency
+        if isinstance(dependency, LazyCall):
+            cls: type = cast(type, dependency.func)
+        else:
+            cls = cast(type, dependency)
+        return DependencyDebug(f"Const: {debug_repr(cls)}.{descriptor.name}",
+                               singleton=True,
+                               dependencies=[dependency],
+                               # TODO: Would be great if the first argument of the method
+                               #       didn't show as unknown as it's always provided.
+                               wired=[getattr(cls, descriptor.method_name)])
+
+    def lazy_get(self, container: Container) -> DependencyInstance:
+        # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
+        descriptor = cast(LazyConstDescriptor, self.descriptor)
+        return DependencyInstance(
+            descriptor.__get__(
+                container.get(descriptor.dependency),
+                None  # type: ignore
+            ),
+            singleton=True
+        )
