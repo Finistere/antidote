@@ -1,7 +1,7 @@
 import pytest
 
 from antidote import world
-from antidote._providers.lazy import FastLazyConst, Lazy, LazyProvider
+from antidote._providers.lazy import Lazy, LazyProvider
 from antidote.core import Container, DependencyInstance
 
 
@@ -40,21 +40,11 @@ def test_exists():
     assert lazy.exists(Dummy('x'))
 
 
-def test_fast_lazy_method(lazy_provider: LazyProvider):
-    class A:
-        def method(self, value):
-            return self, value
-
-    world.singletons.add(A, A())
-    x = object()
-
-    (owner, value) = world.get(FastLazyConst('X', A, 'method', x, lambda v: v))
-    assert owner is world.get(A)
-    assert value is x
-
-    assert world.get(FastLazyConst('X', A, 'method', x, lambda v: 1)) == 1
-
-
 def test_copy(lazy_provider: LazyProvider):
     assert isinstance(lazy_provider.clone(True), LazyProvider)
     assert isinstance(lazy_provider.clone(False), LazyProvider)
+
+
+def test_debug():
+    with pytest.warns(UserWarning, match="(?i).*debug.*"):
+        world.debug(Dummy(1))

@@ -290,10 +290,10 @@ From the environment
 .. testcode:: recipes_configuration_environment
 
     import os
-    from antidote import Constants
+    from antidote import Constants, const
 
     class Env(Constants):
-        SECRET = 'SECRET'
+        SECRET = const('SECRET')
 
         def get(self, value):
             return os.environ[value]
@@ -306,10 +306,36 @@ From the environment
     'my_secret'
 
 
+From a file
+-----------
+
+
+
+.. testcode:: recipes_configuration_environment
+
+    import os
+    from antidote import Constants
+
+    class Env(Constants):
+        SECRET = const('SECRET')
+
+        def get(self, value):
+            return os.environ[value]
+
+.. doctest:: recipes_configuration_environment
+
+    >>> from antidote import world
+    >>> os.environ['SECRET'] = 'my_secret'
+    >>> world.get[str](Env.SECRET)
+    'my_secret'
+
+
+
+
 Specifying a type
 -----------------
 
-You can specify a type when using :py:func:`.const`. It's main pupose is to provide
+You can specify a type when using :py:func:`.const`. It's main purpose is to provide
 a type for Mypy when the constants are directly accessed from an instance. However
 :py:class:`.Constants` will also automatically force the cast  if the type is one
 of :code:`str`, :code:`float` or :code:`int`. You can control this behavior with
@@ -358,9 +384,10 @@ and use it as a one.
 
     They are two "cast" to differentiate here. When using :code:`ENV = const[T]('env')`
     there is a first cast done by :py:func:`.const` that will make mypy consider
-    :code:`Conf().ENV` to be a :code:`Env` instance whether this is the case or not. It is
+    :code:`Conf().ENV` to be a :code:`T` instance whether this is the case or not. It is
     up to you to guarantee it. This only gives the necessary type hints to Mypy for it to
-    work as :code:`Conf.ENV` is a descriptor and it can't infer the actual return type.
+    work as :code:`ENV` will be transformed to a descriptor. Hence Mypy can't infer the
+    actual return type.
     The second cast is done by :py:class:`.Constants`, controlled by :code:`auto_cast`.
     This will do an actual cast, which provides a nice syntactic sugar to cast integers or
     floats typically as configuration may be stored as a string.
