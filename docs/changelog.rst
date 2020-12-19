@@ -4,6 +4,33 @@ Changelog
 
 
 
+0.9.0 (2020-12-18)
+==================
+
+
+Features
+--------
+
+- Antidote exposes its type information (PEP 561) and passes strict Mypy (with implicit optionals).
+
+
+Breaking changes
+----------------
+
+- Antidote exceptions have no public attributes anymore.
+- Injecting twice the same function/method will raise an error.
+
+
+Changes
+-------
+
+- Cleaner :code:`DependencyInstantiationError` when a deeply nested dependency fails.
+- Cleaner packaging: Antidote will only try to compile Cython when the environment variable
+  :code:`ANTIDOTE_COMPILED` is set to :code:`true` and doesn't require Cython to be pre-installed
+  to do so. Antidote's version is also hardcoded at publish time.
+
+
+
 0.8.0 (2020-12-09)
 ==================
 

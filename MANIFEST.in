@@ -6,6 +6,7 @@ recursive-include src *.pxd
 recursive-include src *.pyx
 recursive-include src *.pyi
 include src/antidote/py.typed
+exclude src/antidote/_internal/scm_version.py
 
 # Don't package GitHub-specific files.
 exclude .travis.yml .readthedocs.yml

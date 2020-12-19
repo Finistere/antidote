@@ -6,7 +6,7 @@ from .utils import FinalImmutable
 from ..core.container import Container
 from ..core.exceptions import DependencyNotFoundError
 
-F = Union[Callable[..., object], staticmethod, classmethod]
+AnyF = Union[Callable[..., object], staticmethod, classmethod]
 
 compiled = False
 
@@ -37,7 +37,7 @@ class InjectionBlueprint(FinalImmutable):
 
 @API.private
 def build_wrapper(blueprint: InjectionBlueprint,
-                  wrapped: F,
+                  wrapped: AnyF,
                   skip_self: bool = False) -> 'InjectedWrapper':
     """Used for consistency with Cython implementation."""
     return InjectedWrapper(blueprint, wrapped, skip_self)
@@ -59,6 +59,12 @@ def is_wrapper(x: object) -> bool:
 
 
 @API.private
+def get_wrapped(x: object) -> object:
+    assert isinstance(x, InjectedWrapper)
+    return x.__wrapped__
+
+
+@API.private
 class InjectedWrapper:
     """
     Wrapper which injects all the dependencies not supplied in the passed
@@ -68,7 +74,7 @@ class InjectedWrapper:
 
     def __init__(self,
                  blueprint: InjectionBlueprint,
-                 wrapped: F,
+                 wrapped: AnyF,
                  skip_self: bool = False):
         """
         Args:
