@@ -5,7 +5,10 @@ from antidote._compatibility.typing import Protocol
 
 
 def test_run_me() -> None:
-    with world.test.empty():
+    with world.test.new():
+        class MyService(Service):
+            pass
+
         world.singletons.add('test', [])
         world.get[list]('test').append(1)
         world.lazy[list]('test').get().append(2)
@@ -15,7 +18,9 @@ def test_run_me() -> None:
         class Conf(Constants):
             A = const[list]("a")
 
-            def get(self, key: object) -> object:
+            @inject
+            def get(self, key: str, my_service: MyService = None) -> object:
+                assert my_service is not None
                 return []
 
         Conf().A.append(1)

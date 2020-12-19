@@ -1,6 +1,6 @@
 import textwrap
 
-from antidote import (Constants, factory, Implementation, implementation, inject,
+from antidote import (const, Constants, factory, Implementation, implementation, inject,
                       LazyCall, LazyMethodCall, Service, Tag, world)
 from antidote._internal.utils import raw_getattr, short_id
 
@@ -323,10 +323,10 @@ def test_constants_debug():
 
     with world.test.new():
         class Conf(Constants):
-            TEST = '1'
+            TEST = const('1')
 
-            def get(self, value):
-                return value
+            def get(self, key):
+                return key
 
         assert_valid(
             DebugTestCase(
@@ -341,10 +341,10 @@ def test_constants_debug():
         class Conf(Constants):
             __antidote__ = Constants.Conf(public=True)
 
-            TEST = '1'
+            TEST = const('1')
 
-            def get(self, value):
-                return value
+            def get(self, key):
+                return key
 
         assert_valid(
             DebugTestCase(
@@ -360,11 +360,11 @@ def test_constants_debug():
             pass
 
         class Conf(Constants):
-            TEST = '1'
+            TEST = const('1')
 
             @inject
-            def get(self, value, service: MyService):
-                return value
+            def get(self, key, service: MyService):
+                return key
 
         assert_valid(
             DebugTestCase(

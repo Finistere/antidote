@@ -1,27 +1,27 @@
 def test_readme_simple():
-    from antidote import inject, Service, Constants
+    from antidote import inject, Service, Constants, const
 
     class Conf(Constants):
-        # Configuration values are identified by public uppercase class
-        # attributes. It helps refactoring as it's easy to find their usage
-        # and their definition.
-        # The Constants super class will treat their associated value as the input
-        # argument of get(). This allows you to load lazily any configuration.
-        DB_HOST = 'host'
+        # A constant is defined by const. When needed, the associated value will
+        # be passed on to get() to retrieve, only once, lazily the real value.
+        DB_HOST = const[str]('host')
+        # The type is not required, but it provides Mypy the necessary information
+        # on the real dependency value, once retrieved through get().
+        DB_HOST_UNTYPED = const('host')
 
         def __init__(self):
             self._data = {'host': 'localhost:6789'}
 
-        def get(self, key):
+        def get(self, key: str):
             return self._data[key]
 
     # Declare Database as a dependency that can be injected
     class Database(Service):
-        # Antidotes configuration for this class. `__init__()` is wired (injected) by
-        # default.
+        # Antidotes configuration for this Service. By default only `__init__()` is
+        # wired (injected) and it is considered to be a singleton (instantiated once).
         __antidote__ = Service.Conf().with_wiring(
             # Specifying that arguments named 'host' should be injected with the
-            # dependency Conf.DB_HOST.
+            # dependency Conf.DB_HOST for the wired methods.
             dependencies=dict(host=Conf.DB_HOST))
 
         # You could have wired yourself `__init__()` by applying:
@@ -47,7 +47,7 @@ def test_readme():
     to retrieve the best movies. In our case the implementation uses IMDB
     to dot it.
     """
-    from antidote import Constants, factory, Implementation, inject, world
+    from antidote import Constants, factory, Implementation, inject, world, const
 
     class MovieDB:
         """ Interface """
@@ -65,8 +65,11 @@ def test_readme():
     world.singletons.add('conf_path', '/...')
 
     class Conf(Constants):
-        IMDB_HOST = 'imdb.host'
-        IMDB_API_KEY = 'imdb.api_key'
+        IMDB_HOST = const[str]('imdb.host')
+        # Constants will by default automatically enforce the cast to int,
+        # float and str. Can be removed or extended to support Enums.
+        IMDB_PORT = const[int]('imdb.port')
+        IMDB_API_KEY = const[str]('imdb.api_key')
 
         # `use_names=True` specifies that Antidote can use the argument names
         # when type hints are not present or too generic (builtins typically).
@@ -77,11 +80,12 @@ def test_readme():
             self._raw_conf = {
                 'imdb': {
                     'host': 'dummy_host',
-                    'api_key': 'dummy_api_key'
+                    'api_key': 'dummy_api_key',
+                    'port': '80'
                 }
             }
 
-        def get(self, key):
+        def get(self, key: str):
             """
             self.get('a.b') <=> self._raw_conf['a']['b']
             """
@@ -90,10 +94,10 @@ def test_readme():
 
     # ImdbAPI will be provided by this factory, as defined by the return type annotation.
     # The dependencies arguments specifies what must be injected
-    @factory(dependencies=(Conf.IMDB_HOST, Conf.IMDB_API_KEY))
-    def imdb_factory(host: str, api_key: str) -> ImdbAPI:
+    @factory(dependencies=(Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY))
+    def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
         # Here host = Conf().get('imdb.host')
-        return ImdbAPI(host=host, api_key=api_key)
+        return ImdbAPI(host=host, port=port, api_key=api_key)
 
     # Implementation tells Antidote that this class should be used as an implementation of
     # the interface MovieDB
@@ -116,8 +120,11 @@ def test_readme():
         pass
 
     # You can also retrieve dependencies by hand
-    world.get[str](Conf.IMDB_HOST)  # the result will be cast to `str`
-    # To avoid repetition, if the type is the dependency itself you can do:
+    world.get(Conf.IMDB_HOST)
+    # To help Mypy to for type checking you can provide a type hint. Contrary to const,
+    # it won't enforce anything, like typing.cast().
+    world.get[str](Conf.IMDB_HOST)
+    # To avoid repetition, if the dependency is the type itself, you may omit it:
     world.get[IMDBMovieDB]()
 
     # If you need to handle multiple different api_keys for some reason you can
@@ -139,6 +146,7 @@ def test_readme():
         # The class attributes will retrieve the actual value when called on a instance.
         # Hence this is equivalent to conf.get('imdb.host'), making your tests easier.
         host=conf.IMDB_HOST,
+        port=conf.IMDB_PORT,
         api_key=conf.IMDB_API_KEY,  # <=> conf.get('imdb.api_key')
     )))
 
@@ -162,7 +170,10 @@ def test_readme():
                     ├── Const: Conf.IMDB_API_KEY
                     │   └── Lazy: Conf()  #0BjHAQ
                     │       └── Singleton 'conf_path' -> '/...'
-                    └── Const: Conf.IMDB_HOST
+                    ├── Const: Conf.IMDB_HOST
+                    │   └── Lazy: Conf()  #0BjHAQ
+                    │       └── Singleton 'conf_path' -> '/...'
+                    └── Const: Conf.IMDB_PORT
                         └── Lazy: Conf()  #0BjHAQ
                             └── Singleton 'conf_path' -> '/...'
     """
@@ -181,7 +192,10 @@ def test_readme():
                         ├── Const: Conf.IMDB_API_KEY
                         │   └── Lazy: Conf()  #0BjHAQ
                         │       └── /!\\ Unknown: 'conf_path'
-                        └── Const: Conf.IMDB_HOST
+                        ├── Const: Conf.IMDB_HOST
+                        │   └── Lazy: Conf()  #0BjHAQ
+                        │       └── /!\\ Unknown: 'conf_path'
+                        └── Const: Conf.IMDB_PORT
                             └── Lazy: Conf()  #0BjHAQ
                                 └── /!\\ Unknown: 'conf_path'
         """

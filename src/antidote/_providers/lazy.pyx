@@ -7,7 +7,7 @@ from antidote.core.container cimport (Container, DependencyResult, FastProvider,
                                       FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox,
                                       RawContainer, DependencyInstance)
 from .._internal.utils import debug_repr
-from ..core.exceptions import DependencyNotFoundError
+from ..core.exceptions import DebugNotAvailableError, DependencyNotFoundError
 from ..core.utils import DependencyDebug
 
 # @formatter:on
@@ -18,7 +18,7 @@ cdef extern from "Python.h":
 
 cdef class Lazy:
     def debug_info(self) -> DependencyDebug:
-        raise NotImplementedError()  # pragma: no cover
+        raise DebugNotAvailableError()  # pragma: no cover
 
     cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
         cdef:
@@ -33,48 +33,6 @@ cdef class Lazy:
         raise NotImplementedError()  # pragma: no cover
 
 @cython.final
-cdef class FastLazyConst(Lazy):
-    cdef:
-        str name
-        object dependency
-        str method_name
-        object value
-        object cast
-
-    def __init__(self, str name, object dependency, str method_name, object value,
-                 object cast):
-        self.name = name
-        self.dependency = dependency
-        self.method_name = method_name
-        self.value = value
-        self.cast = cast
-
-    def debug_info(self) -> DependencyDebug:
-        from ..lazy import LazyCall
-        if isinstance(self.dependency, LazyCall):
-            cls = self.dependency.func
-        else:
-            cls = self.dependency
-        return DependencyDebug(f"Const: {debug_repr(cls)}.{self.name}",
-                               singleton=True,
-                               dependencies=[self.dependency],
-                               wired=[getattr(cls, self.method_name)])
-
-    cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
-        (<RawContainer> container).fast_get(<PyObject*> self.dependency, result)
-        if result.flags != 0:
-            result.flags = FLAG_DEFINED | FLAG_SINGLETON
-            (<PyObjectBox> result.box).obj = PyObject_CallObject(
-                self.cast,
-                (PyObject_CallMethodObjArgs((<PyObjectBox> result.box).obj,
-                                           self.method_name,
-                                           <PyObject*> self.value,
-                                           NULL),)
-            )
-        else:
-            raise DependencyNotFoundError(self.dependency)
-
-@cython.final
 cdef class LazyProvider(FastProvider):
     def clone(self, keep_singletons_cache: bool) -> FastProvider:
         return LazyProvider()
@@ -84,7 +42,12 @@ cdef class LazyProvider(FastProvider):
 
     def maybe_debug(self, dependency: Hashable):
         if isinstance(dependency, Lazy):
-            return dependency.debug_info()
+            try:
+                return dependency.debug_info()
+            except DebugNotAvailableError:
+                import warnings
+                warnings.warn(f"Debug information for {debug_repr(dependency)} "
+                              f"not available in {type(self)}")
 
     cdef fast_provide(self,
                       PyObject*dependency,

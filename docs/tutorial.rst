@@ -395,16 +395,15 @@ easily, like a service where you only need to go to the class definition.
 
 .. testcode:: tutorial_conf
 
-    from antidote import Constants, inject
+    from antidote import Constants, inject, const
 
     class Config(Constants):
-        # All public uppercase attributes are considered constants by default.
-        DOMAIN = 'domain'  # value will be passed on to get()
-        PORT = 'port'
+        PORT = const[int]('port')   # value will be passed on to get()
+        DOMAIN = const('domain')  # type is not required
 
         # Like Service, __init__() will be auto-wired by default.
         def __init__(self):
-            self._data = dict(domain='example.com', port=3000)
+            self._data = dict(domain='example.com', port='3000')
 
         # Method called to actually retrieve the configuration.
         def get(self, key):
@@ -424,14 +423,10 @@ easily, like a service where you only need to go to the class definition.
     ... Config().DOMAIN
     'example.com'
 
-There is quite a lot going on here. First of all, only public (not starting with a underscore)
-uppercase attributes are considered to be constants. Those have special treatment. They
-represent some dependency that can be accessed lazily later on, :code:`Config.DOMAIN` is now
-a dependency that can be retrieved through Antidote. When requested, its original value,
-:code:`'domain'` will be given to :code:`get()` and the result will be returned. As constants
-are by definition... constant, they are singletons and :code:`get()` will only be called once
-for each constant. To let you test easily all of this, you still access constants directly
-on a instance as shown before.
+All attributes defined with :py:func:`.const` are lazy constants. Their associated value
+is passed on to :py:meth:`~.Constants.get` and the result is the actual dependency value.
+It is then treated as a singleton, and hence will only be called once at most. To let you
+test easily all of this, you still access constants directly on a instance as shown before.
 
 This might seem a bit overkill for simple configuration, but this provides some big
 advantages:
@@ -443,30 +438,21 @@ advantages:
 - It is still easy to trace back to the definition of the configuration, you just have to
   go to the definition of the attribute.
 
-You customize :code:`Config` in multiple ways. On top of the wiring that you change like
-:py:class:`.Service`, you can change which attributes should be treated like constants:
+You probably noticed that :code:`Config.PORT` is declared to be an integer, even though
+it's stored as an string ! So what's the actual value ?
 
-.. testcode:: tutorial_conf
+.. doctest:: tutorial_conf
 
-    from antidote import const
+    >>> from antidote import world
+    >>> port = world.get(Config.PORT)
+    >>> port
+    3000
+    >>> type(port)
+    <class 'int'>
 
-    class Token:
-        pass
-
-    class Tokens(Constants):
-        __antidote__ = Constants.Conf(is_const=lambda name: name.endswith("_TOKEN"))
-
-        TOKEN_LIFETIME_SECONDS = 3600
-        VAULT_TOKEN = 'vault.prod.com'
-        # For more flexibility you can also rely on const(). Even though 'API' does not
-        # satisfy the is_const condition, it'll be treated as a constant.
-        API = const('api.prod.com')
-        # const() provides also a nice feature for static typing. When accessed directly
-        # on an instance mypy will treat this as a Token and not a string.
-        API_V2_TOKEN = const[Token]('api.v2.prod.com')
-
-        def get(self, url):
-            return Token()
+This is one of the few cases where Antidote does use magic: :py:class:`.Constants` will,
+by default, automatically cast integers, floats and strings. You can control that behavior
+with :py:class:`.Constants.Conf.auto_cast`.
 
 
 5. Factories & External dependencies
