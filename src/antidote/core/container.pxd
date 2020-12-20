@@ -34,13 +34,13 @@ cdef class Container:
 cdef class RawContainer(Container):
     cdef:
         list _providers
-        dict _singletons
-        object _singleton_lock
-        unsigned long _singletons_clock
         DependencyStack _dependency_stack
-        ProviderCache __cache
+        object _instantiation_lock
+        object _freeze_lock
         bint __frozen
-        object __freeze_lock
+        dict _singletons
+        unsigned long _singletons_clock
+        ProviderCache __cache
         object __weakref__
 
     cdef fast_get(self, PyObject*dependency, DependencyResult*result)

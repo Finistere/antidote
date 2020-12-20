@@ -93,29 +93,43 @@ cdef class RawProvider:
                 FLAG_SINGLETON if dependency_instance.singleton else 0)
             (<PyObjectBox> result.box).obj = dependency_instance.value
 
-    @property
-    def is_registered(self):
-        return self._container_ref is not None
-
     @contextmanager
-    def _ensure_not_frozen(self):
-        if self._container_ref is None:
-            yield
-        else:
-            container = self._container_ref()
-            assert container is not None, "Associated container does not exist anymore."
+    def _bound_container_ensure_not_frozen(self):
+        container = self.__bound_container()
+        if container is not None:
             with container.ensure_not_frozen():
                 yield
+        else:
+            yield
 
-    def _raise_if_exists(self, dependency):
-        if self._container_ref is not None:
-            container: RawContainer = self._container_ref()
-            assert container is not None, "Associated container does not exist anymore."
+    @contextmanager
+    def _bound_container_locked(self):
+        container = self.__bound_container()
+        if container is not None:
+            with container.locked():
+                yield
+        else:
+            yield
+
+    def _bound_container_raise_if_exists(self, dependency: Hashable):
+        container = self.__bound_container()
+        if container is not None:
             container.raise_if_exists(dependency)
         else:
             if self.exists(dependency):
                 raise DuplicateDependencyError(
                     f"{dependency} has already been registered in {type(self)}")
+
+    def __bound_container(self) -> 'Optional[RawContainer]':
+        if self._container_ref is not None:
+            container: RawContainer = self._container_ref()
+            assert container is not None, "Associated container does not exist anymore."
+            return container
+        return None
+
+    @property
+    def is_registered(self):
+        return self._container_ref is not None
 
 cdef class FastProvider(RawProvider):
     def maybe_provide(self,
@@ -161,10 +175,10 @@ cdef class RawContainer(Container):
         capacity = <size_t> cache_size
 
         self._providers = list()  # type: List[RawProvider]
-        self._singletons = dict()  # type: Dict[Any, Any]
+        self._singletons = dict()  # type: dict
         self._dependency_stack = DependencyStack()
-        self._singleton_lock = create_fastrlock()
-        self.__freeze_lock = threading.RLock()
+        self._instantiation_lock = create_fastrlock()
+        self._freeze_lock = threading.RLock()
         self.__frozen = False
 
         # Cython optimizations
@@ -193,14 +207,19 @@ cdef class RawContainer(Container):
         return self._providers.copy()
 
     @contextmanager
+    def locked(self):
+        with self._freeze_lock, self._instantiation_lock:
+            yield
+
+    @contextmanager
     def ensure_not_frozen(self):
-        with self.__freeze_lock:
+        with self._freeze_lock:
             if self.__frozen:
                 raise FrozenWorldError()
             yield
 
     def freeze(self):
-        with self.__freeze_lock:
+        with self._freeze_lock:
             self.__frozen = True
 
     def add_provider(self, provider_cls: Type[RawProvider]):
@@ -212,7 +231,7 @@ cdef class RawContainer(Container):
             raise TypeError(
                 f"provider must be a Provider, not a {provider_cls}")
 
-        with self.ensure_not_frozen(), self._singleton_lock:
+        with self.ensure_not_frozen(), self._instantiation_lock:
             if any(provider_cls == type(p) for p in self._providers):
                 raise ValueError(f"Provider {provider_cls} already exists")
 
@@ -223,14 +242,14 @@ cdef class RawContainer(Container):
             self._singletons_clock += 1
 
     def add_singletons(self, dependencies: Mapping):
-        with self.ensure_not_frozen(), self._singleton_lock:
+        with self.ensure_not_frozen(), self._instantiation_lock:
             for k, v in dependencies.items():
                 self.raise_if_exists(k)
             self._singletons.update(dependencies)
             self._singletons_clock += 1
 
     def raise_if_exists(self, dependency: Hashable):
-        with self.__freeze_lock:
+        with self._freeze_lock:
             if dependency in self._singletons:
                 raise DuplicateDependencyError(
                     f"{dependency!r} has already been defined as a singleton pointing "
@@ -255,7 +274,7 @@ cdef class RawContainer(Container):
             RawProvider p
             RawContainer c = type(self)()
 
-        with self._singleton_lock:
+        with self._freeze_lock, self._instantiation_lock:
             if keep_singletons:
                 c._singletons = self._singletons.copy()
             if clone_providers:
@@ -276,17 +295,18 @@ cdef class RawContainer(Container):
     def debug(self, dependency: Hashable) -> DependencyDebug:
         from .._internal.utils.debug import debug_repr
 
-        for p in self._providers:
-            debug = p.maybe_debug(dependency)
-            if debug is not None:
-                return debug
-        try:
-            value = self._singletons[dependency]
-            return DependencyDebug(f"Singleton {debug_repr(dependency)} "
-                                   f"-> {value!r}",
-                                   singleton=True)
-        except KeyError:
-            raise DependencyNotFoundError(dependency)
+        with self._freeze_lock:
+            for p in self._providers:
+                debug = p.maybe_debug(dependency)
+                if debug is not None:
+                    return debug
+            try:
+                value = self._singletons[dependency]
+                return DependencyDebug(f"Singleton {debug_repr(dependency)} "
+                                       f"-> {value!r}",
+                                       singleton=True)
+            except KeyError:
+                raise DependencyNotFoundError(dependency)
 
     def provide(self, dependency: Hashable):
         cdef:
@@ -333,7 +353,7 @@ cdef class RawContainer(Container):
         cdef:
             PyObject*ptr
             Exception error
-            object lock = self._singleton_lock
+            object lock = self._instantiation_lock
             PyObject*singletons = <PyObject*> self._singletons
             PyObject*stack = <PyObject*> self._dependency_stack
             ProviderCache*cache
@@ -507,7 +527,7 @@ cdef class OverridableRawContainer(RawContainer):
         cdef:
             OverridableRawContainer container
 
-        with self._singleton_lock, self.__override_lock:
+        with self.__override_lock:
             container = super().clone(keep_singletons=keep_singletons,
                                       clone_providers=clone_providers)
             if keep_singletons:
@@ -540,7 +560,7 @@ cdef class OverridableRawContainer(RawContainer):
 
         return super().debug(dependency)
 
-    # Not really fast anymore, but we don't really care in tests.
+    # Less efficient than the original fast_get, but we don't really care in tests.
     cdef fast_get(self, PyObject*dependency, DependencyResult*result):
         cdef:
             PyObject*ptr
@@ -548,7 +568,7 @@ cdef class OverridableRawContainer(RawContainer):
 
         dep = <object> dependency
         result.flags = 0
-        with self.__override_lock, self._singleton_lock:
+        with self.__override_lock, self._instantiation_lock:
             with self._dependency_stack.instantiating(dep):
                 try:
                     obj = self.__singletons_override[dep]

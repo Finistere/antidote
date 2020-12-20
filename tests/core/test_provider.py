@@ -103,3 +103,81 @@ def test_debug():
     Dummy().maybe_debug(object())  # should no fail
     with pytest.warns(UserWarning, match="(?i).*debug.*"):
         Dummy().maybe_debug(x)
+
+
+def test_provide():
+    x = object()
+
+    class Dummy(Provider):
+        def exists(self, dependency: Hashable) -> bool:
+            return dependency is x
+
+        def provide(self, dependency: Hashable,
+                    container: Container) -> DependencyInstance:
+            assert dependency is x
+            return DependencyInstance(None)
+
+    dummy = Dummy()
+    assert world.test.maybe_provide_from(dummy, 1) is None
+    assert world.test.maybe_provide_from(dummy, x) is not None
+
+
+def test_container_lock():
+    from ..test_thread_safety import ThreadSafetyTest
+
+    with world.test.empty():
+        failures = []
+
+        @world.provider
+        class A(Provider):
+            def exists(self, dependency: Hashable) -> bool:
+                return dependency == 'a'
+
+            def provide(self, dependency: Hashable,
+                        container: Container) -> DependencyInstance:
+                ThreadSafetyTest.check_locked(failures)
+                return DependencyInstance('a')
+
+            def change_state(self):
+                with self._container_lock():
+                    ThreadSafetyTest.check_locked(failures)
+
+        @world.provider
+        class B(Provider):
+            def exists(self, dependency: Hashable) -> bool:
+                return dependency == 'b'
+
+            def provide(self, dependency: Hashable,
+                        container: Container) -> DependencyInstance:
+                ThreadSafetyTest.check_locked(failures)
+                return DependencyInstance('b')
+
+            def change_state(self):
+                with self._container_lock():
+                    ThreadSafetyTest.check_locked(failures)
+
+        a = world.get[A]()
+        b = world.get[B]()
+        actions = [
+            lambda: a.change_state(),
+            lambda: world.get('a'),
+            lambda: b.change_state(),
+            lambda: world.get('b')
+        ]
+
+        def worker():
+            import random
+            for f in random.choices(actions, k=20):
+                f()
+
+        ThreadSafetyTest.run(worker, n_threads=5)
+        assert not failures
+
+    with world.test.empty():
+        class C(Provider):
+            def change_state(self):
+                with self._container_lock():
+                    pass
+
+        # Should not raise any error if not bound to any container yet
+        C().change_state()

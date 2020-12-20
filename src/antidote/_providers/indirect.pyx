@@ -108,14 +108,14 @@ cdef class IndirectProvider(FastProvider):
                                    <PyObject*> target)
 
     def register_static(self, dependency: Hashable, target_dependency: Hashable):
-        with self._ensure_not_frozen():
-            self._raise_if_exists(dependency)
+        with self._bound_container_ensure_not_frozen():
+            self._bound_container_raise_if_exists(dependency)
             self.__static_links[dependency] = target_dependency
 
     def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
                       permanent: bool = True):
-        with self._ensure_not_frozen():
-            self._raise_if_exists(dependency)
+        with self._bound_container_ensure_not_frozen():
+            self._bound_container_raise_if_exists(dependency)
             self.__links[dependency] = Link(linker, permanent)
 
 @cython.final
