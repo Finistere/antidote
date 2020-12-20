@@ -32,10 +32,13 @@ class ProviderMeta(GenericMeta):
                 if getattr(method, _FREEZE_ATTR_NAME, True):
                     namespace[attr] = _make_wrapper(attr, method)
 
-        cls = super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+        cls = cast(
+            ProviderMeta,
+            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+        )
         assert getattr(cls, "__antidote__") is None
 
-        return cast(ProviderMeta, cls)
+        return cls
 
 
 F = TypeVar('F', bound=Callable[..., object])
@@ -46,7 +49,7 @@ def _make_wrapper(attr: str, method: F) -> F:
     @functools.wraps(method)
     def wrapped_method(self: RawProvider, *args: object, **kwargs: object) -> object:
         try:
-            with self._ensure_not_frozen():
+            with self._bound_container_ensure_not_frozen():
                 return method(self, *args, **kwargs)
         except FrozenWorldError:
             raise FrozenWorldError(

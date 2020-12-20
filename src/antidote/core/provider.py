@@ -1,4 +1,5 @@
-from typing import cast, Generic, Hashable, Optional, TypeVar
+from contextlib import contextmanager
+from typing import Callable, cast, Generic, Hashable, Iterator, Optional, TypeVar
 
 from ._provider import _FREEZE_ATTR_NAME, ProviderMeta
 from .container import Container, DependencyInstance, RawProvider
@@ -9,13 +10,16 @@ from .._internal import API
 from .._internal.utils import debug_repr
 
 T = TypeVar('T', bound=Hashable)
-M = TypeVar('M')
+M = TypeVar('M', bound=Callable[..., object])
 
 
 @API.public
 def does_not_freeze(method: M) -> M:
     """
-    Decorated methods won't freeze when :py:func:`~antidote.world.freeze` is called
+    Decorated method won't freeze when :py:func:`~antidote.world.freeze` is called. All
+    others will, with the exceptions of base methods defined in :py:class`.Provider`.
+
+    Beware that is must be the last decorator if you use multiple ones.
     """
     setattr(method, _FREEZE_ATTR_NAME, False)
     return method
@@ -67,7 +71,7 @@ class Provider(RawProvider, Generic[T],
         >>> # To modify your provider, retrieve it from world
         ... world.get[SquareProvider]().register_numbers(9)
         >>> world.get[SquareProvider]().register_numbers(7)
-        >>> world.get(9)
+        >>> world.get[int](9)
         81
         >>> # If you freeze world, you cannot register any dependencies
         ... world.freeze()
@@ -78,10 +82,10 @@ class Provider(RawProvider, Generic[T],
         ...     print("Frozen world !")
         Frozen world !
         >>> # But you can still retrieve previously defined ones
-        ... world.get(9)
+        ... world.get[int](9)
         81
         >>> # even if never called before
-        ... world.get(7)
+        ... world.get[int](7)
         49
 
 
@@ -94,10 +98,8 @@ class Provider(RawProvider, Generic[T],
         2. You MUST NOT use :py:mod:`~antidote.world`. If you need a dependency, rely on
            the provided :py:class:`~.core.container.Container`.
         3. Methods will automatically freeze except those marked with the decorator
-           :py:func:`~.does_not_freeze`. You may only use it on methods which do NOT
-           modify the provider or methods only called by ones that are frozen.
-           :py:meth:`~.provide` and :py:meth:`~.clone` are the only methods that are not
-           affected.
+           :py:func:`~.does_not_freeze`. Methods changing dependency *definitions* MUST
+           freeze, others SHOULD NOT.
         4. You may cache singletons by yourself, but you need to clean your cache when
            :py:meth:`~.clone` is called with :code:`keep_singletons_cache=False`.
     """
@@ -133,8 +135,7 @@ class Provider(RawProvider, Generic[T],
         """
         raise NotImplementedError()
 
-    def provide(self, dependency: T, container: Container
-                ) -> DependencyInstance:
+    def provide(self, dependency: T, container: Container) -> DependencyInstance:
         """
         Method called by the :py:class:`~.core.container.Container` when
         searching for a dependency. Be sure that the dependency space of your
@@ -154,15 +155,15 @@ class Provider(RawProvider, Generic[T],
         Args:
             dependency: The dependency to be provided by the provider. It will have passed
                 :py:meth:`.exists`.
-            container: current container which may use to retrieve
-                other dependencies.
+            container: current container which may use to retrieve other dependencies.
 
         Returns:
             The requested instance wrapped in a
             :py:class:`~.core.container.DependencyInstance`. If the dependency is a
             singleton, you MUST specify it with :code:`singleton=True`.
         """
-        raise RuntimeError("Either implement provide() or override maybe_provide()")
+        raise NotImplementedError("Either implement provide()"
+                                  "or override maybe_provide()")
 
     def debug(self, dependency: T) -> DependencyDebug:
         """
@@ -188,12 +189,12 @@ class Provider(RawProvider, Generic[T],
         """
         **Expert feature**
 
-        :py:meth:`.maybe_provide` MUST be consistent with :py:meth:`.exists`.
+        :py:meth:`.maybe_provide` MUST be consistent with :py:meth:`.exists`. It should
+        return
 
         Args:
             dependency: The dependency to be provided by the provider.
-            container: current container which may use to retrieve
-                other dependencies.
+            container: current container which may use to retrieve other dependencies.
 
         Returns:
             The requested instance wrapped in a
@@ -244,7 +245,20 @@ class Provider(RawProvider, Generic[T],
         Raises:
             DuplicateDependencyError
         """
-        self._raise_if_exists(dependency)
+        self._bound_container_raise_if_exists(dependency)
+
+    @does_not_freeze
+    @final
+    @contextmanager
+    def _container_lock(self) -> Iterator[None]:
+        """
+        Context manager ensuring thread-safety regarding dependency instantiation and
+        declaration over all providers. Typically useful if you want to change some
+        mutable state in your provider.
+
+        """
+        with self._bound_container_locked():
+            yield
 
 
 @API.public

@@ -120,6 +120,6 @@ cdef class ServiceProvider(FastProvider):
             raise TypeError(f"service must be a class, not {klass!r}")
         if not isinstance(singleton, bool):
             raise TypeError(f"singleton must be a boolean, not {singleton!r}")
-        with self._ensure_not_frozen():
-            self._raise_if_exists(klass)
+        with self._bound_container_ensure_not_frozen():
+            self._bound_container_raise_if_exists(klass)
             self.__services[klass] = singleton

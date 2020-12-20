@@ -1,6 +1,7 @@
 import random
 import threading
 import time
+from typing import Callable
 
 from antidote import factory, Tag, Tagged, world
 from antidote.core import Container
@@ -14,34 +15,49 @@ class B:
     pass
 
 
-def random_delay(a=0.01, b=None):
-    b = b or a
-    time.sleep(a + b * random.random())
+class ThreadSafetyTest:
+    n_threads = 10
+    __state = None
+
+    @classmethod
+    def run(cls, target: Callable[[], object], n_threads=None):
+        threads = [threading.Thread(target=target)
+                   for _ in range(n_threads or cls.n_threads)]
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+    @staticmethod
+    def random_delay(a=0.01, b=None):
+        b = b or a
+        time.sleep(a + b * random.random())
+
+    @staticmethod
+    def unique_id():
+        return threading.get_ident(), random.random()
+
+    @classmethod
+    def check_locked(cls, failures: list):
+        tid = ThreadSafetyTest.unique_id()
+        cls.__state = tid
+        ThreadSafetyTest.random_delay()
+        if cls.__state != tid:
+            failures.append(1)
 
 
 def delayed_new_class(cls):
     def f() -> cls:
-        random_delay()
+        ThreadSafetyTest.random_delay()
         return cls()
 
     return f
 
 
-def multi_thread_do(target, n_threads=10):
-    threads = [threading.Thread(target=target)
-               for _ in range(n_threads)]
-
-    for thread in threads:
-        thread.start()
-
-    for thread in threads:
-        thread.join()
-
-
 def test_container_instantiation_safety():
     with world.test.new():
-        n_threads = 10
-
         build_a = factory(delayed_new_class(A), singleton=True, auto_wire=False)
         build_b = factory(delayed_new_class(B), singleton=False, auto_wire=False)
 
@@ -52,10 +68,9 @@ def test_container_instantiation_safety():
             singleton_got.append(world.get(A @ build_a))
             non_singleton_got.append(world.get(B @ build_b))
 
-        multi_thread_do(worker, n_threads)
-
+        ThreadSafetyTest.run(worker)
         assert len(set(singleton_got)) == 1
-        assert len(set(non_singleton_got)) == n_threads
+        assert len(set(non_singleton_got)) == ThreadSafetyTest.n_threads
 
 
 def test_tagged_dependencies_instantiation_safety():
@@ -75,7 +90,7 @@ def test_tagged_dependencies_instantiation_safety():
             for i, dep in enumerate(tagged.values()):
                 dependencies.append((i, dep))
 
-        multi_thread_do(worker)
+        ThreadSafetyTest.run(worker)
 
         assert len(set(dependencies)) == n_dependencies
         assert set(enumerate(tagged.values())) == set(dependencies)
@@ -84,23 +99,21 @@ def test_tagged_dependencies_instantiation_safety():
 # Be sure not have used a fixture to create a new test world as it will
 # interfere with this test.
 def test_world_safety():
-    n_threads = 10
     singletons = []
 
     def worker():
         with world.test.empty():
-            tid = (threading.get_ident(), random.random())
+            tid = ThreadSafetyTest.unique_id()
             world.singletons.add("x", tid)
-            random_delay()
+            ThreadSafetyTest.random_delay()
             singletons.append((tid, tid == world.get("x")))
 
-    multi_thread_do(worker, n_threads)
-
-    assert n_threads == len({tid for (tid, _) in singletons})
+    ThreadSafetyTest.run(worker)
+    assert ThreadSafetyTest.n_threads == len({tid for (tid, _) in singletons})
     assert all(equal for (_, equal) in singletons)
 
 
-def test_sate_init_safety():
+def test_state_init_safety():
     from antidote._internal import state
     from antidote._internal.utils import world as world_utils
 
@@ -111,14 +124,14 @@ def test_sate_init_safety():
     def new_container():
         nonlocal called
         called += 1
-        random_delay()
+        ThreadSafetyTest.random_delay()
         return old_new_container()
 
     state.reset()
     world_utils.new_container = new_container
 
     try:
-        multi_thread_do(state.init, n_threads=10)
+        ThreadSafetyTest.run(state.init)
     finally:
         world_utils.new_container = old_new_container
 
@@ -137,7 +150,7 @@ def test_state_override_safety():
         return Container()
 
     def worker():
-        random_delay()
+        ThreadSafetyTest.random_delay()
         state.override(create)
 
-    multi_thread_do(worker, n_threads=10)
+    ThreadSafetyTest.run(worker)

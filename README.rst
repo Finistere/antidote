@@ -116,7 +116,7 @@ How does injection looks like ? Here is a simple example:
     f(Database('localhost:6789'))  # but you can still use the function normally
 
 
-Want more ? Here is a more complex example:
+Want more ? Here is an over-engineered example to showcase a lot more features:
 
 .. code-block:: python
 

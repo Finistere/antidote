@@ -293,7 +293,7 @@ From the environment
     from antidote import Constants, const
 
     class Env(Constants):
-        SECRET = const('SECRET')
+        SECRET = const[str]('SECRET')
 
         def get(self, value):
             return os.environ[value]
@@ -306,34 +306,47 @@ From the environment
     'my_secret'
 
 
-From a file
------------
+From a dictionary
+-----------------
 
-
+Configuration can be stored in a lot of different formats, or even be retrieved on a
+remote endpoint at start-up. Most of the time you would be able to easily convert it
+to a dictionary and use the following:
 
 .. testcode:: recipes_configuration_environment
 
     import os
-    from antidote import Constants
+    from antidote import Constants, const
 
-    class Env(Constants):
-        SECRET = const('SECRET')
+    class Conf(Constants):
+        HOST = const[str]('host')
+        AWS_API_KEY = const[str]('aws.api_key')
 
-        def get(self, value):
-            return os.environ[value]
+        def __init__(self):
+            # Load your configuration into a dictionary
+            self._raw_conf = {
+                "host": "localhost",
+                "aws": {
+                    "api_key": "my key"
+                }
+            }
+
+        def get(self, key):
+            from functools import reduce
+            return reduce(dict.get, key.split('.'), self._raw_conf)  # type: ignore
 
 .. doctest:: recipes_configuration_environment
 
     >>> from antidote import world
-    >>> os.environ['SECRET'] = 'my_secret'
-    >>> world.get[str](Env.SECRET)
-    'my_secret'
+    >>> world.get[str](Conf.HOST)
+    'localhost'
+    >>> world.get(Conf.AWS_API_KEY)
+    'my key'
 
 
 
-
-Specifying a type
------------------
+Specifying a type / Using Enums
+-------------------------------
 
 You can specify a type when using :py:func:`.const`. It's main purpose is to provide
 a type for Mypy when the constants are directly accessed from an instance. However
@@ -392,3 +405,135 @@ and use it as a one.
     This will do an actual cast, which provides a nice syntactic sugar to cast integers or
     floats typically as configuration may be stored as a string.
 
+
+
+Scope
+=====
+
+Antidote only differentiate whether a dependency is a singleton or not, but needing more
+than that is frequent. Typically in web services, scoping services to the request lifetime
+is often necessary. Antidote doesn't provide anything for this out of the box, as it depends
+too heavily on the framework and your needs. But you can implement it yourself with a
+:py:class:`.Provider`. In short it is the fundamental building blocks of Antidote, the
+ones which actually do instantiate the dependencies for :py:mod:`.world`.
+
+.. testcode:: recipes_scope
+
+    from typing import Callable, Dict, Hashable, Tuple
+
+    from antidote import world
+    from antidote.core import Container, DependencyInstance, does_not_freeze, Provider
+
+
+    @world.provider
+    class ScopeProvider(Provider[Hashable]):
+        def __init__(self):
+            super().__init__()
+            # Caching dependencies for as long as the scope is valid.
+            self._cache: Dict[Hashable, object] = {}
+            # Factories to build the actual dependency instances.
+            self._factories: Dict[Hashable, Tuple[Callable[[], object], bool]] = {}
+
+        ##################################################
+        # Methods that should only be called by Antidote #
+        ##################################################
+
+        def exists(self, dependency: Hashable) -> bool:
+            return dependency in self._factories
+
+        def provide(self, dependency: Hashable, container: Container) -> DependencyInstance:
+            # If you need to access other dependencies, you MUST use container NOT world.
+            try:
+                return DependencyInstance(self._cache[dependency])
+            except KeyError:
+                # provide() is only called if exists() returns true.
+                (factory, scope_singleton) = self._factories[dependency]
+                value = factory()
+                if scope_singleton:
+                    self._cache[dependency] = value
+                return DependencyInstance(value)
+
+        def clone(self, keep_singletons_cache: bool) -> 'ScopeProvider':
+            c = ScopeProvider()
+            c._factories = self._factories.copy()
+            return c
+
+        #################################
+        # Methods that anyone can call. #
+        #################################
+
+        def add(self,
+                dependency: Hashable,
+                factory: Callable[[], object],
+                scope_singleton: bool
+                ) -> None:
+            self._assert_not_duplicate(dependency)
+            self._factories[dependency] = (factory, scope_singleton)
+
+        @does_not_freeze
+        def reset(self) -> None:
+            """ Reset the current scope """
+            with self._container_lock():
+                self._cache.clear()
+
+
+A :py:class:`.Provider` should not be exposed directly, the recommended practice is to
+provide a friendlier interface, for example:
+
+.. testcode:: recipes_scope
+
+    from typing import Callable, overload, TypeVar, Union
+
+    from antidote import inject
+
+    C = TypeVar('C', bound=type)
+
+    @overload
+    def scoped(klass: C, *, singleton: bool = False) -> C: ...
+
+
+    @overload
+    def scoped(*, singleton: bool = False) -> Callable[[C], C]: ...
+
+
+    def scoped(klass: C = None, *, singleton: bool = False) -> Union[C, Callable[[C], C]]:
+        @inject
+        def register_factory(c: C, scope_provider: ScopeProvider = None) -> C:
+            assert scope_provider is not None
+            scope_provider.add(dependency=c,
+                               factory=c,
+                               scope_singleton=singleton)
+            return c
+
+        return klass and register_factory(klass) or register_factory
+
+    @inject
+    def reset_scope(scope_provider: ScopeProvider = None) -> None:
+        assert scope_provider is not None
+        scope_provider.reset()
+
+
+Now you can easily define a class which will have a single instance per scope:
+
+.. doctest:: recipes_scope
+
+    >>> @scoped(singleton=True)
+    ... class MyScopedService:
+    ...     pass
+    >>> s1 = world.get[MyScopedService]()
+    >>> world.get[MyScopedService]() is s1
+    True
+    >>> reset_scope()
+    >>> world.get[MyScopedService]() is s1
+    False
+
+In the case of a Flask application, you would have something like :code:`RequestScopedProvider`,
+:code:`@request_scoped` and :code:`reset_request_scope`. You would then just register the
+callback:
+
+.. code-block:: python
+
+    from flask import Flask
+
+    app = Flask(__name__)
+    app.after_request(reset_request_scope)

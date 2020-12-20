@@ -125,9 +125,9 @@ cdef class FactoryProvider(FastProvider):
                  dependency: Hashable,
                  factory: Union[Callable, Dependency],
                  singleton: bool = True) -> FactoryDependency:
-        with self._ensure_not_frozen():
+        with self._bound_container_ensure_not_frozen():
             factory_dependency = FactoryDependency(dependency, ref(self))
-            self._raise_if_exists(factory_dependency)
+            self._bound_container_raise_if_exists(factory_dependency)
 
             if isinstance(factory, Dependency):
                 self.__factories[dependency] = Factory(singleton,
