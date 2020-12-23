@@ -11,7 +11,8 @@ rm -rf wheelhouse/*
 
 venv_dir="/tmp/antidote-sdist"
 python -m venv "$venv_dir"
-"$venv_dir/bin/python" setup.py sdist
+"$venv_dir/bin/pip" install -U pip build
+"$venv_dir/bin/python" -m build --sdist
 "$venv_dir/bin/pip" install dist/*
 "$venv_dir/bin/pip" install -r requirements/tests.txt
 "$venv_dir/bin/pytest" tests

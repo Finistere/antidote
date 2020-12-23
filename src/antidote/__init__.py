@@ -11,7 +11,7 @@ from .utils import is_compiled
 
 def __version__() -> str:  # pragma: no cover
     try:
-        from ._internal.scm_version import version  # type: ignore
+        from ._internal.scm_version import version
         return str(version)
     except ImportError:
         return ''

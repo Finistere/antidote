@@ -52,9 +52,9 @@ for PYTHON_VERSION in 36 37 38 39; do
   step "Cleaning workspace"
   clean
   step "Installing dependencies"
-  pip install -U pip setuptools wheel
+  pip install -U pip build
   step "Binary distribution"
-  python setup.py bdist_wheel --dist-dir "$TMP_WHEELHOUSE/raw"
+  python -m build --wheel --outdir "$TMP_WHEELHOUSE/raw"
 
   big-step "Auditing wheel"
   for whl in "$TMP_WHEELHOUSE/raw"/*.whl; do
