@@ -438,9 +438,12 @@ ones which actually do instantiate the dependencies for :py:mod:`.world`.
         # Methods that should only be called by Antidote #
         ##################################################
 
+        # Used to check for duplicates with self._assert_not_duplicate() and before
+        # provide()
         def exists(self, dependency: Hashable) -> bool:
             return dependency in self._factories
 
+        # Called by antidote in a thread-safe manner to instantiate the dependency
         def provide(self, dependency: Hashable, container: Container) -> DependencyInstance:
             # If you need to access other dependencies, you MUST use container NOT world.
             try:
@@ -453,6 +456,7 @@ ones which actually do instantiate the dependencies for :py:mod:`.world`.
                     self._cache[dependency] = value
                 return DependencyInstance(value)
 
+        # Used in world.test.clone()
         def clone(self, keep_singletons_cache: bool) -> 'ScopeProvider':
             c = ScopeProvider()
             c._factories = self._factories.copy()
@@ -470,9 +474,10 @@ ones which actually do instantiate the dependencies for :py:mod:`.world`.
             self._assert_not_duplicate(dependency)
             self._factories[dependency] = (factory, scope_singleton)
 
-        @does_not_freeze
+        @does_not_freeze  # world.freeze() won't block this method.
         def reset(self) -> None:
             """ Reset the current scope """
+            # Ensures no conflict with neither add() nor provide()
             with self._container_lock():
                 self._cache.clear()
 

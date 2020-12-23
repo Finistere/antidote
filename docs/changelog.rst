@@ -2,9 +2,14 @@
 Changelog
 *********
 
+Status
+======
+
+Overall satisfied with the API, will take some time (weeks) to see what examples may be
+missing or what could be removed/simplified before making a v1.0.
 
 
-0.9.0 (2020-12-18)
+0.9.0 (2020-12-23)
 ==================
 
 
@@ -19,23 +24,24 @@ Breaking changes
 
 - Antidote exceptions have no public attributes anymore.
 - Injecting twice the same function/method will raise an error.
+- :py:class:`.Constants` has been simplified, :py:func:`.const` is now simply always required
+  to define a constant.
 
 
 Changes
 -------
 
-- Cleaner :code:`DependencyInstantiationError` when a deeply nested dependency fails.
+- Better, simpler :code:`DependencyInstantiationError` when a deeply nested dependency fails.
 - Cleaner packaging: Antidote will only try to compile Cython when the environment variable
   :code:`ANTIDOTE_COMPILED` is set to :code:`true` and doesn't require Cython to be pre-installed
   to do so. Antidote's version is also hardcoded at publish time.
+- Added a Scope example in the documentation. It is a bit more complicated than I would like,
+  but scopes are hard
 
 
 
 0.8.0 (2020-12-09)
 ==================
-
-
-Big update, getting close to a 1.0 !
 
 
 Features
