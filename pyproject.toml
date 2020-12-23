@@ -1,6 +1,13 @@
 [build-system]
-requires = ["setuptools>=40.9.0", "wheel", "setuptools_scm"]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "setuptools_scm>=3.4",
+    # Ideally those would be optional...
+    "cython>=0.29",
+    "fastrlock>=0.5,<0.6"
+]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools_scm]
-write_to = "src/antidote/_internal/scm_version.py"
+[tool.check-manifest]
+ignore = ["src/antidote/_internal/scm_version.py"]
