@@ -140,7 +140,7 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
             pass
 
     # Defining a singleton. Can only be overridden in tests.
-    world.singletons.add('conf_path', '/...')
+    world.singletons.add('conf_path', '/some/file')
 
     class Conf(Constants):
         IMDB_HOST = const[str]('imdb.host')
