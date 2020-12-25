@@ -187,7 +187,7 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
         >>> from antidote import world
         >>> world.singletons.add("test", 1)
         >>> print(world.debug('test'))
-        Singleton 'test' -> 1
+        Singleton: 'test' -> 1
         <BLANKLINE>
 
     .. note::

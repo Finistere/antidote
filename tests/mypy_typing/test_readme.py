@@ -149,27 +149,3 @@ def test_readme():
 
     * = not singleton
     """
-
-    # For example suppose we don't have the singleton `'conf_path'`
-    with world.test.clone(keep_singletons=False):
-        world.debug(f)
-        # will output the following. As you can see, 'conf_path` is not found. Hence
-        # when Conf will be instantiated it will fail.
-        """
-        f
-        └── Static link: MovieDB -> IMDBMovieDB
-            └── * IMDBMovieDB
-                └── ImdbAPI @ imdb_factory
-                    └── imdb_factory
-                        ├── Const: Conf.IMDB_API_KEY
-                        │   └── Lazy: Conf()  #yImm
-                        │       └── /!\\ Unknown: 'conf_path'
-                        ├── Const: Conf.IMDB_PORT
-                        │   └── Lazy: Conf()  #yImm
-                        │       └── /!\\ Unknown: 'conf_path'
-                        └── Const: Conf.IMDB_HOST
-                            └── Lazy: Conf()  #yImm
-                                └── /!\\ Unknown: 'conf_path'
-
-        * = not singleton
-        """

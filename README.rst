@@ -222,41 +222,21 @@ you encounter cyclic dependencies for example.
     """
     f
     └── Static link: MovieDB -> IMDBMovieDB
-        └── IMDBMovieDB
+        └── * IMDBMovieDB
             └── ImdbAPI @ imdb_factory
                 └── imdb_factory
                     ├── Const: Conf.IMDB_API_KEY
-                    │   └── Lazy: Conf()  #0BjHAQ
-                    │       └── Singleton 'conf_path' -> '/...'
-                    ├── Const: Conf.IMDB_HOST
-                    │   └── Lazy: Conf()  #0BjHAQ
-                    │       └── Singleton 'conf_path' -> '/...'
-                    └── Const: Conf.IMDB_PORT
-                        └── Lazy: Conf()  #0BjHAQ
-                            └── Singleton 'conf_path' -> '/...'
-    """
+                    │   └── Lazy: Conf()  #yIlnAQ
+                    │       └── Singleton: 'conf_path' -> '/etc/app.conf'
+                    ├── Const: Conf.IMDB_PORT
+                    │   └── Lazy: Conf()  #yIlnAQ
+                    │       └── Singleton: 'conf_path' -> '/etc/app.conf'
+                    └── Const: Conf.IMDB_HOST
+                        └── Lazy: Conf()  #yIlnAQ
+                            └── Singleton: 'conf_path' -> '/etc/app.conf'
 
-    # For example suppose we don't have the singleton `'conf_path'`
-    with world.test.clone(keep_singletons=False):
-        world.debug(f)
-        # As you can see, 'conf_path` is not found. Hence when Conf will be instantiated
-        # it will fail.
-        """
-        f
-        └── Static link: MovieDB -> IMDBMovieDB
-            └── IMDBMovieDB
-                └── ImdbAPI @ imdb_factory
-                    └── imdb_factory
-                        ├── Const: Conf.IMDB_API_KEY
-                        │   └── Lazy: Conf()  #0BjHAQ
-                        │       └── /!\\ Unknown: 'conf_path'
-                        ├── Const: Conf.IMDB_HOST
-                        │   └── Lazy: Conf()  #0BjHAQ
-                        │       └── /!\\ Unknown: 'conf_path'
-                        └── Const: Conf.IMDB_PORT
-                            └── Lazy: Conf()  #0BjHAQ
-                                └── /!\\ Unknown: 'conf_path'
-        """
+    * = not singleton
+    """
 
 
 Hooked ? Check out the documentation ! There are still features not presented here !

@@ -302,7 +302,7 @@ cdef class RawContainer(Container):
                     return debug
             try:
                 value = self._singletons[dependency]
-                return DependencyDebug(f"Singleton {debug_repr(dependency)} "
+                return DependencyDebug(f"Singleton: {debug_repr(dependency)} "
                                        f"-> {value!r}",
                                        singleton=True)
             except KeyError:

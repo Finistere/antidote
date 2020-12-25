@@ -167,7 +167,7 @@ def test_singleton_debug():
         assert_valid(DebugTestCase(
             value="test",
             expected="""
-                Singleton 'test' -> 1
+                Singleton: 'test' -> 1
             """
         ))
 
