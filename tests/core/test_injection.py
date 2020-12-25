@@ -279,8 +279,13 @@ def test_with_type_hints(injector, expected, kwargs):
 
 
 @pytest.mark.parametrize('type_hint',
+                         # builtins
                          [str, int, float, set, list, dict, complex, type, tuple, bytes,
-                          bytearray, typing.Optional, typing.Sequence])
+                          bytearray]
+                         # typing
+                         + [typing.Optional, typing.Sequence]
+                         # not a class / weird stuff
+                         + [1, lambda x: x, object()])
 def test_ignored_type_hints(injector, type_hint):
     @injector
     def f(x: type_hint):

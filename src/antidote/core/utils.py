@@ -47,6 +47,13 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
         from antidote import world
         return cast(T, world.get(self.value))
 
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    def __eq__(self, other: object) -> bool:
+        return (isinstance(other, Dependency)
+                and (self.value is other.value or self.value == other.value))
+
     @API.private
     def __antidote_debug_repr__(self) -> str:
         return f"Dependency(value={debug_repr(self.value)})"

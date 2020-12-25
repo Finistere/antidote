@@ -25,8 +25,8 @@ def build(**kwargs) -> A:
 
 def test_str(provider: FactoryProvider):
     provider.register(A, build)
-    assert str(A) in str(provider)
-    assert str(build) in str(provider)
+    assert 'A' in str(provider)
+    assert 'build' in str(provider)
 
 
 def test_simple(provider: FactoryProvider):
@@ -74,20 +74,29 @@ def test_singleton(singleton: bool):
             assert (world.get(factory_id) is world.get(factory_id)) == singleton
 
 
-@pytest.mark.parametrize('first', ['register', 'register_lazy'])
-@pytest.mark.parametrize('second', ['register', 'register_lazy'])
-def test_duplicate_dependency(provider: FactoryProvider, first: str, second: str):
-    world.singletons.add('A', build)
+def test_multiple_factories(provider: FactoryProvider):
+    def build2(**kwargs) -> A:
+        return A(**kwargs)
 
-    if first == 'register':
+    b = provider.register(A, build)
+    b2 = provider.register(A, build2)
+
+    assert isinstance(world.get(b), A)
+    assert isinstance(world.get(b2), A)
+
+
+def test_duplicate_dependency():
+    with world.test.clone():
+        provider = world.get(FactoryProvider)
         provider.register(A, build)
-    else:
-        provider.register(A, world.lazy('A'))
-
-    with pytest.raises(DuplicateDependencyError):
-        if second == 'register':
+        with pytest.raises(DuplicateDependencyError):
             provider.register(A, build)
-        else:
+
+    with world.test.clone():
+        world.singletons.add('A', build)
+        provider = world.get(FactoryProvider)
+        provider.register(A, world.lazy('A'))
+        with pytest.raises(DuplicateDependencyError):
             provider.register(A, world.lazy('A'))
 
 

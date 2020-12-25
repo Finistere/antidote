@@ -121,7 +121,7 @@ def implementation(interface: type,
                 if isinstance(cls, Build):
                     cls = cls.dependency
                 if isinstance(cls, FactoryDependency):
-                    cls = cls.dependency
+                    cls = cls.output
 
                 if not (isinstance(cls, type) and inspect.isclass(cls)
                         and issubclass(cls, interface)):

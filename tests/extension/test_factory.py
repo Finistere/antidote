@@ -133,14 +133,6 @@ def test_tags():
                     return A()
 
 
-def test_invalid_dependency(build: Type[Factory]):
-    with pytest.raises(ValueError, match="Unsupported dependency.*"):
-        B @ build
-
-    with pytest.raises(ValueError, match="Unsupported dependency.*"):
-        B @ build.with_kwargs(x=1)
-
-
 def test_with_kwargs(build: Type[Factory]):
     x = object()
     a = world.get(A @ build.with_kwargs(x=x))
@@ -148,6 +140,27 @@ def test_with_kwargs(build: Type[Factory]):
 
     with pytest.raises(ValueError, match=".*with_kwargs.*"):
         A @ build.with_kwargs()
+
+
+def test_getattr():
+    def build() -> A:
+        return A()
+
+    build.hello = 'world'
+
+    build = factory(build)
+    assert build.hello == 'world'
+
+    build.new_hello = 'new_world'
+    assert build.new_hello == 'new_world'
+
+
+def test_invalid_dependency(build: Type[Factory]):
+    with pytest.raises(ValueError, match="Unsupported output.*"):
+        B @ build
+
+    with pytest.raises(ValueError, match="Unsupported output.*"):
+        B @ build.with_kwargs(x=1)
 
 
 def test_invalid_conf():

@@ -8,13 +8,13 @@ def test_readme_simple():
         def __init__(self):
             self._data = {'host': 'localhost:6789'}
 
-        # Used to retrieve lazily the const, so injecting Conf.DB_HOST is equivalent
-        # Conf().get('host')
+        # Used to retrieve lazily the const, so injecting Conf.DB_HOST is equivalent to
+        # having Conf().get('host')
         def get(self, key: str):
             return self._data[key]
 
     class Database(Service):  # Defined as a Service, so injectable.
-        @inject(dependencies=dict(host=Conf.DB_HOST))
+        @inject(dependencies={'host': Conf.DB_HOST})
         def __init__(self, host: str):
             self._host = host  # <=> Conf().get('host')
 
@@ -24,7 +24,7 @@ def test_readme_simple():
         assert db is not None
         pass
 
-    f()  # Service will be automatically injected if not provided
+    f()  # works !
     f(Database('localhost:6789'))  # but you can still use the function normally
 
     # You can also retrieve dependencies by hand
@@ -67,7 +67,8 @@ def test_readme():
         # Constants will by default automatically enforce the cast to int,
         # float and str. Can be removed or extended to support Enums.
         IMDB_PORT = const[int]('imdb.port')
-        IMDB_API_KEY = const[str]('imdb.api_key')
+        # But specifying a type is not required at all, it's mostly to help Mypy.
+        IMDB_API_KEY = const('imdb.api_key')
 
         @inject(use_names=True)  # injecting world.get('conf_path')
         def __init__(self, conf_path: str):
@@ -133,18 +134,20 @@ def test_readme():
     """
     f
     └── Static link: MovieDB -> IMDBMovieDB
-        └── IMDBMovieDB
+        └── * IMDBMovieDB
             └── ImdbAPI @ imdb_factory
                 └── imdb_factory
                     ├── Const: Conf.IMDB_API_KEY
-                    │   └── Lazy: Conf()  #0BjHAQ
-                    │       └── Singleton 'conf_path' -> '/...'
-                    ├── Const: Conf.IMDB_HOST
-                    │   └── Lazy: Conf()  #0BjHAQ
-                    │       └── Singleton 'conf_path' -> '/...'
-                    └── Const: Conf.IMDB_PORT
-                        └── Lazy: Conf()  #0BjHAQ
-                            └── Singleton 'conf_path' -> '/...'
+                    │   └── Lazy: Conf()  #yIlnAQ
+                    │       └── Singleton 'conf_path' -> '/etc/app.conf'
+                    ├── Const: Conf.IMDB_PORT
+                    │   └── Lazy: Conf()  #yIlnAQ
+                    │       └── Singleton 'conf_path' -> '/etc/app.conf'
+                    └── Const: Conf.IMDB_HOST
+                        └── Lazy: Conf()  #yIlnAQ
+                            └── Singleton 'conf_path' -> '/etc/app.conf'
+
+    * = not singleton
     """
 
     # For example suppose we don't have the singleton `'conf_path'`
@@ -155,16 +158,18 @@ def test_readme():
         """
         f
         └── Static link: MovieDB -> IMDBMovieDB
-            └── IMDBMovieDB
+            └── * IMDBMovieDB
                 └── ImdbAPI @ imdb_factory
                     └── imdb_factory
                         ├── Const: Conf.IMDB_API_KEY
-                        │   └── Lazy: Conf()  #0BjHAQ
+                        │   └── Lazy: Conf()  #yImm
                         │       └── /!\\ Unknown: 'conf_path'
-                        ├── Const: Conf.IMDB_HOST
-                        │   └── Lazy: Conf()  #0BjHAQ
+                        ├── Const: Conf.IMDB_PORT
+                        │   └── Lazy: Conf()  #yImm
                         │       └── /!\\ Unknown: 'conf_path'
-                        └── Const: Conf.IMDB_PORT
-                            └── Lazy: Conf()  #0BjHAQ
+                        └── Const: Conf.IMDB_HOST
+                            └── Lazy: Conf()  #yImm
                                 └── /!\\ Unknown: 'conf_path'
+
+        * = not singleton
         """

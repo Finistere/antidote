@@ -23,17 +23,16 @@ Antidote
 
 Antidotes is a dependency injection micro-framework for Python 3.6+. It is designed on two core ideas:
 
-- Keep dependency declaration close to the actual code as it's deeply related. Dependency injection
-  is about removing the responsibility of building dependencies from their clients. Not separating
-  how a dependency is built from its implementation.
+- Keep dependency declaration close to the actual code. Dependency injection is about removing
+  the responsibility of building dependencies from their clients. It does not imply
+  that dependency management should be done in a separate file.
 - It should help creating maintainable code in a straightforward way and offer effortless integration.
-  One must be able to integrate it partially.
 
 It provides the following features:
 
 - Ease of use
     - injection anywhere you need through a decorator `@inject`, be it static methods, functions, etc..
-      By default it will only rely on type hints, but it supports a lot more !
+      By default, it will only rely on type hints (classes), but it supports a lot more!
     - no \*\*kwargs arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
     - documented, see `<https://antidote.readthedocs.io/en/stable>`_. If you don't find what you need, open an issue ;)
     - thread-safe, cycle detection
@@ -42,13 +41,15 @@ It provides the following features:
     - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
       a good chance you can implement it yourself quickly.
 - Maintainability
-    - The different kind of dependencies are designed to be easy to track back. Finding where a
+    - The different kinds of dependencies are designed to be easy to track back. Finding where a
       dependency is defined is easy.
     - Overriding dependencies (duplicates) and injecting twice will raise an exception.
     - Dependencies can be frozen, which blocks any new definitions.
+    - You can specify type hints for dependencies that dynamically retrieved (`world.get`, `world.lazy`, `const`)
 - Testability
     - `@inject` lets you override any injections by passing explicitly the arguments.
     - Change dependencies locally within a context manager.
+    - When encountering issues you can retrieve the full dependency tree, nicely formatted with `world.debug`.
 - Performance
     - Antidote has two implementations: the pure Python one which is the reference and the
       Cython one which is heavily tuned for fast injection. Injection is roughly 10x times faster
@@ -88,7 +89,7 @@ How does injection looks like ? Here is a simple example:
             return self._data[key]
 
     class Database(Service):  # Defined as a Service, so injectable.
-        @inject(dependencies=dict(host=Conf.DB_HOST))
+        @inject(dependencies={'host': Conf.DB_HOST})
         def __init__(self, host: str):
             self._host = host  # <=> Conf().get('host')
 
@@ -277,55 +278,11 @@ You can avoid the Cython version from PyPI with the following:
 
 Note that PyPy is tested with the pure Python version, not the Cython one.
 
-Mypy
-====
 
-Antidote passes the strict Mypy check and exposes its type information (PEP 561).
-Unfortunately static typing for decorators is limited to simple cases, hence Antidote :code:`@inject` will just
-return the same signature from Mypys point of view. The best way, currently that I know of, is to
-define arguments as optional as shown below:
+Documentation
+=============
 
-.. code-block:: python
-
-    from antidote import inject, Service
-
-    class MyService(Service):
-        pass
-
-    @inject
-    def f(my_service: MyService = None) -> MyService:
-        # We never expect it to be None, but it Mypy will now
-        # understand that my_service may not be provided.
-        assert my_service is not None
-        return my_service
-
-
-    s: MyService = f()
-
-    # You can also overload the function, if you want a more accurate type definition:
-    from typing import overload
-
-    @overload
-    def g(my_service: MyService) -> MyService: ...
-
-    @overload
-    def g() -> MyService: ...
-
-    @inject
-    def g(my_service: MyService = None) -> MyService:
-        assert my_service is not None
-        return my_service
-
-
-    s2: MyService = g()
-
-
-
-
-Note that any of this is only necessary if you're calling _explicitly_ the function, if only
-instantiate :code:`MyService` through Antidote for example, you won't need this for its
-:code:`__init__()` function typically. You could also use a :code:`Protocol` to define
-a different signature, but it's more complex.
+Documentation can be found at `<https://antidote.readthedocs.io/en/stable>`_.
 
 
 Issues / Feature Requests / Questions

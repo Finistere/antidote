@@ -305,13 +305,13 @@ def factory(f: F = None,
         if not inspect.isfunction(func):
             raise TypeError(f"{func} is not a function")
 
-        dependency = get_type_hints(func).get('return')
-        if dependency is None:
+        output = get_type_hints(func).get('return')
+        if output is None:
             raise ValueError("A return annotation is necessary. "
                              "It is used a the dependency.")
-        if not inspect.isclass(dependency):
+        if not inspect.isclass(output):
             raise TypeError(f"The return annotation is expected to be a class, "
-                            f"not {type(dependency)}.")
+                            f"not {type(output)}.")
 
         if auto_wire:
             func = inject(func,
@@ -321,7 +321,7 @@ def factory(f: F = None,
 
         factory_id = factory_provider.register(factory=func,
                                                singleton=singleton,
-                                               dependency=dependency)
+                                               output=output)
 
         if tags is not None:
             if tag_provider is None:

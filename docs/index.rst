@@ -17,6 +17,7 @@ Table of Content
 
     tutorial
     recipes
+    how_to
     extend
     reference
     changelog

@@ -44,7 +44,7 @@ without passing through a Service. You could do it the following way:
 .. doctest:: how_to_provider
 
     >>> from antidote import world
-    >>> world.get('random')
+    >>> world.get[float]('random')
     0...
     >>> world.get('random') == world.get('random')
     False

@@ -10,6 +10,18 @@ missing or what could be removed/simplified before making a v1.0.
 
 
 
+0.10.X (2020-12-??)
+===================
+
+
+Change
+------
+
+- Multiple factories can be defined for the same class.
+- Only classes will be injected through type hints by :py:func:`.inject`.
+
+
+
 0.10.0 (2020-12-24)
 ===================
 

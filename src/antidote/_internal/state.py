@@ -11,6 +11,19 @@ __container: Optional[RawContainer] = None
 __container_lock = threading.RLock()
 
 
+def get_container() -> RawContainer:
+    assert __container is not None
+    return __container
+
+
+def get_overridable_container() -> OverridableRawContainer:
+    assert __container is not None
+    if not isinstance(__container, OverridableRawContainer):
+        raise RuntimeError("Current world does not support overrides. "
+                           "Consider using world.test.clone(override=True)")
+    return __container
+
+
 # Used only for tests
 def reset() -> None:
     global __container
@@ -24,19 +37,6 @@ def init() -> None:
             if __container is None:
                 from .utils.world import new_container
                 __container = new_container()
-
-
-def get_container() -> RawContainer:
-    assert __container is not None
-    return __container
-
-
-def get_overridable_container() -> OverridableRawContainer:
-    assert __container is not None
-    if not isinstance(__container, OverridableRawContainer):
-        raise RuntimeError("Current world does not support overrides. "
-                           "Consider using world.test.clone(override=True)")
-    return __container
 
 
 @contextmanager

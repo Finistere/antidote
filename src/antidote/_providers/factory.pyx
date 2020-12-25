@@ -29,7 +29,7 @@ cdef class FactoryProvider(FastProvider):
 
     def __init__(self):
         super().__init__()
-        self.__factories: Dict[Hashable, Factory] = dict()
+        self.__factories: Dict[FactoryDependency, Factory] = dict()
         self.__empty_tuple = tuple()
 
     def __repr__(self):
@@ -58,7 +58,7 @@ cdef class FactoryProvider(FastProvider):
         if isinstance(dependency, Build):
             dependency = dependency.dependency
         return (isinstance(dependency, FactoryDependency)
-                and dependency.dependency in self.__factories)
+                and dependency in self.__factories)
 
     def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
         cdef:
@@ -69,7 +69,7 @@ cdef class FactoryProvider(FastProvider):
             return None
 
         try:
-            factory = self.__factories[dependency_factory.dependency]
+            factory = self.__factories[dependency_factory]
         except KeyError:
             return None
 
@@ -94,18 +94,16 @@ cdef class FactoryProvider(FastProvider):
         if not PyObject_IsInstance(dependency_factory, <PyObject*> FactoryDependency):
             return
 
-        factory = PyDict_GetItem(<PyObject*> self.__factories,
-                                 <PyObject*> (
-                                     <FactoryDependency> dependency_factory).dependency)
+        factory = PyDict_GetItem(<PyObject*> self.__factories, dependency_factory)
         if factory == NULL:
             return
 
         if (<Factory> factory).function is None:
-            (<RawContainer> container).fast_get(
-                <PyObject*> (<Factory> factory).dependency, result)
+            (<RawContainer> container).fast_get(<PyObject*> (<Factory> factory).dependency,
+                                                result)
             if result.flags == 0:
                 raise DependencyNotFoundError((<Factory> factory).dependency)
-            assert (result.flags & FLAG_SINGLETON) != 0, "factory dependency is expected to be a singleton"
+            assert (result.flags & FLAG_SINGLETON) == FLAG_SINGLETON, "factory dependency is expected to be a singleton"
             (<Factory> factory).function = (<PyObjectBox> result.box).obj
 
         result.flags = FLAG_DEFINED | (<Factory> factory).flags
@@ -122,56 +120,61 @@ cdef class FactoryProvider(FastProvider):
             )
 
     def register(self,
-                 dependency: Hashable,
+                 output: Hashable,
                  factory: Union[Callable, Dependency],
                  singleton: bool = True) -> FactoryDependency:
         with self._bound_container_ensure_not_frozen():
-            factory_dependency = FactoryDependency(dependency, ref(self))
+            factory_dependency = FactoryDependency(output, factory)
             self._bound_container_raise_if_exists(factory_dependency)
 
             if isinstance(factory, Dependency):
-                self.__factories[dependency] = Factory(singleton,
-                                                       dependency=factory.value)
+                self.__factories[factory_dependency] = Factory(singleton,
+                                                               dependency=factory.value)
             elif callable(factory):
-                self.__factories[dependency] = Factory(singleton, function=factory)
+                self.__factories[factory_dependency] = Factory(singleton,
+                                                               function=factory)
             else:
                 raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
             return factory_dependency
 
-    def debug_get_registered_factory(self, dependency: Hashable
-                                     ) -> Union[Callable, Dependency]:
-        cdef:
-            Factory factory = self.__factories[dependency]
-        if factory.dependency is not None:
-            return Dependency(factory.dependency)
-        else:
-            return factory.function
-
 @cython.final
 cdef class FactoryDependency:
     cdef:
-        readonly object dependency
-        object _provider_ref
+        readonly object output
+        readonly object factory
+        int _hash
 
-    def __init__(self, object dependency, object provider_ref):
-        self.dependency = dependency
-        self._provider_ref = provider_ref
+    def __init__(self, object output, object factory):
+        self.output = output
+        self.factory = factory
+        self._hash = hash((output, factory))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"FactoryDependency({self})"
 
-    def __antidote_debug_repr__(self):
+    def __antidote_debug_repr__(self) -> str:
         return str(self)
 
-    def __str__(self):
-        provider = self._provider_ref()
-        dependency = debug_repr(self.dependency)
-        if provider is not None:
-            factory = provider.debug_get_registered_factory(self.dependency)
-            return f"{dependency} @ {debug_repr(factory)}"
-        # Should not happen, but we'll try to provide some debug information
-        return f"{dependency} @ ???"  # pragma: no cover
+    def __str__(self) -> str:
+        return f"{debug_repr(self.output)} @ {debug_repr(self.factory)}"
+
+    def __hash__(self) -> int:
+        return self._hash
+
+    def __eq__(self, other: object) -> bool:
+        cdef:
+            FactoryDependency fd
+
+        if not isinstance(other, FactoryDependency):
+            return False
+
+        fd = <FactoryDependency> other
+        return (self._hash == fd._hash
+                and (self.output is fd.output
+                     or self.output == fd.output)
+                and (self.factory is fd.factory
+                     or self.factory == fd.factory))  # noqa
 
 @cython.final
 cdef class Factory:

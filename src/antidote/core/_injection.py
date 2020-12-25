@@ -214,8 +214,9 @@ def _build_type_hints(arguments: Arguments,
         arg_name: type_hint
         for arg_name, type_hint in type_hints.items()
         if getattr(type_hint, '__module__', '') != 'typing'
-           and type_hint not in _BUILTINS_TYPES  # noqa
-           and type_hint is not None  # noqa
+           and type_hint not in _BUILTINS_TYPES  # noqa: E131
+           and type_hint is not None  # noqa: E131
+           and inspect.isclass(type_hint)  # noqa: E131
     }
 
 

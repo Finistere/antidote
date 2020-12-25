@@ -39,10 +39,10 @@ class FactoryMeta(AbstractMeta):
         return cls
 
     @API.public
-    def __rmatmul__(cls, dependency: Hashable) -> object:
+    def __rmatmul__(cls, left_operand: Hashable) -> object:
         assert cls.__factory_dependency is not None
-        if dependency != cls.__factory_dependency.dependency:
-            raise ValueError(f"Unsupported dependency {dependency}")
+        if left_operand is not cls.__factory_dependency.output:
+            raise ValueError(f"Unsupported output {left_operand}")
         return cls.__factory_dependency
 
     @API.public
@@ -75,19 +75,19 @@ def _configure_factory(cls: FactoryMeta,
         raise TypeError(f"Factory configuration (__antidote__) is expected to be "
                         f"a {Factory.Conf}, not a {type(conf)}")
 
-    dependency = get_type_hints(cls.__call__).get('return')
-    if dependency is None:
+    output = get_type_hints(cls.__call__).get('return')
+    if output is None:
         raise ValueError("The return annotation is necessary on __call__."
                          "It is used a the dependency.")
-    if not inspect.isclass(dependency):
+    if not inspect.isclass(output):
         raise TypeError(f"The return annotation is expected to be a class, "
-                        f"not {type(dependency)}.")
+                        f"not {type(output)}.")
 
     if conf.wiring is not None:
         conf.wiring.wire(cls)
 
-    factory_id = factory_provider.register(
-        dependency=dependency,
+    factory_dependency = factory_provider.register(
+        output=output,
         singleton=conf.singleton,
         factory=Dependency(service(cls, singleton=True)
                            if conf.public else
@@ -97,45 +97,48 @@ def _configure_factory(cls: FactoryMeta,
     if conf.tags is not None:
         if tag_provider is None:
             raise RuntimeError("No TagProvider registered, cannot use tags.")
-        tag_provider.register(dependency=factory_id, tags=conf.tags)
+        tag_provider.register(dependency=factory_dependency, tags=conf.tags)
 
-    return factory_id
+    return factory_dependency
 
 
 @API.private
 class LambdaFactory:
-    def __init__(self, factory: Callable[..., object],
-                 dependency_factory: FactoryDependency) -> None:
-        self.__factory = factory
-        self.__dependency_factory = dependency_factory
-        functools.wraps(factory, updated=())(self)
+    def __init__(self, wrapped: Callable[..., object],
+                 factory_dependency: FactoryDependency) -> None:
+        self.__wrapped__ = wrapped
+        self.__factory_dependency = factory_dependency
+        functools.wraps(wrapped, updated=())(self)
 
     def __call__(self, *args: object, **kwargs: object) -> object:
-        return self.__factory(*args, **kwargs)
+        return self.__wrapped__(*args, **kwargs)
 
-    def __rmatmul__(self, dependency: Hashable) -> object:
-        if dependency != self.__dependency_factory.dependency:
-            raise ValueError(f"Unsupported dependency {dependency}")
-        return self.__dependency_factory
+    def __rmatmul__(self, left_operand: Hashable) -> object:
+        if left_operand is not self.__factory_dependency.output:
+            raise ValueError(f"Unsupported output {left_operand}")
+        return self.__factory_dependency
 
     def with_kwargs(self, **kwargs: object) -> 'PreBuild':
-        return PreBuild(self.__dependency_factory, kwargs)
+        return PreBuild(self.__factory_dependency, kwargs)
+
+    def __getattr__(self, item: str) -> object:
+        return getattr(self.__wrapped__, item)
 
 
 @API.private
 class PreBuild(FinalImmutable):
-    __slots__ = ('dependency_factory', 'kwargs')
-    dependency_factory: FactoryDependency
-    kwargs: Dict[str, object]
+    __slots__ = ('_factory_dependency', '_kwargs')
+    _factory_dependency: FactoryDependency
+    _kwargs: Dict[str, object]
 
-    def __init__(self, dependency_factory: FactoryDependency,
+    def __init__(self, factory_dependency: FactoryDependency,
                  kwargs: Dict[str, object]) -> None:
         if not kwargs:
-            raise ValueError("When calling with_kwargs, "
+            raise ValueError("When calling with_kwargs(), "
                              "at least one argument must be provided.")
-        super().__init__(dependency_factory=dependency_factory, kwargs=kwargs)
+        super().__init__(_factory_dependency=factory_dependency, _kwargs=kwargs)
 
-    def __rmatmul__(self, dependency: Hashable) -> object:
-        if dependency != self.dependency_factory.dependency:
-            raise ValueError(f"Unsupported dependency {dependency}")
-        return Build(self.dependency_factory, self.kwargs)
+    def __rmatmul__(self, left_operand: Hashable) -> object:
+        if left_operand is not self._factory_dependency.output:
+            raise ValueError(f"Unsupported output {left_operand}")
+        return Build(self._factory_dependency, self._kwargs)
