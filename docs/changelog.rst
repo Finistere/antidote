@@ -10,7 +10,7 @@ missing or what could be removed/simplified before making a v1.0.
 
 
 
-0.10.X (2020-12-??)
+0.11.0 (2021-01-??)
 ===================
 
 Features
@@ -31,6 +31,8 @@ Change
 
 - Multiple factories can be defined for the same class.
 - Only classes will be injected through type hints by :py:func:`.inject`.
+- Adding a new scope or provider in a cloned world will raise an error. The goal of cloning
+  is to allow easier testing of an existing dependency, not create new ones.
 
 
 
