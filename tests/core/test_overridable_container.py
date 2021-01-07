@@ -1,9 +1,9 @@
 import pytest
 
 from antidote.core.container import (DependencyInstance, OverridableRawContainer,
-                                     RawContainer)
-from antidote.core.exceptions import DependencyCycleError, DependencyInstantiationError
-from antidote.exceptions import (DependencyNotFoundError)
+                                     RawContainer, Scope)
+from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
+                                 DependencyNotFoundError)
 from .utils import DummyProvider
 
 
@@ -18,13 +18,14 @@ def original_container():
 
 @pytest.fixture
 def container(original_container):
-    return OverridableRawContainer.build(original_container, keep_singletons=True)
+    return OverridableRawContainer.from_clone(
+        original_container.clone(keep_singletons=True, keep_scopes=False))
 
 
 @pytest.mark.parametrize('keep_singletons', [True, False])
 def test_build(original_container: RawContainer, keep_singletons: bool):
-    container = OverridableRawContainer.build(original_container,
-                                              keep_singletons=keep_singletons)
+    container = OverridableRawContainer.from_clone(
+        original_container.clone(keep_singletons=keep_singletons, keep_scopes=False))
     assert container.get('name') == "Antidote"
     if keep_singletons:
         assert container.get('singleton') == 'yes'
@@ -43,7 +44,7 @@ def test_override_singletons(container: OverridableRawContainer):
         container.override_singletons({dep: 'different-v2'})
         assert container.get(dep) == 'different-v2'
         assert container.provide(dep) == DependencyInstance('different-v2',
-                                                            singleton=True)
+                                                            scope=Scope.singleton())
 
 
 def test_override_factory(container: OverridableRawContainer):
@@ -51,19 +52,20 @@ def test_override_factory(container: OverridableRawContainer):
     assert container.get('singleton') == 'yes'
 
     for dep in ['name', 'singleton']:
-        container.override_factory(dep, factory=lambda: 'different', singleton=False)
+        container.override_factory(dep, factory=lambda: 'different', scope=None)
         assert container.get(dep) == 'different'
-        container.override_factory(dep, factory=lambda: 'different-v2', singleton=False)
+        container.override_factory(dep, factory=lambda: 'different-v2', scope=None)
         assert container.get(dep) == 'different-v2'
         assert container.provide(dep) == DependencyInstance('different-v2',
-                                                            singleton=False)
+                                                            scope=None)
 
-        container.override_factory(dep, factory=lambda: object(), singleton=True)
+        # overriding previous factory which had no scope
+        container.override_factory(dep, factory=lambda: object(), scope=Scope.singleton())
         value = container.get(dep)
         assert not isinstance(value, str)
         assert container.get(dep) is value
 
-        container.override_factory(dep, factory=lambda: object(), singleton=True)
+        container.override_factory(dep, factory=lambda: object(), scope=Scope.singleton())
         # didn't change anything, because it's now a singleton.
         assert container.get(dep) is value
 
@@ -83,21 +85,22 @@ def test_override_provider(container: OverridableRawContainer):
             lambda x: DependencyInstance('different-v2') if x == dep else None)
         assert container.get(dep) == 'different-v2'
         assert container.provide(dep) == DependencyInstance('different-v2',
-                                                            singleton=False)
+                                                            scope=None)
 
         with pytest.raises(DependencyNotFoundError):
             container.get('x')  # new provider does not bring any other value
 
+        # overriding previous provider which had no scope
         container.override_provider(
             lambda x: DependencyInstance(object(),
-                                         singleton=True) if x == dep else None)
+                                         scope=Scope.singleton()) if x == dep else None)
         value = container.get(dep)
         assert not isinstance(value, str)
         assert container.get(dep) is value
 
         container.override_provider(
             lambda x: DependencyInstance(object(),
-                                         singleton=True) if x == dep else None)
+                                         scope=Scope.singleton()) if x == dep else None)
         # didn't change anything, because it's now a singleton.
         assert container.get(dep) is value
 
@@ -105,32 +108,15 @@ def test_override_provider(container: OverridableRawContainer):
         assert container.get(dep) == 'Hello'
 
 
-def test_invalid_override_singletons(container: OverridableRawContainer):
-    with pytest.raises(TypeError, match='.*singletons.*'):
-        container.override_singletons(object())
-
-
-def test_invalid_override_factory(container: OverridableRawContainer):
-    with pytest.raises(TypeError, match='.*factory.*'):
-        container.override_factory(object(), factory=object(), singleton=True)
-    with pytest.raises(TypeError, match='.*singleton.*'):
-        container.override_factory(object(), factory=lambda: None, singleton=object())
-
-
-def test_invalid_override_provider(container: OverridableRawContainer):
-    with pytest.raises(TypeError, match='.*provider.*'):
-        container.override_provider(object())
-
-
 def test_errors(container: OverridableRawContainer):
     container.override_factory('cycle', factory=lambda: container.get('cycle'),
-                               singleton=False)
+                               scope=None)
     with pytest.raises(DependencyCycleError):
         container.get('cycle')
 
     def factory():
         raise RuntimeError()
 
-    container.override_factory('error', factory=factory, singleton=False)
+    container.override_factory('error', factory=factory, scope=None)
     with pytest.raises(DependencyInstantiationError):
         container.get('error')

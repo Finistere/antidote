@@ -5,8 +5,7 @@ from ._compatibility.typing import final
 from ._internal import API
 from ._internal.utils import AbstractMeta, debug_repr, FinalImmutable, FinalMeta
 from ._providers.lazy import Lazy
-from .core import Container, DependencyInstance
-from .core.utils import DependencyDebug
+from .core import Container, DependencyInstance, Scope, DependencyDebug
 
 T = TypeVar('T')
 
@@ -60,7 +59,6 @@ class ConstantsMeta(AbstractMeta):
 @API.private
 def _configure_constants(cls: ConstantsMeta) -> None:
     from .constants import Constants
-    from .lazy import LazyCall
     from .service import service
 
     conf = getattr(cls, '__antidote__', None)
@@ -71,11 +69,7 @@ def _configure_constants(cls: ConstantsMeta) -> None:
     if conf.wiring is not None:
         conf.wiring.wire(cls)
 
-    if conf.public:
-        dependency: Hashable = service(cls, singleton=True)
-    else:
-        dependency = LazyCall(cls, singleton=True)
-
+    dependency: Hashable = service(cls, singleton=True)
     for name, v in list(cls.__dict__.items()):
         if isinstance(v, LazyConstToDo):
             setattr(cls,
@@ -136,16 +130,11 @@ class LazyConst(FinalImmutable, Lazy):
         super().__init__(descriptor=descriptor)
 
     def debug_info(self) -> DependencyDebug:
-        from .lazy import LazyCall
         descriptor = cast(LazyConstDescriptor, self.descriptor)
-        dependency = descriptor.dependency
-        if isinstance(dependency, LazyCall):
-            cls: type = cast(type, dependency.func)
-        else:
-            cls = cast(type, dependency)
+        cls = cast(type, descriptor.dependency)
         return DependencyDebug(f"Const: {debug_repr(cls)}.{descriptor.name}",
-                               singleton=True,
-                               dependencies=[dependency],
+                               scope=Scope.singleton(),
+                               dependencies=[descriptor.dependency],
                                # TODO: Would be great if the first argument of the method
                                #       didn't show as unknown as it's always provided.
                                wired=[getattr(cls, descriptor.method_name)])
@@ -158,5 +147,5 @@ class LazyConst(FinalImmutable, Lazy):
                 container.get(descriptor.dependency),
                 None  # type: ignore
             ),
-            singleton=True
+            scope=Scope.singleton()
         )

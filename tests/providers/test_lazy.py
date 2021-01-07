@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import world
+from antidote import Scope, world
 from antidote._providers.lazy import Lazy, LazyProvider
 from antidote.core import Container, DependencyInstance
 
@@ -15,10 +15,10 @@ def lazy_provider():
 class Dummy(Lazy):
     def __init__(self, value, singleton=False):
         self.value = value
-        self.singleton = singleton
+        self.scope = Scope.singleton() if singleton else None
 
     def lazy_get(self, container: Container) -> DependencyInstance:
-        return DependencyInstance(container.get(self.value), singleton=self.singleton)
+        return DependencyInstance(container.get(self.value), scope=self.scope)
 
 
 def test_lazy():
@@ -30,8 +30,9 @@ def test_lazy():
         assert world.test.maybe_provide_from(lazy_provider,
                                              Dummy(x)).value is world.get(x)
         for s in [True, False]:
-            assert world.test.maybe_provide_from(lazy_provider,
-                                                 Dummy(x, singleton=s)).singleton is s
+            assert world.test.maybe_provide_from(
+                lazy_provider,
+                Dummy(x, singleton=s)).is_singleton() is s
 
 
 def test_exists():

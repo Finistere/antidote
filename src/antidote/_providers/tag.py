@@ -5,9 +5,8 @@ from typing import (Any, Dict, Generic, Hashable, Iterable, Iterator, List,
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import debug_repr, short_id
-from ..core import Container, DependencyInstance, Provider
+from ..core import Container, DependencyDebug, DependencyInstance, Provider
 from ..core.exceptions import AntidoteError
-from ..core.utils import DependencyDebug
 
 
 @API.public
@@ -197,7 +196,7 @@ class TagProvider(Provider[Tag]):
     def debug(self, dependency: Tag) -> DependencyDebug:
         return DependencyDebug(
             debug_repr(dependency),
-            singleton=False,
+            scope=None,
             dependencies=list(self.__tag_to_tagged[dependency.group()].keys())
         )
 
@@ -219,7 +218,7 @@ class TagProvider(Provider[Tag]):
             ),
             # Whether the returned dependencies are singletons or not is
             # our decision to take.
-            singleton=False
+            scope=None
         )
 
     def register(self, dependency: Hashable, *, tags: Iterable[Tag]) -> None:

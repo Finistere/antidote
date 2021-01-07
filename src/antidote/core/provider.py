@@ -39,7 +39,7 @@ class Provider(RawProvider, Generic[T],
     .. doctest:: core_Provider
 
         >>> from typing import Hashable, Optional
-        >>> from antidote import world
+        >>> from antidote import world, Scope
         >>> from antidote.core import Provider, Container, \\
         ...     DependencyInstance, does_not_freeze
         >>> @world.provider
@@ -57,7 +57,8 @@ class Provider(RawProvider, Generic[T],
         ...
         ...     def provide(self, dependency: int, container: Container
         ...                 ) -> DependencyInstance:
-        ...         return DependencyInstance(self._square(dependency), singleton=True)
+        ...         return DependencyInstance(self._square(dependency),
+        ...                                   scope=Scope.singleton())
         ...
         ...     # we don't want this method to fail when world freezes
         ...     # and it does not modify any state, so we're safe !
@@ -94,7 +95,7 @@ class Provider(RawProvider, Generic[T],
         behavior. So be careful with it, it will impact the whole library. There are
         several rules to respect:
 
-        1. Different _providers MUST provide strictly different dependencies.
+        1. Different providers MUST provide strictly different dependencies.
         2. You MUST NOT use :py:mod:`~antidote.world`. If you need a dependency, rely on
            the provided :py:class:`~.core.container.Container`.
         3. Methods will automatically freeze except those marked with the decorator
@@ -270,7 +271,7 @@ class StatelessProvider(Provider[T], abstract=True):
     .. doctest:: core_StatelessProvider
 
         >>> from typing import Hashable, Optional
-        >>> from antidote import world
+        >>> from antidote import world, Scope
         >>> from antidote.core import StatelessProvider, Container, DependencyInstance
         >>> @world.provider
         ... class SquareProvider(StatelessProvider[int]):
@@ -279,7 +280,7 @@ class StatelessProvider(Provider[T], abstract=True):
         ...
         ...     def provide(self, dependency: int, container: Container
         ...                 ) -> Optional[DependencyInstance]:
-        ...         return DependencyInstance(dependency ** 2, singleton=True)
+        ...         return DependencyInstance(dependency ** 2, scope=Scope.singleton())
         >>> world.get(9)
         81
 

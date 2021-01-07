@@ -64,6 +64,29 @@ def test_singleton():
     assert world.get(NoScope) != world.get(NoScope)
 
 
+def test_custom_scope():
+    dummy_scope = world.scopes.new('dummy')
+
+    with world.test.clone():
+        class Scoped(Service):
+            __antidote__ = Service.Conf(scope=dummy_scope)
+
+        my_service = world.get(Scoped)
+        assert world.get(Scoped) is my_service
+        world.scopes.reset(dummy_scope)
+        assert world.get(Scoped) is not my_service
+
+    with world.test.clone():
+        @service(scope=dummy_scope)
+        class Scoped:
+            pass
+
+        my_service = world.get(Scoped)
+        assert world.get(Scoped) is my_service
+        world.scopes.reset(dummy_scope)
+        assert world.get(Scoped) is not my_service
+
+
 def test_duplicate_registration():
     with pytest.raises(DuplicateDependencyError):
         @service
@@ -83,9 +106,10 @@ def test_invalid_class(cls):
         (dict(tags=object()), pytest.raises(TypeError, match=".*tags.*")),
         (dict(tags=['test']), pytest.raises(TypeError, match=".*tags.*")),
         (dict(singleton=object()), pytest.raises(TypeError, match=".*singleton.*")),
+        (dict(scope=object()), pytest.raises(TypeError, match=".*scope.*")),
     ]
 )
-def test_invalid_params(kwargs, expectation):
+def test_invalid_service_args(kwargs, expectation):
     with expectation:
         @service(**kwargs)
         class Dummy:
@@ -122,12 +146,6 @@ def test_not_tags():
                 __antidote__ = Service.Conf(tags=[tag])
 
 
-def test_invalid_conf():
-    with pytest.raises(TypeError, match=".*__antidote__.*"):
-        class Dummy(Service):
-            __antidote__ = 1
-
-
 def test_no_subclass_of_service():
     class A(Service):
         pass
@@ -137,13 +155,22 @@ def test_no_subclass_of_service():
             pass
 
 
-@pytest.mark.parametrize('kwargs, expectation', [
-    (dict(singleton=object()), pytest.raises(TypeError, match=".*singleton.*")),
-    (dict(tags=object()), pytest.raises(TypeError, match=".*tags.*")),
-    (dict(tags=['dummy']), pytest.raises(TypeError, match=".*tags.*")),
-    (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
+def test_invalid_conf():
+    with pytest.raises(TypeError, match=".*__antidote__.*"):
+        class Dummy(Service):
+            __antidote__ = object()
+
+
+@pytest.mark.parametrize('expectation, kwargs', [
+    pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
+                 {arg: object()},
+                 id=arg)
+    for arg in ['wiring',
+                'singleton',
+                'scope',
+                'tags']
 ])
-def test_conf_error(kwargs, expectation):
+def test_invalid_conf_args(kwargs, expectation):
     with expectation:
         Service.Conf(**kwargs)
 
@@ -157,3 +184,9 @@ def test_conf_copy(kwargs):
     conf = Service.Conf(singleton=True, tags=[]).copy(**kwargs)
     for k, v in kwargs.items():
         assert getattr(conf, k) == v
+
+
+def test_invalid_copy():
+    conf = Service.Conf()
+    with pytest.raises(TypeError, match=".*both.*"):
+        conf.copy(singleton=False, scope=None)

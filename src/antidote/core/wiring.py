@@ -298,11 +298,6 @@ class WithWiringMixin:
                 wire_super=wire_super))
 
 
-@API.private  # Used internally for auto wiring.
-class AutoWire(enum.Enum):
-    auto = object()
-
-
 @API.private  # Use wire() or Wiring.wire() instead
 def _wire_class(cls: C, wiring: Wiring) -> C:
     if not inspect.isclass(cls):

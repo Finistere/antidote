@@ -1,9 +1,9 @@
 from typing import Dict, Hashable, overload, Type, TypeVar, Union
 
 from .._internal import API
-from .._internal.state import init
+from .._internal.state import init, current_container
 from .._internal.utils.world import WorldGet, WorldLazy
-from ..core.container import RawProvider
+from ..core.container import RawProvider, Scope
 
 # Create the global container
 init()
@@ -92,15 +92,19 @@ def provider(p: P) -> P:
 
     """
     import inspect
-    from .._internal import state
-    from ..core.container import RawProvider
 
-    if inspect.isclass(p) and issubclass(p, RawProvider):
-        state.get_container().add_provider(p)
-        return p
-
-    raise TypeError(f"Provider must be a subclass of "
-                    f"RawProvider, not {p}")
+    if not (inspect.isclass(p) and issubclass(p, RawProvider)):
+        raise TypeError(f"Provider must be a subclass of "
+                        f"RawProvider, not {p}")
+    container = current_container()
+    if container.is_clone:
+        raise RuntimeError("Cannot add a new provider in a cloned world. "
+                           "A cloned world exists to test existing dependencies, "
+                           "not to create new ones.")
+    if any(p == type(existing_provider) for existing_provider in container.providers):
+        raise ValueError(f"Provider {p} already exists")
+    container.add_provider(p)
+    return p
 
 
 @API.public
@@ -123,17 +127,17 @@ def freeze() -> None:
         FrozenWorldError
 
     """
-
-    from .._internal import state
-    state.get_container().freeze()
+    current_container().freeze()
 
 
 @overload
-def add(dependency: Hashable, value: object) -> None: ...  # noqa: E704
+def add(dependency: Hashable,  # noqa: E704  # pragma: no cover
+        value: object
+        ) -> None: ...
 
 
 @overload
-def add(dependency: Dict[Hashable, object]) -> None: ...  # noqa: E704
+def add(dependency: Dict[Hashable, object]) -> None: ...  # noqa: E704  # pragma: no cover
 
 
 @API.public
@@ -158,17 +162,16 @@ def add(dependency: Union[Dict[Hashable, object], Hashable],
         value: Associated value for the dependency.
 
     """
-    from .._internal import state
     if value is __sentinel:
         if isinstance(dependency, dict):
-            state.get_container().add_singletons(dependency)
+            current_container().add_singletons(dependency)
         else:
             raise TypeError("If only a single argument is provided, "
                             "it must be a dictionary of singletons.")
     else:
         if isinstance(dependency, dict):
             raise TypeError("A dictionary cannot be used as a key.")
-        state.get_container().add_singletons({dependency: value})
+        current_container().add_singletons({dependency: value})
 
 
 @API.experimental
@@ -189,6 +192,10 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
         >>> print(world.debug('test'))
         Singleton: 'test' -> 1
         <BLANKLINE>
+        Singletons have no scope markers.
+        <∅> = no scope (new instance each time)
+        <name> = custom scope
+        <BLANKLINE>
 
     .. note::
 
@@ -203,7 +210,36 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
     Returns:
 
     """
-    from .._internal.state import get_container
     from .._internal.utils.debug import tree_debug_info
 
-    return tree_debug_info(get_container(), dependency, depth)
+    return tree_debug_info(current_container(), dependency, depth)
+
+
+def new(name: str) -> Scope:
+    from .._internal.state import current_container
+    if not isinstance(name, str):
+        raise TypeError(f"name must be a str, not {type(name)}")
+    if not name:
+        raise ValueError("name cannot be an empty string")
+    if name in {Scope.singleton().name, Scope.sentinel().name}:
+        raise ValueError(f"'{name}' is a reserved scope name.")
+    container = current_container()
+    if container.is_clone:
+        raise RuntimeError("Cannot create a new scope in a cloned world. "
+                           "A cloned world exists to test existing dependencies, "
+                           "not to create new ones.")
+    if any(s.name == name for s in container.scopes):
+        raise ValueError(f"A scope '{name}' already exists")
+    return container.create_scope(name)
+
+
+def reset(scope: Scope) -> None:
+    if not isinstance(scope, Scope):
+        raise TypeError(f"scope must be a Scope, not {type(scope)}.")
+    if scope in {Scope.singleton(), Scope.sentinel()}:
+        raise ValueError(f"Cannot reset {scope}.")
+    container = current_container()
+    if scope not in container.scopes:
+        raise ValueError(f"Unknown scope {scope}. Only scopes created through "
+                         f"world.scopes.new() are supported.")
+    return container.reset_scope(scope)

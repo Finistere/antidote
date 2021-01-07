@@ -2,14 +2,14 @@ import base64
 import inspect
 import textwrap
 from collections import deque
-from typing import (Callable, cast, Deque, Hashable, List, Sequence, Set, Tuple,
+from typing import (Deque, Hashable, List, Optional, Sequence, Set, Tuple,
                     TYPE_CHECKING)
 
 from .immutable import Immutable
 from .. import API
 
 if TYPE_CHECKING:
-    from ...core.container import RawContainer
+    from ...core.container import RawContainer, Scope
 
 # Object will be allocated on the heap, so as close as possible to most user objects
 # in memory.
@@ -52,22 +52,6 @@ def get_injections(func: object) -> Sequence[object]:
 
 
 @API.private
-class DebugTreeNode(Immutable):
-    __slots__ = ('info', 'singleton', 'children')
-    info: str
-    singleton: bool
-    children: 'List[DebugTreeNode]'
-
-    def __init__(self,
-                 info: str, *,
-                 singleton: bool = True,
-                 children: 'List[DebugTreeNode]' = None) -> None:
-        super().__init__(info=textwrap.dedent(info),
-                         singleton=singleton,
-                         children=children or [])
-
-
-@API.private
 class Task(Immutable):
     __slots__ = ()
 
@@ -86,11 +70,46 @@ class InjectionTask(Task):
 
 
 @API.private
+def scope_repr(scope: 'Optional[Scope]', *, empty: str) -> str:
+    from ...core import Scope
+    if scope is None:
+        return "<∅> "
+    elif scope is Scope.singleton() or scope is Scope.sentinel():
+        return empty
+    else:
+        return f"<{scope.name}> "
+
+
+_LEGEND = """
+Singletons have no scope markers.
+<∅> = no scope (new instance each time)
+<name> = custom scope
+"""
+
+
+@API.private
 def tree_debug_info(container: 'RawContainer',
                     origin: object,
                     depth: int = -1) -> str:
     from ...core.wiring import WithWiringMixin
     from ...core.exceptions import DependencyNotFoundError
+    from ...core import Scope
+
+    @API.private
+    class DebugTreeNode(Immutable):
+        __slots__ = ('info', 'scope', 'children')
+        info: str
+        scope: 'Optional[Scope]'
+        children: 'List[DebugTreeNode]'
+
+        def __init__(self,
+                     info: str,
+                     *,
+                     scope: 'Optional[Scope]' = Scope.sentinel(),
+                     children: 'List[DebugTreeNode]' = None) -> None:
+            super().__init__(info=textwrap.dedent(info),
+                             scope=scope,
+                             children=children or [])
 
     if depth < 0:
         depth = 1 << 31  # roughly infinity in this case.
@@ -141,7 +160,7 @@ def tree_debug_info(container: 'RawContainer',
                                                      f"{debug.info}"))
                 continue
 
-            tree_node = DebugTreeNode(debug.info, singleton=debug.singleton)
+            tree_node = DebugTreeNode(debug.info, scope=debug.scope)
 
             parent.children.append(tree_node)
             parent = tree_node
@@ -176,20 +195,18 @@ def tree_debug_info(container: 'RawContainer',
         return f"{origin!r} is neither a dependency nor is anything injected."
 
     output = [
-        ("* " if not root.singleton else "") + root.info
+        scope_repr(root.scope, empty="") + root.info
     ]
     nodes: Deque[Tuple[str, bool, DebugTreeNode]] = deque([
         ("", i == 0, child)
         for i, child in enumerate(root.children[::-1])
     ])
-    any_not_singleton = not root.singleton
 
     while nodes:
         prefix, last, node = nodes.pop()
-        any_not_singleton |= (not node.singleton)
         first_line, *rest = node.info.split("\n", 1)
         txt = prefix + ("└──" if last else "├──")
-        txt += (" * " if not node.singleton else " ") + first_line
+        txt += scope_repr(node.scope, empty=" ") + first_line
         new_prefix = prefix + ("    " if last else "│   ")
         if rest:
             txt += "\n" + textwrap.indent(rest[0], new_prefix)
@@ -198,9 +215,6 @@ def tree_debug_info(container: 'RawContainer',
         for i, child in enumerate(node.children[::-1]):
             nodes.append((new_prefix, i == 0, child))
 
-    output.append("")
-    if any_not_singleton:
-        output.extend(["* = not singleton",
-                       ""])
+    output.append(_LEGEND)
 
     return "\n".join(output)

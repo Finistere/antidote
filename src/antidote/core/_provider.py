@@ -50,6 +50,8 @@ def _make_wrapper(attr: str, method: F) -> F:
     def wrapped_method(self: RawProvider, *args: object, **kwargs: object) -> object:
         try:
             with self._bound_container_ensure_not_frozen():
+                # If you have a TypeError traceback pointing here you probably have
+                # a mismatch between the arguments and the wrapped method signature.
                 return method(self, *args, **kwargs)
         except FrozenWorldError:
             raise FrozenWorldError(

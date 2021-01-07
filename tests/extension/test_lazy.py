@@ -22,6 +22,9 @@ def test_lazy_singleton():
     test2 = LazyCall(func, singleton=True)
     assert world.get(test2) is world.get(test2)
 
+    default = LazyCall(func)
+    assert world.get(default) is world.get(default)
+
 
 @pytest.mark.parametrize(
     'args,kwargs',
@@ -73,9 +76,11 @@ def test_method_singleton():
 
         A = LazyMethodCall(get, singleton=True)
         B = LazyMethodCall(get, singleton=False)
+        C = LazyMethodCall(get)
 
     assert world.get(Test.A) is world.get(Test.A)
     assert world.get(Test.B) != world.get(Test.B)
+    assert world.get(Test.C) is world.get(Test.C)  # singleton by default
 
 
 def test_method_direct_call():

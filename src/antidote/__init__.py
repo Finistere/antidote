@@ -1,6 +1,6 @@
 from . import world
 from .constants import const, Constants
-from .core import inject, wire, Wiring
+from .core import inject, wire, Wiring, Scope
 from .factory import factory, Factory
 from .implementation import Implementation, implementation
 from .lazy import LazyCall, LazyMethodCall

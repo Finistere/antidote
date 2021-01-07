@@ -1,6 +1,6 @@
 from typing import Dict, Hashable
 
-from antidote.core import DependencyInstance, Provider
+from antidote.core import DependencyInstance, Provider, Scope
 
 
 class DummyProvider(Provider):
@@ -18,7 +18,7 @@ class DummyProvider(Provider):
 
     def provide(self, dependency, container):
         return DependencyInstance(self.data[dependency],
-                                  singleton=self.singleton)
+                                  scope=Scope.singleton() if self.singleton else None)
 
 
 class DummyFactoryProvider(Provider):
@@ -36,4 +36,4 @@ class DummyFactoryProvider(Provider):
 
     def provide(self, dependency, container):
         return DependencyInstance(self.data[dependency](container),
-                                  singleton=self.singleton)
+                                  scope=Scope.singleton() if self.singleton else None)

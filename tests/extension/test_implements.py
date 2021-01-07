@@ -125,18 +125,40 @@ def test_invalid_implementation_class():
             pass
 
 
-def test_invalid_implementation():
-    with pytest.raises(TypeError):
-        implementation(Interface)(1)
+def dummy_choose():
+    class A(Interface):
+        pass
 
-    with pytest.raises(TypeError):
-        @implementation(Interface)
-        class A(Interface):
-            pass
+    return A
 
-    with pytest.raises(TypeError):
-        implementation(1)
 
+@pytest.mark.parametrize('expectation,kwargs,func',
+                         [
+                             pytest.param(pytest.raises(TypeError, match='.*function.*'),
+                                          dict(interface=Interface),
+                                          object(),
+                                          id='function'),
+                             pytest.param(pytest.raises(TypeError, match='.*interface.*'),
+                                          dict(interface=object()),
+                                          dummy_choose,
+                                          id='interface')
+                         ] + [
+                             pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
+                                          {'interface': Interface, arg: object()},
+                                          dummy_choose,
+                                          id=arg)
+                             for arg in ['permanent',
+                                         'auto_wire',
+                                         'dependencies',
+                                         'use_names',
+                                         'use_type_hints']
+                         ])
+def test_invalid_implementation(expectation, kwargs: dict, func):
+    with expectation:
+        implementation(**kwargs)(func)
+
+
+def test_invalid_implementation_return_type():
     class B:
         pass
 

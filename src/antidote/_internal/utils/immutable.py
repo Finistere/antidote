@@ -16,10 +16,6 @@ class ImmutableMeta(type):
         if '__slots__' not in namespace:
             raise TypeError("Attributes must be defined in slots")
 
-        slots = set(cast(Iterable[str], namespace['__slots__']))
-        if any(name.startswith('__') for name in slots):
-            raise ValueError("Private attributes are not supported.")
-
         # TODO: Type ignore necessary when type checking with Python 3.6
         #       To be removed ASAP.
         return cast(
@@ -45,8 +41,16 @@ class Immutable(SlotsRepr, metaclass=ImmutableMeta):
     def __init__(self, *args: object, **kwargs: object) -> None:
         # quick way to initialize an Immutable through args. It won't take into
         # account parent classes though.
-        attrs: Dict[str, object] = dict(zip(self.__slots__, args))
-        attrs.update(kwargs)
+        if args:
+            attrs: Dict[str, object] = dict(zip(self.__slots__, args))
+            attrs.update(kwargs)
+            cls = type(self).__name__
+            attrs = {
+                (f'_{cls}{name}' if name.startswith('__') else name): attr
+                for name, attr in attrs.items()
+            }
+        else:
+            attrs = kwargs
         for attr, value in attrs.items():
             object.__setattr__(self, attr, value)
 

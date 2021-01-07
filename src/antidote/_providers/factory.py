@@ -1,10 +1,11 @@
+import inspect
 from typing import Callable, Dict, Hashable, Optional, Union
 
 from .service import Build
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable, SlotRecord
-from ..core import Container, Dependency, DependencyInstance, Provider
-from ..core.utils import DependencyDebug
+from ..core import (Container, Dependency, DependencyDebug, DependencyInstance, Provider,
+                    Scope)
 
 
 @API.private
@@ -53,7 +54,7 @@ class FactoryProvider(Provider[Hashable]):
 
         return DependencyDebug(
             debug_repr(build),
-            singleton=factory.singleton,
+            scope=factory.scope,
             wired=[factory.function] if factory.dependency is None else [],
             dependencies=([factory.dependency]
                           if factory.dependency is not None else []))
@@ -71,27 +72,30 @@ class FactoryProvider(Provider[Hashable]):
 
         if factory.function is None:
             f = container.provide(factory.dependency)
-            assert f.singleton, "factory dependency is expected to be a singleton"
+            assert f.is_singleton(), "factory dependency is expected to be a singleton"
             factory.function = f.value
 
         instance = (factory.function(**build.kwargs)
                     if isinstance(build, Build) and build.kwargs
                     else factory.function())
 
-        return DependencyInstance(instance, singleton=factory.singleton)
+        return DependencyInstance(instance, scope=factory.scope)
 
     def register(self,
-                 output: Hashable,
+                 output: type,
+                 *,
                  factory: Union[Callable[..., object], Dependency[Hashable]],
-                 singleton: bool = True) -> 'FactoryDependency':
+                 scope: Optional[Scope]
+                 ) -> 'FactoryDependency':
+        assert inspect.isclass(output)
         factory_dependency = FactoryDependency(output, factory)
         self._assert_not_duplicate(factory_dependency)
 
         if isinstance(factory, Dependency):
-            self.__factories[factory_dependency] = Factory(dependency=factory.value,
-                                                           singleton=singleton)
+            self.__factories[factory_dependency] = Factory(scope,
+                                                           dependency=factory.value)
         elif callable(factory):
-            self.__factories[factory_dependency] = Factory(singleton=singleton,
+            self.__factories[factory_dependency] = Factory(scope,
                                                            function=factory)
         else:
             raise TypeError(f"factory must be callable, not {type(factory)!r}.")
@@ -101,13 +105,13 @@ class FactoryProvider(Provider[Hashable]):
 
 @API.private
 class FactoryDependency(FinalImmutable):
-    __slots__ = ('output', 'factory', '_hash')
+    __slots__ = ('output', 'factory', '__hash')
     output: Hashable
     factory: object
-    _hash: int
+    __hash: int
 
     def __init__(self, output: Hashable, factory: object):
-        super().__init__(output=output, factory=factory, _hash=hash((output, factory)))
+        super().__init__(output, factory, hash((output, factory)))
 
     def __repr__(self) -> str:
         return f"FactoryDependency({self})"
@@ -119,11 +123,11 @@ class FactoryDependency(FinalImmutable):
         return f"{debug_repr(self.output)} @ {debug_repr(self.factory)}"
 
     def __hash__(self) -> int:
-        return self._hash
+        return self.__hash
 
     def __eq__(self, other: object) -> bool:
         return (isinstance(other, FactoryDependency)
-                and self._hash == other._hash
+                and self.__hash == other.__hash
                 and (self.output is other.output
                      or self.output == other.output)
                 and (self.factory is other.factory
@@ -132,19 +136,19 @@ class FactoryDependency(FinalImmutable):
 
 @API.private
 class Factory(SlotRecord):
-    __slots__ = ('singleton', 'function', 'dependency')
-    singleton: bool
+    __slots__ = ('scope', 'function', 'dependency')
+    scope: Optional[Scope]
     function: Callable[..., object]
     dependency: Hashable
 
     def __init__(self,
-                 singleton: bool = True,
+                 scope: Optional[Scope],
                  function: Callable[..., object] = None,
                  dependency: Hashable = None):
         assert function is not None or dependency is not None
-        super().__init__(singleton, function, dependency)
+        super().__init__(scope, function, dependency)
 
     def copy(self, keep_function: bool = True) -> 'Factory':
-        return Factory(self.singleton,
+        return Factory(self.scope,
                        self.function if keep_function else None,
                        self.dependency)

@@ -95,35 +95,6 @@ def test_invalid_lazy_method():
         world.get(Config.A)
 
 
-def test_public():
-    with world.test.clone():
-        class Config(Constants):
-            def get(self, key):
-                return key
-
-        with pytest.raises(DependencyNotFoundError):
-            world.get(Config)
-
-    with world.test.clone():
-        class Config(Constants):
-            __antidote__ = Constants.Conf(public=False)
-
-            def get(self, key):
-                return key
-
-        with pytest.raises(DependencyNotFoundError):
-            world.get(Config)
-
-    with world.test.clone():
-        class Config(Constants):
-            __antidote__ = Constants.Conf(public=True)
-
-            def get(self, key):
-                return key
-
-        assert isinstance(world.get(Config), Config)
-
-
 def test_invalid_conf():
     with pytest.raises(TypeError, match=".*__antidote__.*"):
         class Config(Constants):
@@ -146,7 +117,6 @@ def test_no_subclass_of_service():
 
 @pytest.mark.parametrize('kwargs, expectation', [
     (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
-    (dict(public=object()), pytest.raises(TypeError, match=".*public.*")),
     (dict(auto_cast=object()), pytest.raises(TypeError, match=".*auto_cast.*")),
     (dict(auto_cast=['1']), pytest.raises(TypeError, match=".*auto_cast.*")),
 ])
@@ -157,7 +127,6 @@ def test_conf_error(kwargs, expectation):
 
 @pytest.mark.parametrize('kwargs', [
     dict(wiring=Wiring(methods=['method'])),
-    dict(public=True),
     dict(auto_cast=frozenset((str,))),
 ])
 def test_conf_copy(kwargs):

@@ -1,21 +1,50 @@
 import threading
 from collections import deque
 from contextlib import contextmanager
-from typing import (Callable, cast, Deque, Dict, Hashable, Iterator, List, Mapping,
-                    Optional, Sequence, Tuple, Type)
+from typing import (Callable, cast, Deque, Dict, Hashable, Iterator, List,
+                    Mapping, Optional, Sequence, Tuple, Type, TYPE_CHECKING)
 from weakref import ref, ReferenceType
 
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError,
                          FrozenWorldError)
-from .utils import DependencyDebug
+
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.stack import DependencyStack
 from .._internal.utils import FinalImmutable
 
+if TYPE_CHECKING:
+    from .utils import DependencyDebug
+
 # PRIVATE
 _CONTAINER_REF_ATTR = "_antidote__container_ref"
+
+
+@API.public
+@final
+class Scope(FinalImmutable):
+    __slots__ = ('name',)
+    name: str
+
+    def __repr__(self) -> str:
+        return f"Scope(name='{self.name}')"
+
+    @staticmethod
+    @API.public
+    def singleton() -> 'Scope':
+        return _SCOPE_SINGLETON
+
+    @staticmethod
+    @API.public
+    def sentinel() -> 'Scope':
+        return _SCOPE_SENTINEL
+
+
+# Use Scope.singleton() instead.
+# API.private
+_SCOPE_SINGLETON = Scope('singleton')
+_SCOPE_SENTINEL = Scope('__sentinel__')
 
 
 @API.public
@@ -25,17 +54,24 @@ class DependencyInstance(FinalImmutable):
     Simple wrapper of a dependency instance given by a
     :py:class:`~.provider.Provider`.
     """
-    __slots__ = ('value', 'singleton')
+    __slots__ = ('value', 'scope')
     value: object
-    singleton: bool
+    scope: Scope
 
-    def __init__(self, value: object, *, singleton: bool = False) -> None:
-        super().__init__(value, singleton)
+    def __init__(self,
+                 value: object,
+                 *,
+                 scope: Optional[Scope] = None) -> None:
+        assert scope is not _SCOPE_SENTINEL
+        super().__init__(value=value, scope=scope)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, DependencyInstance) \
-               and self.singleton == other.singleton \
-               and self.value == other.value  # noqa: E126
+               and self.value == other.value \
+               and self.scope is other.scope  # noqa: E126
+
+    def is_singleton(self) -> bool:
+        return self.scope is _SCOPE_SINGLETON
 
 
 @API.public
@@ -105,7 +141,7 @@ class RawProvider:
                       ) -> Optional[DependencyInstance]:
         raise NotImplementedError()  # pragma: no cover
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: Hashable) -> 'Optional[DependencyDebug]':
         raise NotImplementedError()  # pragma: no cover
 
     @API.private
@@ -166,11 +202,31 @@ class RawContainer(Container):
         self._instantiation_lock = threading.RLock()
         self._providers: List[RawProvider] = list()
         self._singletons: Dict[object, object] = dict()
+        self._scopes: Dict[Scope, Dict[object, object]] = dict()
+        self._is_clone: bool = False
         self._freeze_lock = threading.RLock()
         self.__frozen = False
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(providers={', '.join(map(str, self._providers))})"
+
+    @property
+    def is_clone(self) -> bool:
+        return self._is_clone
+
+    def create_scope(self, name: str) -> Scope:
+        assert all(s.name != name for s in self._scopes.keys())
+        assert len(self._scopes) < 255
+        s = Scope(name)  # Name is only a helper, not a identifier by itself.
+        self._scopes[s] = dict()
+        return s
+
+    def reset_scope(self, scope: Scope) -> None:
+        self._scopes[scope] = dict()
+
+    @property
+    def scopes(self) -> Sequence[Scope]:
+        return list(self._scopes.keys())
 
     @property
     def providers(self) -> Sequence[RawProvider]:
@@ -193,15 +249,8 @@ class RawContainer(Container):
             self.__frozen = True
 
     def add_provider(self, provider_cls: Type[RawProvider]) -> None:
-        if not isinstance(provider_cls, type) \
-                or not issubclass(provider_cls, RawProvider):
-            raise TypeError(
-                f"provider must be a Provider, not a {provider_cls}")
-
         with self.ensure_not_frozen(), self._instantiation_lock:
-            if any(provider_cls == type(p) for p in self._providers):
-                raise ValueError(f"Provider {provider_cls} already exists")
-
+            assert all(provider_cls != type(p) for p in self._providers)
             provider = provider_cls()
             setattr(provider, _CONTAINER_REF_ATTR, ref(self))
             self._providers.append(provider)
@@ -232,33 +281,37 @@ class RawContainer(Container):
 
     def clone(self,
               *,
-              keep_singletons: bool = False,
-              clone_providers: bool = True) -> 'RawContainer':
-        container = type(self)()
+              keep_singletons: bool,
+              keep_scopes: bool) -> 'RawContainer':
+        container: RawContainer = type(self)()
+        container._is_clone = True
         with self.locked():
             if keep_singletons:
                 container._singletons = self._singletons.copy()
-            if clone_providers:
-                for p in self._providers:
-                    clone = p.clone(keep_singletons_cache=keep_singletons)
-                    if clone is p \
+
+            container._scopes = {
+                scope: dependencies.copy() if keep_scopes else dict()
+                for scope, dependencies in self._scopes.items()
+            }
+
+            for p in self._providers:
+                clone = p.clone(keep_singletons_cache=keep_singletons)
+                if clone is p \
                         or getattr(clone, _CONTAINER_REF_ATTR,
                                    None) is not None:
-                        raise RuntimeError(
-                            "A Provider should always return a fresh "
-                            "instance when copy() is called.")
+                    raise RuntimeError(
+                        "A Provider should always return a fresh "
+                        "instance when copy() is called.")
 
-                    setattr(clone, _CONTAINER_REF_ATTR, ref(container))
-                    container._providers.append(clone)
-                    container._singletons[type(p)] = clone
-            else:
-                for p in self._providers:
-                    container.add_provider(type(p))
+                setattr(clone, _CONTAINER_REF_ATTR, ref(container))
+                container._providers.append(clone)
+                container._singletons[type(p)] = clone
 
         return container
 
-    def debug(self, dependency: Hashable) -> DependencyDebug:
+    def debug(self, dependency: Hashable) -> 'DependencyDebug':
         from .._internal.utils.debug import debug_repr
+        from .utils import DependencyDebug
 
         with self.locked():
             for p in self._providers:
@@ -269,13 +322,14 @@ class RawContainer(Container):
                 value = self._singletons[dependency]
                 return DependencyDebug(f"Singleton: {debug_repr(dependency)} "
                                        f"-> {value!r}",
-                                       singleton=True)
+                                       scope=Scope.singleton())
             except KeyError:
                 raise DependencyNotFoundError(dependency)
 
     def provide(self, dependency: Hashable) -> DependencyInstance:
         try:
-            return DependencyInstance(self._singletons[dependency], singleton=True)
+            return DependencyInstance(self._singletons[dependency],
+                                      scope=Scope.singleton())
         except KeyError:
             pass
         return self._safe_provide(dependency)
@@ -292,18 +346,27 @@ class RawContainer(Container):
             try:
                 try:
                     return DependencyInstance(self._singletons[dependency],
-                                              singleton=True)
+                                              scope=Scope.singleton())
                 except KeyError:
                     pass
 
+                for scope, dependencies in self._scopes.items():
+                    try:
+                        return DependencyInstance(dependencies[dependency],
+                                                  scope=scope)
+                    except KeyError:
+                        pass
+
                 with self._dependency_stack.instantiating(dependency):
                     for provider in self._providers:
-                        dependency_instance = provider.maybe_provide(dependency, self)
-                        if dependency_instance is not None:
-                            if dependency_instance.singleton:
-                                self._singletons[dependency] = dependency_instance.value
+                        di = provider.maybe_provide(dependency, self)
+                        if di is not None:
+                            if di.is_singleton():
+                                self._singletons[dependency] = di.value
+                            elif di.scope is not None:
+                                self._scopes[di.scope][dependency] = di.value
 
-                            return dependency_instance
+                            return di
 
             except DependencyCycleError:
                 raise
@@ -324,31 +387,31 @@ class RawContainer(Container):
 
 class OverridableRawContainer(RawContainer):
     def __init__(self) -> None:
+        from collections import defaultdict
         super().__init__()
+        self._is_clone = True
         self.__override_lock = threading.RLock()
         # Used to differentiate singletons from the overrides and the "normal" ones.
         self.__singletons_override: Dict[Hashable, object] = dict()
-        self.__factory_overrides: Dict[Hashable, Tuple[Callable[[], object], bool]] = {}
+        self.__scopes_override: Dict[Scope, Dict[Hashable, object]] = defaultdict(dict)
+        self.__factory_overrides: Dict[
+            Hashable, Tuple[Callable[[], object], Optional[Scope]]] = {}
         self.__provider_overrides: Deque[
             Callable[[Hashable], Optional[DependencyInstance]]] = deque()
 
     @classmethod
-    def build(cls,
-              original: RawContainer,
-              keep_singletons: bool) -> 'OverridableRawContainer':
+    def from_clone(cls, cloned: RawContainer) -> 'OverridableRawContainer':
         container = cls()
-        clone = original.clone(keep_singletons=keep_singletons)
-        container._singletons = clone._singletons
-        container._providers = clone._providers
-        if isinstance(clone, OverridableRawContainer):
-            container.__singletons_override = clone.__singletons_override
-            container.__factory_overrides = clone.__factory_overrides
-            container.__provider_overrides = clone.__provider_overrides
+        container._singletons = cloned._singletons
+        container._scopes = cloned._scopes
+        container._providers = cloned._providers
+        if isinstance(cloned, OverridableRawContainer):
+            container.__singletons_override = cloned.__singletons_override
+            container.__factory_overrides = cloned.__factory_overrides
+            container.__provider_overrides = cloned.__provider_overrides
         return container
 
     def override_singletons(self, singletons: Dict[Hashable, object]) -> None:
-        if not isinstance(singletons, dict):
-            raise TypeError(f"singletons must be a dict, not a {type(singletons)}")
         with self.__override_lock:
             self.__singletons_override.update(singletons)
 
@@ -356,21 +419,19 @@ class OverridableRawContainer(RawContainer):
                          dependency: Hashable,
                          *,
                          factory: Callable[[], object],
-                         singleton: bool) -> None:
-        if not callable(factory):
-            raise TypeError(f"factory must be a callable, not a {type(factory)}")
-        if not isinstance(singleton, bool):
-            raise TypeError(f"singleton must be a boolean, not a {type(singleton)}")
+                         scope: Optional[Scope]) -> None:
         with self.__override_lock:
-            self.__factory_overrides[dependency] = (factory, singleton)
+            self.__factory_overrides[dependency] = (factory, scope)
 
     def override_provider(self,
                           provider: Callable[[Hashable], Optional[DependencyInstance]]
                           ) -> None:
-        if not callable(provider):
-            raise TypeError(f"provider must be a callable, not a {type(provider)}")
         with self.__override_lock:
             self.__provider_overrides.appendleft(provider)  # latest provider wins
+
+    def reset_scope(self, scope: Scope) -> None:
+        super().reset_scope(scope)
+        self.__scopes_override[scope] = dict()
 
     def provide(self, dependency: Hashable) -> DependencyInstance:
         return self._safe_provide(dependency)
@@ -380,21 +441,26 @@ class OverridableRawContainer(RawContainer):
 
     def clone(self,
               *,
-              keep_singletons: bool = False,
-              clone_providers: bool = True) -> 'OverridableRawContainer':
+              keep_singletons: bool,
+              keep_scopes: bool) -> 'OverridableRawContainer':
         with self.__override_lock:
             container = cast(OverridableRawContainer,
                              super().clone(keep_singletons=keep_singletons,
-                                           clone_providers=clone_providers))
+                                           keep_scopes=keep_scopes))
             if keep_singletons:
                 container.__singletons_override = self.__singletons_override.copy()
+            container.__scopes_override = {
+                scope: dependencies.copy() if keep_scopes else dict()
+                for scope, dependencies in self.__scopes_override.items()
+            }
             container.__factory_overrides = self.__factory_overrides.copy()
             container.__provider_overrides = self.__provider_overrides.copy()
 
         return container
 
-    def debug(self, dependency: Hashable) -> DependencyDebug:
+    def debug(self, dependency: Hashable) -> 'DependencyDebug':
         from .._internal.utils.debug import debug_repr
+        from .utils import DependencyDebug
 
         with self.__override_lock:
             try:
@@ -404,15 +470,15 @@ class OverridableRawContainer(RawContainer):
             else:
                 return DependencyDebug(f"Override/Singleton: {debug_repr(dependency)} "
                                        f"-> {value!r}",
-                                       singleton=True)
+                                       scope=Scope.singleton())
             try:
-                (factory, singleton) = self.__factory_overrides[dependency]
+                (factory, scope) = self.__factory_overrides[dependency]
             except KeyError:
                 pass
             else:
                 return DependencyDebug(f"Override/Factory: {debug_repr(dependency)} "
                                        f"-> {debug_repr(factory)}",
-                                       singleton=singleton)
+                                       scope=scope)
 
         return super().debug(dependency)
 
@@ -421,28 +487,37 @@ class OverridableRawContainer(RawContainer):
             with self._dependency_stack.instantiating(dependency):
                 try:
                     return DependencyInstance(self.__singletons_override[dependency],
-                                              singleton=True)
+                                              scope=Scope.singleton())
                 except KeyError:
                     pass
 
+                for scope_, dependencies in self.__scopes_override.items():
+                    try:
+                        return DependencyInstance(dependencies[dependency], scope=scope_)
+                    except KeyError:
+                        pass
+
                 try:
                     for provider in self.__provider_overrides:
-                        dependency_instance = provider(dependency)
-                        if dependency_instance is not None:
-                            if dependency_instance.singleton:
-                                self.__singletons_override[dependency] \
-                                    = dependency_instance.value
-                            return dependency_instance
+                        di = provider(dependency)
+                        if di is not None:
+                            if di.scope is Scope.singleton():
+                                self.__singletons_override[dependency] = di.value
+                            elif di.scope is not None:
+                                self.__scopes_override[di.scope][dependency] = di.value
+                            return di
 
                     try:
-                        (factory, singleton) = self.__factory_overrides[dependency]
+                        (factory, scope) = self.__factory_overrides[dependency]
                     except KeyError:
                         pass
                     else:
                         value = factory()
-                        if singleton:
+                        if scope is Scope.singleton():
                             self.__singletons_override[dependency] = value
-                        return DependencyInstance(value, singleton=singleton)
+                        elif scope is not None:
+                            self.__scopes_override[scope_][dependency] = value
+                        return DependencyInstance(value, scope=scope)
 
                 except DependencyCycleError:
                     raise

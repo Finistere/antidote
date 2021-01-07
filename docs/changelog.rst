@@ -13,6 +13,18 @@ missing or what could be removed/simplified before making a v1.0.
 0.10.X (2020-12-??)
 ===================
 
+Features
+--------
+
+- Add scope support.
+
+
+Breaking change
+---------------
+
+- Remove :code:`public` configuration for :py:class:`.Factory` and :py:class:`.Constants`.
+  They didn't really bring any value, you hardly hide anything in Python.
+
 
 Change
 ------

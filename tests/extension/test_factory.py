@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Any, Callable, Type
 
 import pytest
 
@@ -67,70 +67,33 @@ def test_pass_through(build):
     assert a.kwargs == dict(x=x)
 
 
-def test_auto_wire():
-    world.singletons.add(C, C())
+def test_custom_scope():
+    dummy_scope = world.scopes.new('dummy')
 
-    with world.test.clone(keep_singletons=True):
-        @factory
-        def build(x: C = None) -> A:
-            return x
-
-        assert world.get(A @ build) is world.get(C)
-
-    with world.test.clone(keep_singletons=True):
-        @factory(auto_wire=True)
-        def build(x: C = None) -> A:
-            return x
-
-        assert world.get(A @ build) is world.get(C)
-
-    with world.test.clone(keep_singletons=True):
-        @factory(auto_wire=False)
-        def build(x: C = None) -> A:
-            return x
-
-        assert world.get(A @ build) is None
-
-
-def test_tags():
-    tag = Tag()
-    with world.test.clone():
-        @factory(tags=[tag])
-        def build() -> A:
-            return A()
-
-        a = next(world.get(tag).values())
-        assert isinstance(a, A)
-        assert a is world.get(A @ build)
+    class Scoped:
+        pass
 
     with world.test.clone():
-        class ServiceFactory(Factory):
-            __antidote__ = Factory.Conf(tags=[tag])
+        class ScopedF(Factory):
+            __antidote__ = Factory.Conf(scope=dummy_scope)
 
-            def __call__(self) -> A:
-                return A()
+            def __call__(self) -> Scoped:
+                return Scoped()
 
-        a = next(world.get(tag).values())
-        assert isinstance(a, A)
-        assert a is world.get(A @ ServiceFactory)
+        x = world.get(Scoped @ ScopedF)
+        assert world.get(Scoped @ ScopedF) is x
+        world.scopes.reset(dummy_scope)
+        assert world.get(Scoped @ ScopedF) is not x
 
-    with world.test.empty():
-        world.provider(FactoryProvider)
+    with world.test.clone():
+        @factory(scope=dummy_scope)
+        def scoped_factory() -> Scoped:
+            return Scoped()
 
-        with pytest.raises(RuntimeError):
-            @factory(tags=[tag])
-            def build() -> A:
-                return A()
-
-    with world.test.empty():
-        world.provider(FactoryProvider)
-
-        with pytest.raises(RuntimeError):
-            class ServiceFactory(Factory):
-                __antidote__ = Factory.Conf(tags=[tag])
-
-                def __call__(self) -> A:
-                    return A()
+        x = world.get(Scoped @ scoped_factory)
+        assert world.get(Scoped @ scoped_factory) is x
+        world.scopes.reset(dummy_scope)
+        assert world.get(Scoped @ scoped_factory) is not x
 
 
 def test_with_kwargs(build: Type[Factory]):
@@ -163,15 +126,6 @@ def test_invalid_dependency(build: Type[Factory]):
         B @ build.with_kwargs(x=1)
 
 
-def test_invalid_conf():
-    with pytest.raises(TypeError, match=".*__antidote__.*"):
-        class Dummy(Factory):
-            __antidote__ = 1
-
-            def __call__(self) -> A:
-                pass
-
-
 def test_missing_call():
     with pytest.raises(TypeError, match="__call__"):
         class ServiceFactory(Factory):
@@ -179,34 +133,52 @@ def test_missing_call():
 
 
 def test_missing_return_type_hint():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=".*return type hint.*"):
         @factory
         def faulty_service_provider():
             return A()
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match=".*return type hint.*"):
         @factory
         def faulty_service_provider2() -> Any:
             return A()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=".*return type hint.*"):
         class FaultyServiceFactory(Factory):
             def __call__(self):
                 return A()
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match=".*return type hint.*"):
         class FaultyServiceFactory2(Factory):
             def __call__(self) -> Any:
                 return A()
 
 
-@pytest.mark.parametrize('kwargs, expectation', [
-    (dict(f=1), pytest.raises(TypeError, match=".*function.*")),
-    (dict(f=dummy, auto_wire=1), pytest.raises(TypeError, match=".*auto_wire.*")),
-])
-def test_invalid_args(kwargs, expectation):
+@pytest.mark.parametrize('expectation,kwargs,func',
+                         [
+                             pytest.param(pytest.raises(TypeError, match='.*function.*'),
+                                          dict(),
+                                          object(),
+                                          id='function')
+                         ] + [
+                             pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
+                                          {arg: object()},
+                                          lambda: None,
+                                          id=arg)
+                             for arg in ['auto_wire',
+                                         'singleton',
+                                         'scope',
+                                         'dependencies',
+                                         'use_names',
+                                         'use_type_hints',
+                                         'tags']
+                         ])
+def test_invalid_factory_args(expectation, kwargs: dict, func: Callable[..., object]):
     with expectation:
-        factory(kwargs.pop('f'), **kwargs)
+        factory(**kwargs)(func)
+
+    with expectation:
+        factory(func, **kwargs)
 
 
 def test_no_subclass_of_service():
@@ -220,25 +192,43 @@ def test_no_subclass_of_service():
                 pass
 
 
-@pytest.mark.parametrize('kwargs, expectation', [
-    (dict(public=object()), pytest.raises(TypeError, match=".*public.*")),
-    (dict(singleton=object()), pytest.raises(TypeError, match=".*singleton.*")),
-    (dict(tags=object()), pytest.raises(TypeError, match=".*tags.*")),
-    (dict(tags=['dummy']), pytest.raises(TypeError, match=".*tags.*")),
-    (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
+def test_invalid_conf():
+    with pytest.raises(TypeError, match=".*__antidote__.*"):
+        class Dummy(Factory):
+            __antidote__ = object()
+
+            def __call__(self) -> A:
+                pass
+
+
+@pytest.mark.parametrize('expectation, kwargs', [
+    pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
+                 {arg: object()},
+                 id=arg)
+    for arg in ['wiring',
+                'singleton',
+                'scope',
+                'tags',
+                'public']
 ])
-def test_conf_error(kwargs, expectation):
+def test_invalid_conf_args(kwargs, expectation):
     with expectation:
         Factory.Conf(**kwargs)
 
 
 @pytest.mark.parametrize('kwargs', [
     dict(singleton=False),
+    dict(scope=None),
     dict(tags=(Tag(),)),
-    dict(public=True),
     dict(wiring=Wiring(methods=['method'])),
 ])
 def test_conf_copy(kwargs):
-    conf = Factory.Conf(singleton=True, tags=[], public=False).copy(**kwargs)
+    conf = Factory.Conf(singleton=True, tags=[]).copy(**kwargs)
     for k, v in kwargs.items():
         assert getattr(conf, k) == v
+
+
+def test_invalid_copy():
+    conf = Factory.Conf()
+    with pytest.raises(TypeError, match=".*both.*"):
+        conf.copy(singleton=False, scope=None)

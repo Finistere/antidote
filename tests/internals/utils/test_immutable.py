@@ -13,23 +13,23 @@ def test_immutable_meta(cls: type):
         __slots__ = ('value',)
 
     class B(cls):
-        __slots__ = ('value',)
+        __slots__ = ('__value',)
 
-        def __init__(self, x):  # Should have a value argument or override copy()
-            pass
+        def get(self):
+            return self.__value
 
-        def copy(self):
-            pass
+    x = object()
+    a = A(x)
+    b = B(x)
+
+    assert a.value is x
+    assert b.get() is x
 
 
 def test_invalid_immutable(cls: type):
     with pytest.raises(TypeError, match=".*slots.*"):
         class A(cls):
             pass
-
-    with pytest.raises(ValueError, match="(?i).*private.*"):
-        class B(cls):
-            __slots__ = ('__value',)
 
 
 def test_immutability(cls: type):

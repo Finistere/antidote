@@ -5,10 +5,10 @@ Cython version of the wrapper, doing the same thing but faster.
 cimport cython
 from cpython.dict cimport PyDict_Copy, PyDict_New
 from cpython.object cimport PyObject_Call, PyObject_CallMethodObjArgs
-from cpython.ref cimport PyObject
+from cpython.ref cimport PyObject, Py_XDECREF
 
 from antidote._internal.state cimport fast_get_container
-from antidote.core.container cimport DependencyResult, PyObjectBox, RawContainer
+from antidote.core.container cimport (DependencyResult, RawContainer)
 from ..core.exceptions import DependencyNotFoundError
 
 # @formatter:on
@@ -103,7 +103,6 @@ cdef class InjectedWrapper:
         cdef:
             RawContainer container = fast_get_container()
             DependencyResult result
-            PyObjectBox box = PyObjectBox.__new__(PyObjectBox)
             PyObject*injection
             PyObject*arg_name
             PyObject*injections = <PyObject*> self.__blueprint.injections
@@ -112,7 +111,7 @@ cdef class InjectedWrapper:
             Py_ssize_t offset = self.__injection_offset + PyTuple_GET_SIZE(
                 <PyObject*> args)
             Py_ssize_t n = PyTuple_GET_SIZE(injections)
-        result.box = <PyObject*> box
+        result.value = NULL
 
         if kwargs:
             for i in range(offset, n):
@@ -122,13 +121,15 @@ cdef class InjectedWrapper:
                     if PyDict_Contains(<PyObject*> kwargs, arg_name) == 0:
                         container.fast_get(
                             <PyObject*> (<Injection> injection).dependency, &result)
-                        if result.flags != 0:
+                        if result.value:
                             if not dirty_kwargs:
                                 kwargs = PyDict_Copy(kwargs)
                                 dirty_kwargs = True
                             PyDict_SetItem(<PyObject*> kwargs,
                                            arg_name,
-                                           <PyObject*> box.obj)
+                                           result.value)
+                            Py_XDECREF(result.value)
+
                         elif (<Injection> injection).required:
                             raise DependencyNotFoundError(
                                 (<Injection> injection).dependency)
@@ -138,15 +139,16 @@ cdef class InjectedWrapper:
                 if (<Injection> injection).dependency is not None:
                     container.fast_get(<PyObject*> (<Injection> injection).dependency,
                                        &result)
-                    if result.flags != 0:
+                    if result.value:
                         if not dirty_kwargs:
                             kwargs = PyDict_New()
                             dirty_kwargs = True
                         PyDict_SetItem(
                             <PyObject*> kwargs,
                             <PyObject*> (<Injection> injection).arg_name,
-                            <PyObject*> box.obj
+                            result.value
                         )
+                        Py_XDECREF(result.value)
                     elif (<Injection> injection).required:
                         raise DependencyNotFoundError((<Injection> injection).dependency)
 

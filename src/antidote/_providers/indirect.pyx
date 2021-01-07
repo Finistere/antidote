@@ -2,19 +2,20 @@ from typing import Callable, Dict, Hashable, Optional
 
 # @formatter:off
 cimport cython
-from cpython.object cimport PyObject, PyObject_CallObject
+from cpython.ref cimport PyObject, Py_XDECREF
 
-from antidote.core.container cimport (DependencyResult, FastProvider,
-                                      FLAG_SINGLETON, RawContainer)
+from antidote.core.container cimport (DependencyResult, FastProvider, Header, header_strictest, header_flag_singleton, header_flag_no_scope,
+                                      RawContainer, header_flag_cacheable)
 from .._internal.utils import debug_repr
 from ..core.exceptions import DependencyNotFoundError
-from ..core.utils import DependencyDebug
+from ..core import DependencyDebug, Scope
 
 # @formatter:on
 
 cdef extern from "Python.h":
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
+    PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
 
 
 @cython.final
@@ -58,17 +59,17 @@ cdef class IndirectProvider(FastProvider):
                     return DependencyDebug(
                         f"Permanent link: {repr_d} -> {debug_repr(target)} "
                         f"defined by {repr_linker}",
-                        singleton=True,
+                        scope=Scope.singleton(),
                         dependencies=[target])
                 else:
                     return DependencyDebug(
                         f"Permanent link: {repr_d} -> ??? "
                         f"defined by {repr_linker}",
-                        singleton=True)
+                        scope=Scope.singleton())
             else:
                 return DependencyDebug(
                     f"Dynamic link: {repr_d} -> ??? defined by {repr_linker}",
-                    singleton=False,
+                    scope=None,
                     wired=[link.linker])
 
         try:
@@ -78,7 +79,7 @@ cdef class IndirectProvider(FastProvider):
         else:
             repr_d = debug_repr(dependency)
             return DependencyDebug(f"Static link: {repr_d} -> {debug_repr(target)}",
-                                   singleton=True,
+                                   scope=Scope.singleton(),
                                    dependencies=[target])
 
     cdef fast_provide(self,
@@ -86,26 +87,31 @@ cdef class IndirectProvider(FastProvider):
                       PyObject*container,
                       DependencyResult*result):
         cdef:
-            PyObject*ptr
-            object target
+            PyObject* ptr
+            PyObject* target
 
         ptr = PyDict_GetItem(<PyObject*> self.__static_links, dependency)
-        if ptr != NULL:
+        if ptr:
             (<RawContainer> container).fast_get(ptr, result)
-            if result.flags == 0:
+            result.header |= header_flag_cacheable()
+            if result.value is NULL:
                 raise DependencyNotFoundError(<object> ptr)
         else:
             ptr = PyDict_GetItem(<PyObject*> self.__links, dependency)
-            if ptr != NULL:
-                target = PyObject_CallObject((<Link> ptr).linker, <object> NULL)
-                (<RawContainer> container).fast_get(<PyObject*> target, result)
-                if result.flags == 0:
-                    raise DependencyNotFoundError(target)
-                result.flags &= (<Link> ptr).singleton_flag
+            if ptr:
+                target = PyObject_CallObject(<PyObject*> (<Link> ptr).linker, NULL)
+                (<RawContainer> container).fast_get(target, result)
+                if result.value is NULL:
+                    error = DependencyNotFoundError(<object> target)
+                    Py_XDECREF(target)
+                    raise error
+                result.header = (header_strictest((<Link> ptr).header, result.header)
+                                 | header_flag_cacheable())
                 if (<Link> ptr).permanent:
                     PyDict_SetItem(<PyObject*> self.__static_links,
                                    dependency,
-                                   <PyObject*> target)
+                                   target)
+                Py_XDECREF(target)
 
     def register_static(self, dependency: Hashable, target_dependency: Hashable):
         with self._bound_container_ensure_not_frozen():
@@ -123,9 +129,9 @@ cdef class Link:
     cdef:
         object linker
         bint permanent
-        int singleton_flag
+        Header header
 
     def __init__(self, linker: Callable[[], Hashable], permanent: bool):
         self.linker = linker
         self.permanent = permanent
-        self.singleton_flag = ~0 if permanent else ~FLAG_SINGLETON
+        self.header = header_flag_singleton() if permanent else header_flag_no_scope()

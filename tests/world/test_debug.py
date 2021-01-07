@@ -6,13 +6,16 @@ from antidote._internal.utils import raw_getattr, short_id
 
 
 class DebugTestCase:
-    def __init__(self, value, expected: str, depth: int = -1):
+    def __init__(self, value, expected: str, depth: int = -1, legend: bool = True):
         if expected.startswith('\n'):
             expected = textwrap.dedent(expected[1:])
         lines = expected.splitlines(keepends=True)
         while not lines[-1].strip():
             lines.pop()
 
+        if legend:
+            from antidote._internal.utils.debug import _LEGEND
+            lines.append(_LEGEND)
         self.value = value
         self.expected = ''.join(lines)
         self.depth = depth
@@ -31,7 +34,8 @@ def test_no_debug():
     assert_valid(
         DebugTestCase(
             value=g,
-            expected=f"""{g!r} is neither a dependency nor is anything injected."""
+            expected=f"""{g!r} is neither a dependency nor is anything injected.""",
+            legend=False
         )
     )
 
@@ -68,9 +72,7 @@ def test_implementation_debug():
 
     with world.test.clone():
         undefined_expectations = f"""
-            * Dynamic link: {prefix}.Interface -> ??? defined by {prefix}.g
-
-            * = not singleton
+            <∅> Dynamic link: {prefix}.Interface -> ??? defined by {prefix}.g
         """
 
         @implementation(Interface, permanent=False)
@@ -101,11 +103,9 @@ def test_lazy_call_debug():
                     """
             ),
             DebugTestCase(
-                value=LazyCall(f, singleton=False)("arg", hello="world"),
+                value=LazyCall(f, singleton=False)("arg", bye="world"),
                 expected=f"""
-                    * Lazy: {prefix}.f(*('arg',), **{{'hello': 'world'}})
-
-                    * = not singleton
+                    <∅> Lazy: {prefix}.f(*('arg',), **{{'bye': 'world'}})
                     """
             ))
 
@@ -130,11 +130,9 @@ def test_lazy_call_debug():
             DebugTestCase(
                 value=LazyCall(f, singleton=False),
                 expected=f"""
-                    * Lazy: {prefix}.f()
+                    <∅> Lazy: {prefix}.f()
                     └── {prefix}.f
                         └── {prefix}.MyService
-
-                    * = not singleton
                     """
             )
         )
@@ -239,19 +237,15 @@ def test_tag():
             DebugTestCase(
                 value=tag,
                 expected=f"""
-                * Tag: Tag#{short_id(tag)}
+                <∅> Tag: Tag#{short_id(tag)}
                 └── {prefix}.S1
-
-                * = not singleton
                 """
             ),
             DebugTestCase(
                 value=CustomTag(),
                 expected=f"""
-                * Tag: 'dummy'
+                <∅> Tag: 'dummy'
                 └── {prefix}.S1
-
-                * = not singleton
                 """
             )
         )
@@ -296,23 +290,19 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.DATA2,
                 expected=f"""
-                    * Lazy Method: fetch()
+                    <∅> Lazy Method: fetch()
                     ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
-
-                    * = not singleton
                     """
             ),
             DebugTestCase(
                 value=Conf.KW2,
                 expected=f"""
-                    * Lazy Method: fetch(*(), **{{'value': '2'}})
+                    <∅> Lazy Method: fetch(*(), **{{'value': '2'}})
                     ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
-
-                    * = not singleton
                     """
             )
         )
@@ -323,24 +313,6 @@ def test_constants_debug():
 
     with world.test.new():
         class Conf(Constants):
-            TEST = const('1')
-
-            def get(self, key):
-                return key
-
-        assert_valid(
-            DebugTestCase(
-                value=Conf.TEST,
-                expected=f"""
-            Const: {prefix}.Conf.TEST
-            └── Lazy: {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
-                    """
-            ))
-
-    with world.test.new():
-        class Conf(Constants):
-            __antidote__ = Constants.Conf(public=True)
-
             TEST = const('1')
 
             def get(self, key):
@@ -373,9 +345,40 @@ def test_constants_debug():
             Const: {prefix}.Conf.TEST
             ├── {prefix}.Conf.get
             │   └── {prefix}.MyService
-            └── Lazy: {prefix}.Conf()  #{short_id(raw_getattr(Conf, 'TEST').dependency)}
+            └── {prefix}.Conf
                     """
             ))
+
+
+def test_custom_scope():
+    prefix = "tests.world.test_debug.test_custom_scope.<locals>"
+
+    with world.test.new():
+        dummy_scope = world.scopes.new('dummy')
+
+        class MyService(Service):
+            __antidote__ = Service.Conf(scope=dummy_scope)
+
+        class BigService(Service):
+            @inject
+            def __init__(self, my_service: MyService):
+                pass
+
+        assert_valid(
+            DebugTestCase(
+                value=MyService,
+                expected=f"""
+                    <dummy> {prefix}.MyService
+                    """
+            ),
+            DebugTestCase(
+                value=BigService,
+                expected=f"""
+                    {prefix}.BigService
+                    └──<dummy> {prefix}.MyService
+                    """
+            )
+        )
 
 
 def test_complex_debug():
@@ -441,46 +444,40 @@ def test_complex_debug():
                 value=tag,
                 depth=0,
                 expected=f"""
-                    * Tag: Tag#{short_id(tag)}
-
-                    * = not singleton
+                    <∅> Tag: Tag#{short_id(tag)}
                         """
             ),
             DebugTestCase(
                 value=tag,
                 depth=1,
                 expected=f"""
-                    * Tag: Tag#{short_id(tag)}
+                    <∅> Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
-                    └── * {prefix}.Service3
-
-                    * = not singleton
+                    └──<∅> {prefix}.Service3
                         """
             ),
             DebugTestCase(
                 value=tag,
                 depth=2,
                 expected=f"""
-                    * Tag: Tag#{short_id(tag)}
+                    <∅> Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
-                    │   ├── * {prefix}.Service3
+                    │   ├──<∅> {prefix}.Service3
                     │   ├── {prefix}.Service2 @ {prefix}.build_s2
                     │   └── {prefix}.Service1
-                    └── * {prefix}.Service3
+                    └──<∅> {prefix}.Service3
                         ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         ├── {prefix}.Service2 @ {prefix}.build_s2
                         └── {prefix}.Service1
-
-                    * = not singleton
                         """
             ),
             DebugTestCase(
                 value=tag,
                 depth=3,
                 expected=f"""
-                    * Tag: Tag#{short_id(tag)}
+                    <∅> Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
-                    │   ├── * {prefix}.Service3
+                    │   ├──<∅> {prefix}.Service3
                     │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
                     │   │   ├── {prefix}.Service2 @ {prefix}.build_s2
                     │   │   └── {prefix}.Service1
@@ -488,23 +485,21 @@ def test_complex_debug():
                     │   │   └── {prefix}.build_s2
                     │   │       └── {prefix}.Service1
                     │   └── {prefix}.Service1
-                    └── * {prefix}.Service3
+                    └──<∅> {prefix}.Service3
                         ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         │   └── {prefix}.Service4
                         ├── {prefix}.Service2 @ {prefix}.build_s2
                         │   └── {prefix}.build_s2
                         │       └── {prefix}.Service1
                         └── {prefix}.Service1
-
-                    * = not singleton
                         """
             ),
             DebugTestCase(
                 value=tag,
                 expected=f"""
-                    * Tag: Tag#{short_id(tag)}
+                    <∅> Tag: Tag#{short_id(tag)}
                     ├── {prefix}.Service4
-                    │   ├── * {prefix}.Service3
+                    │   ├──<∅> {prefix}.Service3
                     │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
                     │   │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
                     │   │   ├── {prefix}.Service2 @ {prefix}.build_s2
@@ -515,7 +510,7 @@ def test_complex_debug():
                     │   │   └── {prefix}.build_s2
                     │   │       └── {prefix}.Service1
                     │   └── {prefix}.Service1
-                    └── * {prefix}.Service3
+                    └──<∅> {prefix}.Service3
                         ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         │   └── {prefix}.Service4
                         │       ├── /!\\ Cyclic dependency: {prefix}.Service3
@@ -527,8 +522,6 @@ def test_complex_debug():
                         │   └── {prefix}.build_s2
                         │       └── {prefix}.Service1
                         └── {prefix}.Service1
-
-                    * = not singleton
                         """
             ),
             DebugTestCase(
@@ -536,7 +529,7 @@ def test_complex_debug():
                 expected=f"""
                     {prefix}.f
                     └── {prefix}.Service4
-                        ├── * {prefix}.Service3
+                        ├──<∅> {prefix}.Service3
                         │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
                         │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
                         │   ├── {prefix}.Service2 @ {prefix}.build_s2
@@ -547,8 +540,6 @@ def test_complex_debug():
                         │   └── {prefix}.build_s2
                         │       └── {prefix}.Service1
                         └── {prefix}.Service1
-
-                    * = not singleton
                         """
             ),
             DebugTestCase(

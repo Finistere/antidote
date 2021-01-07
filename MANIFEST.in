@@ -11,7 +11,7 @@ include src/antidote/py.typed
 exclude .travis.yml .readthedocs.yml
 
 # Tests
-include tox.ini .coveragerc conftest.py
+include tox.ini .coveragerc
 recursive-include tests *.py
 include benchmark.ipynb
 

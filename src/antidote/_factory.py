@@ -77,26 +77,26 @@ def _configure_factory(cls: FactoryMeta,
 
     output = get_type_hints(cls.__call__).get('return')
     if output is None:
-        raise ValueError("The return annotation is necessary on __call__."
+        raise ValueError("The return type hint is necessary on __call__."
                          "It is used a the dependency.")
     if not inspect.isclass(output):
-        raise TypeError(f"The return annotation is expected to be a class, "
+        raise TypeError(f"The return type hint is expected to be a class, "
                         f"not {type(output)}.")
+
+    if conf.tags is not None and tag_provider is None:
+        raise RuntimeError("No TagProvider registered, cannot use tags.")
 
     if conf.wiring is not None:
         conf.wiring.wire(cls)
 
     factory_dependency = factory_provider.register(
         output=output,
-        singleton=conf.singleton,
-        factory=Dependency(service(cls, singleton=True)
-                           if conf.public else
-                           LazyCall(cls, singleton=True))
+        scope=conf.scope,
+        factory=Dependency(service(cls, singleton=True))
     )
 
-    if conf.tags is not None:
-        if tag_provider is None:
-            raise RuntimeError("No TagProvider registered, cannot use tags.")
+    if conf.tags:
+        assert tag_provider is not None  # for Mypy
         tag_provider.register(dependency=factory_dependency, tags=conf.tags)
 
     return factory_dependency
@@ -127,18 +127,18 @@ class LambdaFactory:
 
 @API.private
 class PreBuild(FinalImmutable):
-    __slots__ = ('_factory_dependency', '_kwargs')
-    _factory_dependency: FactoryDependency
-    _kwargs: Dict[str, object]
+    __slots__ = ('__factory_dependency', '__kwargs')
+    __factory_dependency: FactoryDependency
+    __kwargs: Dict[str, object]
 
     def __init__(self, factory_dependency: FactoryDependency,
                  kwargs: Dict[str, object]) -> None:
         if not kwargs:
             raise ValueError("When calling with_kwargs(), "
                              "at least one argument must be provided.")
-        super().__init__(_factory_dependency=factory_dependency, _kwargs=kwargs)
+        super().__init__(factory_dependency, kwargs)
 
     def __rmatmul__(self, left_operand: Hashable) -> object:
-        if left_operand is not self._factory_dependency.output:
+        if left_operand is not self.__factory_dependency.output:
             raise ValueError(f"Unsupported output {left_operand}")
-        return Build(self._factory_dependency, self._kwargs)
+        return Build(self.__factory_dependency, self.__kwargs)

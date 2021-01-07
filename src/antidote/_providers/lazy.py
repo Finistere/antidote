@@ -2,9 +2,8 @@ from typing import Hashable
 
 from .._compatibility.typing import final
 from .._internal import API
-from ..core import Container, DependencyInstance, StatelessProvider
+from ..core import Container, DependencyDebug, DependencyInstance, StatelessProvider
 from ..core.exceptions import DebugNotAvailableError
-from ..core.utils import DependencyDebug
 
 
 @API.private

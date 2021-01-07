@@ -1,5 +1,6 @@
-from typing import cast, Generic, Hashable, Sequence, TypeVar
+from typing import cast, Generic, Hashable, Optional, Sequence, TypeVar
 
+from .container import Scope
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import FinalImmutable, Immutable
@@ -66,16 +67,16 @@ class DependencyDebug(FinalImmutable):
     Debug information on a dependency. Used by :py:mod:`.world.debug` to provide runtime
     information for debugging.
     """
-    __slots__ = ('info', 'singleton', 'wired', 'dependencies')
+    __slots__ = ('info', 'scope', 'wired', 'dependencies')
     info: str
-    singleton: bool
+    scope: Optional[Scope]
     wired: Sequence[object]
     dependencies: Sequence[Hashable]
 
     def __init__(self,
                  info: str,
                  *,
-                 singleton: bool,
+                 scope: Optional[Scope] = None,
                  wired: Sequence[object] = tuple(),
                  dependencies: Sequence[Hashable] = tuple()):
         """
@@ -86,11 +87,11 @@ class DependencyDebug(FinalImmutable):
             wired: Every class or function that may have been wired for this dependency.
             dependencies: Any transient dependency, so dependencies of this dependency.
         """
-        super().__init__(info, singleton, wired, dependencies)
+        super().__init__(info, scope, wired, dependencies)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, DependencyDebug) \
                and self.info == other.info \
-               and self.singleton == other.singleton \
+               and self.scope == other.scope \
                and self.wired == other.wired \
                and self.dependencies == other.dependencies  # noqa: E126

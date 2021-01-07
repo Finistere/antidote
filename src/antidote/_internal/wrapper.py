@@ -88,9 +88,9 @@ class InjectedWrapper:
         functools.wraps(wrapped, updated=())(self)  # type: ignore
 
     def __call__(self, *args: object, **kwargs: object) -> object:
-        from .state import get_container
+        from .state import current_container
         kwargs = _inject_kwargs(
-            get_container(),
+            current_container(),
             self.__blueprint,
             self.__injection_offset + len(args),
             kwargs

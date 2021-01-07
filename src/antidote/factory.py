@@ -1,4 +1,3 @@
-import collections.abc as c_abc
 import inspect
 from typing import (Any, Callable, cast, get_type_hints, Hashable, Iterable, Optional,
                     overload, Tuple, TypeVar, Union)
@@ -8,8 +7,8 @@ from ._factory import FactoryMeta, LambdaFactory, PreBuild
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from ._providers import FactoryProvider, Tag, TagProvider
-from .core.injection import DEPENDENCIES_TYPE, inject
-from .core.wiring import Wiring, WithWiringMixin
+from .core import DEPENDENCIES_TYPE, inject, Wiring, WithWiringMixin, Scope
+from .utils import validate_injection, validated_scope, validated_tags
 
 F = TypeVar('F', bound=Callable[..., Any])
 
@@ -115,21 +114,23 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'singleton', 'tags', 'public')
+        __slots__ = ('wiring', 'scope', 'tags', 'public')
         wiring: Optional[Wiring]
-        singleton: bool
+        scope: Optional[Scope]
         tags: Optional[Tuple[Tag]]
-        public: bool
+
+        @property
+        def singleton(self) -> bool:
+            return self.scope is Scope.singleton()
 
         def __init__(self,
                      *,
                      wiring: Optional[Wiring] = Wiring(
                          methods=['__call__'],
-                         attempt_methods=['__init__']
-                     ),
-                     singleton: bool = True,
-                     tags: Optional[Iterable[Tag]] = None,
-                     public: bool = False):
+                         attempt_methods=['__init__']),
+                     singleton: bool = None,
+                     scope: Optional[Scope] = Scope.sentinel(),
+                     tags: Iterable[Tag] = None):
             """
 
             Args:
@@ -141,43 +142,36 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                     to :py:obj:`True`.
                 tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
                       provided dependency.
-                public: Whether the factory instance should be retrievable through
-                    Antidote or not. Defaults to :py:obj:`False`
             """
-            if not isinstance(public, bool):
-                raise TypeError(f"public must be a boolean, "
-                                f"but not a {type(public)}")
-            if not isinstance(singleton, bool):
-                raise TypeError(f"singleton must be a boolean, "
-                                f"but not a {type(singleton)}")
-            if not (tags is None or isinstance(tags, c_abc.Iterable)):
-                raise TypeError(f"tags must be None or an iterable of strings/Tags, "
-                                f"but not a {type(tags)}")
-            elif tags is not None:
-                tags = tuple(tags)
-                if not all(isinstance(t, Tag) for t in tags):
-                    raise TypeError(f"Not all tags were instances of Tag: {tags}")
             if not (wiring is None or isinstance(wiring, Wiring)):
-                raise TypeError(f"wiring must be None or a Wiring, "
-                                f"but not a {type(wiring)}")
-            super().__init__(wiring=wiring, singleton=singleton, tags=tags, public=public)
+                raise TypeError(f"wiring must be a Wiring or None, "
+                                f"not {type(wiring)}")
+
+            super().__init__(wiring=wiring,
+                             scope=validated_scope(scope,
+                                                   singleton,
+                                                   default=Scope.singleton()),
+                             tags=validated_tags(tags))
 
         def copy(self,
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
-                 tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL,
-                 public: Union[bool, Copy] = Copy.IDENTICAL
+                 scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
+                 tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL
                  ) -> 'Factory.Conf':
             """
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
             """
+            if not (singleton is Copy.IDENTICAL or scope is Copy.IDENTICAL):
+                raise TypeError("Use either singleton or scope argument, not both.")
+            if isinstance(singleton, bool):
+                scope = Scope.singleton() if singleton else None
             return Copy.immutable(self,
                                   wiring=wiring,
-                                  singleton=singleton,
-                                  tags=tags,
-                                  public=public)
+                                  scope=scope,
+                                  tags=tags)
 
     __antidote__: Conf = Conf()
     """
@@ -185,12 +179,16 @@ class Factory(metaclass=FactoryMeta, abstract=True):
     :py:meth:`.__call__`.
     """
 
+    def __call__(self) -> object:
+        raise NotImplementedError()  # pragma: no cover
+
 
 @overload
 def factory(f: F,  # noqa: E704  # pragma: no cover
             *,
             auto_wire: bool = True,
-            singleton: bool = True,
+            singleton: bool = None,
+            scope: Optional[Scope] = Scope.sentinel(),
             dependencies: DEPENDENCIES_TYPE = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
@@ -201,7 +199,8 @@ def factory(f: F,  # noqa: E704  # pragma: no cover
 @overload
 def factory(*,  # noqa: E704  # pragma: no cover
             auto_wire: bool = True,
-            singleton: bool = True,
+            singleton: bool = None,
+            scope: Optional[Scope] = Scope.sentinel(),
             dependencies: DEPENDENCIES_TYPE = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
@@ -213,7 +212,8 @@ def factory(*,  # noqa: E704  # pragma: no cover
 def factory(f: F = None,
             *,
             auto_wire: bool = True,
-            singleton: bool = True,
+            singleton: bool = None,
+            scope: Optional[Scope] = Scope.sentinel(),
             dependencies: DEPENDENCIES_TYPE = None,
             use_names: Union[bool, Iterable[str]] = None,
             use_type_hints: Union[bool, Iterable[str]] = None,
@@ -293,6 +293,9 @@ def factory(f: F = None,
         The factory or the function decorator.
 
     """
+    scope = validated_scope(scope, singleton, default=Scope.singleton())
+    tags = validated_tags(tags)
+    validate_injection(dependencies, use_names, use_type_hints)
     if not (auto_wire is None or isinstance(auto_wire, bool)):
         raise TypeError(f"auto_wire can be None or a boolean, not {type(auto_wire)}")
 
@@ -307,11 +310,14 @@ def factory(f: F = None,
 
         output = get_type_hints(func).get('return')
         if output is None:
-            raise ValueError("A return annotation is necessary. "
+            raise ValueError("A return type hint is necessary. "
                              "It is used a the dependency.")
         if not inspect.isclass(output):
-            raise TypeError(f"The return annotation is expected to be a class, "
+            raise TypeError(f"The return type hint is expected to be a class, "
                             f"not {type(output)}.")
+
+        if tags is not None and tag_provider is None:
+            raise RuntimeError("No TagProvider registered, cannot use tags.")
 
         if auto_wire:
             func = inject(func,
@@ -320,12 +326,11 @@ def factory(f: F = None,
                           use_type_hints=use_type_hints)
 
         factory_id = factory_provider.register(factory=func,
-                                               singleton=singleton,
+                                               scope=scope,
                                                output=output)
 
-        if tags is not None:
-            if tag_provider is None:
-                raise RuntimeError("No TagProvider registered, cannot use tags.")
+        if tags:
+            assert tag_provider is not None  # for Mypy
             tag_provider.register(dependency=factory_id, tags=tags)
 
         return cast(FactoryProtocol[F], LambdaFactory(func, factory_id))

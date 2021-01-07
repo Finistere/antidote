@@ -1,4 +1,3 @@
-import collections.abc as c_abc
 from typing import Callable, cast, Iterable, Optional, overload, Tuple, TypeVar, Union
 
 from ._compatibility.typing import final
@@ -7,7 +6,8 @@ from ._internal.utils import Copy, FinalImmutable
 from ._providers import Tag
 from ._service import ServiceMeta
 from .core.exceptions import DuplicateDependencyError
-from .core.wiring import AutoWire, Wiring, WithWiringMixin
+from .core import Wiring, WithWiringMixin, Scope
+from .utils import validated_scope, validated_tags
 
 C = TypeVar('C', bound=type)
 
@@ -71,16 +71,20 @@ class Service(metaclass=ServiceMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'singleton', 'tags', 'factory')
+        __slots__ = ('wiring', 'scope', 'tags', 'factory')
         wiring: Optional[Wiring]
-        singleton: bool
+        scope: Optional[Scope]
         tags: Optional[Tuple[Tag]]
+
+        @property
+        def singleton(self) -> bool:
+            return self.scope is Scope.singleton()
 
         def __init__(self,
                      *,
-                     wiring: Optional[Union[Wiring, AutoWire]] =
-                     Wiring(attempt_methods=['__init__']),
-                     singleton: bool = True,
+                     wiring: Optional[Wiring] = Wiring(attempt_methods=['__init__']),
+                     singleton: bool = None,
+                     scope: Optional[Scope] = Scope.sentinel(),
                      tags: Optional[Iterable[Tag]] = None):
             """
             Args:
@@ -93,32 +97,32 @@ class Service(metaclass=ServiceMeta, abstract=True):
                 tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
                       service.
             """
-            if not isinstance(singleton, bool):
-                raise TypeError(f"singleton can be a boolean, "
-                                f"but not a {type(singleton)}")
-            if not (tags is None or isinstance(tags, c_abc.Iterable)):
-                raise TypeError(f"tags can be None or an iterable of strings/Tags, "
-                                f"but not a {type(tags)}")
-            elif tags is not None:
-                tags = tuple(tags)
-                if not all(isinstance(t, Tag) for t in tags):
-                    raise TypeError(f"Not all tags were instances of Tag: {tags}")
             if not (wiring is None or isinstance(wiring, Wiring)):
-                raise TypeError(f"wiring can be None or a Wiring, "
-                                f"but not a {type(wiring)}")
-            super().__init__(wiring=wiring, singleton=singleton, tags=tags)
+                raise TypeError(f"wiring can be a Wiring or None, "
+                                f"not {type(wiring)}")
+
+            super().__init__(wiring=wiring,
+                             scope=validated_scope(scope,
+                                                   singleton,
+                                                   default=Scope.singleton()),
+                             tags=validated_tags(tags))
 
         def copy(self,
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
+                 scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
                  tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL
                  ) -> 'Service.Conf':
             """
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
             """
-            return Copy.immutable(self, wiring=wiring, singleton=singleton, tags=tags)
+            if not (singleton is Copy.IDENTICAL or scope is Copy.IDENTICAL):
+                raise TypeError("Use either singleton or scope argument, not both.")
+            if isinstance(singleton, bool):
+                scope = Scope.singleton() if singleton else None
+            return Copy.immutable(self, wiring=wiring, scope=scope, tags=tags)
 
     __antidote__: Conf = Conf()
     """
@@ -129,14 +133,16 @@ class Service(metaclass=ServiceMeta, abstract=True):
 @overload
 def service(klass: C,  # noqa: E704  # pragma: no cover
             *,
-            singleton: bool = True,
+            singleton: bool = None,
+            scope: Optional[Scope] = Scope.sentinel(),
             tags: Iterable[Tag] = None
             ) -> C: ...
 
 
 @overload
 def service(*,  # noqa: E704  # pragma: no cover
-            singleton: bool = True,
+            singleton: bool = None,
+            scope: Optional[Scope] = Scope.sentinel(),
             tags: Iterable[Tag] = None
             ) -> Callable[[C], C]: ...
 
@@ -144,7 +150,8 @@ def service(*,  # noqa: E704  # pragma: no cover
 @API.experimental
 def service(klass: C = None,
             *,
-            singleton: bool = True,
+            singleton: bool = None,
+            scope: Optional[Scope] = Scope.sentinel(),
             tags: Iterable[Tag] = None) -> Union[C, Callable[[C], C]]:
     """
     Register a service: the class itself is the dependency. Prefer using
@@ -176,6 +183,8 @@ def service(klass: C = None,
         The class or the class decorator.
 
     """
+    scope = validated_scope(scope, singleton, default=Scope.singleton())
+    tags = validated_tags(tags)
 
     def reg(cls: C) -> C:
         from ._service import _configure_service
@@ -184,10 +193,7 @@ def service(klass: C = None,
             raise DuplicateDependencyError(f"{cls} is already defined as a dependency "
                                            f"by inheriting {Service}")
 
-        _configure_service(cls,
-                           conf=Service.Conf(wiring=None,
-                                             singleton=singleton,
-                                             tags=tags))
+        _configure_service(cls, conf=Service.Conf(wiring=None, scope=scope, tags=tags))
 
         return cast(C, cls)
 

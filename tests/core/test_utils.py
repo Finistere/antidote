@@ -1,6 +1,5 @@
 from antidote import world
-from antidote.core import Dependency, DependencyInstance
-from antidote.core.utils import DependencyDebug
+from antidote.core import Dependency, DependencyDebug, DependencyInstance, Scope
 
 
 def test_dependency():
@@ -12,23 +11,24 @@ def test_dependency():
 
 
 def test_dependency_instance():
-    ref = DependencyInstance("test", singleton=True)
-    assert ref == DependencyInstance("test", singleton=True)
-    assert ref != DependencyInstance("test2", singleton=True)
-    assert ref != DependencyInstance("test", singleton=False)
+    ref = DependencyInstance("test", scope=Scope.singleton())
+    assert ref == DependencyInstance("test", scope=Scope.singleton())
+    assert ref != DependencyInstance("test2", scope=Scope.singleton())
+    assert ref != DependencyInstance("test", scope=None)
 
 
 def test_dependency_debug():
-    ref = DependencyDebug(info="info", singleton=True, wired=[1], dependencies=[2])
-    assert ref == DependencyDebug(info="info", singleton=True, wired=[1],
+    ref = DependencyDebug(info="info", scope=Scope.singleton(), wired=[1],
+                          dependencies=[2])
+    assert ref == DependencyDebug(info="info", scope=Scope.singleton(), wired=[1],
                                   dependencies=[2])
-    assert ref != DependencyDebug(info="info2", singleton=True, wired=[1],
+    assert ref != DependencyDebug(info="info2", scope=Scope.singleton(), wired=[1],
                                   dependencies=[2])
-    assert ref != DependencyDebug(info="info", singleton=False, wired=[1],
+    assert ref != DependencyDebug(info="info", scope=None, wired=[1],
                                   dependencies=[2])
-    assert ref != DependencyDebug(info="info", singleton=True, wired=[10],
+    assert ref != DependencyDebug(info="info", scope=Scope.singleton(), wired=[10],
                                   dependencies=[2])
-    assert ref != DependencyDebug(info="info", singleton=True, wired=[1],
+    assert ref != DependencyDebug(info="info", scope=Scope.singleton(), wired=[1],
                                   dependencies=[20])
 
 

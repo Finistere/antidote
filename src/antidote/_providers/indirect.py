@@ -2,8 +2,7 @@ from typing import Callable, Dict, Hashable, Optional
 
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
-from ..core import Container, DependencyInstance, Provider
-from ..core.utils import DependencyDebug
+from ..core import Container, DependencyDebug, DependencyInstance, Provider, Scope
 
 
 @API.private
@@ -41,17 +40,16 @@ class IndirectProvider(Provider[Hashable]):
                     return DependencyDebug(
                         f"Permanent link: {repr_d} -> {debug_repr(target)} "
                         f"defined by {repr_linker}",
-                        singleton=True,
+                        scope=Scope.singleton(),
                         dependencies=[target])
                 else:
                     return DependencyDebug(
                         f"Permanent link: {repr_d} -> ??? "
                         f"defined by {repr_linker}",
-                        singleton=True)
+                        scope=Scope.singleton())
             else:
                 return DependencyDebug(
                     f"Dynamic link: {repr_d} -> ??? defined by {repr_linker}",
-                    singleton=False,
                     wired=[linker])
 
         try:
@@ -61,7 +59,7 @@ class IndirectProvider(Provider[Hashable]):
         else:
             repr_d = debug_repr(dependency)
             return DependencyDebug(f"Static link: {repr_d} -> {debug_repr(target)}",
-                                   singleton=True,
+                                   scope=Scope.singleton(),
                                    dependencies=[target])
         return None
 
@@ -85,7 +83,7 @@ class IndirectProvider(Provider[Hashable]):
             t = container.provide(target)
             return DependencyInstance(
                 t.value,
-                singleton=t.singleton and link.permanent
+                scope=Scope.singleton() if t.is_singleton() and link.permanent else None
             )
 
         return None
@@ -94,8 +92,13 @@ class IndirectProvider(Provider[Hashable]):
         self._assert_not_duplicate(dependency)
         self.__static_links[dependency] = target_dependency
 
-    def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
-                      permanent: bool = True) -> None:
+    def register_link(self,
+                      dependency: Hashable,
+                      linker: Callable[[], Hashable],
+                      *,
+                      permanent: bool
+                      ) -> None:
+        assert callable(linker)
         self._assert_not_duplicate(dependency)
         self.__links[dependency] = Link(linker, permanent)
 

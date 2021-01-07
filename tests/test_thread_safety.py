@@ -135,7 +135,7 @@ def test_state_init_safety():
     finally:
         world_utils.new_container = old_new_container
 
-    assert state.get_container() is not None
+    assert state.current_container() is not None
     assert called == 1
 
 
@@ -143,7 +143,7 @@ def test_state_override_safety():
     from antidote._internal import state
 
     state.init()
-    container = state.get_container()
+    container = state.current_container()
 
     def create(c):
         assert c is container

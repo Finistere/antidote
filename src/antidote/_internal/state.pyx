@@ -17,11 +17,11 @@ cdef RawContainer fast_get_container():
     assert __container is not None
     return __container
 
-def get_container() -> RawContainer:
+def current_container() -> RawContainer:
     return fast_get_container()
 
 
-def get_overridable_container():
+def current_overridable_container():
     from ..core.container import OverridableRawContainer
     c = fast_get_container()
     if not isinstance(c, OverridableRawContainer):

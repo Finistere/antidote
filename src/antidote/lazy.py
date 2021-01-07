@@ -1,14 +1,14 @@
 import weakref
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 from ._compatibility.typing import final
 from ._internal import API
-from ._internal.utils import debug_repr, short_id, FinalImmutable
+from ._internal.utils import debug_repr, FinalImmutable, short_id
 from ._lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
                     LazyMethodCallWithArgsKwargs)
 from ._providers import Lazy
-from .core import Container, DependencyInstance
-from .core.utils import DependencyDebug
+from .core import Container, DependencyDebug, DependencyInstance, Scope
+from .utils import validated_scope
 
 
 @API.public
@@ -36,11 +36,15 @@ class LazyCall(FinalImmutable, Lazy):
         I'm g
 
     """
-    __slots__ = ('func', 'singleton')
+    __slots__ = ('func', '_scope')
     func: Callable[..., object]
-    singleton: bool
+    _scope: Optional[Scope]
 
-    def __init__(self, func: Callable[..., object], *, singleton: bool = True) -> None:
+    def __init__(self,
+                 func: Callable[..., object],
+                 *,
+                 singleton: bool = None,
+                 scope: Optional[Scope] = Scope.sentinel()) -> None:
         """
         Args:
             func: Function to lazily call, any (keyword-)arguments given by the returned
@@ -49,30 +53,30 @@ class LazyCall(FinalImmutable, Lazy):
                 will only be called once.
         """
         if not callable(func):
-            raise TypeError("func is not callable")
-        if not isinstance(singleton, bool):
-            raise TypeError(f"singleton must be a boolean, not {type(singleton)!r}")
-        super().__init__(func=func, singleton=singleton)
+            raise TypeError(f"func must be a callable, not {type(func)}")
+        super().__init__(func, validated_scope(scope,
+                                               singleton,
+                                               default=Scope.singleton()))
 
     def __call__(self, *args: object, **kwargs: object) -> 'LazyCallWithArgsKwargs':
         """
         All argument are passed on to the lazily called function.
         """
-        return LazyCallWithArgsKwargs(self.func, self.singleton, args, kwargs)
+        return LazyCallWithArgsKwargs(self.func, self._scope, args, kwargs)
 
     def __antidote_debug_repr__(self) -> str:
         s = f"Lazy: {debug_repr(self.func)}()"
-        if self.singleton:
+        if self._scope is not None:
             s += f"  #{short_id(self)}"
         return s
 
     def debug_info(self) -> DependencyDebug:
         return DependencyDebug(self.__antidote_debug_repr__(),
-                               singleton=self.singleton,
+                               scope=self._scope,
                                wired=[self.func])
 
     def lazy_get(self, container: Container) -> DependencyInstance:
-        return DependencyInstance(self.func(), singleton=self.singleton)
+        return DependencyInstance(self.func(), scope=self._scope)
 
 
 @API.public
@@ -115,15 +119,16 @@ class LazyMethodCall(FinalImmutable):
         to declare multiple constants.
 
     """
-    __slots__ = ('method_name', 'singleton', '_cache_attr')
-    method_name: str
-    singleton: bool
-    _cache_attr: str
+    __slots__ = ('_method_name', '_scope', '__cache_attr')
+    _method_name: str
+    _scope: Optional[Scope]
+    __cache_attr: str
 
     def __init__(self,
                  method: Union[Callable[..., object], str],
                  *,
-                 singleton: bool = True) -> None:
+                 singleton: bool = None,
+                 scope: Scope = Scope.sentinel()) -> None:
         """
         Args:
             method: Method name or the method itself that must be called.
@@ -132,36 +137,33 @@ class LazyMethodCall(FinalImmutable):
         """
         if not (callable(method) or isinstance(method, str)):
             raise TypeError("method must be a method or its name")
-        if not isinstance(singleton, bool):
-            raise TypeError(f"singleton must be a boolean, not {type(singleton)!r}")
         super().__init__(
-            method_name=method if isinstance(method, str) else method.__name__,
-            singleton=singleton,
-            _cache_attr=f"__antidote_dependency_{hex(id(self))}"
+            method if isinstance(method, str) else method.__name__,
+            validated_scope(scope, singleton, default=Scope.singleton()),
+            f"__antidote_dependency_{hex(id(self))}"
         )
 
     def __call__(self, *args: object, **kwargs: object) -> 'LazyMethodCallWithArgsKwargs':
         """
         All argument are passed on to the lazily called method.
         """
-        return LazyMethodCallWithArgsKwargs(self.method_name,
-                                            self.singleton,
-                                            args, kwargs)
+        return LazyMethodCallWithArgsKwargs(self._method_name,
+                                            self._scope,
+                                            args,
+                                            kwargs)
 
     def __str__(self) -> str:
-        s = f"Lazy Method: {self.method_name}()"
-        if self.singleton:
+        s = f"Lazy Method: {self._method_name}()"
+        if self._scope is not None:
             s += f"  #{short_id(self)}"
         return s
 
     def __get__(self, instance: object, owner: type) -> object:
         if instance is None:
             try:
-                return getattr(owner, self._cache_attr)
+                return getattr(owner, self.__cache_attr)
             except AttributeError:
-                dependency = LazyMethodCallDependency(self,
-                                                      weakref.ref(owner),
-                                                      self.singleton)
-                setattr(owner, self._cache_attr, dependency)
+                dependency = LazyMethodCallDependency(self, weakref.ref(owner))
+                setattr(owner, self.__cache_attr, dependency)
                 return dependency
-        return getattr(instance, self.method_name)()
+        return getattr(instance, self._method_name)()

@@ -1,9 +1,9 @@
-from .container import Container, DependencyInstance
-from .injection import inject, validate_injection
+from .container import Container, DependencyInstance, Scope
+from .injection import DEPENDENCIES_TYPE, inject
 from .provider import does_not_freeze, Provider, StatelessProvider
-from .utils import Dependency
-from .wiring import wire, Wiring
+from .utils import Dependency, DependencyDebug
+from .wiring import wire, Wiring, WithWiringMixin
 
-__all__ = ['Container', 'DependencyInstance', 'inject', 'validate_injection',
-           'does_not_freeze', 'Provider', 'StatelessProvider', 'Dependency', 'wire',
-           'Wiring']
+__all__ = ['Container', 'DependencyInstance', 'Scope', 'inject', 'DEPENDENCIES_TYPE',
+           'does_not_freeze', 'Provider', 'StatelessProvider', 'Dependency',
+           'DependencyDebug', 'wire', 'Wiring', 'WithWiringMixin']

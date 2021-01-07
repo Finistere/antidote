@@ -1,14 +1,14 @@
 # @formatter:off
 from typing import Hashable
-cimport cython
-from cpython.object cimport PyObject, PyObject_CallMethodObjArgs, PyObject_CallObject
 
-from antidote.core.container cimport (Container, DependencyResult, FastProvider,
-                                      FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox,
-                                      RawContainer, DependencyInstance)
+cimport cython
+from cpython.object cimport PyObject
+
+from antidote.core.container cimport (Container, DependencyInstance, DependencyResult,
+                                     FastProvider)
 from .._internal.utils import debug_repr
-from ..core.exceptions import DebugNotAvailableError, DependencyNotFoundError
-from ..core.utils import DependencyDebug
+from ..core.exceptions import DebugNotAvailableError
+from ..core import DependencyDebug
 
 # @formatter:on
 
@@ -25,9 +25,7 @@ cdef class Lazy:
             DependencyInstance dependency_instance
         dependency_instance = self.lazy_get(<Container> container)
         if dependency_instance is not None:
-            result.flags = FLAG_DEFINED | (
-                FLAG_SINGLETON if dependency_instance.singleton else 0)
-            (<PyObjectBox> result.box).obj = dependency_instance.value
+            dependency_instance.to_result(result)
 
     cpdef lazy_get(self, container: Container):
         raise NotImplementedError()  # pragma: no cover

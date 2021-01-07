@@ -90,7 +90,7 @@ def test_freeze():
         world.singletons.add("test", "x")
 
     with pytest.raises(FrozenWorldError):
-        factory.register(Service)
+        factory.register(Service, scope=None)
 
 
 def test_add_provider():
@@ -98,9 +98,17 @@ def test_add_provider():
     assert world.get(10) == 20
 
 
+def test_no_duplicate_provider():
+    world.provider(DummyIntProvider)
+    assert world.get(10) == 20
+
+    with pytest.raises(ValueError, match=".*already exists.*"):
+        world.provider(DummyIntProvider)
+
+
 @pytest.mark.parametrize('p, expectation', [
-    (1, pytest.raises(TypeError)),
-    (A, pytest.raises(TypeError))
+    (object(), pytest.raises(TypeError, match=".*RawProvider.*")),
+    (A, pytest.raises(TypeError, match=".*RawProvider.*"))
 ])
 def test_invalid_add_provider(p, expectation):
     with expectation:

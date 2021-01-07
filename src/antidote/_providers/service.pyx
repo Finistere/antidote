@@ -3,19 +3,20 @@ from typing import Dict, Hashable
 
 # @formatter:off
 cimport cython
-from cpython.object cimport PyObject_Call, PyObject_CallObject
 from cpython.ref cimport PyObject
 
-from antidote.core.container cimport (DependencyResult, FastProvider,
-                                      FLAG_DEFINED, FLAG_SINGLETON, PyObjectBox )
+from antidote.core.container cimport (DependencyResult, FastProvider, Header, HeaderObject,
+                                      header_flag_no_scope, header_scope, Scope, header_flag_cacheable)
 from .._internal.utils import debug_repr
 # @formatter:on
-from ..core.utils import DependencyDebug
+from ..core import DependencyDebug
 
 cdef extern from "Python.h":
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
     PyObject*Py_True
+    PyObject*PyObject_Call(PyObject *callable, PyObject *args, PyObject *kwargs) except NULL
+    PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
 
 
 @cython.final
@@ -60,7 +61,7 @@ cdef class ServiceProvider(FastProvider):
     def __init__(self):
         super().__init__()
         self.__empty_tuple = tuple()
-        self.__services = dict()  # type: Dict[Hashable, bool]
+        self.__services = dict()  # type: Dict[Hashable, HeaderObject]
 
     def __repr__(self):
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
@@ -78,11 +79,11 @@ cdef class ServiceProvider(FastProvider):
     def maybe_debug(self, build: Hashable):
         klass = build.dependency if isinstance(build, Build) else build
         try:
-            singleton = self.__services[klass]
+            header = self.__services[klass]
         except KeyError:
             return None
         return DependencyDebug(debug_repr(build),
-                               singleton=singleton,
+                               scope=header.to_scope(self._bound_container()),
                                wired=[klass])
 
     cdef fast_provide(self,
@@ -91,35 +92,32 @@ cdef class ServiceProvider(FastProvider):
                       DependencyResult*result):
         cdef:
             PyObject*service
-            PyObject*singleton
+            PyObject*ptr
             tuple args
             object factory
+            int scope_or_singleton
 
         if PyObject_IsInstance(dependency, <PyObject*> Build):
-            singleton = PyDict_GetItem(<PyObject*> self.__services,
-                                       <PyObject*> (<Build> dependency).dependency)
-
-            if singleton == NULL:
-                return
-            (<PyObjectBox> result.box).obj = PyObject_Call(
-                (<Build> dependency).dependency,
-                self.__empty_tuple,
-                (<Build> dependency).kwargs
-            )
+            ptr = PyDict_GetItem(<PyObject*> self.__services,
+                                 <PyObject*> (<Build> dependency).dependency)
+            if ptr:
+                result.header = (<HeaderObject> ptr).header
+                result.value = PyObject_Call(
+                    <PyObject*> (<Build> dependency).dependency,
+                    <PyObject*> self.__empty_tuple,
+                    <PyObject*> (<Build> dependency).kwargs
+                )
         else:
-            singleton = PyDict_GetItem(<PyObject*> self.__services, dependency)
-            if singleton == NULL:
-                return
-            (<PyObjectBox> result.box).obj = PyObject_CallObject(<object> dependency,
-                                                                 <object> NULL)
+            ptr = PyDict_GetItem(<PyObject*> self.__services, dependency)
+            if ptr:
+                result.header = (<HeaderObject> ptr).header | header_flag_cacheable()
+                result.value = PyObject_CallObject( dependency, NULL)
 
-        result.flags = FLAG_DEFINED | (FLAG_SINGLETON if singleton == Py_True else 0)
 
-    def register(self, klass: type, *, singleton: bool = True):
-        if not (isinstance(klass, type) and inspect.isclass(klass)):
-            raise TypeError(f"service must be a class, not {klass!r}")
-        if not isinstance(singleton, bool):
-            raise TypeError(f"singleton must be a boolean, not {singleton!r}")
+    def register(self, klass: type, *, Scope scope):
+        cdef:
+            Header header
+        assert inspect.isclass(klass)
         with self._bound_container_ensure_not_frozen():
             self._bound_container_raise_if_exists(klass)
-            self.__services[klass] = singleton
+            self.__services[klass] = HeaderObject.from_scope(scope)

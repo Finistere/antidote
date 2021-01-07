@@ -11,3 +11,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.check-manifest]
 ignore = ["src/antidote/_internal/scm_version.py"]
+
+[tool.pytest.ini_options]
+markers = ["compiled_only"]

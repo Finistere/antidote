@@ -41,6 +41,6 @@ following:
     3. factories
 
 """
-from ._methods import factory, provider, singleton
+from ._override import factory, provider, singleton
 
 __all__ = ['singleton', 'factory', 'provider']

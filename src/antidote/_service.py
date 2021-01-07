@@ -55,14 +55,15 @@ def _configure_service(cls: type,
         raise TypeError(f"Service configuration (__antidote__) is expected to be a "
                         f"{Service.Conf}, not a {type(conf)}")
 
+    if conf.tags is not None and tag_provider is None:
+        raise RuntimeError("No TagProvider registered, cannot use tags.")
+
     wiring = conf.wiring
 
     if wiring is not None:
         wiring.wire(cls)
 
-    service_provider.register(cls, singleton=conf.singleton)
-
-    if conf.tags is not None:
-        if tag_provider is None:
-            raise RuntimeError("No TagProvider registered, cannot use tags.")
+    service_provider.register(cls, scope=conf.scope)
+    if conf.tags:
+        assert tag_provider is not None  # for Mypy
         tag_provider.register(dependency=cls, tags=conf.tags)

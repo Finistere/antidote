@@ -1,16 +1,24 @@
 import pytest
 
-from antidote import world
+from antidote import Scope, world
 from antidote._providers.service import Build, ServiceProvider
 from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
                                  FrozenWorldError)
 
 
-@pytest.fixture()
+@pytest.fixture
 def provider():
     with world.test.empty():
         world.provider(ServiceProvider)
         yield world.get(ServiceProvider)
+
+
+@pytest.fixture(params=[
+    pytest.param(None, id='scope=None'),
+    pytest.param(Scope.singleton(), id='scope=singleton')
+])
+def scope(request):
+    return request.param
 
 
 class KeepInit:
@@ -61,8 +69,8 @@ def test_build_eq_hash():
         assert a != x
 
 
-def test_simple(provider: ServiceProvider):
-    provider.register(A)
+def test_simple(provider: ServiceProvider, scope: Scope):
+    provider.register(A, scope=scope)
     assert isinstance(world.get(A), A)
     assert repr(A) in repr(provider)
 
@@ -71,42 +79,34 @@ def test_simple(provider: ServiceProvider):
 def test_register(singleton: bool):
     with world.test.empty():
         provider = ServiceProvider()
-        provider.register(A, singleton=singleton)
-        assert world.test.maybe_provide_from(provider, A).singleton is singleton
+        provider.register(A, scope=Scope.singleton() if singleton else None)
+        assert world.test.maybe_provide_from(provider, A).is_singleton() is singleton
         assert isinstance(world.test.maybe_provide_from(provider, A).value, A)
 
 
-def test_build(provider: ServiceProvider):
-    provider.register(A)
+def test_build(provider: ServiceProvider, scope: Scope):
+    provider.register(A, scope=scope)
 
     s = world.get(Build(A, dict(val=object)))
     assert isinstance(s, A)
     assert dict(val=object) == s.kwargs
 
 
-def test_duplicate_error(provider: ServiceProvider):
-    provider.register(A)
+def test_duplicate_error(provider: ServiceProvider, scope: Scope):
+    provider.register(A, scope=scope)
 
     with pytest.raises(DuplicateDependencyError):
-        provider.register(A)
-
-
-def test_invalid_type(provider: ServiceProvider):
-    with pytest.raises(TypeError, match=".*service.*"):
-        provider.register(object())
-
-    with pytest.raises(TypeError, match=".*singleton.*"):
-        provider.register(A, singleton=object())
+        provider.register(A, scope=scope)
 
 
 @pytest.mark.parametrize('keep_singletons_cache', [True, False])
 def test_copy(provider: ServiceProvider,
-              keep_singletons_cache: bool):
+              keep_singletons_cache: bool, scope: Scope):
     class C:
         pass
 
     world.singletons.add('factory', lambda: C())
-    provider.register(A)
+    provider.register(A, scope=scope)
 
     cloned = provider.clone(keep_singletons_cache)
     if keep_singletons_cache:
@@ -123,27 +123,41 @@ def test_copy(provider: ServiceProvider,
         pass
 
     # changing original does not change cloned
-    provider.register(D)
+    provider.register(D, scope=scope)
     assert isinstance(world.get(D), D)
     assert world.test.maybe_provide_from(cloned, D) is None
 
     # changing cloned does not change original
-    cloned.register(E)
+    cloned.register(E, scope=scope)
     assert isinstance(world.test.maybe_provide_from(cloned, E).value, E)
     with pytest.raises(DependencyNotFoundError):
         world.get(E)
 
 
-def test_freeze(provider: ServiceProvider):
+def test_freeze(provider: ServiceProvider, scope: Scope):
     world.freeze()
 
     with pytest.raises(FrozenWorldError):
-        provider.register(A)
+        provider.register(A, scope=scope)
 
 
-def test_exists(provider: ServiceProvider):
-    provider.register(A)
+def test_exists(provider: ServiceProvider, scope: Scope):
+    provider.register(A, scope=scope)
     assert not provider.exists(object())
     assert provider.exists(A)
     assert provider.exists(Build(A, dict(a=1)))
     assert not provider.exists(Build(B, dict(a=1)))
+
+
+def test_custom_scope(provider: ServiceProvider):
+    dummy_scope = world.scopes.new('dummy')
+
+    class MyService:
+        pass
+
+    provider.register(MyService, scope=dummy_scope)
+
+    my_service = world.get(MyService)
+    assert my_service is world.get(MyService)
+    world.scopes.reset(dummy_scope)
+    assert my_service is not world.get(MyService)

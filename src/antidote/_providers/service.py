@@ -3,8 +3,7 @@ from typing import cast, Dict, Hashable, Optional
 
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
-from ..core import Container, DependencyInstance, Provider
-from ..core.utils import DependencyDebug
+from ..core import Container, DependencyDebug, DependencyInstance, Provider, Scope
 
 
 @API.private
@@ -47,7 +46,7 @@ class Build(FinalImmutable):
 class ServiceProvider(Provider[Hashable]):
     def __init__(self) -> None:
         super().__init__()
-        self.__services: Dict[Hashable, bool] = dict()
+        self.__services: Dict[Hashable, Optional[Scope]] = dict()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
@@ -65,18 +64,18 @@ class ServiceProvider(Provider[Hashable]):
     def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
         klass = build.dependency if isinstance(build, Build) else build
         try:
-            singleton = self.__services[klass]
+            scope = self.__services[klass]
         except KeyError:
             return None
         return DependencyDebug(debug_repr(build),
-                               singleton=singleton,
+                               scope=scope,
                                wired=[klass])
 
     def maybe_provide(self, build: Hashable, container: Container
                       ) -> Optional[DependencyInstance]:
         dependency = build.dependency if isinstance(build, Build) else build
         try:
-            singleton = self.__services[dependency]
+            scope = self.__services[dependency]
         except KeyError:
             return None
 
@@ -86,12 +85,13 @@ class ServiceProvider(Provider[Hashable]):
         else:
             instance = klass()
 
-        return DependencyInstance(instance, singleton=singleton)
+        return DependencyInstance(instance, scope=scope)
 
-    def register(self, klass: type, *, singleton: bool = True) -> None:
-        if not (isinstance(klass, type) and inspect.isclass(klass)):
-            raise TypeError(f"service must be a class, not {klass!r}")
-        if not isinstance(singleton, bool):
-            raise TypeError(f"singleton must be a boolean, not {singleton!r}")
+    def register(self,
+                 klass: type,
+                 *,
+                 scope: Optional[Scope]
+                 ) -> None:
+        assert inspect.isclass(klass)
         self._assert_not_duplicate(klass)
-        self.__services[klass] = singleton
+        self.__services[klass] = scope

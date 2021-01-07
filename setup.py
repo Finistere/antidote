@@ -55,7 +55,8 @@ if os.environ.get("ANTIDOTE_COMPILED") == "true":
                             compiler_directives=dict(language_level=3,
                                                      boundscheck=False,
                                                      wraparound=False,
-                                                     annotation_typing=False),
+                                                     annotation_typing=False,
+                                                     cdivision=True),
                             **cythonize_extras)
 
 setup(

@@ -1,7 +1,9 @@
+from typing import Dict, Hashable, Optional
+
 import pytest
 
-from antidote.core.container import (DependencyInstance, RawContainer,
-                                     RawProvider)
+from antidote.core.container import (Container, DependencyInstance, RawContainer,
+                                     RawProvider, Scope)
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.core.utils import DependencyDebug
 from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
@@ -36,10 +38,16 @@ def container():
 
 def test_dependency_repr():
     o = object()
-    d = DependencyInstance(o, singleton=False)
+    d = DependencyInstance(o, scope=Scope.singleton())
 
-    assert repr(False) in repr(d)
+    assert 'singleton' in repr(d)
     assert repr(o) in repr(d)
+
+
+def test_scope_repr():
+    s = Scope("test")
+    assert "test" in repr(s)
+    assert "test" in str(s)
 
 
 def test_add_singletons(container: RawContainer):
@@ -48,7 +56,7 @@ def test_add_singletons(container: RawContainer):
     container.add_singletons({'x': x, 'y': y})
 
     assert container.provide('x').value is x
-    assert container.provide('x').singleton is True
+    assert container.provide('x').scope is Scope.singleton()
     assert container.get('y') is y
 
 
@@ -63,7 +71,7 @@ def test_duplicate_singletons(container: RawContainer):
     assert container.get('x') is x
 
 
-def test_getitem(container: RawContainer):
+def test_get(container: RawContainer):
     container.add_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
         A: lambda _: A(),
@@ -94,13 +102,13 @@ def test_singleton(container: RawContainer):
     service = container.get(A)
     assert container.get(A) is service
     assert container.provide(A).value is service
-    assert container.provide(A).singleton is True
+    assert container.provide(A).scope is Scope.singleton()
 
     container.get(DummyFactoryProvider).singleton = False
     another_service = container.get(B)
     assert container.get(B) is not another_service
     assert container.provide(B).value is not another_service
-    assert container.provide(B).singleton is False
+    assert container.provide(B).scope is None
 
     assert container.get(A) == service
 
@@ -142,7 +150,7 @@ def test_dependency_instantiation_error(container: RawContainer):
         container.get(A)
 
 
-def test_providers(container: RawContainer):
+def test_providers_property(container: RawContainer):
     x = object()
     container.add_provider(DummyProvider)
     container.get(DummyProvider).data = dict(x=x)
@@ -157,6 +165,16 @@ def test_providers(container: RawContainer):
             assert 'y' in provider.data
 
 
+def test_scope_property(container: RawContainer):
+    assert container.scopes == []
+
+    s1 = container.create_scope('1')
+    assert container.scopes == [s1]
+
+    s2 = container.create_scope('2')
+    assert container.scopes == [s1, s2]
+
+
 def test_repr_str(container: RawContainer):
     container.add_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
@@ -165,39 +183,6 @@ def test_repr_str(container: RawContainer):
     assert 'test' in repr(container)
     assert repr(container.get(DummyProvider)) in repr(container)
     assert str(container.get(DummyProvider)) in str(container)
-
-
-def test_invalid_provider(container: RawContainer):
-    with pytest.raises(TypeError):
-        container.add_provider(object)
-
-    # Cannot register twice the same kind of provider
-    container.add_provider(DummyProvider)
-    with pytest.raises(ValueError):
-        container.add_provider(DummyProvider)
-
-
-def test_clone(container: RawContainer):
-    container.add_provider(DummyProvider)
-    container.get(DummyProvider).data = {'name': 'Antidote'}
-    container.add_singletons({'test': object()})
-
-    cloned = container.clone(keep_singletons=True)
-    assert cloned.get('test') is container.get('test')
-    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
-
-    cloned.add_singletons({'test2': 2})
-    with pytest.raises(DependencyNotFoundError):
-        container.get("test2")
-
-    cloned = container.clone(keep_singletons=False)
-    with pytest.raises(DependencyNotFoundError):
-        cloned.get("test")
-    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
-
-    cloned.add_singletons({'test2': 2})
-    with pytest.raises(DependencyNotFoundError):
-        container.get("test2")
 
 
 def test_freeze(container: RawContainer):
@@ -228,6 +213,31 @@ def test_provider_property(container: RawContainer):
     assert container.providers == [container.get(DummyProvider)]
 
 
+def test_clone_keep_singletons(container: RawContainer):
+    container.add_provider(DummyProvider)
+    container.get(DummyProvider).data = {'name': 'Antidote'}
+    container.add_singletons({'test': object()})
+
+    cloned = container.clone(keep_singletons=True,
+                             keep_scopes=False)
+    assert cloned.get('test') is container.get('test')
+    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
+
+    cloned.add_singletons({'test2': 2})
+    with pytest.raises(DependencyNotFoundError):
+        container.get("test2")
+
+    cloned = container.clone(keep_singletons=False,
+                             keep_scopes=False)
+    with pytest.raises(DependencyNotFoundError):
+        cloned.get("test")
+    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
+
+    cloned.add_singletons({'test2': 2})
+    with pytest.raises(DependencyNotFoundError):
+        container.get("test2")
+
+
 def test_providers_must_properly_clone(container: RawContainer):
     class DummySelf(RawProvider):
         def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
@@ -236,7 +246,8 @@ def test_providers_must_properly_clone(container: RawContainer):
     container.add_provider(DummySelf)
 
     with pytest.raises(RuntimeError, match="(?i).*provider.*instance.*"):
-        container.clone()
+        container.clone(keep_singletons=False,
+                        keep_scopes=False)
 
 
 def test_providers_must_properly_clone2(container: RawContainer):
@@ -249,19 +260,8 @@ def test_providers_must_properly_clone2(container: RawContainer):
 
     container.add_provider(DummyRegistered)
     with pytest.raises(RuntimeError, match="(?i).*provider.*fresh instance.*"):
-        container.clone()
-
-
-def test_clone_providers(container: RawContainer):
-    container.add_provider(DummyProvider)
-    data = dict(name='antidote')
-    container.get(DummyProvider).data = data
-
-    cloned = container.clone(clone_providers=True)
-    assert cloned.get(DummyProvider).data == data
-
-    cloned2 = container.clone(clone_providers=False)
-    assert cloned2.get(DummyProvider).data is None
+        container.clone(keep_singletons=False,
+                        keep_scopes=False)
 
 
 @pytest.mark.filterwarnings("ignore:Debug information")
@@ -279,10 +279,53 @@ def test_raise_if_exists(container: RawContainer):
 
     class DummyProviderWithDebug(DummyProvider):
         def debug(self, dependency) -> DependencyDebug:
-            return DependencyDebug("debug_info", singleton=True)
+            return DependencyDebug("debug_info", scope=Scope.singleton())
 
     container.add_provider(DummyProviderWithDebug)
     container.get(DummyProviderWithDebug).data = {'hello': 'world'}
     with pytest.raises(DuplicateDependencyError,
                        match=".*DummyProviderWithDebug.*\\ndebug_info"):
         container.raise_if_exists('hello')
+
+
+def test_scope(container: RawContainer):
+    class ScopeProvider(RawProvider):
+        dependencies: Dict[object, DependencyInstance] = {}
+
+        def exists(self, dependency):
+            return dependency in self.dependencies
+
+        def maybe_provide(self, dependency: Hashable, container: Container
+                          ) -> Optional[DependencyInstance]:
+            try:
+                return self.dependencies[dependency]
+            except KeyError:
+                return None
+
+    container.add_provider(ScopeProvider)
+
+    scope = container.create_scope('dummy')
+    x = object()
+    y = object()
+    ScopeProvider.dependencies[1] = DependencyInstance(x, scope=scope)
+    assert container.get(1) is x
+
+    ScopeProvider.dependencies[1] = DependencyInstance(y, scope=scope)
+    # Using cache
+    assert container.get(1) is x
+    assert container.provide(1) == DependencyInstance(x, scope=scope)
+
+    container.reset_scope(scope)
+    assert container.get(1) is y
+    assert container.provide(1) == DependencyInstance(y, scope=scope)
+
+
+def test_sanity_checks(container: RawContainer):
+    # Cannot register twice the same kind of provider
+    container.add_provider(DummyProvider)
+    with pytest.raises(AssertionError):
+        container.add_provider(DummyProvider)
+
+    container.create_scope('test')
+    with pytest.raises(AssertionError):
+        container.create_scope('test')

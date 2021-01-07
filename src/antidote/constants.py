@@ -56,18 +56,14 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         """
         __slots__ = ('wiring', 'public', 'auto_cast')
         wiring: Optional[Wiring]
-        public: bool
         auto_cast: FrozenSet[type]
 
         def __init__(self,
                      *,
-                     public: bool = False,
                      auto_cast: Union[Iterable[type], bool] = True,
                      wiring: Optional[Wiring] = Wiring(attempt_methods=['__init__'])):
             """
             Args:
-                public: Whether the Constants instance is available through Antidote like
-                    a service or not. Defaults to :py:obj:`False`.
                 wiring: :py:class:`Wiring` used on the class. Defaults to wire only
                     :code:`__init__()`.
                 auto_cast: When the type of the constant is specified with
@@ -77,10 +73,6 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                     change the types for which it's done by specifying explicitly those
                     types.
             """
-            if not isinstance(public, bool):
-                raise TypeError(f"public must be a boolean, "
-                                f"not a {type(public)}")
-
             if not (wiring is None or isinstance(wiring, Wiring)):
                 raise TypeError(f"wiring can be None or a Wiring, "
                                 f"but not a {type(wiring)}")
@@ -97,15 +89,14 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
             else:
                 raise TypeError("auto_cast must a boolean or a iterable of types")
 
-            super().__init__(wiring=wiring, public=public, auto_cast=auto_cast)
+            super().__init__(wiring=wiring, auto_cast=auto_cast)
 
         def copy(self,
                  *,
-                 public: Union[bool, Copy] = Copy.IDENTICAL,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  auto_cast: Union[Union[Sequence[type], bool], Copy] = Copy.IDENTICAL
                  ) -> 'Constants.Conf':
-            return Copy.immutable(self, public=public, wiring=wiring, auto_cast=auto_cast)
+            return Copy.immutable(self, wiring=wiring, auto_cast=auto_cast)
 
     __antidote__: Conf = Conf()
 

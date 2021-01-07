@@ -56,9 +56,9 @@ def test_tagged_dependencies():
         })
         tag = Tag()
 
-        from antidote._internal.state import get_container
+        from antidote._internal.state import current_container
         t = Tagged(
-            container=get_container(),
+            container=current_container(),
             dependencies=['d', 'd2'],
             tags=[tag, tag]
         )
@@ -82,9 +82,9 @@ def test_tagged_dependencies_invalid_dependency():
     with world.test.empty():
         tag = Tag()
 
-        from antidote._internal.state import get_container
+        from antidote._internal.state import current_container
         t = Tagged(
-            container=get_container(),
+            container=current_container(),
             dependencies=['d'],
             tags=[tag]
         )
@@ -128,7 +128,7 @@ def test_provide_tags():
 
         result = world.test.maybe_provide_from(provider, tagA)
         assert isinstance(result, DependencyInstance)
-        assert result.singleton is False
+        assert not result.is_singleton()
         tagged_dependencies: Tagged = result.value
         assert len(tagged_dependencies) == 1
         assert set(tagged_dependencies.tags()) == {tagA}
@@ -136,7 +136,7 @@ def test_provide_tags():
 
         result = world.test.maybe_provide_from(provider, tagB)
         assert isinstance(result, DependencyInstance)
-        assert result.singleton is False
+        assert not result.is_singleton()
         tagged_dependencies: Tagged = result.value
         assert len(tagged_dependencies) == 2
         assert {(tagB, world.get('test')),

@@ -19,17 +19,17 @@ if TYPE_CHECKING:
 @final
 class WorldGet(metaclass=FinalMeta):
     def __call__(self, dependency: Hashable) -> Any:
-        from ..state import get_container
-        return get_container().get(dependency)
+        from ..state import current_container
+        return current_container().get(dependency)
 
     def __getitem__(self,
                     tpe: Type[T]
                     ) -> 'Callable[[DefaultArg(object)], T]':
         def f(dependency: Hashable = None) -> T:
-            from ..state import get_container
+            from ..state import current_container
             if dependency is None:
                 dependency = tpe  # type: ignore
-            return cast(T, get_container().get(dependency))
+            return cast(T, current_container().get(dependency))
 
         return f
 
@@ -52,17 +52,18 @@ class WorldLazy(metaclass=FinalMeta):
 
 
 @API.private
-def new_container() -> RawContainer:
+def new_container(*, empty: bool = False) -> RawContainer:
     """ default new container in Antidote """
 
     from ..._providers import (LazyProvider, ServiceProvider, TagProvider,
                                IndirectProvider, FactoryProvider)
 
     container = RawContainer()
-    container.add_provider(FactoryProvider)
-    container.add_provider(ServiceProvider)
-    container.add_provider(LazyProvider)
-    container.add_provider(IndirectProvider)
-    container.add_provider(TagProvider)
+    if not empty:
+        container.add_provider(FactoryProvider)
+        container.add_provider(LazyProvider)
+        container.add_provider(IndirectProvider)
+        container.add_provider(TagProvider)
+        container.add_provider(ServiceProvider)
 
     return container

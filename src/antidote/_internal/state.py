@@ -11,12 +11,12 @@ __container: Optional[RawContainer] = None
 __container_lock = threading.RLock()
 
 
-def get_container() -> RawContainer:
+def current_container() -> RawContainer:
     assert __container is not None
     return __container
 
 
-def get_overridable_container() -> OverridableRawContainer:
+def current_overridable_container() -> OverridableRawContainer:
     assert __container is not None
     if not isinstance(__container, OverridableRawContainer):
         raise RuntimeError("Current world does not support overrides. "

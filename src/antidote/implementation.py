@@ -5,9 +5,9 @@ from typing import Callable, Iterable, TypeVar, Union
 from ._implementation import ImplementationMeta
 from ._internal import API
 from ._providers import IndirectProvider
-from .core import inject
-from .core.injection import DEPENDENCIES_TYPE
+from .core import inject, DEPENDENCIES_TYPE
 from .service import Service
+from .utils import validate_injection
 
 F = TypeVar('F', bound=Callable[[], type])
 C = TypeVar('C', bound=type)
@@ -95,11 +95,13 @@ def implementation(interface: type,
     Returns:
         The decorated function, unmodified.
     """
+    validate_injection(dependencies, use_names, use_type_hints)
+    if not isinstance(permanent, bool):
+        raise TypeError(f"permanent must be a bool, not {type(permanent)}")
     if not inspect.isclass(interface):
-        raise TypeError(f"interface must be a class, not a {type(interface)}")
-
+        raise TypeError(f"interface must be a class, not {type(interface)}")
     if not (auto_wire is None or isinstance(auto_wire, bool)):
-        raise TypeError(f"auto_wire can be None or a boolean, not {type(auto_wire)}")
+        raise TypeError(f"auto_wire must be a boolean or None, not {type(auto_wire)}")
 
     @inject
     def register(func: F, indirect_provider: IndirectProvider = None) -> F:

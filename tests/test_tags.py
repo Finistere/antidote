@@ -1,18 +1,16 @@
-from typing import cast
+from typing import cast, Callable, Sequence
 
 import pytest
 
 from antidote import (Factory, factory, Service, Tag, Tagged,
-                      world)
+                      world, service)
+from antidote._providers import FactoryProvider, ServiceProvider
 
 
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.new():
         yield
-
-
-tag = Tag()
 
 
 class A:
@@ -23,56 +21,83 @@ class B:
     pass
 
 
-def test_tags():
-    @factory(tags=[tag])
-    def build_a() -> A:
-        return A()
+class C:
+    pass
 
-    class BFactory(Factory):
-        __antidote__ = Factory.Conf(tags=[tag])
 
-        def __call__(self) -> B:
-            return B()
+Builder = Callable[[Sequence[Tag]], type]
 
-    class X(Service):
-        __antidote__ = Service.Conf(tags=[tag])
+
+@pytest.fixture(params=['factory', 'Factory', 'service', 'Service'])
+def builder(request):
+    tpe = request.param
+    if tpe == 'factory':
+        def f(tags):
+            @factory(tags=tags)
+            def build_a() -> A:
+                return A()
+
+            return A @ build_a
+    elif tpe == 'Factory':
+        def f(tags):
+            class BFactory(Factory):
+                __antidote__ = Factory.Conf(tags=tags)
+
+                def __call__(self) -> B:
+                    return B()
+
+            return B @ BFactory
+    elif tpe == 'service':
+        def f(tags):
+            service(C, tags=tags)
+            return C
+    elif tpe == 'Service':
+        def f(tags):
+            class X(Service):
+                __antidote__ = Service.Conf(tags=tags)
+
+            return X
+    else:
+        raise ValueError(tpe)
+    return f
+
+
+def test_tags(builder: Builder):
+    tag = Tag()
+    dep = builder([tag])
 
     tagged = cast(Tagged, world.get(tag))
 
-    assert len(tagged) == 3
-    assert list(tagged.tags()) == [tag, tag, tag]
-    assert set(tagged.values()) == {world.get(A @ build_a),
-                                    world.get(B @ BFactory),
-                                    world.get(X)}
+    assert len(tagged) == 1
+    assert list(tagged.tags()) == [tag]
+    assert set(tagged.values()) == {world.get(dep)}
 
 
-def test_multiple_tags():
+def test_missing_tag_provider(builder: Builder):
+    tag = Tag()
+
+    with world.test.empty():
+        world.provider(FactoryProvider)
+        world.provider(ServiceProvider)
+
+        with pytest.raises(RuntimeError, match=".*TagProvider.*"):
+            builder([tag])
+
+
+def test_multiple_tags(builder: Builder):
+    tag = Tag()
     tag2 = Tag()
     tags = [tag, tag2]
-
-    @factory(tags=tags)
-    def build_a() -> A:
-        return A()
-
-    class BFactory(Factory):
-        __antidote__ = Factory.Conf(tags=tags)
-
-        def __call__(self) -> B:
-            return B()
-
-    class X(Service):
-        __antidote__ = Service.Conf(tags=tags)
+    dep = builder(tags)
 
     for t in tags:
         tagged = cast(Tagged, world.get(t))
-        assert len(tagged) == 3
-        assert list(tagged.tags()) == [t, t, t]
-        assert set(tagged.values()) == {world.get(A @ build_a),
-                                        world.get(B @ BFactory),
-                                        world.get(X)}
+        assert len(tagged) == 1
+        assert list(tagged.tags()) == [t]
+        assert set(tagged.values()) == {world.get(dep)}
 
 
-def test_custom_tags():
+def test_custom_tags(builder: Builder):
     class CustomTag(Tag):
         __slots__ = ('name', 'attr')
         name: str
@@ -84,29 +109,21 @@ def test_custom_tags():
         def group(self):
             return self.name
 
-    tag1 = CustomTag('my_tag', attr=1)
+    tag = CustomTag('my_tag', attr=1)
 
-    @factory(tags=[tag1])
-    def build_a() -> A:
-        return A()
-
-    tag2 = CustomTag('my_tag', attr=2)
-
-    class BFactory(Factory):
-        __antidote__ = Factory.Conf(tags=[tag2])
-
-        def __call__(self) -> B:
-            return B()
-
-    tag3 = CustomTag('my_tag', attr=3)
-
-    class X(Service):
-        __antidote__ = Service.Conf(tags=[tag3])
+    dep = builder([tag])
 
     tagged = cast(Tagged, world.get(CustomTag('my_tag')))
-    assert len(tagged) == 3
-    assert set(tagged.items()) == {
-        (tag1, world.get(A @ build_a)),
-        (tag2, world.get(B @ BFactory)),
-        (tag3, world.get(X))
-    }
+    assert len(tagged) == 1
+    assert set(tagged.items()) == {(tag, world.get(dep))}
+
+
+@pytest.mark.parametrize('expectation, tags', [
+    pytest.param(pytest.raises(TypeError, match=".*tags.*"), object(), id='object'),
+    pytest.param(pytest.raises(TypeError, match=".*tags.*"), Tag(), id='single tag'),
+    pytest.param(pytest.raises(TypeError, match=".*tags.*"), [1], id='list of int'),
+    pytest.param(pytest.raises(TypeError, match=".*tags.*"), [Tag(), ''], id='mixed list')
+])
+def test_invalid_tags(expectation, tags, builder: Builder):
+    with expectation:
+        builder(tags)
