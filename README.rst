@@ -78,7 +78,7 @@ How does injection looks like ? Here is a simple example:
 
     class Conf(Constants):
         DB_HOST = const[str]('host')
-        DB_HOST_UNTYPED = const('host')
+        DB_HOST_WITHOUT_TYPE_HINT = const('host')
 
         def __init__(self):
             self._data = {'host': 'localhost:6789'}
@@ -206,9 +206,7 @@ That looks all good, but what about testability ?
 
     # When testing you can also override locally some dependencies:
     with world.test.clone(overridable=True, keep_singletons=True):
-        world.test.override.singleton({
-            Conf.IMDB_HOST: 'other host'
-        })
+        world.test.override.singleton(Conf.IMDB_HOST, 'other host')
         f()
 
 If you ever need to debug your dependency injections, Antidote also provides a tool to
@@ -222,20 +220,22 @@ you encounter cyclic dependencies for example.
     """
     f
     └── Static link: MovieDB -> IMDBMovieDB
-        └── * IMDBMovieDB
+        └──<∅> IMDBMovieDB
             └── ImdbAPI @ imdb_factory
                 └── imdb_factory
                     ├── Const: Conf.IMDB_API_KEY
-                    │   └── Lazy: Conf()  #yIlnAQ
+                    │   └── Conf
                     │       └── Singleton: 'conf_path' -> '/etc/app.conf'
                     ├── Const: Conf.IMDB_PORT
-                    │   └── Lazy: Conf()  #yIlnAQ
+                    │   └── Conf
                     │       └── Singleton: 'conf_path' -> '/etc/app.conf'
                     └── Const: Conf.IMDB_HOST
-                        └── Lazy: Conf()  #yIlnAQ
+                        └── Conf
                             └── Singleton: 'conf_path' -> '/etc/app.conf'
 
-    * = not singleton
+    Singletons have no scope markers.
+    <∅> = no scope (new instance each time)
+    <name> = custom scope
     """
 
 
