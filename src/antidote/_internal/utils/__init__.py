@@ -1,5 +1,5 @@
 import enum
-from typing import overload, TypeVar, Union
+from typing import Set, TypeVar
 
 from .debug import debug_repr, short_id
 from .immutable import FinalImmutable, Immutable
@@ -11,8 +11,22 @@ Im = TypeVar('Im', bound=Immutable)
 
 
 @API.private
+class Default(enum.Enum):
+    sentinel = enum.auto()
+
+
+@API.private
+class YesSet(Set[object]):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def __contains__(self, item: object) -> bool:
+        return True
+
+
+@API.private
 class Copy(enum.Enum):
-    IDENTICAL = object()
+    IDENTICAL = enum.auto()
 
     @staticmethod
     def immutable(current: Im, **kwargs: object) -> Im:
@@ -22,39 +36,5 @@ class Copy(enum.Enum):
         })
 
 
-@API.private
-def raw_getattr(cls: type, attr: str, with_super: bool = False) -> object:
-    """
-    Used to retrieve the 'raw' attribute from a class, typically the descriptor itself
-    and not whatever it outputs.
-
-    Args:
-        cls: Class from which an attribute must be retrieved
-        attr: Name of the attribute
-        with_super: Whether the attribute must be search in the whole inheritance
-        hierarchy or not.
-
-    Returns:
-        The attribute or raises a KeyError.
-    """
-    if with_super:
-        for c in cls.__mro__:
-            try:
-                return c.__dict__[attr]
-            except KeyError:
-                pass
-
-        raise AttributeError(f"{cls} has no attribute '{attr}'")
-    else:
-        try:
-            return cls.__dict__[attr]
-        except KeyError:
-            pass
-        raise AttributeError(
-            f"Attribute '{attr}' is not defined in {cls}. "
-            f"Mother classes are not taken into account. "
-            f"This may indicate that 'wire_super' is not configured properly.")
-
-
 __all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
-           'FinalMeta', 'SlotRecord', 'API', 'Copy', 'raw_getattr']
+           'FinalMeta', 'SlotRecord', 'API', 'Default', 'Copy', 'YesSet']

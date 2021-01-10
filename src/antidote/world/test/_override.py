@@ -1,8 +1,8 @@
-from typing import (Any, Callable, Dict, Hashable, Optional, overload, TypeVar, Union,
-                    get_type_hints)
+from typing import (Any, Callable, Dict, Hashable, Optional, TypeVar, Union, overload)
 
+from ..._compatibility.typing import get_type_hints
 from ..._internal import API, state
-from ...core.container import (DependencyInstance, Scope)
+from ...core.container import (DependencyValue, Scope)
 from ...utils import validated_scope
 
 __sentinel = object()
@@ -31,7 +31,7 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
         >>> world.singletons.add("test", 1)
         >>> world.get[int]("test")
         1
-        >>> with world.test.clone(overridable=True):
+        >>> with world.test.clone():
         ...     world.test.override.singleton("test", 2)
         ...     world.test.override.singleton({'test': 2})
         ...     world.get[int]("test")
@@ -78,7 +78,7 @@ def factory(dependency: Hashable = None,
         >>> world.singletons.add("test", 1)
         >>> world.get[int]("test")
         1
-        >>> with world.test.clone(overridable=True):
+        >>> with world.test.clone():
         ...     @world.test.override.factory('test', singleton=True)
         ...     def test():
         ...         return 2
@@ -87,11 +87,26 @@ def factory(dependency: Hashable = None,
         >>> # Overrides works only within the test world.
         ... world.get[int]("test")
         1
+        >>> class Dummy:
+        ...     pass
+        >>> with world.test.clone():
+        ...     # If not specified explicitly, the return type hint will be used
+        ...     # as the dependency.
+        ...     @world.test.override.factory()
+        ...     def test() -> Dummy:
+        ...         return Dummy()
+        ...     world.get[Dummy]()
+        <Dummy ...>
 
     Args:
         dependency: Dependency to override.
-        singleton: Whether the output returned by the factory should be treated as a
-            singleton or not. If so, the factory will only be called once.
+        singleton: Whether the returned dependency  is a singleton or not. If yes,
+            the factory will be called at most once and the result re-used. Mutually
+            exclusive with :code:`scope`. Defaults to :py:obj:`True`.
+        scope: Scope of the returned dependency. Mutually exclusive with
+            :code:`singleton`. The scope defines if and how long the returned dependency
+            will be cached. See :py:class:`~.core.container.Scope`. Defaults to
+            :py:meth:`~.core.container.Scope.singleton`.
 
     .. note::
 
@@ -122,29 +137,29 @@ def factory(dependency: Hashable = None,
     return decorate
 
 
-P = TypeVar('P', bound=Callable[[Any], Optional[DependencyInstance]])
+P = TypeVar('P', bound=Callable[[Any], Optional[DependencyValue]])
 
 
 @API.public
-def provider(p: P) -> P:
+def provider() -> Callable[[P], P]:
     """
     Function decorator used to declare a simplified provider to override some
     dependencies. The function will be called for each dependency and should
-    return :py:class:`.core.DependencyInstance` if it can be provided or :py:obj:`None`
+    return :py:class:`.core.DependencyValue` if it can be provided or :py:obj:`None`
     if not.
 
     .. doctest:: world_test_override_provider
 
         >>> from antidote import world, Scope
-        >>> from antidote.core import DependencyInstance
+        >>> from antidote.core import DependencyValue
         >>> world.singletons.add("test", 1)
         >>> world.get[int]("test")
         1
-        >>> with world.test.clone(overridable=True):
-        ...     @world.test.override.provider
+        >>> with world.test.clone():
+        ...     @world.test.override.provider()
         ...     def test(dependency):
         ...         if dependency == 'test':
-        ...             return DependencyInstance(2, scope=Scope.singleton())
+        ...             return DependencyValue(2, scope=Scope.singleton())
         ...     world.get[int]("test")
         2
         >>> # Overrides works only within the test world.
@@ -158,15 +173,16 @@ def provider(p: P) -> P:
 
     .. warning::
 
-        Currently, provider overrides won't show in :py:func:`.world.debug`.
-
-    Args:
-        p: provider function.
+        Currently, provider overrides won't appear in :py:func:`.world.debug`.
 
     Returns:
-        the decorated function, unchanged.
+        Function decorator.
     """
-    if not callable(p):
-        raise TypeError(f"provider must be a callable, not a {type(p)}")
-    state.current_overridable_container().override_provider(p)
-    return p
+
+    def decorate(p: P) -> P:
+        if not callable(p):
+            raise TypeError(f"provider must be a callable, not {type(p)}")
+        state.current_overridable_container().override_provider(p)
+        return p
+
+    return decorate

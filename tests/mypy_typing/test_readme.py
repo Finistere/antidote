@@ -1,5 +1,14 @@
+# flake8: noqa
+# Ignoring F811 for multiple definitions
+
 def test_readme_simple():
-    from antidote import inject, Service, Constants, const, world
+    import sys
+    from antidote import (inject, Service, Constants, const, world, Provide,
+                          Get, auto_provide)
+    if sys.version_info < (3, 9):
+        from typing_extensions import Annotated  # Python <= 3.8
+    else:
+        from typing import Annotated  # Python 3.9+
 
     class Conf(Constants):
         DB_HOST = const[str]('host')
@@ -14,18 +23,36 @@ def test_readme_simple():
             return self._data[key]
 
     class Database(Service):  # Defined as a Service, so injectable.
+        @inject
+        def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
+            self._host = host  # <=> Conf().get('host')
+
+        # without PEP-593
         @inject(dependencies={'host': Conf.DB_HOST})
         def __init__(self, host: str):
             self._host = host  # <=> Conf().get('host')
 
-    @inject  # By default only type annotations are used.
-    def f(db: Database = None):
+    @inject  # Nothing is injected implicitly.
+    def f(db: Provide[Database] = None):
         # Defaulting to None allows for MyPy compatibility but isn't required to work.
         assert db is not None
         pass
 
     f()  # works !
     f(Database('localhost:6789'))  # but you can still use the function normally
+
+    # without PEP-593
+    # With auto_provide=True, class type hints will be treated as dependencies.
+    @inject(auto_provide=True)
+    def f(db: Database = None):
+        assert db is not None
+        pass
+
+    # For simplicity an alias for @inject(auto_provide=True) exists:
+    @auto_provide
+    def f(db: Database = None):
+        assert db is not None
+        pass
 
     # You can also retrieve dependencies by hand
     world.get(Conf.DB_HOST)
@@ -37,7 +64,7 @@ def test_readme_simple():
     # specify them in the dependency itself. As Database returns, by default,
     # a singleton this will also be the case here. Using the same host, will
     # return the same instance.
-    world.get[Database](Database.with_kwargs(host='XX'))
+    world.get[Database](Database._with_kwargs(host='XX'))
 
 
 def test_readme():
@@ -46,7 +73,14 @@ def test_readme():
     to retrieve the best movies. In our case the implementation uses IMDB
     to dot it.
     """
-    from antidote import Constants, factory, Implementation, inject, world, const
+    import sys
+
+    from antidote import (Constants, factory, inject, world, const, Service,
+                          implementation, ProvideArgName, Get, From)
+    if sys.version_info < (3, 9):
+        from typing_extensions import Annotated  # Python <= 3.8
+    else:
+        from typing import Annotated  # Python 3.9+
 
     class MovieDB:
         """ Interface """
@@ -71,7 +105,7 @@ def test_readme():
         IMDB_API_KEY = const('imdb.api_key')
 
         @inject(use_names=True)  # injecting world.get('conf_path')
-        def __init__(self, conf_path: str):
+        def __init__(self, conf_path: ProvideArgName[str]):
             """ Load configuration from `conf_path` """
             self._raw_conf = {
                 'imdb': {
@@ -87,16 +121,35 @@ def test_readme():
             return reduce(dict.get, key.split('.'), self._raw_conf)  # type: ignore
 
     # Provides ImdbAPI, as defined by the return type annotation.
-    @factory(dependencies=(Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY))
+    @factory
+    @inject
+    def imdb_factory(host: Annotated[str, Get(Conf.IMDB_HOST)],
+                     port: Annotated[int, Get(Conf.IMDB_PORT)],
+                     api_key: Annotated[str, Get(Conf.IMDB_API_KEY)]
+                     ) -> ImdbAPI:
+        # Here host = Conf().get('imdb.host')
+        return ImdbAPI(host=host, port=port, api_key=api_key)
+
+    # Without PEP-593
+    @factory
+    @inject(dependencies=(Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY))
     def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
         # Here host = Conf().get('imdb.host')
         return ImdbAPI(host=host, port=port, api_key=api_key)
 
-    # When requesting MovieDB, a IMDBMovieDB instance will be provided.
-    class IMDBMovieDB(MovieDB, Implementation):
-        # New instance each time
-        __antidote__ = Implementation.Conf(singleton=False)
+    @implementation(MovieDB)
+    def current_movie_db():
+        return IMDBMovieDB  # dependency to be provided for MovieDB
 
+    class IMDBMovieDB(MovieDB, Service):
+        # New instance each time
+        __antidote__ = Service.Conf(singleton=False)
+
+        @inject
+        def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
+            self._imdb_api = imdb_api
+
+        # Without PEP-593
         @inject(dependencies={'imdb_api': ImdbAPI @ imdb_factory})
         def __init__(self, imdb_api: ImdbAPI):
             self._imdb_api = imdb_api
@@ -105,8 +158,14 @@ def test_readme():
             pass
 
     @inject
-    def f(movie_db: MovieDB = None):
+    def f(movie_db: Annotated[MovieDB, From(current_movie_db)] = None):
         assert movie_db is not None  # for Mypy
+        pass
+
+    # Without PEP-593
+    @inject(dependencies=[MovieDB @ current_movie_db])
+    def f(movie_db: MovieDB = None):
+        assert movie_db is not None
         pass
 
     f()
@@ -121,7 +180,7 @@ def test_readme():
     )))
 
     # When testing you can also override locally some dependencies:
-    with world.test.clone(overridable=True, keep_singletons=True):
+    with world.test.clone(keep_singletons=True):
         world.test.override.singleton(Conf.IMDB_HOST, 'other host')
         f()
 
@@ -131,7 +190,7 @@ def test_readme():
     world.debug(f)
     """
     f
-    └── Static link: MovieDB -> IMDBMovieDB
+    └── Permanent implementation: MovieDB @ current_movie_db
         └──<∅> IMDBMovieDB
             └── ImdbAPI @ imdb_factory
                 └── imdb_factory
@@ -144,7 +203,7 @@ def test_readme():
                     └── Const: Conf.IMDB_HOST
                         └── Conf
                             └── Singleton: 'conf_path' -> '/etc/app.conf'
-    
+
     Singletons have no scope markers.
     <∅> = no scope (new instance each time)
     <name> = custom scope

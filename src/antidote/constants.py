@@ -54,14 +54,14 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         use either method :py:meth:`.copy` or
         :py:meth:`~.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'public', 'auto_cast')
+        __slots__ = ('wiring', 'auto_cast')
         wiring: Optional[Wiring]
         auto_cast: FrozenSet[type]
 
         def __init__(self,
                      *,
                      auto_cast: Union[Iterable[type], bool] = True,
-                     wiring: Optional[Wiring] = Wiring(attempt_methods=['__init__'])):
+                     wiring: Optional[Wiring] = Wiring()):
             """
             Args:
                 wiring: :py:class:`Wiring` used on the class. Defaults to wire only
@@ -96,6 +96,10 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  auto_cast: Union[Union[Sequence[type], bool], Copy] = Copy.IDENTICAL
                  ) -> 'Constants.Conf':
+            """
+            Copies current configuration and overrides only specified arguments.
+            Accepts the same arguments as :py:meth:`.__init__`
+            """
             return Copy.immutable(self, wiring=wiring, auto_cast=auto_cast)
 
     __antidote__: Conf = Conf()

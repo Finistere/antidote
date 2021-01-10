@@ -6,7 +6,8 @@ from .core import Scope
 from .core.injection import validate_injection
 from .tag import Tag
 
-__all__ = ['is_compiled', 'validate_injection', 'validated_tags', 'validated_scope']
+__all__ = ['is_compiled', 'validate_injection', 'validated_tags',
+           'validated_scope']
 
 
 @API.public

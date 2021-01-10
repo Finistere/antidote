@@ -1,14 +1,14 @@
 import functools
 import inspect
-from typing import Callable, cast, Dict, get_type_hints, Hashable, Tuple, Type
+from typing import Callable, cast, Dict, Hashable, Tuple, Type
 
+from ._compatibility.typing import get_type_hints
 from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
 from ._providers import FactoryProvider, TagProvider
 from ._providers.factory import FactoryDependency
 from ._providers.service import Build
-from .core import Dependency, inject
-from .lazy import LazyCall
+from .core import Dependency, inject, Provide
 from .service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'
@@ -40,13 +40,13 @@ class FactoryMeta(AbstractMeta):
 
     @API.public
     def __rmatmul__(cls, left_operand: Hashable) -> object:
-        assert cls.__factory_dependency is not None
         if left_operand is not cls.__factory_dependency.output:
-            raise ValueError(f"Unsupported output {left_operand}")
+            output = cls.__factory_dependency.output
+            raise ValueError(f"Unsupported output {left_operand}, expected {output}")
         return cls.__factory_dependency
 
     @API.public
-    def with_kwargs(cls, **kwargs: object) -> 'PreBuild':
+    def _with_kwargs(cls, **kwargs: object) -> 'PreBuild':
         """
         Creates a new dependency based on the factory which will have the keyword
         arguments provided. If the factory provides a singleton and identical kwargs are
@@ -65,8 +65,8 @@ class FactoryMeta(AbstractMeta):
 @API.private
 @inject
 def _configure_factory(cls: FactoryMeta,
-                       factory_provider: FactoryProvider = None,
-                       tag_provider: TagProvider = None) -> FactoryDependency:
+                       factory_provider: Provide[FactoryProvider] = None,
+                       tag_provider: Provide[TagProvider] = None) -> FactoryDependency:
     from .factory import Factory
     assert factory_provider is not None
 
@@ -103,7 +103,7 @@ def _configure_factory(cls: FactoryMeta,
 
 
 @API.private
-class LambdaFactory:
+class FactoryWrapper:
     def __init__(self, wrapped: Callable[..., object],
                  factory_dependency: FactoryDependency) -> None:
         self.__wrapped__ = wrapped
@@ -117,9 +117,6 @@ class LambdaFactory:
         if left_operand is not self.__factory_dependency.output:
             raise ValueError(f"Unsupported output {left_operand}")
         return self.__factory_dependency
-
-    def with_kwargs(self, **kwargs: object) -> 'PreBuild':
-        return PreBuild(self.__factory_dependency, kwargs)
 
     def __getattr__(self, item: str) -> object:
         return getattr(self.__wrapped__, item)

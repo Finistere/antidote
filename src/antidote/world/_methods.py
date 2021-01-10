@@ -1,8 +1,9 @@
-from typing import Dict, Hashable, overload, Type, TypeVar, Union
+import inspect
+from typing import Dict, Hashable, Type, TypeVar, Union, overload
 
 from .._internal import API
-from .._internal.state import init, current_container
-from .._internal.utils.world import WorldGet, WorldLazy
+from .._internal.state import current_container, init
+from .._internal.world import WorldGet, WorldLazy
 from ..core.container import RawProvider, Scope
 
 # Create the global container
@@ -14,8 +15,7 @@ __sentinel = object()
 get = WorldGet()
 get.__doc__ = """
 Used to retrieve a dependency from Antidote. A type hint can be provided and the result
-will cast to match it. It follows the same philosophy as mypy and will NOT enforce it
-with a check.
+will cast to match it. It follows the same philosophy as mypy and will NOT enforce it.
 
 Returns:
     Retrieves given dependency or raises a :py:exc:`~.exceptions.DependencyNotFoundError`
@@ -42,7 +42,7 @@ lazy = WorldLazy()
 lazy.__doc__ = """
 Used to retrieves lazily a dependency. A type hint can be provided and the retrieved
 instance will be cast to match it. It follows the same philosophy as mypy and will NOT
-enforce it with a check.
+enforce it.
 
 Returns:
     Dependency: wrapped dependency.
@@ -53,7 +53,7 @@ Returns:
     >>> world.singletons.add('dep', 1)
     >>> dep = world.lazy('dep')
     >>> dep
-    Dependency(value='dep')
+    Dependency(unwrapped='dep')
     >>> dep.get()
     1
     >>> # mypy will treat x as a int
@@ -91,16 +91,10 @@ def provider(p: P) -> P:
         The same class, unmodified.
 
     """
-    import inspect
-
     if not (inspect.isclass(p) and issubclass(p, RawProvider)):
         raise TypeError(f"Provider must be a subclass of "
                         f"RawProvider, not {p}")
     container = current_container()
-    if container.is_clone:
-        raise RuntimeError("Cannot add a new provider in a cloned world. "
-                           "A cloned world exists to test existing dependencies, "
-                           "not to create new ones.")
     if any(p == type(existing_provider) for existing_provider in container.providers):
         raise ValueError(f"Provider {p} already exists")
     container.add_provider(p)
@@ -110,12 +104,10 @@ def provider(p: P) -> P:
 @API.public
 def freeze() -> None:
     """
-    Freezes Antidote. No additional dependencies can be added and singletons
-    cannot be changed anymore. Registered singleton dependencies that have not yet
-    been instantiated will not be impacted.
+    Freezes Antidote. No additional dependencies or scope can be defined.
 
-    It can be used to ensure that at runtime, once everything is initialized, nothing
-    may be changed anymore.
+    Its primary purpose is to state explicitly in your code when all dependencies have
+    been defined and to offer a bit more control on Antidote's state.
 
     .. doctest:: world_freeze
 
@@ -131,20 +123,21 @@ def freeze() -> None:
 
 
 @overload
-def add(dependency: Hashable,  # noqa: E704  # pragma: no cover
-        value: object
-        ) -> None: ...
+def singleton_add(dependency: Hashable,  # noqa: E704  # pragma: no cover
+                  value: object
+                  ) -> None: ...
 
 
 @overload
-def add(dependency: Dict[Hashable, object]) -> None: ...  # noqa: E704  # pragma: no cover
+def singleton_add(dependency: Dict[Hashable, object]  # noqa: E704  # pragma: no cover
+                  ) -> None: ...
 
 
 @API.public
-def add(dependency: Union[Dict[Hashable, object], Hashable],
-        value: object = __sentinel) -> None:
+def singleton_add(dependency: Union[Dict[Hashable, object], Hashable],
+                  value: object = __sentinel) -> None:
     """
-    Declare one or multiple singleton dependencies with its associated instance.
+    Declare one or multiple singleton dependencies with its associated value.
 
     .. doctest:: world_singletons_add
 
@@ -182,9 +175,6 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
     instantiating the specified dependency. It will also show whether those are singletons
     or if there are any cyclic dependencies.
 
-    If the specified dependency is a wired class, the wired methods will also be
-    presented.
-
     .. doctest:: world_debug
 
         >>> from antidote import world
@@ -199,9 +189,8 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
 
     .. note::
 
-        It will NOT instantiate any dependencies, hence with :py:func:`.implementation`
-        for example it won't run the function to determine which implementation must be
-        used.
+        With :py:func:`.implementation`, it'll execute the function to know which
+        dependency to follow.
 
     Args:
         dependency: Root of the dependency tree.
@@ -216,6 +205,20 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
 
 
 def new(name: str) -> Scope:
+    """
+    Creates a new scope. See :py:class:`~.core.container.Scope` for more information on
+    scopes.
+
+    .. doctest:: world_scopes_new
+
+        >>> from antidote import world, Service
+        >>> REQUEST_SCOPE = world.scopes.new('request')
+        >>> class Dummy(Service):
+        ...     __antidote__ = Service.Conf(scope=REQUEST_SCOPE)
+
+    Args:
+        name: Friendly identifier used for debugging purposes. It must be unique.
+    """
     from .._internal.state import current_container
     if not isinstance(name, str):
         raise TypeError(f"name must be a str, not {type(name)}")
@@ -224,16 +227,26 @@ def new(name: str) -> Scope:
     if name in {Scope.singleton().name, Scope.sentinel().name}:
         raise ValueError(f"'{name}' is a reserved scope name.")
     container = current_container()
-    if container.is_clone:
-        raise RuntimeError("Cannot create a new scope in a cloned world. "
-                           "A cloned world exists to test existing dependencies, "
-                           "not to create new ones.")
     if any(s.name == name for s in container.scopes):
         raise ValueError(f"A scope '{name}' already exists")
     return container.create_scope(name)
 
 
 def reset(scope: Scope) -> None:
+    """
+    All dependencies values of the specified scope will be discarded, so invalidating the
+    scope. See :py:class:`~.core.container.Scope` for more information on scopes.
+
+    .. doctest:: world_scopes_reset
+
+        >>> from antidote import world
+        >>> REQUEST_SCOPE = world.scopes.new('request')
+        >>> # All cached dependencies value with scope=REQUEST_SCOPE will be discarded.
+        ... world.scopes.reset(REQUEST_SCOPE)
+
+    Args:
+        scope: Scope to reset.
+    """
     if not isinstance(scope, Scope):
         raise TypeError(f"scope must be a Scope, not {type(scope)}.")
     if scope in {Scope.singleton(), Scope.sentinel()}:

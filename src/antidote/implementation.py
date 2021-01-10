@@ -1,51 +1,35 @@
 import functools
 import inspect
-from typing import Callable, Iterable, TypeVar, Union
+from typing import Callable, TypeVar, cast
 
-from ._implementation import ImplementationMeta
+from ._compatibility.typing import Protocol
+from ._implementation import ImplementationWrapper, validate_provided_class
 from ._internal import API
+from ._internal.wrapper import is_wrapper
 from ._providers import IndirectProvider
-from .core import inject, DEPENDENCIES_TYPE
-from .service import Service
-from .utils import validate_injection
+from .core import inject, Provide
+from .core.exceptions import DoubleInjectionError
 
-F = TypeVar('F', bound=Callable[[], type])
-C = TypeVar('C', bound=type)
+F = TypeVar('F', bound=Callable[[], object])
 
 
-@API.experimental
-class Implementation(Service, metaclass=ImplementationMeta, abstract=True):
+@API.private
+class ImplementationProtocol(Protocol[F]):
     """
-    Essentially syntactic sugar to define easily a single implementation for an interface.
-    The class will automatically be defined as a :py:class:`~.Service`, hence it has the
-    same features.
-
-    .. doctest:: helpers_implementation_class
-
-        >>> from antidote import world, Implementation
-        >>> class Interface:
-        ...     pass
-        >>> class Impl(Interface, Implementation):
-        ...     pass
-        >>> world.get(Interface)
-        <Impl ...>
-
-    .. note::
-
-        If you need to chose between multiple implementations use
-        :py:func:`.implementation`.
+    :meta private:
     """
+
+    def __rmatmul__(self, klass: type) -> object:
+        pass  # pragma: no cover
+
+    __call__: F
 
 
 @API.public
 def implementation(interface: type,
                    *,
-                   permanent: bool = True,
-                   auto_wire: bool = True,
-                   dependencies: DEPENDENCIES_TYPE = None,
-                   use_names: Union[bool, Iterable[str]] = None,
-                   use_type_hints: Union[bool, Iterable[str]] = None
-                   ) -> Callable[[F], F]:
+                   permanent: bool = True
+                   ) -> Callable[[F], ImplementationProtocol[F]]:
     """
     Function decorator which decides which implementation should be used for
     :code:`interface`.
@@ -57,85 +41,70 @@ def implementation(interface: type,
 
     .. doctest:: helpers_implementation
 
-        >>> from antidote import implementation, Service, factory, world
-        >>> class Interface:
+        >>> from antidote import implementation, Service, factory, world, Get
+        >>> from typing import Annotated
+        ... # from typing_extensions import Annotated # Python < 3.9
+        >>> class Database:
         ...     pass
-        >>> class A(Interface, Service):
+        >>> class PostgreSQL(Database, Service):
         ...     pass
-        >>> class B(Interface):
+        >>> class MySQL(Database):
         ...     pass
         >>> @factory
-        ... def build_b() -> B:
-        ...     return B()
-        >>> @implementation(Interface, dependencies=['choice'])
-        ... def choose_interface(choice: str):
+        ... def build_mysql() -> MySQL:
+        ...     return MySQL()
+        >>> @implementation(Database)
+        ... def local_db(choice: Annotated[str, Get('choice')]):
         ...     if choice == 'a':
-        ...         return A  # One could also use A.with_kwargs(...)
+        ...         return PostgreSQL
         ...     else:
-        ...         return B @ build_b  # or B @ build_b.with_kwargs(...)
-        >>> world.singletons.add('choice', 'b')
-        >>> world.get(Interface)
-        <B ...>
+        ...         return MySQL @ build_mysql
+        >>> world.singletons.add('choice', 'a')
+        >>> world.get(Database @ local_db)
+        <PostgreSQL ...>
         >>> # Changing choice doesn't matter anymore as the implementation is permanent.
-        ... with world.test.clone(overridable=True):
-        ...     world.singletons.add('choice', 'a')
-        ...     world.get(Interface)
-        <B ...>
+        ... with world.test.clone():
+        ...     world.test.override.singleton('choice', 'b')
+        ...     world.get(Database @ local_db)
+        <PostgreSQL ...>
 
     Args:
         interface: Interface for which an implementation will be provided
         permanent: Whether the function should be called each time the interface is needed
             or not. Defaults to :py:obj:`True`.
-        auto_wire: Whether the function should have its arguments injected or not
-            with :py:func:`~.injection.inject`.
-        dependencies: Propagated to :py:func:`~.injection.inject`.
-        use_names: Propagated to :py:func:`~.injection.inject`.
-        use_type_hints: Propagated to :py:func:`~.injection.inject`.
 
     Returns:
         The decorated function, unmodified.
     """
-    validate_injection(dependencies, use_names, use_type_hints)
     if not isinstance(permanent, bool):
         raise TypeError(f"permanent must be a bool, not {type(permanent)}")
     if not inspect.isclass(interface):
         raise TypeError(f"interface must be a class, not {type(interface)}")
-    if not (auto_wire is None or isinstance(auto_wire, bool)):
-        raise TypeError(f"auto_wire must be a boolean or None, not {type(auto_wire)}")
 
     @inject
-    def register(func: F, indirect_provider: IndirectProvider = None) -> F:
-        from ._providers.factory import FactoryDependency
-        from ._providers.service import Build
+    def register(func: F,
+                 indirect_provider: Provide[IndirectProvider] = None
+                 ) -> ImplementationProtocol[F]:
         assert indirect_provider is not None
 
-        if inspect.isfunction(func):
-            if auto_wire:
-                func = inject(func,
-                              dependencies=dependencies,
-                              use_names=use_names,
-                              use_type_hints=use_type_hints)
+        if not (inspect.isfunction(func)
+                or (is_wrapper(func)
+                    and inspect.isfunction(func.__wrapped__))):  # type: ignore
+            raise TypeError(f"{func} is not a function")
 
-            @functools.wraps(func)
-            def linker() -> object:
-                dependency = func()
-                cls: object = dependency
-                if isinstance(cls, Build):
-                    cls = cls.dependency
-                if isinstance(cls, FactoryDependency):
-                    cls = cls.output
+        try:
+            func = inject(func)
+        except DoubleInjectionError:
+            pass
 
-                if not (isinstance(cls, type) and inspect.isclass(cls)
-                        and issubclass(cls, interface)):
-                    raise TypeError(f"{func} is expected to return a class or a "
-                                    f"Service / Factory dependency which implements"
-                                    f"{interface}")
-                return dependency
+        @functools.wraps(func)
+        def impl() -> object:
+            dep = func()
+            validate_provided_class(dep, expected=interface)
+            return dep
 
-            indirect_provider.register_link(interface, linker=linker, permanent=permanent)
-        else:
-            raise TypeError(f"implementation must be applied on a function, "
-                            f"not a {type(func)}")
-        return func
+        dependency = indirect_provider.register_implementation(interface, impl,
+                                                               permanent=permanent)
+        return cast(ImplementationProtocol[F], ImplementationWrapper(func, dependency))
 
     return register

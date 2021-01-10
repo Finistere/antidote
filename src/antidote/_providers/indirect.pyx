@@ -1,137 +1,166 @@
+import inspect
 from typing import Callable, Dict, Hashable, Optional
 
 # @formatter:off
 cimport cython
 from cpython.ref cimport PyObject, Py_XDECREF
 
-from antidote.core.container cimport (DependencyResult, FastProvider, Header, header_strictest, header_flag_singleton, header_flag_no_scope,
-                                      RawContainer, header_flag_cacheable)
+from antidote.core.container cimport (DependencyResult, FastProvider, RawContainer,
+                                     header_flag_cacheable)
 from .._internal.utils import debug_repr
-from ..core.exceptions import DependencyNotFoundError
 from ..core import DependencyDebug, Scope
+from ..core.exceptions import DependencyNotFoundError
 
 # @formatter:on
 
 cdef extern from "Python.h":
+    PyObject*Py_None
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
     PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
+    int PySet_Contains(PyObject *anyset, PyObject *key) except -1
 
 
 @cython.final
 cdef class IndirectProvider(FastProvider):
     cdef:
-        dict __static_links
-        dict __links
+        dict __implementations
 
     def __init__(self):
         super().__init__()
-        self.__links = dict()  # type: Dict[Hashable, Link]
-        self.__static_links = dict()  # type: Dict[Hashable, Hashable]
+        self.__implementations = dict()
 
-    def __repr__(self):
-        return f"{type(self).__name__}(links={self.__links}, " \
-               f"static_links={self.__static_links})"
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(" \
+               f"implementations={list(self.__implementations.keys())})"
 
     def clone(self, keep_singletons_cache: bool) -> IndirectProvider:
         p = IndirectProvider()
-        p.__links = self.__links.copy()
-        p.__static_links = self.__static_links.copy()
+        p.__implementations = self.__implementations.copy()
         return p
 
-    def exists(self, dependency) -> bool:
-        return dependency in self.__static_links or dependency in self.__links
+    def exists(self, dependency: Hashable) -> bool:
+        return (isinstance(dependency, ImplementationDependency)
+                and dependency in self.__implementations)
 
     def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
         cdef:
-            Link link
+            ImplementationDependency impl
+
+        if not isinstance(dependency, ImplementationDependency):
+            return None
 
         try:
-            link = self.__links[dependency]
+            target = self.__implementations[dependency]
         except KeyError:
-            pass
-        else:
-            repr_d = debug_repr(dependency)
-            repr_linker = debug_repr(link.linker)
-            if link.permanent:
-                if dependency in self.__static_links:
-                    target = self.__static_links[dependency]
-                    return DependencyDebug(
-                        f"Permanent link: {repr_d} -> {debug_repr(target)} "
-                        f"defined by {repr_linker}",
-                        scope=Scope.singleton(),
-                        dependencies=[target])
-                else:
-                    return DependencyDebug(
-                        f"Permanent link: {repr_d} -> ??? "
-                        f"defined by {repr_linker}",
-                        scope=Scope.singleton())
-            else:
-                return DependencyDebug(
-                    f"Dynamic link: {repr_d} -> ??? defined by {repr_linker}",
-                    scope=None,
-                    wired=[link.linker])
+            return None
 
-        try:
-            target = self.__static_links[dependency]
-        except KeyError:
-            pass
-        else:
-            repr_d = debug_repr(dependency)
-            return DependencyDebug(f"Static link: {repr_d} -> {debug_repr(target)}",
-                                   scope=Scope.singleton(),
-                                   dependencies=[target])
+        impl = <ImplementationDependency> dependency
+        if target is None:
+            target = impl.implementation()
+
+        return DependencyDebug(debug_repr(impl),
+                               scope=Scope.singleton() if impl.permanent else None,
+                               wired=[impl.implementation],  # type: ignore
+                               dependencies=[target])
 
     cdef fast_provide(self,
                       PyObject*dependency,
                       PyObject*container,
                       DependencyResult*result):
         cdef:
-            PyObject* ptr
-            PyObject* target
+            PyObject*ptr
+            PyObject*target
 
-        ptr = PyDict_GetItem(<PyObject*> self.__static_links, dependency)
-        if ptr:
+        ptr = PyDict_GetItem(<PyObject*> self.__implementations, dependency)
+        if ptr is NULL:
+            return
+        elif ptr is not Py_None:
             (<RawContainer> container).fast_get(ptr, result)
             result.header |= header_flag_cacheable()
             if result.value is NULL:
                 raise DependencyNotFoundError(<object> ptr)
         else:
-            ptr = PyDict_GetItem(<PyObject*> self.__links, dependency)
-            if ptr:
-                target = PyObject_CallObject(<PyObject*> (<Link> ptr).linker, NULL)
-                (<RawContainer> container).fast_get(target, result)
-                if result.value is NULL:
-                    error = DependencyNotFoundError(<object> target)
-                    Py_XDECREF(target)
-                    raise error
-                result.header = (header_strictest((<Link> ptr).header, result.header)
-                                 | header_flag_cacheable())
-                if (<Link> ptr).permanent:
-                    PyDict_SetItem(<PyObject*> self.__static_links,
-                                   dependency,
-                                   target)
+            target = PyObject_CallObject(
+                <PyObject*> (<ImplementationDependency> dependency).implementation,
+                NULL
+            )
+            (<RawContainer> container).fast_get(target, result)
+            if result.value is NULL:
+                error = DependencyNotFoundError(<object> target)
                 Py_XDECREF(target)
+                raise error
 
-    def register_static(self, dependency: Hashable, target_dependency: Hashable):
-        with self._bound_container_ensure_not_frozen():
-            self._bound_container_raise_if_exists(dependency)
-            self.__static_links[dependency] = target_dependency
+            if (<ImplementationDependency> dependency).permanent:
+                result.header |= header_flag_cacheable()
+                PyDict_SetItem(<PyObject*> self.__implementations,
+                               dependency,
+                               target)
+            else:
+                result.header = 0
 
-    def register_link(self, dependency: Hashable, linker: Callable[[], Hashable],
-                      permanent: bool = True):
+            Py_XDECREF(target)
+
+    def register_implementation(self,
+                                interface: type,
+                                implementation: Callable[[], Hashable],
+                                *,
+                                permanent: bool
+                                ) -> 'ImplementationDependency':
+        assert callable(implementation) \
+               and inspect.isclass(interface) \
+               and isinstance(permanent, bool)
+        impl = ImplementationDependency(interface, implementation, permanent)
         with self._bound_container_ensure_not_frozen():
-            self._bound_container_raise_if_exists(dependency)
-            self.__links[dependency] = Link(linker, permanent)
+            self._bound_container_raise_if_exists(impl)
+            self.__implementations[impl] = None
+            return impl
 
 @cython.final
-cdef class Link:
+cdef class ImplementationDependency:
     cdef:
-        object linker
-        bint permanent
-        Header header
+        readonly object interface
+        readonly object implementation
+        readonly bint permanent
+        int _hash
 
-    def __init__(self, linker: Callable[[], Hashable], permanent: bool):
-        self.linker = linker
+    def __init__(self,
+                 interface: Hashable,
+                 implementation: Callable[[], Hashable],
+                 permanent: bool):
+        self.interface = interface
+        self.implementation = implementation
         self.permanent = permanent
-        self.header = header_flag_singleton() if permanent else header_flag_no_scope()
+        self._hash = hash((interface, implementation))
+
+    def __repr__(self) -> str:
+        return f"Implementation({self})"
+
+    def __antidote_debug_repr__(self) -> str:
+        if self.permanent:
+            return f"Permanent implementation: {self}"
+        else:
+            return f"Implementation: {self}"
+
+    def __str__(self) -> str:
+        impl = self.implementation  # type: ignore
+        return f"{debug_repr(self.interface)} @ {debug_repr(impl)}"
+
+    # Custom hash & eq necessary to find duplicates
+    def __hash__(self) -> int:
+        return self._hash
+
+    def __eq__(self, other: object) -> bool:
+        cdef:
+            ImplementationDependency imd
+
+        if not isinstance(other, ImplementationDependency):
+            return False
+
+        imd = <ImplementationDependency> other
+        return (self._hash == imd._hash
+                and (self.interface is imd.interface
+                     or self.interface == imd.interface)
+                and (self.implementation is imd.implementation  # type: ignore
+                     or self.implementation == imd.implementation)  # type: ignore
+                )  # noqa

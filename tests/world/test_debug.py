@@ -1,8 +1,9 @@
 import textwrap
 
-from antidote import (const, Constants, factory, Implementation, implementation, inject,
-                      LazyCall, LazyMethodCall, Service, Tag, world)
-from antidote._internal.utils import raw_getattr, short_id
+from antidote import (Constants, Factory, From, LazyCall, LazyMethodCall, Provide,
+                      Service, Tag, Tagged, const, implementation, inject, world)
+from antidote._compatibility.typing import Annotated
+from antidote._internal.utils import short_id
 
 
 class DebugTestCase:
@@ -44,46 +45,51 @@ def test_implementation_debug():
     class Interface:
         pass
 
-    class Dummy(Interface, Service):
-        pass
-
     prefix = "tests.world.test_debug.test_implementation_debug.<locals>"
 
-    with world.test.clone():
+    with world.test.new():
+        class Dummy(Interface, Service):
+            pass
+
         @implementation(Interface)
         def f():
             return Dummy
 
         assert_valid(DebugTestCase(
-            value=Interface,
+            value=Interface @ f,
             expected=f"""
-                Permanent link: {prefix}.Interface -> ??? defined by {prefix}.f
-                    """
-        ))
-
-        world.get(Interface)
-        assert_valid(DebugTestCase(
-            value=Interface,
-            expected=f"""
-                Permanent link: {prefix}.Interface -> {prefix}.Dummy defined by {prefix}.f
+                Permanent implementation: {prefix}.Interface @ {prefix}.f
                 └── {prefix}.Dummy
                     """
         ))
 
-    with world.test.clone():
+        world.get(Interface @ f)
+        assert_valid(DebugTestCase(
+            value=Interface @ f,
+            expected=f"""
+                Permanent implementation: {prefix}.Interface @ {prefix}.f
+                └── {prefix}.Dummy
+                    """
+        ))
+
+    with world.test.new():
+        class Dummy2(Interface, Service):
+            pass
+
         undefined_expectations = f"""
-            <∅> Dynamic link: {prefix}.Interface -> ??? defined by {prefix}.g
+            <∅> Implementation: {prefix}.Interface @ {prefix}.g
+            └── {prefix}.Dummy2
         """
 
         @implementation(Interface, permanent=False)
         def g():
-            return Dummy
+            return Dummy2
 
-        assert_valid(DebugTestCase(value=Interface,
+        assert_valid(DebugTestCase(value=Interface @ g,
                                    expected=undefined_expectations))
 
-        world.get(Interface)
-        assert_valid(DebugTestCase(value=Interface,
+        world.get(Interface @ g)
+        assert_valid(DebugTestCase(value=Interface @ g,
                                    expected=undefined_expectations))
 
 
@@ -114,7 +120,7 @@ def test_lazy_call_debug():
             pass
 
         @inject
-        def f(service: MyService):
+        def f(service: Provide[MyService]):
             pass
 
         l2 = LazyCall(f)
@@ -146,7 +152,7 @@ def test_unknown_debug():
             pass
 
         class Dummy(Service):
-            def __init__(self, s: Service1):
+            def __init__(self, s: Provide[Service1]):
                 pass
 
         assert_valid(DebugTestCase(
@@ -177,24 +183,77 @@ def test_wiring_debug():
         class Service1(Service):
             pass
 
-        class Dummy(Service):
-            __antidote__ = Service.Conf().with_wiring(methods=['__init__', 'get'])
+        # Not wired, but @inject
+        class DummyA(Service):
+            __antidote__ = Service.Conf(wiring=None)
 
-            def __init__(self, s: Service1):
-                pass
-
-            def get(self, s: Service1):
+            @inject
+            def __init__(self, service: Provide[Service1]):
                 pass
 
         assert_valid(DebugTestCase(
-            value=Dummy,
+            value=DummyA,
             expected=f"""
-                {prefix}.Dummy
+                {prefix}.DummyA
+                └── {prefix}.Service1
+            """
+        ))
+
+        # Multiple injections
+        class DummyB(Service):
+            __antidote__ = Service.Conf()
+
+            def __init__(self, s: Provide[Service1]):
+                pass
+
+            def get(self, s: Provide[Service1]):
+                pass
+
+        assert_valid(DebugTestCase(
+            value=DummyB,
+            expected=f"""
+                {prefix}.DummyB
                 ├── {prefix}.Service1
                 └── Method: get
                     └── {prefix}.Service1
             """
         ))
+
+        # Methods specified
+        class DummyC(Service):
+            __antidote__ = Service.Conf().with_wiring(methods=['__init__', 'get'])
+
+            def __init__(self):
+                pass
+
+            def get(self, my_service: Provide[Service1]):
+                pass
+
+        assert_valid(
+            DebugTestCase(
+                value=DummyC,
+                expected=f"""
+                {prefix}.DummyC
+                └── Method: get
+                    └── {prefix}.Service1
+                    """
+            ))
+
+        # No injections
+        class DummyD(Service):
+            def __init__(self):
+                pass
+
+            def get(self):
+                pass
+
+        assert_valid(
+            DebugTestCase(
+                value=DummyD,
+                expected=f"""
+                    {prefix}.DummyD
+                    """
+            ))
 
 
 def test_multiline_debug():
@@ -207,7 +266,7 @@ def test_multiline_debug():
                 return "Multiline\nService"
 
         class Dummy(Service):
-            def __init__(self, s: MultilineService):
+            def __init__(self, s: Provide[MultilineService]):
                 pass
 
         assert_valid(DebugTestCase(
@@ -224,27 +283,23 @@ def test_tag():
     prefix = "tests.world.test_debug.test_tag.<locals>"
 
     with world.test.new():
-        tag = Tag()
-
-        class CustomTag(Tag):
-            def group(self):
-                return 'dummy'
+        empty_tag = Tag('empty')
+        tag = Tag('dummy')
 
         class S1(Service):
-            __antidote__ = Service.Conf(tags=[tag, CustomTag()])
+            __antidote__ = Service.Conf(tags=[tag])
 
         assert_valid(
             DebugTestCase(
-                value=tag,
-                expected=f"""
-                <∅> Tag: Tag#{short_id(tag)}
-                └── {prefix}.S1
-                """
+                value=Tagged.with_(empty_tag),
+                expected=f"No dependencies tagged with "
+                         f"Tag('empty')#{short_id(empty_tag)}",
+                legend=False
             ),
             DebugTestCase(
-                value=CustomTag(),
+                value=Tagged.with_(tag),
                 expected=f"""
-                <∅> Tag: 'dummy'
+                <∅> Tagged with Tag('dummy')#{short_id(tag)}
                 └── {prefix}.S1
                 """
             )
@@ -259,8 +314,7 @@ def test_lazy_method_debug():
             pass
 
         class Conf(Service):
-            @inject
-            def fetch(self, value, service: MyService):
+            def fetch(self, value, service: Provide[MyService]):
                 return value
 
             DATA = LazyMethodCall(fetch)
@@ -272,7 +326,7 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.DATA,
                 expected=f"""
-                    Lazy Method: fetch()  #{short_id(raw_getattr(Conf, 'DATA'))}
+                    Lazy Method: fetch()  #{short_id(Conf.__dict__['DATA'])}
                     ├── {prefix}.Conf.fetch
                     │   └── {prefix}.MyService
                     └── {prefix}.Conf
@@ -281,7 +335,7 @@ def test_lazy_method_debug():
             DebugTestCase(
                 value=Conf.KW,
                 expected=f"""
-        Lazy Method: fetch(*(), **{{'value': '1'}})  #{short_id(raw_getattr(Conf, 'KW'))}
+        Lazy Method: fetch(*(), **{{'value': '1'}})  #{short_id(Conf.__dict__['KW'])}
         ├── {prefix}.Conf.fetch
         │   └── {prefix}.MyService
         └── {prefix}.Conf
@@ -334,8 +388,7 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            @inject
-            def get(self, key, service: MyService):
+            def get(self, key, service: Provide[MyService] = None):
                 return key
 
         assert_valid(
@@ -360,8 +413,7 @@ def test_custom_scope():
             __antidote__ = Service.Conf(scope=dummy_scope)
 
         class BigService(Service):
-            @inject
-            def __init__(self, my_service: MyService):
+            def __init__(self, my_service: Provide[MyService]):
                 pass
 
         assert_valid(
@@ -392,164 +444,179 @@ def test_complex_debug():
             pass
 
         class Service2:
-            def __init__(self, service1: Service1):
+            def __init__(self, service1: Provide[Service1]):
                 self.service1 = service1
 
-        @factory
-        def build_s2(service1: Service1) -> Service2:
-            return Service2(service1)
+        class BuildS2(Factory):
+            def __call__(self, service1: Provide[Service1] = None) -> Service2:
+                return Service2(service1)
+
+        @implementation(Interface)
+        def impl():
+            return Service4
 
         class Service3(Service):
             __antidote__ = Service.Conf(singleton=False,
                                         tags=[tag]).with_wiring(
-                methods=['__init__', 'get'],
                 dependencies=dict(
-                    service2=Service2 @ build_s2))
+                    i=Interface @ impl,
+                    service2=Service2 @ BuildS2))
 
             def __init__(self,
-                         service1: Service1,
+                         service1: Provide[Service1],
                          service2: Service2,
                          i: Interface):
                 self.service1 = service1
                 self.service2 = service2
                 self.i = i
 
-            def get(self, service1: Service1):
+            def get(self, service1: Provide[Service1]):
                 pass
 
             X = LazyMethodCall(get)
 
-        class Service4(Interface, Implementation):
-            __antidote__ = Implementation.Conf(tags=[tag]).with_wiring(
-                dependencies=dict(service2=Service2 @ build_s2))
+        class Service4(Interface, Service):
+            __antidote__ = Service.Conf(tags=[tag])
 
-            def __init__(self, service1: Service1, service2: Service2,
-                         service3: Service3):
+            def __init__(self,
+                         service1: Provide[Service1],
+                         service2: Annotated[Service2, From(BuildS2)],
+                         service3: Provide[Service3]):
                 self.service1 = service1
                 self.service2 = service2
                 self.service3 = service3
 
         @inject
-        def f(s: Service4):
+        def f(s: Provide[Service4]):
             pass
 
-        @inject(dependencies=[Service1.with_kwargs(test=1),
-                              Service2 @ build_s2.with_kwargs(option=2)])
+        @inject(dependencies=[Service1._with_kwargs(test=1),
+                              Service2 @ BuildS2._with_kwargs(option=2)])
         def f_with_options(a, b):
             pass
 
         prefix = "tests.world.test_debug.test_complex_debug.<locals>"
         assert_valid(
             DebugTestCase(
-                value=tag,
+                value=Tagged.with_(tag),
                 depth=0,
                 expected=f"""
-                    <∅> Tag: Tag#{short_id(tag)}
+                    <∅> Tagged with Tag#{short_id(tag)}
                         """
             ),
             DebugTestCase(
-                value=tag,
+                value=Tagged.with_(tag),
                 depth=1,
                 expected=f"""
-                    <∅> Tag: Tag#{short_id(tag)}
+                    <∅> Tagged with Tag#{short_id(tag)}
                     ├── {prefix}.Service4
                     └──<∅> {prefix}.Service3
                         """
             ),
             DebugTestCase(
-                value=tag,
+                value=Tagged.with_(tag),
                 depth=2,
                 expected=f"""
-                    <∅> Tag: Tag#{short_id(tag)}
+                    <∅> Tagged with Tag#{short_id(tag)}
                     ├── {prefix}.Service4
                     │   ├──<∅> {prefix}.Service3
-                    │   ├── {prefix}.Service2 @ {prefix}.build_s2
+                    │   ├── {prefix}.Service2 @ {prefix}.BuildS2
                     │   └── {prefix}.Service1
                     └──<∅> {prefix}.Service3
-                        ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                        ├── {prefix}.Service2 @ {prefix}.build_s2
+                        ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
+                        ├── {prefix}.Service2 @ {prefix}.BuildS2
                         └── {prefix}.Service1
                         """
             ),
             DebugTestCase(
-                value=tag,
+                value=Tagged.with_(tag),
                 depth=3,
                 expected=f"""
-                    <∅> Tag: Tag#{short_id(tag)}
-                    ├── {prefix}.Service4
-                    │   ├──<∅> {prefix}.Service3
-                    │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                    │   │   ├── {prefix}.Service2 @ {prefix}.build_s2
+                <∅> Tagged with Tag#{short_id(tag)}
+                ├── {prefix}.Service4
+                │   ├──<∅> {prefix}.Service3
+                │   │   ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
+                │   │   ├── {prefix}.Service2 @ {prefix}.BuildS2
+                │   │   └── {prefix}.Service1
+                │   ├── {prefix}.Service2 @ {prefix}.BuildS2
+                │   │   ├── {prefix}.BuildS2.__call__
+                │   │   │   └── {prefix}.Service1
+                │   │   └── {prefix}.BuildS2
+                │   └── {prefix}.Service1
+                └──<∅> {prefix}.Service3
+                    ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
+                    │   └── {prefix}.Service4
+                    ├── {prefix}.Service2 @ {prefix}.BuildS2
+                    │   ├── {prefix}.BuildS2.__call__
                     │   │   └── {prefix}.Service1
-                    │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                    │   │   └── {prefix}.build_s2
-                    │   │       └── {prefix}.Service1
-                    │   └── {prefix}.Service1
-                    └──<∅> {prefix}.Service3
-                        ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                        │   └── {prefix}.Service4
-                        ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   └── {prefix}.build_s2
-                        │       └── {prefix}.Service1
-                        └── {prefix}.Service1
+                    │   └── {prefix}.BuildS2
+                    └── {prefix}.Service1
                         """
             ),
             DebugTestCase(
-                value=tag,
+                value=Tagged.with_(tag),
                 expected=f"""
-                    <∅> Tag: Tag#{short_id(tag)}
-                    ├── {prefix}.Service4
-                    │   ├──<∅> {prefix}.Service3
-                    │   │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                    │   │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
-                    │   │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                    │   │   │   └── {prefix}.build_s2
-                    │   │   │       └── {prefix}.Service1
+                <∅> Tagged with Tag#{short_id(tag)}
+                ├── {prefix}.Service4
+                │   ├──<∅> {prefix}.Service3
+                │   │   ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
+                │   │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
+                │   │   ├── {prefix}.Service2 @ {prefix}.BuildS2
+                │   │   │   ├── {prefix}.BuildS2.__call__
+                │   │   │   │   └── {prefix}.Service1
+                │   │   │   └── {prefix}.BuildS2
+                │   │   └── {prefix}.Service1
+                │   ├── {prefix}.Service2 @ {prefix}.BuildS2
+                │   │   ├── {prefix}.BuildS2.__call__
+                │   │   │   └── {prefix}.Service1
+                │   │   └── {prefix}.BuildS2
+                │   └── {prefix}.Service1
+                └──<∅> {prefix}.Service3
+                    ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
+                    │   └── {prefix}.Service4
+                    │       ├── /!\\ Cyclic dependency: {prefix}.Service3
+                    │       ├── {prefix}.Service2 @ {prefix}.BuildS2
+                    │       │   ├── {prefix}.BuildS2.__call__
+                    │       │   │   └── {prefix}.Service1
+                    │       │   └── {prefix}.BuildS2
+                    │       └── {prefix}.Service1
+                    ├── {prefix}.Service2 @ {prefix}.BuildS2
+                    │   ├── {prefix}.BuildS2.__call__
                     │   │   └── {prefix}.Service1
-                    │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                    │   │   └── {prefix}.build_s2
-                    │   │       └── {prefix}.Service1
-                    │   └── {prefix}.Service1
-                    └──<∅> {prefix}.Service3
-                        ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                        │   └── {prefix}.Service4
-                        │       ├── /!\\ Cyclic dependency: {prefix}.Service3
-                        │       ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │       │   └── {prefix}.build_s2
-                        │       │       └── {prefix}.Service1
-                        │       └── {prefix}.Service1
-                        ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   └── {prefix}.build_s2
-                        │       └── {prefix}.Service1
-                        └── {prefix}.Service1
+                    │   └── {prefix}.BuildS2
+                    └── {prefix}.Service1
+
                         """
             ),
             DebugTestCase(
                 value=f,
                 expected=f"""
-                    {prefix}.f
-                    └── {prefix}.Service4
-                        ├──<∅> {prefix}.Service3
-                        │   ├── Static link: {prefix}.Interface -> {prefix}.Service4
-                        │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
-                        │   ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   │   └── {prefix}.build_s2
-                        │   │       └── {prefix}.Service1
-                        │   └── {prefix}.Service1
-                        ├── {prefix}.Service2 @ {prefix}.build_s2
-                        │   └── {prefix}.build_s2
-                        │       └── {prefix}.Service1
-                        └── {prefix}.Service1
+                {prefix}.f
+                └── {prefix}.Service4
+                    ├──<∅> {prefix}.Service3
+                    │   ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
+                    │   │   └── /!\\ Cyclic dependency: {prefix}.Service4
+                    │   ├── {prefix}.Service2 @ {prefix}.BuildS2
+                    │   │   ├── {prefix}.BuildS2.__call__
+                    │   │   │   └── {prefix}.Service1
+                    │   │   └── {prefix}.BuildS2
+                    │   └── {prefix}.Service1
+                    ├── {prefix}.Service2 @ {prefix}.BuildS2
+                    │   ├── {prefix}.BuildS2.__call__
+                    │   │   └── {prefix}.Service1
+                    │   └── {prefix}.BuildS2
+                    └── {prefix}.Service1
                         """
             ),
             DebugTestCase(
                 value=f_with_options,
                 expected=f"""
                     {prefix}.f_with_options
-                    ├── {prefix}.Service2 @ {prefix}.build_s2(**{{'option': 2}})
-                    │   └── {prefix}.build_s2
-                    │       └── {prefix}.Service1
-                    └── {prefix}.Service1(**{{'test': 1}})
+                    ├── {prefix}.Service2 @ {prefix}.BuildS2 with kwargs={{'option': 2}}
+                    │   ├── {prefix}.BuildS2.__call__
+                    │   │   └── {prefix}.Service1
+                    │   └── {prefix}.BuildS2
+                    └── {prefix}.Service1 with kwargs={{'test': 1}}
                     """
             )
         )

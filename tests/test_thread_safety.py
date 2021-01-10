@@ -58,8 +58,8 @@ def delayed_new_class(cls):
 
 def test_container_instantiation_safety():
     with world.test.new():
-        build_a = factory(delayed_new_class(A), singleton=True, auto_wire=False)
-        build_b = factory(delayed_new_class(B), singleton=False, auto_wire=False)
+        build_a = factory(delayed_new_class(A), singleton=True)
+        build_b = factory(delayed_new_class(B), singleton=False)
 
         singleton_got = []
         non_singleton_got = []
@@ -83,7 +83,7 @@ def test_tagged_dependencies_instantiation_safety():
                     singleton=False,
                     tags=[tag])
 
-        tagged: Tagged = world.get(tag)
+        tagged: Tagged = world.get(Tagged.with_(tag))
         dependencies = []
 
         def worker():
@@ -115,7 +115,7 @@ def test_world_safety():
 
 def test_state_init_safety():
     from antidote._internal import state
-    from antidote._internal.utils import world as world_utils
+    from antidote._internal import world as world_utils
 
     old_new_container = world_utils.new_container
 

@@ -3,8 +3,8 @@ from typing import Callable, Dict, Hashable, Optional, Union
 
 from .service import Build
 from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable, SlotRecord
-from ..core import (Container, Dependency, DependencyDebug, DependencyInstance, Provider,
+from .._internal.utils import FinalImmutable, SlotRecord, debug_repr
+from ..core import (Container, Dependency, DependencyDebug, DependencyValue, Provider,
                     Scope)
 
 
@@ -52,15 +52,23 @@ class FactoryProvider(Provider[Hashable]):
         except KeyError:
             return None
 
-        return DependencyDebug(
-            debug_repr(build),
-            scope=factory.scope,
-            wired=[factory.function] if factory.dependency is None else [],
-            dependencies=([factory.dependency]
-                          if factory.dependency is not None else []))
+        dependencies = []
+        wired = []
+        if factory.dependency is not None:
+            dependencies.append(factory.dependency)
+            if isinstance(factory.dependency, type) \
+                    and inspect.isclass(factory.dependency):
+                wired.append(factory.dependency.__call__)
+        else:
+            wired.append(factory.function)
+
+        return DependencyDebug(debug_repr(build),
+                               scope=factory.scope,
+                               wired=wired,
+                               dependencies=dependencies)
 
     def maybe_provide(self, build: Hashable, container: Container
-                      ) -> Optional[DependencyInstance]:
+                      ) -> Optional[DependencyValue]:
         dependency_factory = build.dependency if isinstance(build, Build) else build
         if not isinstance(dependency_factory, FactoryDependency):
             return None
@@ -73,13 +81,13 @@ class FactoryProvider(Provider[Hashable]):
         if factory.function is None:
             f = container.provide(factory.dependency)
             assert f.is_singleton(), "factory dependency is expected to be a singleton"
-            factory.function = f.value
+            factory.function = f.unwrapped
 
         instance = (factory.function(**build.kwargs)
                     if isinstance(build, Build) and build.kwargs
                     else factory.function())
 
-        return DependencyInstance(instance, scope=factory.scope)
+        return DependencyValue(instance, scope=factory.scope)
 
     def register(self,
                  output: type,
@@ -87,18 +95,18 @@ class FactoryProvider(Provider[Hashable]):
                  factory: Union[Callable[..., object], Dependency[Hashable]],
                  scope: Optional[Scope]
                  ) -> 'FactoryDependency':
-        assert inspect.isclass(output)
+        assert inspect.isclass(output) \
+               and (callable(factory) or isinstance(factory, Dependency)) \
+               and (isinstance(scope, Scope) or scope is None)
         factory_dependency = FactoryDependency(output, factory)
         self._assert_not_duplicate(factory_dependency)
 
         if isinstance(factory, Dependency):
             self.__factories[factory_dependency] = Factory(scope,
-                                                           dependency=factory.value)
-        elif callable(factory):
+                                                           dependency=factory.unwrapped)
+        else:
             self.__factories[factory_dependency] = Factory(scope,
                                                            function=factory)
-        else:
-            raise TypeError(f"factory must be callable, not {type(factory)!r}.")
 
         return factory_dependency
 
@@ -111,6 +119,8 @@ class FactoryDependency(FinalImmutable):
     __hash: int
 
     def __init__(self, output: Hashable, factory: object):
+        if isinstance(factory, Dependency):
+            factory = factory.unwrapped
         super().__init__(output, factory, hash((output, factory)))
 
     def __repr__(self) -> str:
@@ -122,6 +132,7 @@ class FactoryDependency(FinalImmutable):
     def __str__(self) -> str:
         return f"{debug_repr(self.output)} @ {debug_repr(self.factory)}"
 
+    # Custom hash & eq necessary to find duplicates
     def __hash__(self) -> int:
         return self.__hash
 

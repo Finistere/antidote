@@ -1,16 +1,17 @@
 import inspect
-from typing import (Any, Callable, cast, get_type_hints, Hashable, Iterable, Optional,
-                    overload, Tuple, TypeVar, Union)
+from typing import (Callable, Iterable, Optional, Tuple, TypeVar, Union, cast, overload)
 
-from ._compatibility.typing import final, Protocol
-from ._factory import FactoryMeta, LambdaFactory, PreBuild
+from ._compatibility.typing import Protocol, final, get_type_hints
+from ._factory import FactoryMeta, FactoryWrapper, PreBuild
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
+from ._internal.wrapper import is_wrapper
 from ._providers import FactoryProvider, Tag, TagProvider
-from .core import DEPENDENCIES_TYPE, inject, Wiring, WithWiringMixin, Scope
-from .utils import validate_injection, validated_scope, validated_tags
+from .core import Provide, Scope, Wiring, WithWiringMixin, inject
+from .core.exceptions import DoubleInjectionError
+from .utils import validated_scope, validated_tags
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar('F', bound=Callable[..., object])
 
 
 @API.private
@@ -19,10 +20,7 @@ class FactoryProtocol(Protocol[F]):
     :meta private:
     """
 
-    def __rmatmul__(self, dependency: Hashable) -> object:
-        pass  # pragma: no cover
-
-    def with_kwargs(self, **kwargs: object) -> PreBuild:
+    def __rmatmul__(self, klass: type) -> object:
         pass  # pragma: no cover
 
     __call__: F
@@ -87,18 +85,23 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         >>> class MyFactory(Factory):
         ...     def __call__(self, name = 'default') -> ExternalService:
         ...         return ExternalService(name)
+        ...
+        ...     @classmethod
+        ...     def named(cls, name: str):
+        ...         return cls._with_kwargs(name=name)
+        ...
         >>> world.get[ExternalService](ExternalService @ MyFactory).name
         'default'
         >>> s = world.get[ExternalService](
-        ...     ExternalService @ MyFactory.with_kwargs(name='perfection'))
+        ...     ExternalService @ MyFactory.named('perfection'))
         >>> s.name
         'perfection'
         >>> # The same instance will be returned for those keywords as MyFactory was
         ... # declared as returning a singleton.
-        ... s is world.get(ExternalService @ MyFactory.with_kwargs(name='perfection'))
+        ... s is world.get(ExternalService @ MyFactory.named('perfection'))
         True
         >>> # You can also keep the dependency and re-use it
-        ... PerfectionService = ExternalService @ MyFactory.with_kwargs(name='perfection')
+        ... PerfectionService = ExternalService @ MyFactory.named('perfection')
         >>> @inject(dependencies=dict(service=PerfectionService))
         ... def f(service):
         ...     return service
@@ -114,7 +117,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'scope', 'tags', 'public')
+        __slots__ = ('wiring', 'scope', 'tags')
         wiring: Optional[Wiring]
         scope: Optional[Scope]
         tags: Optional[Tuple[Tag]]
@@ -125,9 +128,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
         def __init__(self,
                      *,
-                     wiring: Optional[Wiring] = Wiring(
-                         methods=['__call__'],
-                         attempt_methods=['__init__']),
+                     wiring: Optional[Wiring] = Wiring(),
                      singleton: bool = None,
                      scope: Optional[Scope] = Scope.sentinel(),
                      tags: Iterable[Tag] = None):
@@ -137,9 +138,13 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                 wiring: Wiring to be applied on the factory. By default only
                     :code:`__init__()` and :code:`__call__()` will be wired. To deactivate
                     any wiring at all use :py:obj:`None`.
-                singleton: Whether the returned dependency is a singleton or not. If yes,
-                    the factory will only be called once and its result cached. Defaults
-                    to :py:obj:`True`.
+                singleton: Whether the returned dependency  is a singleton or not. If yes,
+                    the factory will be called at most once and the result re-used.
+                    Mutually exclusive with :code:`scope`. Defaults to :py:obj:`True`
+                scope: Scope of the returned dependency. Mutually exclusive with
+                    :code:`singleton`. The scope defines if and how long the returned
+                    dependency will be cached. See :py:class:`~.core.container.Scope`.
+                    Defaults to :py:meth:`~.core.container.Scope.singleton`.
                 tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
                       provided dependency.
             """
@@ -186,24 +191,16 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 @overload
 def factory(f: F,  # noqa: E704  # pragma: no cover
             *,
-            auto_wire: bool = True,
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            dependencies: DEPENDENCIES_TYPE = None,
-            use_names: Union[bool, Iterable[str]] = None,
-            use_type_hints: Union[bool, Iterable[str]] = None,
             tags: Iterable[Tag] = None
             ) -> FactoryProtocol[F]: ...
 
 
 @overload
 def factory(*,  # noqa: E704  # pragma: no cover
-            auto_wire: bool = True,
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            dependencies: DEPENDENCIES_TYPE = None,
-            use_names: Union[bool, Iterable[str]] = None,
-            use_type_hints: Union[bool, Iterable[str]] = None,
             tags: Iterable[Tag] = None
             ) -> Callable[[F], FactoryProtocol[F]]: ...
 
@@ -211,12 +208,8 @@ def factory(*,  # noqa: E704  # pragma: no cover
 @API.public
 def factory(f: F = None,
             *,
-            auto_wire: bool = True,
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            dependencies: DEPENDENCIES_TYPE = None,
-            use_names: Union[bool, Iterable[str]] = None,
-            use_type_hints: Union[bool, Iterable[str]] = None,
             tags: Iterable[Tag] = None
             ) -> Union[FactoryProtocol[F], Callable[[F], FactoryProtocol[F]]]:
     """
@@ -246,46 +239,15 @@ def factory(f: F = None,
         >>> world.get[ExternalService](ExternalService @ build_service)
         <ExternalService ...>
 
-    One can customize the instantiation and use the same service with different
-    configuration:
-
-    .. doctest:: helpers_factory_v2
-
-        >>> from antidote import factory, world, inject
-        >>> class ExternalService:
-        ...     def __init__(self, name):
-        ...         self.name = name
-        >>> @factory
-        ... def build_service(name = 'default') -> ExternalService:
-        ...     return ExternalService(name)
-        >>> world.get[ExternalService](ExternalService @ build_service).name
-        'default'
-        >>> s = world.get[ExternalService](
-        ...     ExternalService @ build_service.with_kwargs(name='perfection'))
-        >>> s.name
-        'perfection'
-        >>> # The same instance will be returned for those keywords as MyFactory was
-        ... # declared as returning a singleton.
-        ... s is world.get(ExternalService @ build_service.with_kwargs(name='perfection'))
-        True
-        >>> # You can also keep the dependency and re-use it
-        ... PerfectionService = \\
-        ...     ExternalService @ build_service.with_kwargs(name='perfection')
-        >>> @inject(dependencies=dict(service=PerfectionService))
-        ... def f(service):
-        ...     return service
-        >>> f() is s
-        True
-
     Args:
         f: Callable which builds the dependency.
-        singleton: If True, `func` will only be called once. If not it is
-            called at each injection.
-        auto_wire: Whether the function should have its arguments injected or not
-            with :py:func:`~.injection.inject`.
-        dependencies: Propagated to :py:func:`~.injection.inject`.
-        use_names: Propagated to :py:func:`~.injection.inject`.
-        use_type_hints: Propagated to :py:func:`~.injection.inject`.
+        singleton: Whether the returned dependency  is a singleton or not. If yes,
+            the factory will be called at most once and the result re-used. Mutually
+            exclusive with :code:`scope`. Defaults to :py:obj:`True`.
+        scope: Scope of the returned dependency. Mutually exclusive with
+            :code:`singleton`. The scope defines if and how long the returned dependency
+            will be cached. See :py:class:`~.core.container.Scope`. Defaults to
+            :py:meth:`~.core.container.Scope.singleton`.
         tags: Iterable of :py:class:`~.._providers.tag.Tag` applied to the provided
             dependency.
 
@@ -295,17 +257,16 @@ def factory(f: F = None,
     """
     scope = validated_scope(scope, singleton, default=Scope.singleton())
     tags = validated_tags(tags)
-    validate_injection(dependencies, use_names, use_type_hints)
-    if not (auto_wire is None or isinstance(auto_wire, bool)):
-        raise TypeError(f"auto_wire can be None or a boolean, not {type(auto_wire)}")
 
     @inject
     def register_factory(func: F,
-                         factory_provider: FactoryProvider = None,
-                         tag_provider: TagProvider = None) -> FactoryProtocol[F]:
+                         factory_provider: Provide[FactoryProvider] = None,
+                         tag_provider: Provide[TagProvider] = None) -> FactoryProtocol[F]:
         assert factory_provider is not None
 
-        if not inspect.isfunction(func):
+        if not (inspect.isfunction(func)
+                or (is_wrapper(func)
+                    and inspect.isfunction(func.__wrapped__))):  # type: ignore
             raise TypeError(f"{func} is not a function")
 
         output = get_type_hints(func).get('return')
@@ -319,20 +280,19 @@ def factory(f: F = None,
         if tags is not None and tag_provider is None:
             raise RuntimeError("No TagProvider registered, cannot use tags.")
 
-        if auto_wire:
-            func = inject(func,
-                          dependencies=dependencies,
-                          use_names=use_names,
-                          use_type_hints=use_type_hints)
+        try:
+            func = inject(func)
+        except DoubleInjectionError:
+            pass
 
-        factory_id = factory_provider.register(factory=func,
+        dependency = factory_provider.register(factory=func,
                                                scope=scope,
                                                output=output)
 
         if tags:
             assert tag_provider is not None  # for Mypy
-            tag_provider.register(dependency=factory_id, tags=tags)
+            tag_provider.register(dependency=dependency, tags=tags)
 
-        return cast(FactoryProtocol[F], LambdaFactory(func, factory_id))
+        return cast(FactoryProtocol[F], FactoryWrapper(func, dependency))
 
     return f and register_factory(f) or register_factory

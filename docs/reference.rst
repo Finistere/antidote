@@ -18,6 +18,16 @@ world
 
     .. autodata:: lazy
 
+.. automodule:: antidote.utils
+    :members: is_compiled
+
+
+world.scopes
+------------
+
+.. automodule:: antidote.world.scopes
+    :members:
+
 
 world.singletons
 ----------------
@@ -54,7 +64,7 @@ Service
     :members: __antidote__
     :inherited-members:
 
-    .. automethod:: with_kwargs
+    .. automethod:: _with_kwargs
 
 
 Factory
@@ -67,7 +77,7 @@ Factory
     :members:
     :inherited-members:
 
-    .. automethod:: with_kwargs
+    .. automethod:: _with_kwargs
 
 
 Constants
@@ -106,13 +116,29 @@ Core
 Injection
 ---------
 
+Inject
+^^^^^^
 .. automodule:: antidote.core.injection
     :members: inject, Arg
 
+Auto_provide
+^^^^^^^^^^^^
+.. automodule:: antidote.core.auto_provide
+    :members:
+
+Annotations
+^^^^^^^^^^^
+.. automodule:: antidote.core.annotations
+    :members:
+
+Wiring
+^^^^^^
 .. automodule:: antidote.core.wiring
     :members: Wiring, wire, WithWiringMixin
 
-.. automodule:: antidote.core.utils
+Utility
+^^^^^^^
+.. autoclass:: antidote.core.utils.Dependency
     :members:
 
 
@@ -123,6 +149,9 @@ Provider
     :members:
 
 .. automodule:: antidote.core.container
+    :members:
+
+.. autoclass::antidote.core.utils.DependencyDebug
     :members:
 
 

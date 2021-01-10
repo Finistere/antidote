@@ -6,15 +6,15 @@ cimport cython
 from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider, Header, HeaderObject,
-                                      header_flag_no_scope, header_scope, Scope, header_flag_cacheable)
+                                      Scope, header_flag_cacheable)
 from .._internal.utils import debug_repr
 # @formatter:on
 from ..core import DependencyDebug
 
 cdef extern from "Python.h":
+    PyObject*Py_True
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
-    PyObject*Py_True
     PyObject*PyObject_Call(PyObject *callable, PyObject *args, PyObject *kwargs) except NULL
     PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
 
@@ -40,7 +40,7 @@ cdef class Build:
         return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
 
     def __antidote_debug_repr__(self):
-        return f"{debug_repr(self.dependency)}(**{self.kwargs})"
+        return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
 
     def __eq__(self, other):
         return (isinstance(other, Build)
@@ -117,7 +117,8 @@ cdef class ServiceProvider(FastProvider):
     def register(self, klass: type, *, Scope scope):
         cdef:
             Header header
-        assert inspect.isclass(klass)
+        assert inspect.isclass(klass) \
+               and (isinstance(scope, Scope) or scope is None)
         with self._bound_container_ensure_not_frozen():
             self._bound_container_raise_if_exists(klass)
             self.__services[klass] = HeaderObject.from_scope(scope)

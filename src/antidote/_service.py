@@ -4,7 +4,7 @@ from ._internal import API
 from ._internal.utils import AbstractMeta
 from ._providers import ServiceProvider, TagProvider
 from ._providers.service import Build
-from .core import inject
+from .core import inject, Provide
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 
@@ -26,7 +26,7 @@ class ServiceMeta(AbstractMeta):
         return cls
 
     @API.public
-    def with_kwargs(cls, **kwargs: object) -> object:
+    def _with_kwargs(cls, **kwargs: object) -> object:
         """
         Creates a new dependency based on the service which will have the keyword
         arguments provided. If the service is a singleton and identical kwargs are used,
@@ -36,7 +36,7 @@ class ServiceMeta(AbstractMeta):
             **kwargs: Arguments passed on to :code:`__init__()`.
 
         Returns:
-            Dependency to be retrieved from Antidote.
+            Dependency to be retrieved from Antidote. You cannot use it directly.
         """
         return Build(cls, kwargs)
 
@@ -44,8 +44,8 @@ class ServiceMeta(AbstractMeta):
 @API.private
 @inject
 def _configure_service(cls: type,
-                       service_provider: ServiceProvider = None,
-                       tag_provider: TagProvider = None,
+                       service_provider: Provide[ServiceProvider] = None,
+                       tag_provider: Provide[TagProvider] = None,
                        conf: object = None) -> None:
     from .service import Service
     assert service_provider is not None

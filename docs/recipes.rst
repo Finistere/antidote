@@ -12,41 +12,25 @@ Use interfaces
 ==============
 
 
-Antidote supports the distinction interface/implementation out of the box.
-When the choice of the implementation is straightforward you can simply use
-:py:func:`~.Implementation`:
-
-.. testcode:: recipes_interface_implements
-
-    from antidote import Implementation
-
-    class Interface:
-        pass
-
-    # Interface MUST always be inherited first and Implementation second
-    # Any other super class must be inherited afterwards.
-    class MyService(Interface, Implementation):
-        pass
-
-.. doctest:: recipes_interface_implements
-
-    >>> from antidote import world
-    >>> world.get[Interface]()
-    <MyService ...>
-
-If you have multiple possible implementation you'll need to rely on the function decorator
-:py:func:`~.implementation`. The result of the function will be the retrieved dependency
-for the specified interface. Typically this means a class registered as a service or one
-that can be provided by a factory.
+Antidote supports the distinction interface/implementation out of the box with the
+function decorator :py:func:`~.implementation`. The result of the function will be the
+retrieved dependency for the specified interface. Typically this means a class registered
+as a service or one that can be provided by a factory.
 
 .. testcode:: recipes_interface_implementation
 
-    from antidote import implementation, Service, inject
+    from antidote import implementation, Service, inject, Get
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
 
     class Database:
         def __init__(self, host: str, name: str):
             self.host = host
             self.name = name
+
+        @classmethod
+        def with_conf(cls, host: str, name: str):
+            return cls._with_kwargs(host=host, name=name)
 
     class PostgresDB(Service, Database):
         pass
@@ -56,12 +40,12 @@ that can be provided by a factory.
 
     # permanent is True by default. If you want to choose each time which implementation
     # should be used, set it to False.
-    @implementation(Database, permanent=True, dependencies=['db_conn_str'])
-    def choose_db(conn_str):
+    @implementation(Database, permanent=True)
+    def local_db(conn_str: Annotated[str, Get('db_conn_str')]):
         db, host, name = conn_str.split(':')
         if db == 'postgres':
             # Complex dependencies are supported
-            return PostgresDB.with_kwargs(host=host, name=name)
+            return PostgresDB.with_conf(host, name)
         elif db == 'mysql':
             # But you can also simply return the class
             return MySQLDB
@@ -73,24 +57,13 @@ that can be provided by a factory.
 
     >>> from antidote import world
     >>> world.singletons.add('db_conn_str', 'postgres:localhost:my_project')
-    >>> db = world.get[Database]()
+    >>> db = world.get[Database](Database @ local_db)
     >>> db
     <PostgresDB ...>
     >>> db.host
     'localhost'
     >>> db.name
     'my_project'
-
-
-.. note::
-
-    You may wonder why one needs to specify the interface in :py:func:`~.implements`,
-    as here the interface is obvious. There are two reasons for this:
-
-    - Multiple and/or deep inheritance chain would otherwise make it ambiguous
-      to know which interface is used by Antidote.
-    - While it isn't perfect, you can easily find which services are used by
-      Antidote by searching :code:`@implements(Interface` through your code.
 
 
 
@@ -159,6 +132,51 @@ necessary.
 
 
 
+Abstract Service / Factory
+==========================
+
+It is possible to define an abstract service or factory by simply adding
+:code:`abstract=True` as a metaclass argument:
+
+.. testcode:: recipes_abstract
+
+    from antidote import Service, Factory, Tag
+
+    tag = Tag()
+
+    class AbstractService(Service, abstract=True):
+        # Change default configuration
+        __antidote__ = Service.Conf(tags=[tag])
+
+    class AbstractFactory(Factory, abstract=True):
+        pass
+
+Abstract classes will not be registered, neither wired:
+
+.. doctest:: recipes_abstract
+
+    >>> from antidote import world
+    >>> world.get[AbstractService]()
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in ?
+    DependencyNotFoundError
+    >>> world.get[AbstractFactory]()
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in ?
+    DependencyNotFoundError
+
+In the actual implementation you only need to use :code:`copy()` on the configuration
+to use the newly defined defaults:
+
+.. testcode:: recipes_abstract
+
+    class MyService(AbstractService):
+        # Change default configuration
+        __antidote__ = AbstractService.__antidote__.copy(singleton=False)
+
+
+
+
 Use tags to retrieve multiple dependencies
 ==========================================
 
@@ -175,41 +193,23 @@ instance of :py:class:`.Tag`.
 
     tag = Tag()
 
-    class PluginA(Service):
+    # Specifying abstract tells Antidote to NOT register Plugin. It's considered
+    # to be an abstract class.
+    class Plugin(Service, abstract=True):
+        pass
+
+    class PluginA(Plugin):
         __antidote__ = Service.Conf(tags=[tag])
 
-    class PluginB(Service):
+    class PluginB(Plugin):
         __antidote__ = Service.Conf(tags=[tag])
 
 .. doctest:: recipes_tags
 
     >>> from antidote import world, Tagged
-    >>> tagged = world.get[Tagged](tag)
+    >>> tagged = world.get[Tagged](Tagged.with_(tag))
     >>> list(sorted(tagged.values(), key=lambda plugin: type(plugin).__name__))
     [<PluginA ...>, <PluginB ...>]
-
-You can do more than that with tags though, you can
-
-- store information in them.
-- change how dependencies are grouped.
-
-To do so, just create your own subclass:
-
-.. testcode:: recipes_tags
-
-    class CustomTag(Tag):
-        __slots__ = ('name',)  # __slots__ isn't required
-        name: str  # For Mypy
-
-        def __init__(self, name: str):
-            # Tag defining all its instances as immutable you can't do a
-            # self.name = name
-            # so you have to through the parent constructor.
-            super().__init__(name=name)
-
-        def group(self):
-            # All tags having the same group will be retrieved together by Antidote
-            return self.name.split("_")[0]
 
 Antidote will always return a :py:class:`.Tagged`, whether there are tagged instances or
 not.
@@ -344,7 +344,6 @@ to a dictionary and use the following:
     'my key'
 
 
-
 Specifying a type / Using Enums
 -------------------------------
 
@@ -404,3 +403,91 @@ and use it as a one.
     The second cast is done by :py:class:`.Constants`, controlled by :code:`auto_cast`.
     This will do an actual cast, which provides a nice syntactic sugar to cast integers or
     floats typically as configuration may be stored as a string.
+
+
+Default values
+--------------
+
+Default values can be specified in :py:func:`.const`:
+
+.. testcode:: recipes_configuration_default
+
+    import os
+    from antidote import Constants, const
+
+    class Env(Constants):
+        HOST = const[str]('HOST', default='localhost')
+
+        def get(self, value):
+            return os.environ[value]
+
+It will be use if :code:`get` raises a py:exec:`KeyError`. For more complex behavior,
+using a :py:class:`collections.ChainMap` which loads your defaults and the user is a good
+alternative:
+
+.. testcode:: recipes_configuration_default
+
+    from collections import ChainMap
+    from antidote import Constants, const
+
+    class Configuration(Constants):
+        def __init__(self):
+            user_conf = dict()  # load conf from a file, etc..
+            default_conf = dict()
+            # User conf will override default_conf
+            self._raw_conf = ChainMap(user_conf, default_conf)
+
+An alternative to this would be using a configuration format that supports overrides, such
+as HOCON.
+
+
+
+Scopes
+======
+
+
+A dependency may be associated with a scope. If so it'll cached for as along as the scope is
+valid. The most common scope being the singleton scope where dependencies are cached forever.
+When the scope is set to :py:obj:`None`, the dependency value will be retrieved each time.
+Scopes can be create through :py:func:`.world.scopes.new`. The name is only used to
+have a friendly identifier when debugging.
+
+.. doctest:: recipes_scope
+
+    >>> from antidote import world
+    >>> REQUEST_SCOPE = world.scopes.new('request')
+
+To use the newly created scope, use :code:`scope` parameters:
+
+.. doctest:: recipes_scope
+
+    >>> from antidote import Service
+    >>> class Dummy(Service):
+    ...     __antidote__ = Service.Conf(scope=REQUEST_SCOPE)
+
+As :code:`Dummy` has been defined with a custom scope, the dependency value will
+be kep as long as :code:`REQUEST_SCOPE` stays valid. That is to say, until you reset
+it with :py:func:`.world.scopes.reset`:
+
+.. doctest:: recipes_scope
+
+    >>> dummy = world.get[Dummy]()
+    >>> dummy is world.get(Dummy)
+    True
+    >>> world.scopes.reset(REQUEST_SCOPE)
+    >>> dummy is world.get(Dummy)
+    False
+
+In a Flask app for example you would then just reset the scope after each request:
+
+
+.. code-block:: python
+
+    from flask import Flask
+
+    app = Flask(__name__)
+
+    @app.after_request
+    def reset_request_scope():
+        world.scopes.reset(REQUEST_SCOPE)
+

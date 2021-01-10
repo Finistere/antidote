@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Callable, cast, Dict, Set, Tuple, Type, TypeVar
+from typing import Callable, Dict, Set, Tuple, Type, TypeVar, cast
 
 from .container import RawProvider
 from .exceptions import FrozenWorldError
@@ -49,7 +49,7 @@ def _make_wrapper(attr: str, method: F) -> F:
     @functools.wraps(method)
     def wrapped_method(self: RawProvider, *args: object, **kwargs: object) -> object:
         try:
-            with self._bound_container_ensure_not_frozen():
+            with self._bound_container_locked(freezing=True):
                 # If you have a TypeError traceback pointing here you probably have
                 # a mismatch between the arguments and the wrapped method signature.
                 return method(self, *args, **kwargs)

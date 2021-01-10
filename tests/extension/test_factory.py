@@ -2,7 +2,7 @@ from typing import Any, Callable, Type
 
 import pytest
 
-from antidote import Factory, factory, Tag, Wiring, world
+from antidote import Factory, Provide, Service, factory, Tag, Wiring, inject, world
 from antidote._providers import (FactoryProvider, LazyProvider, ServiceProvider,
                                  TagProvider)
 
@@ -73,36 +73,39 @@ def test_custom_scope():
     class Scoped:
         pass
 
-    with world.test.clone():
-        class ScopedF(Factory):
-            __antidote__ = Factory.Conf(scope=dummy_scope)
+    class ScopedF(Factory):
+        __antidote__ = Factory.Conf(scope=dummy_scope)
 
-            def __call__(self) -> Scoped:
-                return Scoped()
-
-        x = world.get(Scoped @ ScopedF)
-        assert world.get(Scoped @ ScopedF) is x
-        world.scopes.reset(dummy_scope)
-        assert world.get(Scoped @ ScopedF) is not x
-
-    with world.test.clone():
-        @factory(scope=dummy_scope)
-        def scoped_factory() -> Scoped:
+        def __call__(self) -> Scoped:
             return Scoped()
 
-        x = world.get(Scoped @ scoped_factory)
-        assert world.get(Scoped @ scoped_factory) is x
-        world.scopes.reset(dummy_scope)
-        assert world.get(Scoped @ scoped_factory) is not x
+    x = world.get(Scoped @ ScopedF)
+    assert world.get(Scoped @ ScopedF) is x
+    world.scopes.reset(dummy_scope)
+    assert world.get(Scoped @ ScopedF) is not x
+
+    @factory(scope=dummy_scope)
+    def scoped_factory() -> Scoped:
+        return Scoped()
+
+    x = world.get(Scoped @ scoped_factory)
+    assert world.get(Scoped @ scoped_factory) is x
+    world.scopes.reset(dummy_scope)
+    assert world.get(Scoped @ scoped_factory) is not x
 
 
-def test_with_kwargs(build: Type[Factory]):
+def test_with_kwargs():
     x = object()
-    a = world.get(A @ build.with_kwargs(x=x))
+
+    class BuildA(Factory):
+        def __call__(self, **kwargs) -> A:
+            return A(**kwargs)
+
+    a = world.get(A @ BuildA._with_kwargs(x=x))
     assert a.kwargs == dict(x=x)
 
     with pytest.raises(ValueError, match=".*with_kwargs.*"):
-        A @ build.with_kwargs()
+        A @ BuildA._with_kwargs()
 
 
 def test_getattr():
@@ -122,8 +125,14 @@ def test_invalid_dependency(build: Type[Factory]):
     with pytest.raises(ValueError, match="Unsupported output.*"):
         B @ build
 
+
+def test_invalid_dependency_with_kwargs():
+    class BuildA(Factory):
+        def __call__(self) -> A:
+            return A()
+
     with pytest.raises(ValueError, match="Unsupported output.*"):
-        B @ build.with_kwargs(x=1)
+        B @ BuildA._with_kwargs(x=1)
 
 
 def test_missing_call():
@@ -165,12 +174,12 @@ def test_missing_return_type_hint():
                                           {arg: object()},
                                           lambda: None,
                                           id=arg)
-                             for arg in ['auto_wire',
+                             for arg in ['auto_provide',
                                          'singleton',
                                          'scope',
                                          'dependencies',
                                          'use_names',
-                                         'use_type_hints',
+                                         'auto_provide',
                                          'tags']
                          ])
 def test_invalid_factory_args(expectation, kwargs: dict, func: Callable[..., object]):
@@ -232,3 +241,46 @@ def test_invalid_copy():
     conf = Factory.Conf()
     with pytest.raises(TypeError, match=".*both.*"):
         conf.copy(singleton=False, scope=None)
+
+
+def test_conf_repr():
+    conf = Factory.Conf()
+    assert "scope" in repr(conf)
+
+
+def test_default_injection():
+    class MyService(Service):
+        pass
+
+    class A:
+        pass
+
+    injected = None
+
+    @factory
+    def build_a(s: Provide[MyService]) -> A:
+        nonlocal injected
+        injected = s
+        return A()
+
+    assert isinstance(world.get(A @ build_a), A)
+    assert injected is world.get(MyService)
+
+
+def test_double_injection():
+    world.singletons.add('s', object())
+
+    class A:
+        pass
+
+    injected = None
+
+    @factory
+    @inject(use_names=True)
+    def build_a(s) -> A:
+        nonlocal injected
+        injected = s
+        return A()
+
+    assert isinstance(world.get(A @ build_a), A)
+    assert injected is world.get('s')
