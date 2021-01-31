@@ -122,8 +122,8 @@ Breaking changes
 - Drop support of Python 3.5.
 - Singletons do check for duplicates now. Hence one cannot redefine an existing singleton
   through :code:`world`.
-- :code:`world.update_singletons` does not exists anymore, use :py:func:`.world.singletons.add_all` or
-  :py:func:`.world.singletons.add` instead.
+- :code:`world.update_singletons` does not exists anymore, use :py:func:`.world.test.singleton_all` or
+  :py:func:`.world.test.singleton` instead.
 - :code:`@register` is now replaced by the class :py:class:`.Service` and provides mostly the same
   features. The only corner cases are service that used factories, those should now
   really use a factory, namely :py:class:`.Factory` or :py:class:`.factory`. If you cannot

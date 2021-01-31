@@ -141,10 +141,10 @@ def test_invalid_implementation_return_type():
     class B:
         pass
 
-    world.singletons.add(B, 1)
+    world.test.singleton(B, 1)
 
     with world.test.new():
-        world.singletons.add(1, 1)
+        world.test.singleton(1, 1)
 
         @implementation(Interface)
         def choose():
@@ -155,7 +155,7 @@ def test_invalid_implementation_return_type():
             world.get(Interface @ choose)
 
     with world.test.new():
-        world.singletons.add(B, 1)
+        world.test.singleton(B, 1)
 
         @implementation(Interface)
         def choose2():
@@ -334,7 +334,7 @@ def test_default_injection():
 
 
 def test_double_injection():
-    world.singletons.add('s', object())
+    world.test.singleton('s', object())
 
     class Interface:
         pass

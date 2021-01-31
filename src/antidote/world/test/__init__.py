@@ -2,6 +2,6 @@
 Testing utilities with Antidote. Also used by Antidote itself.
 """
 from . import override
-from ._methods import clone, empty, maybe_provide_from, new
+from ._methods import clone, empty, factory, maybe_provide_from, new, singleton
 
-__all__ = ['override', 'clone', 'new', 'empty', 'maybe_provide_from']
+__all__ = ['clone', 'empty', 'factory', 'maybe_provide_from', 'new', 'singleton']

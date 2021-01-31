@@ -31,7 +31,7 @@ class B:
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.new():
-        world.singletons.add({A: A(),
+        world.test.singleton({A: A(),
                               B: B(),
                               'a': object(),
                               'b': object(),
@@ -387,7 +387,7 @@ def test_dependencies_callable(class_builder: F):
 
 
 def test_dependencies_str(class_builder: F):
-    world.singletons.add({
+    world.test.singleton({
         'conf:a': object(),
         'conf:b': object()
     })

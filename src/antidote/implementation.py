@@ -59,7 +59,7 @@ def implementation(interface: type,
         ...         return PostgreSQL
         ...     else:
         ...         return MySQL @ build_mysql
-        >>> world.singletons.add('choice', 'a')
+        >>> world.test.singleton('choice', 'a')
         >>> world.get(Database @ local_db)
         <PostgreSQL ...>
         >>> # Changing choice doesn't matter anymore as the implementation is permanent.

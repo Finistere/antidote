@@ -22,7 +22,7 @@ Let's start with a quick example:
     class MyService:
         pass
 
-    world.singletons.add(MyService, MyService())
+    world.test.singleton(MyService, MyService())
 
     @inject
     def f(service: Provide[MyService]):
@@ -94,7 +94,7 @@ You surely noticed the declaration of :code:`MyService` with:
 
 .. code-block:: python
 
-    world.singletons.add(MyService, MyService())
+    world.test.singleton(MyService, MyService())
 
 This declares a new singleton, :code:`MyService`, the class, pointing to a instance of
 itself. A singleton is a dependency that never changes, it always returns the same object.
@@ -102,7 +102,7 @@ As such you cannot redefine an existing one:
 
 .. doctest:: tutorial_overview
 
-    >>> world.singletons.add(MyService, MyService())
+    >>> world.test.singleton(MyService, MyService())
     Traceback (most recent call last):
     ...
     DuplicateDependencyError: <class 'MyService'>
@@ -112,7 +112,7 @@ their value:
 
 .. doctest:: tutorial_overview
 
-    >>> world.singletons.add({'favorite number': 11})
+    >>> world.test.singleton({'favorite number': 11})
 
 To retrieve our new singleton with :py:func:`.inject` we could do:
 
@@ -408,7 +408,7 @@ used first:
 
         from antidote import world
 
-        world.singletons.add('host', 'localhost')
+        world.test.singleton('host', 'localhost')
 
         @inject(dependencies=dict(my_service=MyService, host='host'))
         def f(my_service: MyService, host: str):
@@ -453,7 +453,7 @@ used first:
 
     .. testcode:: tutorial_injection
 
-        world.singletons.add('a', 'something')
+        world.test.singleton('a', 'something')
 
         @inject(use_names=True)
         def f(a: str):
@@ -497,7 +497,7 @@ for all injected methods. You can also specify explicitly which methods to injec
 .. doctest:: tutorial_wiring
 
     >>> from antidote import world
-    >>> world.singletons.add('host_name', 'localhost')
+    >>> world.test.singleton('host_name', 'localhost')
     >>> world.get[CustomWiring]().get_host()
     'localhost'
 
@@ -531,7 +531,7 @@ You can also :py:func:`.inject` with :py:class:`.Wiring`:
 
 .. doctest:: tutorial_wiring
 
-    >>> world.singletons.add('different_host', 'different')
+    >>> world.test.singleton('different_host', 'different')
     >>> x = world.get[MultiWiring]()
     >>> x.host == x.get_host()
     True
@@ -713,7 +713,7 @@ decorator :py:func:`.factory.factory`:
 .. doctest:: tutorial_factory
 
     >>> from antidote import world
-    >>> world.singletons.add('url', 'localhost:5432')
+    >>> world.test.singleton('url', 'localhost:5432')
     >>> f()
     <Database ...>
     >>> world.get[Database](Database @ default_db)
@@ -847,7 +847,7 @@ intend to test.
 .. doctest:: tutorial_test
 
     >>> with world.test.clone():
-    ...     world.singletons.add('test', 1)
+    ...     world.test.singleton('test', 1)
     Traceback (most recent call last):
       File "<stdin>", line 1, in ?
     FrozenWorldError
@@ -926,7 +926,7 @@ it:
 
 .. doctest:: tutorial_test
 
-    >>> world.singletons.add('hello', 'world')
+    >>> world.test.singleton('hello', 'world')
     >>> with world.test.clone():
     ...     world.get('hello')
     Traceback (most recent call last):
@@ -942,7 +942,7 @@ it:
 
     .. doctest:: tutorial_test
 
-        >>> world.singletons.add('buffer', [])
+        >>> world.test.singleton('buffer', [])
         >>> with world.test.clone(keep_singletons=True):
         ...     world.get('buffer').append(1)
         >>> world.get('buffer')  # We changed the singleton of the outside world.

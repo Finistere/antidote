@@ -21,7 +21,7 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
     .. doctest:: core_Dependency
 
         >>> from antidote import world
-        >>> world.singletons.add('port', 1)
+        >>> world.test.singleton('port', 1)
         >>> port = world.lazy[int]('port')
         >>> port.unwrapped
         'port'

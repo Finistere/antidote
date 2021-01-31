@@ -29,7 +29,7 @@ class Get(FinalImmutable, AntidoteAnnotation):
 
         >>> from typing import Annotated
         >>> from antidote import Service, world, inject, Get
-        >>> world.singletons.add("db_host", 'localhost:6789')
+        >>> world.test.singleton("db_host", 'localhost:6789')
         >>> class Database(Service):
         ...     # Reminder: __init__ is automatically injected in a Service by default.
         ...     def __init__(self, host: Annotated[str, Get("db_host")]):
@@ -89,7 +89,7 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
         >>> from antidote import world, inject, FromArg
         >>> T = TypeVar('T')
         >>> Conf = Annotated[T, FromArg(lambda arg: "conf:" + arg.name)]
-        >>> world.singletons.add('conf:port', 6789)
+        >>> world.test.singleton('conf:port', 6789)
         >>> @inject
         ... def f(port: Conf[int]) -> int:
         ...     return port
@@ -121,7 +121,7 @@ class FromArgName(FinalImmutable, AntidoteAnnotation):
         >>> from antidote import world, inject, FromArgName
         >>> T = TypeVar('T')
         >>> Conf = Annotated[T, FromArgName("conf:{arg_name}")]
-        >>> world.singletons.add('conf:port', 6789)
+        >>> world.test.singleton('conf:port', 6789)
         >>> @inject
         ... def f(port: Conf[int]) -> int:
         ...     return port

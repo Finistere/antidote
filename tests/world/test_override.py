@@ -21,7 +21,7 @@ def test_singleton(override: Callable[[Any, Any], Any]):
             override('test', 'a')
             assert world.get("test") == 'a'
 
-        world.singletons.add('test', sentinel)
+        world.test.singleton('test', sentinel)
 
         with world.test.clone(keep_singletons=True):
             assert world.get("test") is sentinel
@@ -61,7 +61,7 @@ def test_factory():
 
     # overrides singletons
     with world.test.empty():
-        world.singletons.add({'test': sentinel, 'test2': sentinel})
+        world.test.singleton({'test': sentinel, 'test2': sentinel})
         assert world.get('test') is sentinel
         assert world.get('test2') is sentinel
 
@@ -127,7 +127,7 @@ def test_provider():
 
     # overrides singletons
     with world.test.empty():
-        world.singletons.add({'test': sentinel, 'test2': sentinel})
+        world.test.singleton({'test': sentinel, 'test2': sentinel})
         assert world.get('test') is sentinel
         assert world.get('test2') is sentinel
 
@@ -195,7 +195,7 @@ def test_scope_support():
 
 def test_deep_clone():
     with world.test.empty():
-        world.singletons.add("test", sentinel)
+        world.test.singleton("test", sentinel)
 
         with world.test.clone(keep_singletons=True):
             with world.test.clone(keep_singletons=True):
@@ -217,7 +217,7 @@ def test_deep_clone():
 
 def test_debug():
     with world.test.new():
-        world.singletons.add("original", 2)
+        world.test.singleton("original", 2)
 
         with world.test.clone(keep_singletons=True):
             from antidote._internal import state

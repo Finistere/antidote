@@ -50,27 +50,6 @@ def test_scope_repr():
     assert "test" in str(s)
 
 
-def test_add_singletons(container: RawContainer):
-    x = object()
-    y = object()
-    container.add_singletons({'x': x, 'y': y})
-
-    assert container.provide('x').unwrapped is x
-    assert container.provide('x').scope is Scope.singleton()
-    assert container.get('y') is y
-
-
-def test_duplicate_singletons(container: RawContainer):
-    x = object()
-    container.add_singletons(dict(x=x))
-
-    with pytest.raises(DuplicateDependencyError):
-        container.add_singletons(dict(x=object()))
-
-    # did not change singleton
-    assert container.get('x') is x
-
-
 def test_get(container: RawContainer):
     container.add_provider(DummyFactoryProvider)
     container.get(DummyFactoryProvider).data = {
@@ -178,9 +157,7 @@ def test_scope_property(container: RawContainer):
 def test_repr_str(container: RawContainer):
     container.add_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
-    container.add_singletons({'test': 1})
 
-    assert 'test' in repr(container)
     assert repr(container.get(DummyProvider)) in repr(container)
     assert str(container.get(DummyProvider)) in str(container)
 
@@ -192,9 +169,6 @@ def test_freeze(container: RawContainer):
 
     with pytest.raises(FrozenWorldError):
         container.add_provider(DummyFactoryProvider)
-
-    with pytest.raises(FrozenWorldError):
-        container.add_singletons({'test': object()})
 
 
 def test_freezing_locked(container: RawContainer):
@@ -213,19 +187,28 @@ def test_provider_property(container: RawContainer):
     assert container.providers == [container.get(DummyProvider)]
 
 
-def test_clone_keep_singletons(container: RawContainer):
-    container.add_provider(DummyProvider)
-    container.get(DummyProvider).data = {'name': 'Antidote'}
-    container.add_singletons({'test': object()})
+@pytest.mark.parametrize('singleton', [True, False])
+def test_clone(container: RawContainer, singleton: bool):
+    class A:
+        pass
+
+    container.add_provider(DummyFactoryProvider)
+    provider = container.get(DummyFactoryProvider)
+    provider.data = {'a': lambda c: A()}
+    provider.singleton = singleton
+    original = container.get('a')
 
     cloned = container.clone(keep_singletons=True)
-    assert cloned.get('test') is container.get('test')
-    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
+    assert cloned.get(DummyFactoryProvider) is not provider
+    assert cloned.get(DummyFactoryProvider).data == provider.data
+    assert isinstance(cloned.get('a'), A)
+    assert (cloned.get('a') is original) == singleton
 
     cloned = container.clone(keep_singletons=False)
-    with pytest.raises(DependencyNotFoundError):
-        cloned.get("test")
-    assert cloned.get(DummyProvider) is not container.get(DummyProvider)
+    assert cloned.get(DummyFactoryProvider) is not provider
+    assert cloned.get(DummyFactoryProvider).data == provider.data
+    assert isinstance(cloned.get('a'), A)
+    assert cloned.get('a') is not original
 
 
 def test_providers_must_properly_clone(container: RawContainer):
@@ -256,11 +239,7 @@ def test_providers_must_properly_clone2(container: RawContainer):
 
 @pytest.mark.filterwarnings("ignore:Debug information")
 def test_raise_if_exists(container: RawContainer):
-    container.raise_if_exists(1)  # Nothing should happen
-
-    container.add_singletons({1: 10})
-    with pytest.raises(DuplicateDependencyError, match=".*singleton.*10.*"):
-        container.raise_if_exists(1)
+    container.raise_if_exists(object())  # Nothing should happen
 
     container.add_provider(DummyProvider)
     container.get(DummyProvider).data = {'name': 'Antidote'}
@@ -326,3 +305,8 @@ def test_already_frozen(container: RawContainer):
 
     with pytest.raises(FrozenWorldError):
         container.freeze()
+
+
+def test_debug(container: RawContainer):
+    with pytest.raises(DependencyNotFoundError):
+        container.debug(object())

@@ -45,7 +45,7 @@ def test_world(context: Callable, keeps_singletons: bool, strategy: str):
 
     x = object()
     y = object()
-    world.singletons.add("x", x)
+    world.test.singleton("x", x)
     world.provider(DummyIntProvider)
     provider = world.get(DummyIntProvider)
 
@@ -70,7 +70,7 @@ def test_world(context: Callable, keeps_singletons: bool, strategy: str):
                 world.get(ServiceProvider)
 
         if strategy != 'clone':
-            world.singletons.add("y", y)
+            world.test.singleton("y", y)
             assert world.get('y') is y
 
             world.provider(DummyFloatProvider)
@@ -90,7 +90,7 @@ def test_world(context: Callable, keeps_singletons: bool, strategy: str):
 
 
 def test_clone_keep_singletons():
-    world.singletons.add("singleton", 2)
+    world.test.singleton("singleton", 2)
     world.provider(DummyIntProvider)
 
     with world.test.clone(keep_singletons=True):
@@ -115,11 +115,11 @@ def test_clone_restrictions(keep_singletons, keep_scopes):
             world.provider(DummyIntProvider)
 
         with pytest.raises(FrozenWorldError):
-            world.singletons.add('test', 1)
+            world.test.singleton('test', 1)
 
 
 def test_deep_clone():
-    world.singletons.add("test", 1)
+    world.test.singleton("test", 1)
 
     with world.test.clone(keep_singletons=True):
         with world.test.clone(keep_singletons=False):
@@ -128,10 +128,10 @@ def test_deep_clone():
 
 
 def test_empty():
-    world.singletons.add("singleton", 2)
+    world.test.singleton("singleton", 2)
 
     with world.test.empty():
-        world.singletons.add("a", 3)
+        world.test.singleton("a", 3)
         assert world.get("a") == 3
         with pytest.raises(DependencyNotFoundError):
             world.get("singleton")
@@ -148,12 +148,12 @@ def test_empty():
 
 
 def test_new():
-    world.singletons.add("singleton", 2)
+    world.test.singleton("singleton", 2)
     world.provider(DummyIntProvider)
     assert world.get(10) == 20
 
     with world.test.new():
-        world.singletons.add("a", 3)
+        world.test.singleton("a", 3)
         assert world.get("a") == 3
         with pytest.raises(DependencyNotFoundError):
             world.get("singleton")
@@ -171,3 +171,4 @@ def test_provide_from():
     world.provider(DummyIntProvider)
     with pytest.raises(RuntimeError):
         world.test.maybe_provide_from(world.get(DummyIntProvider), 10)
+

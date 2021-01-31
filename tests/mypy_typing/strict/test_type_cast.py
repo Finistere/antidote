@@ -11,7 +11,7 @@ def test_constants_typing() -> None:
         class MyService(Service):
             pass
 
-        world.singletons.add('test', [])
+        world.test.singleton('test', [])
         world.get[list]('test').append(1)
         world.lazy[list]('test').get().append(2)
 
@@ -35,7 +35,7 @@ def test_annotated_typing() -> None:
             def hello(self) -> 'Dummy':
                 return self
 
-        world.singletons.add('dummy', Dummy())
+        world.test.singleton('dummy', Dummy())
 
         @factory
         def build_dummy() -> Dummy:

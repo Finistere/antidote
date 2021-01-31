@@ -1,5 +1,4 @@
-from . import scopes, singletons, test
+from . import scopes, test
 from ._methods import debug, freeze, get, lazy, provider
 
-__all__ = ['singletons', 'test', 'scopes', 'freeze', 'get', 'lazy', 'debug',
-           'provider']
+__all__ = ['test', 'scopes', 'freeze', 'get', 'lazy', 'debug', 'provider']

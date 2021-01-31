@@ -309,12 +309,6 @@ class RawContainer(Container):
             self.__providers.append(provider)
             self.__singletons[provider_cls] = provider
 
-    def add_singletons(self, dependencies: Mapping[Hashable, object]) -> None:
-        with self.locked(freezing=True):
-            for k, v in dependencies.items():
-                self.raise_if_exists(k)
-            self.__singletons.update(dependencies)
-
     def create_scope(self, name: str) -> Scope:
         scope = Scope(name)  # Name is only a helper, not a identifier by itself.
         with self.locked(freezing=True):
@@ -329,11 +323,6 @@ class RawContainer(Container):
 
     def raise_if_exists(self, dependency: Hashable) -> None:
         with self._registration_lock:
-            if dependency in self.__singletons:
-                raise DuplicateDependencyError(
-                    f"{dependency!r} has already been defined as a singleton pointing "
-                    f"to {self.__singletons[dependency]}")
-
             for provider in self.__providers:
                 if provider.exists(dependency):
                     debug = provider.maybe_debug(dependency)
@@ -374,21 +363,12 @@ class RawContainer(Container):
             return clone
 
     def debug(self, dependency: Hashable) -> 'DependencyDebug':
-        from .._internal.utils.debug import debug_repr
-        from .utils import DependencyDebug
-
         with self.locked():
             for p in self.__providers:
                 debug = p.maybe_debug(dependency)
                 if debug is not None:
                     return debug
-            try:
-                value = self.__singletons[dependency]
-                return DependencyDebug(f"Singleton: {debug_repr(dependency)} "
-                                       f"-> {value!r}",
-                                       scope=Scope.singleton())
-            except KeyError:
-                raise DependencyNotFoundError(dependency)
+            raise DependencyNotFoundError(dependency)
 
     def provide(self, dependency: Hashable) -> DependencyValue:
         try:

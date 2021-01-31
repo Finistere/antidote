@@ -48,7 +48,7 @@ def test_repr(provider: TagProvider):
 
 def test_tagged_dependencies():
     with world.test.empty():
-        world.singletons.add({
+        world.test.singleton({
             'd': object(),
             'd2': object()
         })
@@ -69,7 +69,7 @@ def test_tagged_dependencies():
 
         # tagged dependencies should only be retrieved once.
         with world.test.empty():
-            world.singletons.add({
+            world.test.singleton({
                 'd': object(),
                 'd2': object()
             })
@@ -110,7 +110,7 @@ def test_provide_unknown_tag():
 def test_provide_tags():
     with world.test.empty():
         provider = TagProvider()
-        world.singletons.add(dict(test=object(), test2=object()))
+        world.test.singleton(dict(test=object(), test2=object()))
         tagA = Tag()
         tagB = Tag()
         provider.register('test', tags=[tagA, tagB])
@@ -180,7 +180,7 @@ def test_unknown_dependency(dependency):
 @pytest.mark.parametrize('keep_singletons_cache', [True, False])
 def test_copy(provider: TagProvider,
               keep_singletons_cache: bool):
-    world.singletons.add(dict(test=object(), test2=object(), test3=object()))
+    world.test.singleton(dict(test=object(), test2=object(), test3=object()))
     tag = Tag()
     provider.register('test', tags=[tag])
     cloned = provider.clone(keep_singletons_cache=keep_singletons_cache)

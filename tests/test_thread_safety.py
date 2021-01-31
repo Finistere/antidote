@@ -104,7 +104,7 @@ def test_world_safety():
     def worker():
         with world.test.empty():
             tid = ThreadSafetyTest.unique_id()
-            world.singletons.add("x", tid)
+            world.test.singleton("x", tid)
             ThreadSafetyTest.random_delay()
             singletons.append((tid, tid == world.get("x")))
 

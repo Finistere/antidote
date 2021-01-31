@@ -28,7 +28,7 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
     .. doctest:: world_test_override_singleton
 
         >>> from antidote import world
-        >>> world.singletons.add("test", 1)
+        >>> world.test.singleton("test", 1)
         >>> world.get[int]("test")
         1
         >>> with world.test.clone():
@@ -75,7 +75,7 @@ def factory(dependency: Hashable = None,
     .. doctest:: world_test_override_factory
 
         >>> from antidote import world
-        >>> world.singletons.add("test", 1)
+        >>> world.test.singleton("test", 1)
         >>> world.get[int]("test")
         1
         >>> with world.test.clone():
@@ -152,7 +152,7 @@ def provider() -> Callable[[P], P]:
 
         >>> from antidote import world, Scope
         >>> from antidote.core import DependencyValue
-        >>> world.singletons.add("test", 1)
+        >>> world.test.singleton("test", 1)
         >>> world.get[int]("test")
         1
         >>> with world.test.clone():

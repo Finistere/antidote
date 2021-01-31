@@ -4,7 +4,7 @@ from antidote.core import Dependency, DependencyDebug, DependencyValue, Scope
 
 def test_dependency():
     with world.test.empty():
-        world.singletons.add('x', object())
+        world.test.singleton('x', object())
         d = Dependency('x')
         assert d.unwrapped == 'x'
         assert d.get() is world.get('x')

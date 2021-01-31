@@ -64,35 +64,39 @@ It provides the following features:
 Alternatives
 ============
 
-Disclaimer: I've never actually _used_ the compared libraries, this is based on my understanding of their
-documentation. If I missed something, please let me know ! :)
+Disclaimer: This comparison is mostly based on the documentation of the most popular libraries I know of and is obviously
+somewhat biased. :)
 
 In short, how does Antidote compare to other libraries ?
 
-- Everything is explicit. Some libraries using an :code:`@inject`-like decorator, such as injector_ and lagom_, will try to instantiate
-  any missing argument based on the type hint. Antidote will only inject dependencies that you have defined
-  as such. This might sound cumbersome, but it doesn't require anything more that inheriting :code:`Service` or being
-  decorated with :code:`@service`. It improves maintainability as it is easy to understand what is going on, you know
-  what was with the notable exception of dependency_injector_, all libraries have less features
+- Everything is explicit: Some libraries using an :code:`@inject`-like decorator, such as injector_, lagom_ or python_inject_ will
+  try to instantiate a class when used as a type hint if the argument is missing. Antidote will only inject dependencies
+  that you have defined as such. Also by default Antidote will not inject anything unless explicitly told so, even for
+  class type hints. This makes it a lot easier to understand what will be injected or not when looking at unknown
+  code.
+- Rich ecosystem: With the exception of dependency_injector_, I don't know of any library providing as much flexibility regarding
+  dependency management. Most of them will only inject class, support factories and singletons. With Antidote you can
+  express configuration, interfaces, tags (group of dependencies, like plugins) and more.
+- Maintainability: Again with the exception of dependency_injector_, dependency injection libraries may hide things from
+  you. Typically when defining a factory for class, it'll be defined somewhere and you won't have any way of knowing
+  *easily* where to find the factory *without knowing* the application. Dependencies defined out of the box with
+  Antidote ensure that you can *always* track back a dependency to its definition with nothing more than a "go to definition"
+  from your IDE.
+- Performance: Antidote's :code:`@inject` is heavily tuned for performance in the compiled version (Cython). Not other
+  library goes as far. Now whether it's really necessary for a dependency injection library is debatable. But this allows
+  you to use :code:`@inject` virtually anywhere easily.
 
-The most popular dependency injection libraries I know of are:
-
-- dependency_injector_:
-- pinject_: Pinject relies on the arguments name to do the wiring. Antidote relies only on type hints for auto wiring.
-  This make injection more robust and a lot easier to maintain. However, Antidote is flexible enough to implement the
-  former.
-- injector_: To call an injected function you need to explicitly call it through the container, :code:`Injector`, managing the
-  dependencies with :code:`Injector.call_with_injection()`.
-  So you have to either change your code to rely on the Injector explicitly or if you're lucky use another library to
-  add Injector support for your framework if you have any.
-  You're also loosing all type information on the argument for Mypy and yourself when overriding arguments for example.
-  Antidote is less constraining as :code:`@inject` can be applied anywhere without any impact. It only tries to inject
-  missing arguments. Furthermore Antidote does not inject arbitrary classes, it only injects what has been explicitly
-  defined as injectable.
-- python_inject_: Inject has
-
-There also a lot of less known dependency injection libraries in Python. Some of them have
-just a lot less features. Others
+So how does Antidote compare with dependency_injector_, the most complete dependency injection library I know of ? The
+main difference, IMHO, lies in the philosophy of the library. With dependency_injector_ you will declare your dependencies
+and their wiring in a different place from where they're defined. The class of a service and its declaration to dependency_injector_
+are in two different files. While this sounds like a small difference, it leads to a very different design and usage of
+the library. Whenever you change dependencies you have one more file to look up and adapt. As the number of services grows
+you'll need to manage all the dependency_injector_-specific code. With Antidote you'll know everything you need directly
+in the file defining your services, so you don't really have to manage Antidote-specific code more than what you already
+need for your service. You also don't need manage any container yourself, no need to specify which modules to inject. You
+can just directly use your classes. This makes Antidote especially easy to integrate and to use. I also do think that
+it improves maintainability, when you look at the code you don't need external context to understand it. If you see a
+service class you'll know immediately *how* it is wired.
 
 .. _dependency_injector: https://python-dependency-injector.ets-labs.org/introduction/di_in_python.html
 .. _pinject: https://github.com/google/pinject
@@ -121,45 +125,52 @@ How does injection looks like ? Here is a simple example:
 
 .. code-block:: python
 
-    from antidote import inject, Service, Constants, const, world
+    from antidote import (inject, Service, Constants, const, world, Provide,
+                          Get)
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
 
     class Conf(Constants):
-        DB_HOST = const[str]('host')
-        DB_HOST_WITHOUT_TYPE_HINT = const('host')
+        DB_HOST = const[str]('localhost:6789')
+        DB_HOST_WITHOUT_TYPE_HINT = const('localhost:6789')
 
-        def __init__(self):
-            self._data = {'host': 'localhost:6789'}
-
-        # Used to retrieve lazily the const, so injecting Conf.DB_HOST is equivalent
-        # Conf().get('host')
+        # Used to retrieve lazily the const. Here we're just returning the value itself
+        # but later we could rely on a file to store our configuration for example.
         def get(self, key: str):
-            return self._data[key]
+            return key
 
     class Database(Service):  # Defined as a Service, so injectable.
+        @inject
+        def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
+            self._host = host  # <=> Conf().get('host')
+
+        # without PEP-593
         @inject(dependencies={'host': Conf.DB_HOST})
         def __init__(self, host: str):
             self._host = host  # <=> Conf().get('host')
 
-    @inject # By default only type annotations are used.
-    def f(db: Database = None):
+    @inject  # Nothing is injected implicitly.
+    def f(db: Provide[Database] = None):
         # Defaulting to None allows for MyPy compatibility but isn't required to work.
         assert db is not None
         pass
 
-    f()  # Service will be automatically injected if not provided
+    f()  # works !
     f(Database('localhost:6789'))  # but you can still use the function normally
+
+    # without PEP-593
+    # With auto_provide=True, all class type hints will be treated as dependencies.
+    # you can also explicitly say which classes with `auto_provide=[Database]`.
+    @inject(auto_provide=True)
+    def f(db: Database = None):
+        assert db is not None
+        pass
 
     # You can also retrieve dependencies by hand
     world.get(Conf.DB_HOST)
-    world.get[str](Conf.DB_HOST) # with type hint
+    world.get[str](Conf.DB_HOST)  # with type hint
     # if the dependency is the type itself, you may omit it:
     world.get[Database]()
-
-    # If you need to handle multiple different host for some reason you can
-    # specify them in the dependency itself. As Database returns, by default,
-    # a singleton this will also be the case here. Using the same host, will
-    # return the same instance.
-    world.get[Database](Database.with_kwargs(host='XX'))
 
 
 Want more ? Here is an over-engineered example to showcase a lot more features:
@@ -172,7 +183,10 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
     to retrieve the best movies. In our case the implementation uses IMDB
     to dot it.
     """
-    from antidote import Constants, factory, Implementation, inject, world, const
+    from antidote import (Constants, factory, inject, world, const, Service,
+                          implementation, Get, From)
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
 
     class MovieDB:
         """ Interface """
@@ -186,18 +200,19 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
         def __init__(self, *args, **kwargs):
             pass
 
-    world.singletons.add('conf_path', '/etc/app.conf')
-
     class Conf(Constants):
         IMDB_HOST = const[str]('imdb.host')
         # Constants will by default automatically enforce the cast to int,
         # float and str. Can be removed or extended to support Enums.
         IMDB_PORT = const[int]('imdb.port')
-        IMDB_API_KEY = const[str]('imdb.api_key')
+        # But specifying a type is not required at all, it's mostly to help Mypy.
+        IMDB_API_KEY = const('imdb.api_key')
 
-        @inject(use_names=True)  # injecting world.get('conf_path')
-        def __init__(self, conf_path: str):
-            """ Load configuration from `conf_path` """
+        def __init__(self):
+            """
+            Load configuration from somewhere. You can change how you configure your
+            application later, it won't impact the whole application.
+            """
             self._raw_conf = {
                 'imdb': {
                     'host': 'dummy_host',
@@ -212,7 +227,18 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
             return reduce(dict.get, key.split('.'), self._raw_conf)  # type: ignore
 
     # Provides ImdbAPI, as defined by the return type annotation.
-    @factory(dependencies=(Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY))
+    @factory
+    @inject
+    def imdb_factory(host: Annotated[str, Get(Conf.IMDB_HOST)],
+                     port: Annotated[int, Get(Conf.IMDB_PORT)],
+                     api_key: Annotated[str, Get(Conf.IMDB_API_KEY)]
+                     ) -> ImdbAPI:
+        # Here host = Conf().get('imdb.host')
+        return ImdbAPI(host=host, port=port, api_key=api_key)
+
+    # Without PEP-593
+    @factory
+    @inject(dependencies=(Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY))
     def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
         # Here host = Conf().get('imdb.host')
         return ImdbAPI(host=host, port=port, api_key=api_key)
@@ -225,6 +251,11 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
         # New instance each time
         __antidote__ = Service.Conf(singleton=False)
 
+        @inject
+        def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
+            self._imdb_api = imdb_api
+
+        # Without PEP-593
         @inject(dependencies={'imdb_api': ImdbAPI @ imdb_factory})
         def __init__(self, imdb_api: ImdbAPI):
             self._imdb_api = imdb_api
@@ -232,35 +263,25 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
         def get_best_movies(self):
             pass
 
+    @inject
+    def f(movie_db: Annotated[MovieDB, From(current_movie_db)] = None):
+        assert movie_db is not None  # for Mypy
+        pass
+
+    # Without PEP-593
     @inject(dependencies=[MovieDB @ current_movie_db])
     def f(movie_db: MovieDB = None):
-        assert movie_db is not None  # for Mypy
+        assert movie_db is not None
         pass
 
     f()
 
-You can also use :code:`Annotated`:
+
+We've seen that you can override any parameter:
 
 .. code-block:: python
 
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-    from antidote import From
-
-    @inject
-    def g(movie_db: Annotated[MovieDB, From(current_movie_db)] = None):
-        assert movie_db is not None  # for Mypy
-        pass
-
-    g()
-
-That looks all good, but what about testability ?
-
-.. code-block:: python
-
-    # You can still explicitly pass the arguments to override
-    # injection.
-    conf = Conf('/path')
+    conf = Conf()
     f(IMDBMovieDB(imdb_factory(
         # The class attributes will retrieve the actual value when called on a instance.
         # Hence this is equivalent to conf.get('imdb.host'), making your tests easier.
@@ -268,6 +289,11 @@ That looks all good, but what about testability ?
         port=conf.IMDB_PORT,
         api_key=conf.IMDB_API_KEY,  # <=> conf.get('imdb.api_key')
     )))
+
+But if you only to change one part in a complex dependency graph, you can override them
+locally with:
+
+.. code-block:: python
 
     # When testing you can also override locally some dependencies:
     with world.test.clone(keep_singletons=True):

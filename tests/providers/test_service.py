@@ -105,7 +105,7 @@ def test_copy(provider: ServiceProvider,
     class C:
         pass
 
-    world.singletons.add('factory', lambda: C())
+    world.test.singleton('factory', lambda: C())
     provider.register(A, scope=scope)
 
     cloned = provider.clone(keep_singletons_cache)

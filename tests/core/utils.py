@@ -6,11 +6,11 @@ from antidote.core import DependencyValue, Provider, Scope
 class DummyProvider(Provider):
 
     def clone(self, keep_singletons_cache: bool) -> Provider:
-        return DummyProvider(self.data)
+        return DummyProvider(self.data, self.singleton)
 
-    def __init__(self, data: Dict = None):
+    def __init__(self, data: Dict = None, singleton: bool = True):
         super().__init__()
-        self.singleton = True
+        self.singleton = singleton
         self.data = data
 
     def exists(self, dependency: Hashable) -> bool:
@@ -24,11 +24,11 @@ class DummyProvider(Provider):
 class DummyFactoryProvider(Provider):
 
     def clone(self, keep_singletons_cache: bool) -> Provider:
-        return DummyFactoryProvider(self.data)
+        return DummyFactoryProvider(self.data, self.singleton)
 
-    def __init__(self, data: Dict = None):
+    def __init__(self, data: Dict = None, singleton: bool = True):
         super().__init__()
-        self.singleton = True
+        self.singleton = singleton
         self.data = data or dict()
 
     def exists(self, dependency: Hashable) -> bool:

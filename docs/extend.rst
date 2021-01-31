@@ -124,11 +124,11 @@ them out of the box, we expect someone else to provide the examples:
     >>> world.get[str]('random:name') in names
     True
     >>> # 'random:name' will not be overridden:
-    ... world.singletons.add("random:name", [])
+    ... world.test.singleton("random:name", [])
     Traceback (most recent call last):
       File "<stdin>", line 1, in ?
     DuplicateDependencyError
-    >>> world.singletons.add("random:age", [])
+    >>> world.test.singleton("random:age", [])
     >>> # Neither can RandomProvider override others
     ... add_random('age', [1, 2, 3])
     Traceback (most recent call last):

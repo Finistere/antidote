@@ -268,7 +268,7 @@ def test_default_injection():
 
 
 def test_double_injection():
-    world.singletons.add('s', object())
+    world.test.singleton('s', object())
 
     class A:
         pass

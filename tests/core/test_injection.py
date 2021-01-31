@@ -73,7 +73,7 @@ def test_simple(injector):
 
     with world.test.empty():
         s = Service()
-        world.singletons.add(Service, s)
+        world.test.singleton(Service, s)
         assert s == f()
 
 
@@ -147,7 +147,7 @@ def test_without_type_hints(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.add({
+        world.test.singleton({
             Service: Service(),
             AnotherService: AnotherService(),
             'first': object(),
@@ -238,7 +238,7 @@ def test_with_auto_provide(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.add({
+        world.test.singleton({
             Service: Service(),
             AnotherService: AnotherService(),
             'first': object(),
@@ -380,7 +380,7 @@ def test_with_provide(injector, expected, kwargs):
             return first, second
 
     with world.test.empty():
-        world.singletons.add({Service: Service(),
+        world.test.singleton({Service: Service(),
                               AnotherService: AnotherService(),
                               'first': object(),
                               'second': object(),
@@ -433,7 +433,7 @@ def test_ignored_type_hints(injector, type_hint):
         pass
 
     with world.test.empty():
-        world.singletons.add(type_hint, object())
+        world.test.singleton(type_hint, object())
         with pytest.raises(TypeError):
             f()
 
@@ -452,13 +452,13 @@ def test_none_optional_support(injector):
 
     with world.test.empty():
         s = Service()
-        world.singletons.add(Dummy, Dummy())
-        world.singletons.add(Service, s)
+        world.test.singleton(Dummy, Dummy())
+        world.test.singleton(Service, s)
         assert f() is s
         assert g() is s
 
     with world.test.empty():
-        world.singletons.add(Dummy, Dummy())
+        world.test.singleton(Dummy, Dummy())
         assert f() is None
         assert g() is None
 
@@ -482,8 +482,8 @@ def test_none_optional_support_auto_provide(injector, auto_provide):
 
     with world.test.empty():
         s = Service()
-        world.singletons.add(Dummy, Dummy())
-        world.singletons.add(Service, s)
+        world.test.singleton(Dummy, Dummy())
+        world.test.singleton(Service, s)
         expected = s if auto_provide else None
         assert f() is expected
         assert g() is expected
@@ -491,7 +491,7 @@ def test_none_optional_support_auto_provide(injector, auto_provide):
             h()
 
     with world.test.empty():
-        world.singletons.add(Dummy, Dummy())
+        world.test.singleton(Dummy, Dummy())
         assert f() is None
         assert g() is None
 
@@ -505,7 +505,7 @@ def test_annotations(injector):
         def custom_annotated(x: Annotated[Dummy, object()]):
             return x
 
-        world.singletons.add(Dummy, Dummy())
+        world.test.singleton(Dummy, Dummy())
         with pytest.raises(TypeError):
             custom_annotated()
 
@@ -514,7 +514,7 @@ def test_annotations(injector):
         def optional_annotated(x: Annotated[Dummy, object()] = None):
             return x
 
-        world.singletons.add(Dummy, Dummy())
+        world.test.singleton(Dummy, Dummy())
         assert optional_annotated() is None
 
     with world.test.empty():
@@ -522,7 +522,7 @@ def test_annotations(injector):
         def get(x: Annotated[Dummy, Get('dummy')]):  # noqa: F821
             return x
 
-        world.singletons.add('dummy', Dummy())
+        world.test.singleton('dummy', Dummy())
         assert get() is world.get('dummy')
 
     with world.test.empty():
@@ -531,7 +531,7 @@ def test_annotations(injector):
                 x: Optional[Annotated[Dummy, Get('dummy')]] = None):  # noqa: F821, E501
             return x
 
-        world.singletons.add('dummy', Dummy())
+        world.test.singleton('dummy', Dummy())
         assert optional_get() is world.get('dummy')
 
     with world.test.empty():
@@ -539,7 +539,7 @@ def test_annotations(injector):
         def from_arg(x: Annotated[Dummy, FromArg(lambda arg: arg.name)]):
             return x
 
-        world.singletons.add('x', Dummy())
+        world.test.singleton('x', Dummy())
         assert from_arg() is world.get('x')
 
     with world.test.empty():
@@ -547,7 +547,7 @@ def test_annotations(injector):
         def use_arg_name(x: ProvideArgName[Dummy]):
             return x
 
-        world.singletons.add('x', Dummy())
+        world.test.singleton('x', Dummy())
         assert use_arg_name() is world.get('x')
 
     with world.test.empty():
@@ -555,7 +555,7 @@ def test_annotations(injector):
         def from_arg_name(x: Annotated[Dummy, FromArgName('service:{arg_name}')]):  # noqa: F722, E501
             return x
 
-        world.singletons.add('service:x', Dummy())
+        world.test.singleton('service:x', Dummy())
         assert from_arg_name() is world.get('service:x')
 
     with world.test.empty():
@@ -567,7 +567,7 @@ def test_annotations(injector):
         def get(x: Annotated[Dummy, From(Maker())]):
             return x
 
-        world.singletons.add('dummy', Dummy())
+        world.test.singleton('dummy', Dummy())
         assert get() is world.get('dummy')
 
 

@@ -30,7 +30,7 @@ def wire(request):
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.empty():
-        world.singletons.add({'x': object(),
+        world.test.singleton({'x': object(),
                               'xx': object(),
                               'y': object(),
                               'z': object(),
@@ -66,7 +66,7 @@ def test_no_strict_validation(wire, kwargs):
 
 
 def test_no_strict_validation_auto_provide(wire):
-    world.singletons.add({Service: Service(), AnotherService: AnotherService()})
+    world.test.singleton({Service: Service(), AnotherService: AnotherService()})
 
     @wire(auto_provide=[Service, AnotherService])
     class A:

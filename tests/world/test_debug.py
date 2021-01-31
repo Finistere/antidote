@@ -166,7 +166,7 @@ def test_unknown_debug():
 
 def test_singleton_debug():
     with world.test.new():
-        world.singletons.add("test", 1)
+        world.test.singleton("test", 1)
 
         assert_valid(DebugTestCase(
             value="test",

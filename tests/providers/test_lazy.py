@@ -24,7 +24,7 @@ class Dummy(Lazy):
 def test_lazy():
     with world.test.empty():
         x = object()
-        world.singletons.add(x, object())
+        world.test.singleton(x, object())
         lazy_provider = LazyProvider()
 
         assert world.test.maybe_provide_from(lazy_provider,

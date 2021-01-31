@@ -11,6 +11,7 @@ from .._internal.utils import debug_repr
 
 T = TypeVar('T', bound=Hashable)
 M = TypeVar('M', bound=Callable[..., object])
+P = TypeVar('P', bound='Provider')
 
 
 @API.public
@@ -106,7 +107,7 @@ class Provider(RawProvider, Generic[T],
     """
     __antidote__ = None  # reserved
 
-    def clone(self, keep_singletons_cache: bool) -> 'Provider[T]':
+    def clone(self: P, keep_singletons_cache: bool) -> 'P':
         """
         If you have no internal state, consider implementing
         :py:class:`~.StatelessProvider` instead.

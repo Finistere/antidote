@@ -56,7 +56,7 @@ as a service or one that can be provided by a factory.
 .. doctest:: recipes_interface_implementation
 
     >>> from antidote import world
-    >>> world.singletons.add('db_conn_str', 'postgres:localhost:my_project')
+    >>> world.test.singleton('db_conn_str', 'postgres:localhost:my_project')
     >>> db = world.get[Database](Database @ local_db)
     >>> db
     <PostgresDB ...>
@@ -253,7 +253,7 @@ Antidote supports stateful factories simply by using defining a class as a facto
 .. doctest:: recipes_stateful_factory
 
     >>> from antidote import world
-    >>> world.singletons.add('id_prefix', "example")
+    >>> world.test.singleton('id_prefix', "example")
     >>> world.get[ID](ID @ IDFactory)
     ID(id='example_1')
     >>> world.get[ID](ID @ IDFactory)

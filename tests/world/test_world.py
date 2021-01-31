@@ -2,11 +2,10 @@ from typing import Callable
 
 import pytest
 
-from antidote import world, Get, From, FromArgName
+from antidote import From, FromArgName, Get, Service, world
 from antidote._compatibility.typing import Annotated
 from antidote._providers import ServiceProvider
 from antidote.core import (Dependency)
-from antidote.core.exceptions import DuplicateDependencyError
 from antidote.exceptions import DependencyNotFoundError, FrozenWorldError
 from .utils import DummyIntProvider
 
@@ -21,46 +20,20 @@ class A:
     pass
 
 
-def test_singletons():
-    world.singletons.add("singleton", 12342)
-    assert world.get("singleton") == 12342
-
-    world.singletons.add({
-        "singleton2": 89,
-        "singleton3": 123
-    })
-    assert world.get("singleton2") == 89
-    assert world.get("singleton3") == 123
-
-
-def test_invalid_singletons():
-    with pytest.raises(TypeError):
-        world.singletons.add(1)
-
-    with pytest.raises(TypeError):
-        world.singletons.add(dict(), 1)
-
-
-def test_duplicate_singletons():
-    world.singletons.add("singleton", 12342)
-
-    with pytest.raises(DuplicateDependencyError, match=".*singleton.*12342.*"):
-        world.singletons.add("singleton", 1)
-
-    with pytest.raises(DuplicateDependencyError, match=".*singleton.*12342.*"):
-        world.singletons.add({"singleton": 1})
-
-
 def test_get():
-    world.singletons.add("x", 1)
-    assert 1 == world.get("x")
+    world.provider(ServiceProvider)
+    a = A()
+    world.test.singleton(A, a)
+    assert world.get(A) is a
 
     with pytest.raises(DependencyNotFoundError):
         world.get("nothing")
 
-    world.singletons.add(A, A())
-    assert world.get[int]("x") == 1
-    assert world.get[A]() is world.get(A)
+    class B(Service):
+        pass
+
+    assert world.get[A](A) is a
+    assert world.get[B]() is world.get(B)
 
 
 @pytest.mark.parametrize('getter', [
@@ -74,7 +47,7 @@ def test_annotation_support(getter: Callable[[object], object]):
         def __rmatmul__(self, other):
             return 'maker'
 
-    world.singletons.add({
+    world.test.singleton({
         A: A(),
         'a': A(),
         'maker': A()
@@ -95,13 +68,13 @@ def test_annotation_support(getter: Callable[[object], object]):
     pytest.param(lambda x, d: world.get[A](x, default=d), id='get[A]')
 ])
 def test_default(getter: Callable[[object, object], object]):
-    world.singletons.add(A, A())
+    world.test.singleton(A, A())
     assert getter(A, 'default') is world.get(A)
     assert getter('a', 'default') == 'default'
 
 
 def test_lazy():
-    world.singletons.add({
+    world.test.singleton({
         'x': object(),
         A: A()
     })
@@ -127,7 +100,7 @@ def test_freeze():
 
     world.freeze()
     with pytest.raises(FrozenWorldError):
-        world.singletons.add("test", "x")
+        world.test.singleton("test", "x")
 
     with pytest.raises(FrozenWorldError):
         factory.register(Service, scope=None)

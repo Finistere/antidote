@@ -1,26 +1,22 @@
 # flake8: noqa
 # Ignoring F811 for multiple definitions
+from antidote._compatibility.typing import Annotated
+
 
 def test_readme_simple():
-    import sys
     from antidote import (inject, Service, Constants, const, world, Provide,
-                          Get, auto_provide)
-    if sys.version_info < (3, 9):
-        from typing_extensions import Annotated  # Python <= 3.8
-    else:
-        from typing import Annotated  # Python 3.9+
+                          Get)
+    # from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
 
     class Conf(Constants):
-        DB_HOST = const[str]('host')
-        DB_HOST_WITHOUT_TYPE_HINT = const('host')
+        DB_HOST = const[str]('localhost:6789')
+        DB_HOST_WITHOUT_TYPE_HINT = const('localhost:6789')
 
-        def __init__(self):
-            self._data = {'host': 'localhost:6789'}
-
-        # Used to retrieve lazily the const, so injecting Conf.DB_HOST is equivalent to
-        # having Conf().get('host')
+        # Used to retrieve lazily the const. Here we're just returning the value itself
+        # but later we could rely on a file to store our configuration for example.
         def get(self, key: str):
-            return self._data[key]
+            return key
 
     class Database(Service):  # Defined as a Service, so injectable.
         @inject
@@ -42,14 +38,9 @@ def test_readme_simple():
     f(Database('localhost:6789'))  # but you can still use the function normally
 
     # without PEP-593
-    # With auto_provide=True, class type hints will be treated as dependencies.
+    # With auto_provide=True, all class type hints will be treated as dependencies.
+    # you can also explicitly say which classes with `auto_provide=[Database]`.
     @inject(auto_provide=True)
-    def f(db: Database = None):
-        assert db is not None
-        pass
-
-    # For simplicity an alias for @inject(auto_provide=True) exists:
-    @auto_provide
     def f(db: Database = None):
         assert db is not None
         pass
@@ -60,12 +51,6 @@ def test_readme_simple():
     # if the dependency is the type itself, you may omit it:
     world.get[Database]()
 
-    # If you need to handle multiple hosts for some reason you can
-    # specify them in the dependency itself. As Database returns, by default,
-    # a singleton this will also be the case here. Using the same host, will
-    # return the same instance.
-    world.get[Database](Database._with_kwargs(host='XX'))
-
 
 def test_readme():
     """
@@ -73,14 +58,10 @@ def test_readme():
     to retrieve the best movies. In our case the implementation uses IMDB
     to dot it.
     """
-    import sys
-
     from antidote import (Constants, factory, inject, world, const, Service,
-                          implementation, ProvideArgName, Get, From)
-    if sys.version_info < (3, 9):
-        from typing_extensions import Annotated  # Python <= 3.8
-    else:
-        from typing import Annotated  # Python 3.9+
+                          implementation, Get, From)
+    # from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
 
     class MovieDB:
         """ Interface """
@@ -94,8 +75,6 @@ def test_readme():
         def __init__(self, *args, **kwargs):
             pass
 
-    world.singletons.add('conf_path', '/etc/app.conf')
-
     class Conf(Constants):
         IMDB_HOST = const[str]('imdb.host')
         # Constants will by default automatically enforce the cast to int,
@@ -104,9 +83,11 @@ def test_readme():
         # But specifying a type is not required at all, it's mostly to help Mypy.
         IMDB_API_KEY = const('imdb.api_key')
 
-        @inject(use_names=True)  # injecting world.get('conf_path')
-        def __init__(self, conf_path: ProvideArgName[str]):
-            """ Load configuration from `conf_path` """
+        def __init__(self):
+            """
+            Load configuration from somewhere. You can change how you configure your
+            application later, it won't impact the whole application.
+            """
             self._raw_conf = {
                 'imdb': {
                     'host': 'dummy_host',
@@ -170,7 +151,7 @@ def test_readme():
 
     f()
 
-    conf = Conf('/path')
+    conf = Conf()
     f(IMDBMovieDB(imdb_factory(
         # The class attributes will retrieve the actual value when called on a instance.
         # Hence this is equivalent to conf.get('imdb.host'), making your tests easier.

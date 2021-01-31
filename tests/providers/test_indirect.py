@@ -45,7 +45,7 @@ def permanent(request):
 
 def test_implementation(permanent: bool):
     indirect = IndirectProvider()
-    world.singletons.add(A, A())
+    world.test.singleton(A, A())
     impl = indirect.register_implementation(Interface, lambda: A, permanent=permanent)
 
     assert world.test.maybe_provide_from(indirect, impl).unwrapped is world.get(A)
@@ -93,7 +93,7 @@ def test_implementation_permanent_singleton(service: ServiceProvider,
 
 
 def test_implementation_exists(indirect: IndirectProvider, permanent: bool):
-    world.singletons.add(A, A())
+    world.test.singleton(A, A())
     impl = indirect.register_implementation(Interface, lambda: A, permanent=permanent)
 
     assert not indirect.exists(object())
@@ -115,7 +115,7 @@ def test_implementation_exists(indirect: IndirectProvider, permanent: bool):
 def test_clone(indirect: IndirectProvider,
                keep_singletons_cache: bool,
                register: Callable[[IndirectProvider, type, type], object]):
-    world.singletons.add({A: A()})
+    world.test.singleton({A: A()})
 
     dep = register(indirect, Interface, A)
     a = world.get(dep)
@@ -127,7 +127,7 @@ def test_clone(indirect: IndirectProvider,
             assert world.test.maybe_provide_from(clone, dep).unwrapped is a
     else:
         with world.test.empty():
-            world.singletons.add({A: A(), B: B()})
+            world.test.singleton({A: A(), B: B()})
             clone = indirect.clone(False)
             instance = world.test.maybe_provide_from(clone, dep).unwrapped
             assert instance is world.get(A)
@@ -145,7 +145,7 @@ def test_clone(indirect: IndirectProvider,
     class A3(Interface3):
         pass
 
-    world.singletons.add({A2: A2(), A3: A3()})
+    world.test.singleton({A2: A2(), A3: A3()})
     # Original does not modify clone
     impl = register(indirect, Interface2, A2)
     assert world.get(impl) is world.get(A2)

@@ -21,7 +21,7 @@ def build(**kwargs) -> A:
 @pytest.fixture()
 def provider():
     with world.test.empty():
-        world.singletons.add('lazy_build', build)
+        world.test.singleton('lazy_build', build)
         world.provider(FactoryProvider)
         yield world.get(FactoryProvider)
 
@@ -53,7 +53,7 @@ def test_simple(provider: FactoryProvider):
 
 
 def test_lazy(provider: FactoryProvider):
-    world.singletons.add('A', build)
+    world.test.singleton('A', build)
     factory_id = provider.register(A, factory=world.lazy('A'), scope=Scope.singleton())
     assert isinstance(world.get(factory_id), A)
     # singleton
@@ -135,7 +135,7 @@ def test_copy(scope: Scope):
         original.register(C, factory=lambda: C(), scope=scope)
 
     with world.test.empty():
-        world.singletons.add('build', build)
+        world.test.singleton('build', build)
         original = FactoryProvider()
         a_id = original.register(A, factory=world.lazy('build'), scope=scope)
         a = world.test.maybe_provide_from(original, a_id).unwrapped
@@ -146,7 +146,7 @@ def test_copy(scope: Scope):
         cloned_with_singletons = original.clone(True)
         cloned = original.clone(False)
         with world.test.empty():
-            world.singletons.add('build', build2)
+            world.test.singleton('build', build2)
             a2 = world.test.maybe_provide_from(cloned, a_id).unwrapped
 
             assert isinstance(a2, A)

@@ -19,7 +19,7 @@ C = object()
 @pytest.fixture(autouse=True, scope='module')
 def empty_world():
     with world.test.empty():
-        world.singletons.add('x', A)
+        world.test.singleton('x', A)
         yield
 
 
@@ -197,7 +197,7 @@ def test_multiple_injections():
     def f(x, y, z=zz):
         return x, y, z
 
-    world.singletons.add(dict(xx=xx, yy=yy))
+    world.test.singleton(dict(xx=xx, yy=yy))
     assert (xx, yy, zz) == f()
     assert (xx, A, zz) == f(y=A)
     assert (xx, yy, A) == f(z=A)

@@ -23,7 +23,7 @@ Returns:
 .. doctest:: world_get
 
     >>> from antidote import world, Service
-    >>> world.singletons.add('dep', 1)
+    >>> world.test.singleton('dep', 1)
     >>> world.get('dep')
     1
     >>> # mypy will treat x as a int
@@ -50,7 +50,7 @@ Returns:
 .. doctest:: world_lazy
 
     >>> from antidote import world, Service
-    >>> world.singletons.add('dep', 1)
+    >>> world.test.singleton('dep', 1)
     >>> dep = world.lazy('dep')
     >>> dep
     Dependency(unwrapped='dep')
@@ -113,58 +113,13 @@ def freeze() -> None:
 
         >>> from antidote import world
         >>> world.freeze()
-        >>> world.singletons.add('dependency', 1)
+        >>> world.test.singleton('dependency', 1)
         Traceback (most recent call last):
         ...
         FrozenWorldError
 
     """
     current_container().freeze()
-
-
-@overload
-def singleton_add(dependency: Hashable,  # noqa: E704  # pragma: no cover
-                  value: object
-                  ) -> None: ...
-
-
-@overload
-def singleton_add(dependency: Dict[Hashable, object]  # noqa: E704  # pragma: no cover
-                  ) -> None: ...
-
-
-@API.public
-def singleton_add(dependency: Union[Dict[Hashable, object], Hashable],
-                  value: object = __sentinel) -> None:
-    """
-    Declare one or multiple singleton dependencies with its associated value.
-
-    .. doctest:: world_singletons_add
-
-        >>> from antidote import world
-        >>> world.singletons.add("test", 1)
-        >>> world.get[int]("test")
-        1
-        >>> world.singletons.add({'host': 'example.com', 'port': 80})
-        >>> world.get[str]("host")
-        'example.com'
-
-    Args:
-        dependency: Singleton to declare, must be hashable. If a dict is provided, it'll
-            be treated as a dictionary of singletons to add.
-        value: Associated value for the dependency.
-
-    """
-    if value is __sentinel:
-        if isinstance(dependency, dict):
-            current_container().add_singletons(dependency)
-        else:
-            raise TypeError("If only a single argument is provided, "
-                            "it must be a dictionary of singletons.")
-    else:
-        if isinstance(dependency, dict):
-            raise TypeError("A dictionary cannot be used as a key.")
-        current_container().add_singletons({dependency: value})
 
 
 @API.experimental
@@ -178,7 +133,7 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
     .. doctest:: world_debug
 
         >>> from antidote import world
-        >>> world.singletons.add("test", 1)
+        >>> world.test.singleton("test", 1)
         >>> print(world.debug('test'))
         Singleton: 'test' -> 1
         <BLANKLINE>
