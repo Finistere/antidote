@@ -1,10 +1,10 @@
-from typing import cast, Dict, Tuple, Type
+from typing import Dict, Tuple, Type, cast
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
 from ._providers import ServiceProvider, TagProvider
 from ._providers.service import Build
-from .core import inject, Provide
+from .core import Provide, inject
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 

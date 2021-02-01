@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Union
 
 import pytest
 
-from antidote import From, FromArg, FromArgName, Get, ProvideArgName, world
+from antidote import From, FromArg, Get, world
 from antidote._compatibility.typing import Annotated
 from antidote.core.annotations import Provide
 from antidote.core.injection import inject, validate_injection
@@ -20,7 +20,7 @@ class DoesNotRaise:
         pass
 
 
-class Service:
+class MyService:
     pass
 
 
@@ -32,19 +32,14 @@ class AnotherService:
     pytest.param(kwargs, expectation, id=str(kwargs))
     for kwargs, expectation in [
         (dict(), DoesNotRaise()),
-        (dict(dependencies="{arg_name}"), DoesNotRaise()),
         (dict(dependencies=lambda arg: arg.name), DoesNotRaise()),
         (dict(dependencies=dict(x='x')), DoesNotRaise()),
         (dict(dependencies=['x']), DoesNotRaise()),
-        (dict(use_names=True), DoesNotRaise()),
-        (dict(use_names=['x']), DoesNotRaise()),
         (dict(auto_provide=True), DoesNotRaise()),
+        (dict(dependencies="{arg_name}"),
+         pytest.raises(TypeError, match=".*dependencies.*str.*")),
         (dict(dependencies=1),
          pytest.raises(TypeError, match=".*dependencies.*int.*")),
-        (dict(use_names=1),
-         pytest.raises(TypeError, match=".*use_names.*int.*")),
-        (dict(use_names=[1]),
-         pytest.raises(TypeError, match=".*use_names.*")),
         (dict(auto_provide=1),
          pytest.raises(TypeError, match=".*auto_provide.*int.*")),
         (dict(auto_provide=['x']),
@@ -54,7 +49,7 @@ class AnotherService:
 def test_validate_injection(kwargs, expectation):
     with expectation:
         @inject(**kwargs)
-        def f(x: Service):
+        def f(x: MyService):
             pass
 
     with expectation:
@@ -68,12 +63,12 @@ def injector(request):
 
 def test_simple(injector):
     @injector
-    def f(x: Provide[Service]):
+    def f(x: Provide[MyService]):
         return x
 
     with world.test.empty():
-        s = Service()
-        world.test.singleton(Service, s)
+        s = MyService()
+        world.test.singleton(MyService, s)
         assert s == f()
 
 
@@ -81,42 +76,27 @@ no_SENTINEL_injection = [
     pytest.param((None, None),
                  dict(),
                  id='nothing'),
-    pytest.param((Service, None),
-                 dict(dependencies=dict(first=Service)),
+    pytest.param((MyService, None),
+                 dict(dependencies=dict(first=MyService)),
                  id='dependencies:dict-first'),
-    pytest.param((Service, None),
-                 dict(dependencies=(Service,)),
+    pytest.param((MyService, None),
+                 dict(dependencies=(MyService,)),
                  id='dependencies:tuple-first'),
-    pytest.param((None, Service),
-                 dict(dependencies=dict(second=Service)),
+    pytest.param((None, MyService),
+                 dict(dependencies=dict(second=MyService)),
                  id='dependencies:dict-second'),
-    pytest.param((None, Service),
-                 dict(dependencies=(None, Service)),
+    pytest.param((None, MyService),
+                 dict(dependencies=(None, MyService)),
                  id='dependencies:tuple-second'),
     pytest.param(('first', 'second'),
                  dict(dependencies=lambda arg: arg.name),
                  id='dependencies:callable'),
-    pytest.param((Service, Service),
-                 dict(dependencies=lambda arg: Service),
+    pytest.param((MyService, MyService),
+                 dict(dependencies=lambda arg: MyService),
                  id='dependencies:callable2'),
     pytest.param((None, None),
                  dict(dependencies=lambda s: None),
-                 id='dependencies:callable3'),
-    pytest.param(('first', 'second'),
-                 dict(dependencies="{arg_name}"),
-                 id='dependencies:str'),
-    pytest.param(('prefix:first', 'prefix:second'),
-                 dict(dependencies="prefix:{arg_name}"),
-                 id='dependencies:str2'),
-    pytest.param(('first', 'second'),
-                 dict(use_names=True),
-                 id='use_names:True'),
-    pytest.param((None, None),
-                 dict(use_names=False),
-                 id='use_names:False'),
-    pytest.param((None, 'second'),
-                 dict(use_names=['second']),
-                 id='use_names:list')
+                 id='dependencies:callable3')
 ]
 
 
@@ -148,7 +128,7 @@ def test_without_type_hints(injector, expected, kwargs):
 
     with world.test.empty():
         world.test.singleton({
-            Service: Service(),
+            MyService: MyService(),
             AnotherService: AnotherService(),
             'first': object(),
             'second': object(),
@@ -189,57 +169,54 @@ def test_without_type_hints(injector, expected, kwargs):
 
 
 @pytest.mark.parametrize('expected,kwargs', no_SENTINEL_injection + [
-    pytest.param((Service, AnotherService),
+    pytest.param((MyService, AnotherService),
                  dict(auto_provide=True),
                  id='auto_provide:True'),
-    pytest.param((Service, None),
-                 dict(auto_provide=[Service]),
+    pytest.param((MyService, None),
+                 dict(auto_provide=[MyService]),
                  id='auto_provide:list-first'),
-    pytest.param((Service, 'second'),
-                 dict(auto_provide=[Service], use_names=True),
-                 id='auto_provide:list-first+use_names=True'),
     pytest.param((None, AnotherService),
                  dict(auto_provide=[AnotherService]),
                  id='auto_provide:list-second'),
-    pytest.param(('first', AnotherService),
-                 dict(auto_provide=[AnotherService], use_names=True),
-                 id='auto_provide:list-second+use_names=True'),
     pytest.param((None, None),
                  dict(auto_provide=False),
                  id='auto_provide:False'),
-    pytest.param(('first', 'second'),
-                 dict(auto_provide=False, use_names=True),
-                 id='auto_provide:False+use_names=True'),
+    pytest.param((MyService, MyService),
+                 dict(dependencies=dict(second=MyService), auto_provide=True),
+                 id='auto_provide&dependencies:second'),
+    pytest.param((None, MyService),
+                 dict(dependencies=dict(second=MyService), auto_provide=[AnotherService]),
+                 id='auto_provide&dependencies:second')
 ])
 def test_with_auto_provide(injector, expected, kwargs):
     @injector(**kwargs)
-    def f(first: Service = SENTINEL, second: AnotherService = SENTINEL):
+    def f(first: MyService = SENTINEL, second: AnotherService = SENTINEL):
         return first, second
 
     class A:
         @injector(**kwargs)
-        def method(self, first: Service = SENTINEL, second: AnotherService = SENTINEL):
+        def method(self, first: MyService = SENTINEL, second: AnotherService = SENTINEL):
             return first, second
 
         @injector(**kwargs)
         @classmethod
-        def class_method(cls, first: Service = SENTINEL,
+        def class_method(cls, first: MyService = SENTINEL,
                          second: AnotherService = SENTINEL):
             return first, second
 
         @injector(**kwargs)
         @staticmethod
-        def static_method(first: Service = SENTINEL, second: AnotherService = SENTINEL):
+        def static_method(first: MyService = SENTINEL, second: AnotherService = SENTINEL):
             return first, second
 
         @classmethod
         @injector(**kwargs)
-        def klass(cls, first: Service = SENTINEL, second: AnotherService = SENTINEL):
+        def klass(cls, first: MyService = SENTINEL, second: AnotherService = SENTINEL):
             return first, second
 
     with world.test.empty():
         world.test.singleton({
-            Service: Service(),
+            MyService: MyService(),
             AnotherService: AnotherService(),
             'first': object(),
             'second': object(),
@@ -282,105 +259,78 @@ def test_with_auto_provide(injector, expected, kwargs):
 @pytest.mark.parametrize(
     'expected, kwargs',
     [
-        pytest.param((Service, None),
+        pytest.param((MyService, None),
                      dict(),
                      id='nothing'),
-        pytest.param((Service, None),
+        pytest.param((MyService, None),
                      dict(dependencies=dict(first=AnotherService)),
                      id='dependencies:dict-first'),
-        pytest.param((Service, None),
+        pytest.param((MyService, None),
                      dict(dependencies=(AnotherService,)),
                      id='dependencies:tuple-first'),
-        pytest.param((Service, Service),
-                     dict(dependencies=dict(second=Service)),
+        pytest.param((MyService, MyService),
+                     dict(dependencies=dict(second=MyService)),
                      id='dependencies:dict-second'),
-        pytest.param((Service, Service),
-                     dict(dependencies=(None, Service)),
+        pytest.param((MyService, MyService),
+                     dict(dependencies=(None, MyService)),
                      id='dependencies:tuple-second'),
-        pytest.param((Service, 'second'),
+        pytest.param((MyService, 'second'),
                      dict(dependencies=lambda arg: arg.name),
                      id='dependencies:callable'),
-        pytest.param((Service, AnotherService),
+        pytest.param((MyService, AnotherService),
                      dict(dependencies=lambda arg: AnotherService),
                      id='dependencies:callable2'),
-        pytest.param((Service, None),
+        pytest.param((MyService, None),
                      dict(dependencies=lambda arg: None),
                      id='dependencies:callable3'),
-        pytest.param((Service, 'second'),
-                     dict(dependencies="{arg_name}"),
-                     id='dependencies:str'),
-        pytest.param((Service, 'prefix:second'),
-                     dict(dependencies="prefix:{arg_name}"),
-                     id='dependencies:str2'),
-        pytest.param((Service, 'second'),
-                     dict(use_names=True),
-                     id='use_names:True'),
-        pytest.param((Service, None),
-                     dict(use_names=False),
-                     id='use_names:False'),
-        pytest.param((Service, None),
-                     dict(use_names=['first']),
-                     id='use_names:list-first'),
-        pytest.param((Service, 'second'),
-                     dict(use_names=['second']),
-                     id='use_names:list-second'),
-        pytest.param((Service, AnotherService),
+        pytest.param((MyService, AnotherService),
                      dict(auto_provide=True),
                      id='auto_provide:True'),
-        pytest.param((Service, None),
-                     dict(auto_provide=[Service]),
+        pytest.param((MyService, None),
+                     dict(auto_provide=[MyService]),
                      id='auto_provide:list-first'),
-        pytest.param((Service, 'second'),
-                     dict(auto_provide=[Service], use_names=True),
-                     id='auto_provide:list-first+use_names=True'),
-        pytest.param((Service, AnotherService),
+        pytest.param((MyService, AnotherService),
                      dict(auto_provide=[AnotherService]),
                      id='auto_provide:list-second'),
-        pytest.param((Service, AnotherService),
-                     dict(auto_provide=[AnotherService], use_names=True),
-                     id='auto_provide:list-second+use_names=True'),
-        pytest.param((Service, None),
+        pytest.param((MyService, None),
                      dict(auto_provide=False),
                      id='auto_provide:False'),
-        pytest.param((Service, 'second'),
-                     dict(auto_provide=False, use_names=True),
-                     id='auto_provide:False+use_names=True'),
     ]
 )
 def test_with_provide(injector, expected, kwargs):
     @injector(**kwargs)
-    def f(first: Provide[Service] = SENTINEL, second: AnotherService = SENTINEL):
+    def f(first: Provide[MyService] = SENTINEL, second: AnotherService = SENTINEL):
         return first, second
 
     class A:
         @injector(**kwargs)
         def method(self,
-                   first: Provide[Service] = SENTINEL,
+                   first: Provide[MyService] = SENTINEL,
                    second: AnotherService = SENTINEL):
             return first, second
 
         @injector(**kwargs)
         @classmethod
         def class_method(cls,
-                         first: Provide[Service] = SENTINEL,
+                         first: Provide[MyService] = SENTINEL,
                          second: AnotherService = SENTINEL):
             return first, second
 
         @injector(**kwargs)
         @staticmethod
-        def static_method(first: Provide[Service] = SENTINEL,
+        def static_method(first: Provide[MyService] = SENTINEL,
                           second: AnotherService = SENTINEL):
             return first, second
 
         @classmethod
         @injector(**kwargs)
         def klass(cls,
-                  first: Provide[Service] = SENTINEL,
+                  first: Provide[MyService] = SENTINEL,
                   second: AnotherService = SENTINEL):
             return first, second
 
     with world.test.empty():
-        world.test.singleton({Service: Service(),
+        world.test.singleton({MyService: MyService(),
                               AnotherService: AnotherService(),
                               'first': object(),
                               'second': object(),
@@ -443,17 +393,17 @@ def test_none_optional_support(injector):
         pass
 
     @injector
-    def f(x: Provide[Service] = None):
+    def f(x: Provide[MyService] = None):
         return x
 
     @injector
-    def g(x: Optional[Provide[Service]] = None):
+    def g(x: Optional[Provide[MyService]] = None):
         return x
 
     with world.test.empty():
-        s = Service()
+        s = MyService()
         world.test.singleton(Dummy, Dummy())
-        world.test.singleton(Service, s)
+        world.test.singleton(MyService, s)
         assert f() is s
         assert g() is s
 
@@ -469,21 +419,21 @@ def test_none_optional_support_auto_provide(injector, auto_provide):
         pass
 
     @injector(auto_provide=auto_provide)
-    def f(x: Service = None):
+    def f(x: MyService = None):
         return x
 
     @injector(auto_provide=auto_provide)
-    def g(x: Optional[Service] = None):
+    def g(x: Optional[MyService] = None):
         return x
 
     @injector(auto_provide=auto_provide)
-    def h(x: Union[Service, Dummy]):
+    def h(x: Union[MyService, Dummy]):
         pass
 
     with world.test.empty():
-        s = Service()
+        s = MyService()
         world.test.singleton(Dummy, Dummy())
-        world.test.singleton(Service, s)
+        world.test.singleton(MyService, s)
         expected = s if auto_provide else None
         assert f() is expected
         assert g() is expected
@@ -543,22 +493,6 @@ def test_annotations(injector):
         assert from_arg() is world.get('x')
 
     with world.test.empty():
-        @injector
-        def use_arg_name(x: ProvideArgName[Dummy]):
-            return x
-
-        world.test.singleton('x', Dummy())
-        assert use_arg_name() is world.get('x')
-
-    with world.test.empty():
-        @injector
-        def from_arg_name(x: Annotated[Dummy, FromArgName('service:{arg_name}')]):  # noqa: F722, E501
-            return x
-
-        world.test.singleton('service:x', Dummy())
-        assert from_arg_name() is world.get('service:x')
-
-    with world.test.empty():
         class Maker:
             def __rmatmul__(self, other):
                 return 'dummy'
@@ -583,7 +517,6 @@ def test_multiple_antidote_annotations(injector):
         Get('dummy'),
         From(Maker()),
         FromArg(lambda arg: arg.name),
-        FromArgName('service:{arg_name}'),
     ]
     for (a, b) in itertools.combinations(annotations, 2):
         with pytest.raises(TypeError):
@@ -603,29 +536,29 @@ def injected_method_with(request, injector):
     def builder(**kwargs):
         if kind == 'function':
             @injector(**kwargs)
-            def f(x: Service):
+            def f(x: MyService):
                 return x
 
             return f
         else:
             class Dummy:
                 @injector(**kwargs)
-                def method(self, x: Service):
+                def method(self, x: MyService):
                     return x
 
                 @classmethod
                 @injector(**kwargs)
-                def class_method(cls, x: Service):
+                def class_method(cls, x: MyService):
                     return x
 
                 @injector(**kwargs)
                 @classmethod
-                def class_method_after(cls, x: Service):
+                def class_method_after(cls, x: MyService):
                     return x
 
                 @injector(**kwargs)
                 @staticmethod
-                def static_method(x: Service):
+                def static_method(x: MyService):
                     return x
 
             if kind == 'method':
@@ -648,18 +581,9 @@ def injected_method_with(request, injector):
         pytest.param(pytest.raises(TypeError, match=".*dependencies.*"),
                      dict(dependencies=object()),
                      id="dependencies:unsupported-type"),
-        pytest.param(pytest.raises(ValueError, match=".*dependencies.*"),
-                     dict(dependencies="dummy"),
-                     id="dependencies:missing-string-arg_name"),
         pytest.param(pytest.raises(TypeError),
                      dict(dependencies={1: 'x'}),
                      id="dependencies:invalid-key-type"),
-        pytest.param(pytest.raises(TypeError, match=".*use_names.*"),
-                     dict(use_names=object()),
-                     id="use_names:unsupported-type"),
-        pytest.param(pytest.raises(TypeError),
-                     dict(use_names=[1]),
-                     id="use_names:invalid-name-type"),
         pytest.param(pytest.raises(TypeError, match=".*auto_provide.*"),
                      dict(auto_provide=object()),
                      id="auto_provide:unsupported-type"),
@@ -683,26 +607,14 @@ def test_invalid_args(injected_method_with, expectation, kwargs):
                      dict(),
                      id="nothing"),
         pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
-                     dict(dependencies=(Service,)),
+                     dict(dependencies=(MyService,)),
                      id="dependencies:tuple"),
         pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
-                     dict(dependencies=dict(x=Service)),
+                     dict(dependencies=dict(x=MyService)),
                      id="dependencies:dict"),
         pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
-                     dict(dependencies=lambda arg: Service),
+                     dict(dependencies=lambda arg: MyService),
                      id="dependencies:callable"),
-        pytest.param(pytest.raises(DependencyNotFoundError, match=".*x.*"),
-                     dict(dependencies="{arg_name}"),
-                     id="dependencies:str"),
-        pytest.param(pytest.raises(TypeError),
-                     dict(use_names=False),
-                     id="use_names:False"),
-        pytest.param(pytest.raises(DependencyNotFoundError, match=".*x.*"),
-                     dict(use_names=True),
-                     id="use_names:True"),
-        pytest.param(pytest.raises(DependencyNotFoundError, match=".*x.*"),
-                     dict(use_names=['x']),
-                     id="use_names:list"),
         pytest.param(pytest.raises(TypeError),
                      dict(auto_provide=False),
                      id="auto_provide:False"),
@@ -710,7 +622,7 @@ def test_invalid_args(injected_method_with, expectation, kwargs):
                      dict(auto_provide=True),
                      id="auto_provide:True"),
         pytest.param(pytest.raises(DependencyNotFoundError, match=".*Service.*"),
-                     dict(auto_provide=[Service]),
+                     dict(auto_provide=[MyService]),
                      id="auto_provide:list")
     ]
 )
@@ -721,7 +633,7 @@ def test_unknown_dependency(injected_method_with, expectation, kwargs):
 
 def test_unknown_provide(injector):
     @injector
-    def f(x: Provide[Service]):
+    def f(x: Provide[MyService]):
         return x
 
     with pytest.raises(DependencyNotFoundError):
@@ -731,18 +643,11 @@ def test_unknown_provide(injector):
 @pytest.mark.parametrize(
     'expectation,kwargs',
     [
-
-        pytest.param(pytest.raises(ValueError, match=".*y.*"),
-                     dict(use_names=['y']),
-                     id="use_names"),
-        pytest.param(pytest.raises(ValueError, match=".*y.*"),
-                     dict(use_names=['x', 'y']),
-                     id="use_names2"),
         pytest.param(pytest.raises(ValueError, match=".*y.*"),
                      dict(auto_provide=[AnotherService]),
                      id="auto_provide"),
         pytest.param(pytest.raises(ValueError, match=".*y.*"),
-                     dict(auto_provide=[Service, AnotherService]),
+                     dict(auto_provide=[MyService, AnotherService]),
                      id="auto_provide2"),
         pytest.param(pytest.raises(ValueError),
                      dict(dependencies=(None, None)),
@@ -768,9 +673,6 @@ def test_strict_validation(injected_method_with, injector, expectation, kwargs, 
         pytest.param(pytest.raises(ValueError, match=".*self.*"),
                      dict(dependencies=dict(self='x')),
                      id="dependencies"),
-        pytest.param(pytest.raises(ValueError, match=".*self.*"),
-                     dict(use_names=('self',)),
-                     id="use_names")
     ]
 )
 def test_cannot_inject_self(injector, expectation, kwargs):
@@ -815,8 +717,8 @@ def test_double_injection(injector):
     with pytest.raises(DoubleInjectionError,
                        match=".*<locals>.f.*"):
         @injector
-        @injector(use_names=True)
-        def f(x):
+        @injector(auto_provide=True)
+        def f(x: MyService):
             return x
 
     with pytest.raises(DoubleInjectionError,
@@ -824,17 +726,17 @@ def test_double_injection(injector):
         class StaticmethodA:
             @injector
             @staticmethod
-            @injector(use_names=True)
-            def f(x, y):
+            @injector(auto_provide=True)
+            def f(x, y: MyService):
                 pass
 
     with pytest.raises(DoubleInjectionError,
                        match=".*StaticmethodB.*"):
         class StaticmethodB:
             @injector
-            @injector(use_names=True)
+            @injector(auto_provide=True)
             @staticmethod
-            def f(x, y):
+            def f(x, y: MyService):
                 pass
 
     with pytest.raises(DoubleInjectionError,
@@ -842,25 +744,25 @@ def test_double_injection(injector):
         class ClassmethodA:
             @injector
             @classmethod
-            @injector(use_names=True)
-            def f(cls, x):
+            @injector(auto_provide=True)
+            def f(cls, x: MyService):
                 pass
 
     with pytest.raises(DoubleInjectionError,
                        match=".*ClassmethodB.*"):
         class ClassmethodB:
             @injector
-            @injector(use_names=True)
+            @injector(auto_provide=True)
             @classmethod
-            def f(cls, x):
+            def f(cls, x: MyService):
                 pass
 
     with pytest.raises(DoubleInjectionError,
                        match=".*Method.*"):
         class Method:
             @injector
-            @injector(use_names=True)
-            def f(self, x):
+            @injector(auto_provide=True)
+            def f(self, x: MyService):
                 pass
 
 
@@ -876,15 +778,95 @@ def test_invalid_inject(injector):
 
 def test_static_class_method(injector):
     class Dummy:
-        @injector(use_names=True)
+        @injector(auto_provide=True)
         @staticmethod
-        def static(x):
+        def static(x: MyService):
             pass
 
-        @injector(use_names=True)
+        @injector(auto_provide=True)
         @classmethod
-        def klass(cls, x):
+        def klass(cls, x: MyService):
             pass
 
     assert isinstance(Dummy.__dict__['static'], staticmethod)
     assert isinstance(Dummy.__dict__['klass'], classmethod)
+
+
+@pytest.mark.asyncio
+async def test_async(injector):
+    with world.test.empty():
+        service = MyService()
+        another_service = AnotherService()
+        world.test.singleton({
+            MyService: service,
+            AnotherService: another_service
+        })
+
+        @injector
+        async def f(x: Provide[MyService]):
+            return x
+
+        res = await f()
+        assert res is service
+
+        class Dummy:
+            @injector
+            async def method(self, x: Provide[MyService]):
+                return x
+
+            @injector
+            @classmethod
+            async def klass(cls, x: Provide[MyService]):
+                return x
+
+            @injector
+            @staticmethod
+            async def static(x: Provide[MyService]):
+                return x
+
+        dummy = Dummy()
+        print(dir(dummy))
+        res = await dummy.method()
+        assert res is service
+        res = await dummy.klass()
+        assert res is service
+        res = await dummy.static()
+        assert res is service
+        res = await Dummy.klass()
+        assert res is service
+        res = await Dummy.static()
+        assert res is service
+
+        @injector(dependencies=(MyService, AnotherService))
+        async def f(x, y):
+            return x, y
+
+        res = await f()
+        assert res == (service, another_service)
+        res = await f(y=1)
+        assert res == (service, 1)
+        res = await f(1)
+        assert res == (1, another_service)
+        res = await f(1, 2)
+        assert res == (1, 2)
+
+        @injector(dependencies=(MyService, 'unknown'))
+        async def f(x, y):
+            return x, y
+
+        with pytest.raises(DependencyNotFoundError, match='.*unknown.*'):
+            await f()
+
+        @injector(dependencies=(MyService,))
+        async def f(x, y):
+            return x, y
+
+        with pytest.raises(TypeError):
+            await f()
+
+        @injector(dependencies=(MyService, 'unknown'))
+        async def f(x, y=None):
+            return x, y
+
+        res = await f()
+        assert res == (service, None)

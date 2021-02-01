@@ -29,13 +29,6 @@ world.scopes
     :members:
 
 
-world.singletons
-----------------
-
-.. automodule:: antidote.world.singletons
-    :members:
-
-
 world.test
 ----------
 
@@ -120,11 +113,6 @@ Inject
 ^^^^^^
 .. automodule:: antidote.core.injection
     :members: inject, Arg
-
-Auto_provide
-^^^^^^^^^^^^
-.. automodule:: antidote.core.auto_provide
-    :members:
 
 Annotations
 ^^^^^^^^^^^

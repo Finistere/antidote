@@ -1,7 +1,7 @@
 import threading
 from collections import deque
 from contextlib import contextmanager
-from typing import (Callable, Deque, Dict, Hashable, Iterator, List, Mapping, Optional,
+from typing import (Callable, Deque, Dict, Hashable, Iterator, List, Optional,
                     Sequence, TYPE_CHECKING, Tuple, Type)
 from weakref import ReferenceType, ref
 

@@ -18,16 +18,17 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
     be retrieved from Antidote. It is recommended to use it through
     :py:func:`..world.lazy` as presented:
 
-    .. doctest:: core_Dependency
+    .. doctest:: core_utils_dependency
 
-        >>> from antidote import world
-        >>> world.test.singleton('port', 1)
-        >>> port = world.lazy[int]('port')
+        >>> from antidote import world, Service
+        >>> class MyService(Service):
+        ...     pass
+        >>> port = world.lazy[MyService]()
         >>> port.unwrapped
-        'port'
+        <class 'MyService'>
         >>> # to retrieve the dependency later, you may use get()
         ... port.get()
-        1
+        <MyService ...>
 
     """
     __slots__ = ('unwrapped',)

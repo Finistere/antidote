@@ -1,9 +1,8 @@
-from typing import cast, Callable, Sequence
+from typing import Callable, Sequence, cast
 
 import pytest
 
-from antidote import (Factory, factory, Service, Tag, Tagged,
-                      world, service)
+from antidote import (Factory, Service, Tag, Tagged, factory, service, world)
 from antidote._providers import FactoryProvider, ServiceProvider
 
 

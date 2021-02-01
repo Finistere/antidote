@@ -2,7 +2,7 @@ from typing import Any, Callable, Type
 
 import pytest
 
-from antidote import Factory, Provide, Service, factory, Tag, Wiring, inject, world
+from antidote import Factory, Provide, Service, Tag, Wiring, factory, inject, world
 from antidote._providers import (FactoryProvider, LazyProvider, ServiceProvider,
                                  TagProvider)
 
@@ -168,19 +168,19 @@ def test_missing_return_type_hint():
                              pytest.param(pytest.raises(TypeError, match='.*function.*'),
                                           dict(),
                                           object(),
-                                          id='function')
-                         ] + [
-                             pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
-                                          {arg: object()},
+                                          id='function'),
+                             pytest.param(pytest.raises(TypeError, match='.*singleton.*'),
+                                          dict(singleton=object()),
                                           lambda: None,
-                                          id=arg)
-                             for arg in ['auto_provide',
-                                         'singleton',
-                                         'scope',
-                                         'dependencies',
-                                         'use_names',
-                                         'auto_provide',
-                                         'tags']
+                                          id='singleton'),
+                             pytest.param(pytest.raises(TypeError, match='.*scope.*'),
+                                          dict(scope=object()),
+                                          lambda: None,
+                                          id='scope'),
+                             pytest.param(pytest.raises(TypeError, match='.*tags.*'),
+                                          dict(tags=object()),
+                                          lambda: None,
+                                          id='tags')
                          ])
 def test_invalid_factory_args(expectation, kwargs: dict, func: Callable[..., object]):
     with expectation:
@@ -268,19 +268,16 @@ def test_default_injection():
 
 
 def test_double_injection():
-    world.test.singleton('s', object())
-
-    class A:
-        pass
+    world.test.singleton(B, object())
 
     injected = None
 
     @factory
-    @inject(use_names=True)
-    def build_a(s) -> A:
+    @inject(auto_provide=True)
+    def build_a(s: B) -> A:
         nonlocal injected
         injected = s
         return A()
 
     assert isinstance(world.get(A @ build_a), A)
-    assert injected is world.get('s')
+    assert injected is world.get(B)

@@ -3,7 +3,7 @@ import threading
 import time
 from typing import Callable
 
-from antidote import factory, Tag, Tagged, world
+from antidote import Tag, Tagged, factory, world
 from antidote.core import Container
 
 

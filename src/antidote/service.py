@@ -1,11 +1,11 @@
-from typing import Callable, cast, Iterable, Optional, overload, Tuple, TypeVar, Union
+from typing import Callable, Iterable, Optional, Tuple, TypeVar, Union, cast, overload
 
 from ._compatibility.typing import final
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from ._providers import Tag
 from ._service import ServiceMeta
-from .core import Wiring, WithWiringMixin, Scope
+from .core import Scope, Wiring, WithWiringMixin
 from .core.exceptions import DuplicateDependencyError
 from .utils import validated_scope, validated_tags
 
@@ -19,7 +19,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
     class. It will only be instantiated when necessary. By default a service will be
     a singleton and :py:meth:`.__init__` will be wired (injected).
 
-    .. doctest:: helpers_Service
+    .. doctest:: Service
 
         >>> from antidote import Service, world
         >>> class MyService(Service):
@@ -29,7 +29,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
 
     For customization use :py:attr:`.__antidote__`:
 
-    .. doctest:: helpers_Service_v2
+    .. doctest:: Service_v2
 
         >>> from antidote import Service, world
         >>> class MyService(Service):
@@ -38,7 +38,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
     One can customize the instantiation and use the same service with different
     configuration:
 
-    .. doctest:: helpers_Service_v3
+    .. doctest:: Service_v3
 
         >>> from antidote import Service, world, inject
         >>> class MyService(Service):
@@ -164,7 +164,7 @@ def service(klass: C = None,
     registration of class which cannot inherit :py:class:`.Service`. The class itself
     will not be modified.
 
-    .. doctest:: helpers_register
+    .. doctest:: register
 
         >>> from antidote import service
         >>> @service

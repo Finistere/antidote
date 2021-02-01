@@ -1,16 +1,16 @@
-from typing import (Any, Callable, cast, Dict, Generic, Hashable, Optional, Tuple, Type,
-                    TypeVar, TYPE_CHECKING)
+from typing import (Any, Callable, Dict, Generic, Hashable, Optional, TYPE_CHECKING,
+                    Tuple, Type, TypeVar, cast)
 
 from ._compatibility.typing import final
 from ._internal import API
-from ._internal.utils import AbstractMeta, debug_repr, FinalImmutable, FinalMeta
+from ._internal.utils import AbstractMeta, FinalImmutable, FinalMeta, debug_repr
 from ._providers.lazy import Lazy
-from .core import Container, DependencyValue, Scope, DependencyDebug
+from .core import Container, DependencyDebug, DependencyValue, Scope
 
 T = TypeVar('T')
 
 if TYPE_CHECKING:
-    from mypy_extensions import DefaultNamedArg
+    from mypy_extensions import DefaultNamedArg, DefaultArg
 
 _CONST_CONSTRUCTOR_METHOD = 'get'
 _SENTINEL = object()
@@ -24,14 +24,20 @@ class Const(Generic[T]):
 @API.private
 @final
 class MakeConst(metaclass=FinalMeta):
-    def __call__(self, key: object, *, default: Any = _SENTINEL) -> Const[object]:
+    def __call__(self,
+                 __value: Optional[object] = None,
+                 *,
+                 default: Any = _SENTINEL) -> Const[object]:
         # Not true yet, but will be changed by ConstantsMeta
-        return cast(Const[object], LazyConstToDo(key, None, default))
+        return cast(Const[object], LazyConstToDo(__value, None, default))
 
-    def __getitem__(self, tpe: Type[T]
-                    ) -> 'Callable[[object, DefaultNamedArg(T, "default")], Const[T]]':  # noqa: F821, E501
-        def f(key: object, *, default: T = cast(T, _SENTINEL)) -> Const[T]:
-            return cast(Const[T], LazyConstToDo(key, tpe, default))
+    def __getitem__(self,
+                    tpe: Type[T]
+                    ) -> 'Callable[[DefaultArg(object), DefaultNamedArg(T, "default")], Const[T]]':  # noqa: F821, E501
+        def f(__value: Optional[object] = None,
+              *,
+              default: T = cast(T, _SENTINEL)) -> Const[T]:
+            return cast(Const[T], LazyConstToDo(__value, tpe, default))
 
         return f
 
@@ -39,8 +45,8 @@ class MakeConst(metaclass=FinalMeta):
 @API.private
 @final
 class LazyConstToDo(FinalImmutable):
-    __slots__ = ('key', 'type_', 'default')
-    key: object
+    __slots__ = ('value', 'type_', 'default')
+    value: Optional[object]
     type_: Optional[type]
     default: object
 
@@ -84,7 +90,7 @@ def _configure_constants(cls: ConstantsMeta) -> None:
                         name=name,
                         dependency=dependency,
                         method_name=_CONST_CONSTRUCTOR_METHOD,
-                        key=v.key,
+                        value=v.value,
                         default=v.default,
                         cast=v.type_ if v.type_ in conf.auto_cast else None))
 
@@ -95,11 +101,12 @@ Cast = Callable[[object], object]
 @API.private
 @final
 class LazyConstDescriptor(FinalImmutable):
-    __slots__ = ('name', 'dependency', 'method_name', 'key', 'default', 'cast', '_cache')
+    __slots__ = ('name', 'dependency', 'method_name', 'value', 'default', 'cast',
+                 '_cache')
     name: str
     dependency: Hashable
     method_name: str
-    key: object
+    value: object
     default: object
     cast: Cast
     _cache: str
@@ -109,14 +116,14 @@ class LazyConstDescriptor(FinalImmutable):
                  name: str,
                  dependency: Hashable,
                  method_name: str,
-                 key: object,
+                 value: object,
                  default: object,
                  cast: Cast = None):
         super().__init__(
             name=name,
             dependency=dependency,
             method_name=method_name,
-            key=key,
+            value=value,
             default=default,
             cast=cast or (lambda x: x),
             _cache=f"__antidote_dependency_{hex(id(self))}"
@@ -134,7 +141,7 @@ class LazyConstDescriptor(FinalImmutable):
                 return dependency
         _cast = cast(Cast, getattr(self, 'cast'))
         try:
-            return _cast(getattr(instance, self.method_name)(self.key))
+            return _cast(getattr(instance, self.method_name)(self.name, self.value))
         except KeyError:
             if self.default is not _SENTINEL:
                 return self.default

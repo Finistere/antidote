@@ -120,17 +120,11 @@ def dummy_choose():
                              pytest.param(pytest.raises(TypeError, match='.*interface.*'),
                                           dict(interface=object()),
                                           dummy_choose,
-                                          id='interface')
-                         ] + [
-                             pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
-                                          {'interface': Interface, arg: object()},
+                                          id='interface'),
+                             pytest.param(pytest.raises(TypeError, match='.*permanent.*'),
+                                          {'interface': Interface, 'permanent': object()},
                                           dummy_choose,
-                                          id=arg)
-                             for arg in ['permanent',
-                                         'auto_provide',
-                                         'dependencies',
-                                         'use_names',
-                                         'auto_provide']
+                                          id='permanent')
                          ])
 def test_invalid_implementation(expectation, kwargs: dict, func):
     with expectation:
@@ -334,7 +328,10 @@ def test_default_injection():
 
 
 def test_double_injection():
-    world.test.singleton('s', object())
+    class B:
+        pass
+
+    world.test.singleton(B, object())
 
     class Interface:
         pass
@@ -345,11 +342,11 @@ def test_double_injection():
     injected = None
 
     @implementation(Interface)
-    @inject(use_names=True)
-    def choose_a(s):
+    @inject(auto_provide=True)
+    def choose_a(s: B):
         nonlocal injected
         injected = s
         return A
 
     assert world.get(Interface @ choose_a) is world.get(A)
-    assert injected is world.get('s')
+    assert injected is world.get(B)

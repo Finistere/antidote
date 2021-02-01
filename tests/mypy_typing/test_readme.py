@@ -1,5 +1,7 @@
 # flake8: noqa
 # Ignoring F811 for multiple definitions
+from typing import Optional, TypeVar
+
 from antidote._compatibility.typing import Annotated
 
 
@@ -13,13 +15,7 @@ def test_readme_simple():
         DB_HOST = const[str]('localhost:6789')
         DB_HOST_WITHOUT_TYPE_HINT = const('localhost:6789')
 
-        # Used to retrieve lazily the const. Here we're just returning the value itself
-        # but later we could rely on a file to store our configuration for example.
-        def get(self, key: str):
-            return key
-
     class Database(Service):  # Defined as a Service, so injectable.
-        @inject
         def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
             self._host = host  # <=> Conf().get('host')
 
@@ -59,8 +55,8 @@ def test_readme():
     to dot it.
     """
     from antidote import (Constants, factory, inject, world, const, Service,
-                          implementation, Get, From)
-    # from typing import Annotated
+                          implementation, Get, From, FromArg)
+    # from typing import Annotated, TypeVar
     # from typing_extensions import Annotated # Python < 3.9
 
     class MovieDB:
@@ -96,20 +92,29 @@ def test_readme():
                 }
             }
 
-        def get(self, key: str):
+        def get(self, name: str, value: str):
             from functools import reduce
             # self.get('a.b') <=> self._raw_conf['a']['b']
-            return reduce(dict.get, key.split('.'), self._raw_conf)  # type: ignore
+            return reduce(dict.get, value.split('.'), self._raw_conf)  # type: ignore
 
     # Provides ImdbAPI, as defined by the return type annotation.
     @factory
-    @inject
     def imdb_factory(host: Annotated[str, Get(Conf.IMDB_HOST)],
                      port: Annotated[int, Get(Conf.IMDB_PORT)],
                      api_key: Annotated[str, Get(Conf.IMDB_API_KEY)]
                      ) -> ImdbAPI:
-        # Here host = Conf().get('imdb.host')
         return ImdbAPI(host=host, port=port, api_key=api_key)
+
+    # You can go even further with the annotations:
+    T = TypeVar('T')
+    ProvideFromConf = Annotated[T, FromArg(lambda arg: getattr(Conf, arg.name.upper()))]
+
+    @factory
+    def imdb_factory(imdb_host: ProvideFromConf[str],
+                     imdb_port: ProvideFromConf[int],
+                     imdb_api_key: ProvideFromConf[str]
+                     ) -> ImdbAPI:
+        return ImdbAPI(host=imdb_host, port=imdb_port, api_key=imdb_api_key)
 
     # Without PEP-593
     @factory
@@ -126,7 +131,6 @@ def test_readme():
         # New instance each time
         __antidote__ = Service.Conf(singleton=False)
 
-        @inject
         def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
             self._imdb_api = imdb_api
 

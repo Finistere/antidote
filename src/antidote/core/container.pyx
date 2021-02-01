@@ -9,7 +9,7 @@ from weakref import ref
 cimport cython
 from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 from cpython.mem cimport PyMem_Free, PyMem_Malloc
-from cpython.ref cimport Py_XINCREF, PyObject, Py_XDECREF
+from cpython.ref cimport PyObject
 
 from antidote._internal.stack cimport DependencyStack
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
@@ -23,6 +23,9 @@ cdef extern from "Python.h":
     Py_ssize_t PyTuple_GET_SIZE(PyObject *p)
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
+    void Py_INCREF(PyObject *o)
+    void Py_DECREF(PyObject *o)
+
 
 ##############
 # Dependency #
@@ -134,14 +137,14 @@ cdef class DependencyValue:
     cdef to_result(self, DependencyResult *result):
         result.header = HeaderObject.from_scope(self.scope).header
         result.value = <PyObject*> self.unwrapped
-        Py_XINCREF(result.value)
+        Py_INCREF(result.value)
 
     @staticmethod
     cdef DependencyValue from_result(RawContainer container, DependencyResult *result):
         scope = HeaderObject(result.header).to_scope(container)
         value = <object> result.value
         print(scope, value)
-        Py_XDECREF(result.value)
+        Py_DECREF(result.value)
         return DependencyValue.__new__(DependencyValue,
                                        value,
                                        scope=scope)
@@ -442,7 +445,7 @@ cdef class RawContainer(Container):
         self.fast_get(<PyObject*> dependency, &result)
         if result.value:
             obj = <object> result.value
-            Py_XDECREF(result.value)
+            Py_DECREF(result.value)
             return obj
         raise DependencyNotFoundError(dependency)
 
@@ -461,7 +464,7 @@ cdef class RawContainer(Container):
             if value.header & HEADER_FLAG_SINGLETON:
                 result.header = value.header
                 result.value = value.ptr
-                Py_XINCREF(result.value)
+                Py_INCREF(result.value)
             else:
                 self.__safe_cache_provide(dependency, result, value)
         else:
@@ -470,7 +473,7 @@ cdef class RawContainer(Container):
             if ptr:
                 result.header = HEADER_FLAG_SINGLETON
                 result.value = ptr
-                Py_XINCREF(result.value)
+                Py_INCREF(result.value)
             else:
                 self.__safe_provide(dependency, result, clock)
 
@@ -497,7 +500,7 @@ cdef class RawContainer(Container):
                 unlock_fastrlock(lock)
                 result.header = cached.header
                 result.value = value
-                Py_XINCREF(result.value)
+                Py_INCREF(result.value)
                 return
 
         if 0 != (<DependencyStack> stack).push(dependency):
@@ -512,9 +515,9 @@ cdef class RawContainer(Container):
             if result.header & HEADER_FLAG_SINGLETON:
                 PyDict_SetItem(<PyObject*> self.__singletons, dependency, result.value)
                 self.__singletons_clock += 1
-                Py_XDECREF(cached.ptr)
+                Py_DECREF(cached.ptr)
                 cached.ptr = result.value
-                Py_XINCREF(result.value)
+                Py_INCREF(result.value)
             elif result.header & HEADER_FLAG_HAS_SCOPE:
                 scope_id = header_get_scope_id(result.header)
                 PyDict_SetItem(
@@ -558,7 +561,7 @@ cdef class RawContainer(Container):
                 unlock_fastrlock(lock)
                 result.header = HEADER_FLAG_SINGLETON
                 result.value = value
-                Py_XINCREF(result.value)
+                Py_INCREF(result.value)
                 return
 
         scope_dependencies = <PyObject*> self.__scope_dependencies
@@ -568,7 +571,7 @@ cdef class RawContainer(Container):
                 unlock_fastrlock(lock)
                 result.header = header_scope(i + 1)
                 result.value = value
-                Py_XINCREF(result.value)
+                Py_INCREF(result.value)
                 return
 
         if 0 != (<DependencyStack> stack).push(dependency):
@@ -668,8 +671,8 @@ cdef class DependencyCache:
             Entry *entry
         for entry in self.table[:self.mask + 1]:
             if entry.key:
-                Py_XDECREF(entry.key)
-                Py_XDECREF(entry.value.ptr)
+                Py_DECREF(entry.key)
+                Py_DECREF(entry.value.ptr)
         PyMem_Free(self.table)
 
     # Python functions only used for tests.
@@ -699,8 +702,8 @@ cdef class DependencyCache:
             Entry*entry = self._find(key)
         if entry.key is NULL:
             self.used += 1
-            Py_XINCREF(key)
-            Py_XINCREF(value)
+            Py_INCREF(key)
+            Py_INCREF(value)
             entry.key = key
             entry.value.header = header
             entry.value.ptr = value
@@ -708,8 +711,8 @@ cdef class DependencyCache:
             if 3 * self.used > 2 * self.mask:
                 self._resize()
         else:
-            Py_XINCREF(value)
-            Py_XDECREF(entry.value.ptr)
+            Py_INCREF(value)
+            Py_DECREF(entry.value.ptr)
             entry.value.header = header
             entry.value.ptr = value
 

@@ -123,17 +123,6 @@ them out of the box, we expect someone else to provide the examples:
     >>> add_random('name', names)
     >>> world.get[str]('random:name') in names
     True
-    >>> # 'random:name' will not be overridden:
-    ... world.test.singleton("random:name", [])
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in ?
-    DuplicateDependencyError
-    >>> world.test.singleton("random:age", [])
-    >>> # Neither can RandomProvider override others
-    ... add_random('age', [1, 2, 3])
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in ?
-    DuplicateDependencyError
 
 Note that we still dont' handle anywhere thread-safety ! The methods :py:meth:`~.core.Provider.exists`
 , :py:meth:`~.core.Provider.provide`, and :py:meth:`~.core.Provider.clone` are always called

@@ -19,7 +19,6 @@ def test_invalid_class(obj):
     'kwargs',
     [dict(methods=object()),
      dict(auto_provide=object()),
-     dict(use_names=object()),
      dict(dependencies=object())]
 )
 def test_invalid_type(kwargs):

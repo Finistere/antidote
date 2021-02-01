@@ -2,9 +2,8 @@ from typing import Any, Callable, Hashable, Optional
 
 import pytest
 
-from antidote import Scope, world, Service
+from antidote import Scope, Service, world
 from antidote.core import DependencyValue
-from antidote.core.exceptions import DuplicateDependencyError
 from antidote.exceptions import DependencyNotFoundError
 from ..core.utils import DummyProvider
 
@@ -38,7 +37,6 @@ def test_singleton(override: Callable[[Any, Any], Any]):
 
 
 def test_factory():
-
     # overrides normal provider
     with world.test.empty():
         world.provider(DummyProvider)
@@ -73,10 +71,18 @@ def test_factory():
             assert world.get('test') == 'a'
             assert world.get('test2') is sentinel
 
-    # non singleton
+    # default => singleton
     with world.test.clone():
         @world.test.override.factory('test')
         def f2():
+            return object()
+
+        assert world.get('test') is world.get('test')
+
+    # non singleton
+    with world.test.clone():
+        @world.test.override.factory('test', singleton=False)
+        def f3():
             return object()
 
         assert world.get('test') is not world.get('test')
@@ -84,7 +90,7 @@ def test_factory():
     # singleton
     with world.test.clone():
         @world.test.override.factory('test', singleton=True)
-        def f3():
+        def f4():
             return object()
 
         assert world.get('test') is world.get('test')

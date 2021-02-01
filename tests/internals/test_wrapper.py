@@ -8,7 +8,7 @@ from typing import Any, List, Tuple
 import pytest
 
 from antidote import world
-from antidote._internal.wrapper import build_wrapper, Injection, InjectionBlueprint
+from antidote._internal.wrapper import Injection, InjectionBlueprint, build_wrapper
 from antidote.exceptions import DependencyNotFoundError
 
 A = object()
@@ -47,20 +47,10 @@ class Dummy:
     def method(self, x):
         return self, x
 
-    @easy_wrap(arg_dependency=arg_cls_x)
-    @classmethod
-    def class_before(cls, x):
-        return cls, x
-
     @classmethod
     @easy_wrap(arg_dependency=arg_cls_x)
     def class_after(cls, x):
         return cls, x
-
-    @easy_wrap(arg_dependency=arg_x)
-    @staticmethod
-    def static_before(x):
-        return x
 
     @staticmethod
     @easy_wrap(arg_dependency=arg_x)
@@ -72,18 +62,8 @@ class Dummy2:
     def method(self, x):
         return self, x
 
-    @classmethod
-    def class_method(cls, x):
-        return cls, x
-
-    @staticmethod
-    def static(x):
-        return x
-
 
 Dummy2.method = easy_wrap(Dummy2.__dict__['method'], arg_self_x)
-Dummy2.class_method = easy_wrap(Dummy2.__dict__['class_method'], arg_cls_x)
-Dummy2.static = easy_wrap(Dummy2.__dict__['static'], arg_x)
 
 
 @easy_wrap(arg_dependency=arg_x)
@@ -103,39 +83,22 @@ d2 = Dummy2()
 
         pytest.param((B, A), Dummy.method,
                      id='method'),
-        pytest.param((Dummy, A), Dummy.class_before,
-                     id='classmethod before'),
         pytest.param((Dummy, A), Dummy.class_after,
                      id='classmethod after'),
-        pytest.param(A, Dummy.static_before,
-                     id='staticmethod before'),
         pytest.param(A, Dummy.static_after,
                      id='staticmethod after'),
 
         pytest.param((d, A), d.method,
                      id='instance method'),
-        pytest.param((Dummy, A), d.class_before,
-                     id='instance classmethod before'),
         pytest.param((Dummy, A), d.class_after,
                      id='instance classmethod after'),
-        pytest.param(A, d.static_before,
-                     id='instance staticmethod before'),
         pytest.param(A, d.static_after,
                      id='instance staticmethod after'),
 
         pytest.param((d2, A), d2.method,
                      id='post:instance method'),
-        pytest.param((Dummy2, A), d2.class_method,
-                     id='post:instance classmethod'),
-        pytest.param(A, d2.static,
-                     id='post:instance staticmethod'),
-
         pytest.param((B, A), Dummy2.method,
-                     id='post:method'),
-        pytest.param((Dummy2, A), Dummy2.class_method,
-                     id='post:classmethod'),
-        pytest.param(A, Dummy2.static,
-                     id='post:staticmethod'),
+                     id='post:method')
     ]
 )
 def test_wrapper(expected, func):
@@ -374,13 +337,19 @@ def test_wrapped_attributes(original, wrapped):
     assert inspect.signature(original) == inspect.signature(wrapped)
 
 
-def test_custom_attributes():
-    def f():
-        pass
+def f():
+    pass
 
-    f.attr = "test"
-    f.another_attr = "another_attr"
-    wrapped = easy_wrap(f)
+
+async def async_f():
+    pass
+
+
+@pytest.mark.parametrize('func', [f, async_f])
+def test_custom_attributes(func):
+    func.attr = "test"
+    func.another_attr = "another_attr"
+    wrapped = easy_wrap(func)
     assert "test" == wrapped.attr
 
     wrapped.attr2 = "test2"
@@ -400,3 +369,73 @@ def test_custom_attributes():
     # but not existing ones
     with pytest.raises(AttributeError):
         del wrapped.another_attr
+
+
+@pytest.mark.asyncio
+async def test_async_wrapper():
+    with world.test.empty():
+        world.test.singleton(dict(a=A, b=B, c=C))
+
+        @easy_wrap(arg_dependency=[('x', True, 'a')])
+        async def f(x):
+            return x
+
+        res = await f()
+        assert res == A
+
+        class Dummy:
+            @easy_wrap(arg_dependency=[('self', True, None), ('x', True, 'a')])
+            async def method(self, x):
+                return x
+
+            @classmethod
+            @easy_wrap(arg_dependency=[('cls', True, None), ('x', True, 'a')])
+            async def klass(cls, x):
+                return x
+
+            @staticmethod
+            @easy_wrap(arg_dependency=[('x', True, 'a')])
+            async def static(x):
+                return x
+
+        d = Dummy()
+        print(d.__dict__)
+        res = await d.method()
+        assert res == A
+        res = await d.klass()
+        assert res == A
+        res = await d.static()
+        assert res == A
+        res = await Dummy.klass()
+        assert res == A
+        res = await Dummy.static()
+        assert res == A
+
+        @easy_wrap(arg_dependency=[('x', True, 'a'),
+                                   ('y', True, 'b'),
+                                   ('z', False, 'unknown')])
+        async def f(x, y, z=None):
+            return x, y, z
+
+        (x, y, z) = await f()
+        assert x == A
+        assert y == B
+        assert z is None
+
+        @easy_wrap(arg_dependency=[('x', True, 'a'),
+                                   ('y', True, 'b'),
+                                   ('z', True, 'unknown')])
+        async def f(x, y, z):
+            pass
+
+        with pytest.raises(DependencyNotFoundError, match='.*unknown.*'):
+            await f()
+
+        @easy_wrap(arg_dependency=[('x', True, 'a'),
+                                   ('y', True, 'b'),
+                                   ('z', True, None)])
+        async def f(x, y, z):
+            pass
+
+        with pytest.raises(TypeError):
+            await f()

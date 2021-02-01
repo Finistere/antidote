@@ -172,42 +172,6 @@ def test_methods(class_builder: F):
     assert b is world.get(B)
 
 
-def test_use_names(class_builder: F):
-    # no use_names by default
-    dummy = class_builder(Wiring(methods=('method_ab',)))()
-    (a, b) = dummy.method_ab()
-    assert a is None
-    assert b is None
-
-    dummy = class_builder(Wiring(methods=('method_ab',), use_names=False))()
-    (a, b) = dummy.method_ab()
-    assert a is None
-    assert b is None
-
-    dummy = class_builder(Wiring(methods=('method_ab',), use_names=True))()
-    (a, b) = dummy.method_ab()
-    assert a is world.get('a')
-    assert b is world.get('b')
-
-    dummy = class_builder(Wiring(methods=('method_ab',), use_names=('a',)))()
-    (a, b) = dummy.method_ab()
-    assert a is world.get('a')
-    assert b is None
-
-    # does not override annotation
-    dummy = class_builder(Wiring(methods=('__init__',), use_names=True))()
-    assert dummy.a is world.get(A)
-    assert dummy.b is world.get(B)
-
-    # Does not override type_hints
-    dummy = class_builder(Wiring(methods=('method_AB',),
-                                 auto_provide=True,
-                                 use_names=True))()
-    (a, b) = dummy.method_AB()
-    assert a is world.get(A)
-    assert b is world.get(B)
-
-
 def test_auto_provide(class_builder: F):
     # Uses type hints by default
     dummy = class_builder(Wiring(methods=('method_AB',)))()
@@ -230,39 +194,21 @@ def test_auto_provide(class_builder: F):
     assert a is world.get(A)
     assert b is None
 
-    # with use_names
-    dummy = class_builder(Wiring(methods=('method_AB',),
-                                 auto_provide=False,
-                                 use_names=True))()
-    (a, b) = dummy.method_AB()
-    assert a is world.get('a')
-    assert b is world.get('b')
-
-    # auto_provide has priority
-    dummy = class_builder(Wiring(methods=('method_AB',),
-                                 auto_provide=[A],
-                                 use_names=True))()
-    (a, b) = dummy.method_AB()
-    assert a is world.get(A)
-    assert b is world.get('b')
-
 
 def test_dependencies_dict(class_builder: F):
     dummy = class_builder(Wiring(dependencies=dict(),
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
     assert a is world.get(A)
     assert b is world.get(B)
     (a, b) = dummy.method_ab()
-    assert a is world.get('a')
-    assert b is world.get('b')
+    assert a is None
+    assert b is None
 
     dummy = class_builder(Wiring(dependencies=dict(a='x', b='y'),
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
@@ -273,46 +219,42 @@ def test_dependencies_dict(class_builder: F):
     assert b is world.get('y')
 
     dummy = class_builder(Wiring(dependencies=dict(b='y'),
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
     assert a is world.get(A)
     assert b is world.get('y')
     (a, b) = dummy.method_ab()
-    assert a is world.get('a')
+    assert a is None
     assert b is world.get('y')
 
 
 def test_dependencies_seq(class_builder: F):
     dummy = class_builder(Wiring(dependencies=[],
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
     assert a is world.get(A)
     assert b is world.get(B)
     (a, b) = dummy.method_ab()
-    assert a is world.get('a')
-    assert b is world.get('b')
+    assert a is None
+    assert b is None
 
     dummy = class_builder(Wiring(dependencies=[None, None],
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
     assert a is world.get(A)
     assert b is world.get(B)
     (a, b) = dummy.method_ab()
-    assert a is world.get('a')
-    assert b is world.get('b')
+    assert a is None
+    assert b is None
 
     dummy = class_builder(Wiring(dependencies=['x', 'y'],
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
@@ -323,20 +265,18 @@ def test_dependencies_seq(class_builder: F):
     assert b is world.get('y')
 
     dummy = class_builder(Wiring(dependencies=[None, 'y'],
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
     assert a is world.get(A)
     assert b is world.get('y')
     (a, b) = dummy.method_ab()
-    assert a is world.get('a')
+    assert a is None
     assert b is world.get('y')
 
     dummy = class_builder(Wiring(dependencies=['x', None],
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
@@ -344,25 +284,23 @@ def test_dependencies_seq(class_builder: F):
     assert b is world.get(B)
     (a, b) = dummy.method_ab()
     assert a is world.get('x')
-    assert b is world.get('b')
+    assert b is None
 
 
 def test_dependencies_callable(class_builder: F):
     dummy = class_builder(Wiring(dependencies=lambda arg: None,
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
     assert a is world.get(A)
     assert b is world.get(B)
     (a, b) = dummy.method_ab()
-    assert a is world.get('a')
-    assert b is world.get('b')
+    assert a is None
+    assert b is None
 
     dummy = class_builder(Wiring(dependencies=lambda arg: 'x' if arg.name == 'a' else 'y',
-                                 auto_provide=True,
-                                 use_names=True))()
+                                 auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
@@ -374,8 +312,7 @@ def test_dependencies_callable(class_builder: F):
 
     dummy = class_builder(Wiring(
         dependencies=lambda arg: 'x' if arg.name == 'a' else None,
-        auto_provide=True,
-        use_names=True))()
+        auto_provide=True))()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
     (a, b) = dummy.method_AB()
@@ -383,26 +320,7 @@ def test_dependencies_callable(class_builder: F):
     assert b is world.get(B)
     (a, b) = dummy.method_ab()
     assert a is world.get('x')
-    assert b is world.get('b')
-
-
-def test_dependencies_str(class_builder: F):
-    world.test.singleton({
-        'conf:a': object(),
-        'conf:b': object()
-    })
-
-    dummy = class_builder(Wiring(dependencies="conf:{arg_name}",
-                                 auto_provide=True,
-                                 use_names=True))()
-    assert dummy.a is world.get(A)
-    assert dummy.b is world.get(B)
-    (a, b) = dummy.method_AB()
-    assert a is world.get('conf:a')
-    assert b is world.get('conf:b')
-    (a, b) = dummy.method_ab()
-    assert a is world.get('conf:a')
-    assert b is world.get('conf:b')
+    assert b is None
 
 
 def test_distinct_arguments(class_builder: F):
@@ -438,17 +356,5 @@ def test_distinct_arguments(class_builder: F):
     assert b is None
     (x, y, z) = dummy.method_xyz()
     assert x is None
-    assert y is None
-    assert z is None
-
-    # use_names
-    dummy = class_builder(Wiring(methods=('method_AB', 'method_xyz'),
-                                 auto_provide=True,
-                                 use_names=['x']))()
-    (a, b) = dummy.method_AB()
-    assert a is world.get(A)
-    assert b is world.get(B)
-    (x, y, z) = dummy.method_xyz()
-    assert x is world.get('x')
     assert y is None
     assert z is None

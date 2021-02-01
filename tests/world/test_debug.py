@@ -41,6 +41,38 @@ def test_no_debug():
     )
 
 
+def test_injections():
+    prefix = "tests.world.test_debug.test_injections.<locals>"
+
+    class MyService(Service):
+        pass
+
+    @inject(auto_provide=True)
+    def f(s: MyService):
+        return s
+
+    @inject(auto_provide=True)
+    async def g(s: MyService):
+        return s
+
+    assert_valid(
+        DebugTestCase(
+            value=f,
+            expected=f"""
+                {prefix}.f
+                └── {prefix}.MyService
+                    """
+        ),
+        DebugTestCase(
+            value=g,
+            expected=f"""
+                {prefix}.g
+                └── {prefix}.MyService
+                    """
+        )
+    )
+
+
 def test_implementation_debug():
     class Interface:
         pass

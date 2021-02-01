@@ -30,10 +30,6 @@ class Wiring(FinalImmutable):
       or using `@inject` when using :code:`attempt_methods`.
     - wiring of multiple methods with similar dependencies.
 
-    Injection arguments (:code:`dependencies`, :code:`use_names`,  :code:`auto_provide`)
-    are adapted for match the arguments of the method. Hence :py:func:`~.injection.inject`
-    won't raise an error that it has too much dependencies.
-
     Instances are immutable. If you want to change some parameters, typically defaults
     defined by Antidote, you'll need to rely on :py:meth:`~.copy`. It accepts the same
     arguments as :py:meth:`~.__init__` and overrides existing values.
@@ -43,16 +39,15 @@ class Wiring(FinalImmutable):
         >>> from antidote import Wiring
         >>> # Methods must always be specified.
         ... w = Wiring(methods=['my_method', 'other_method'])
-        >>> # Now argument names will be used on both my_method and other_method.
-        ... w_copy = w.copy(use_names=True)
+        >>> # Now auto_provide will be used on both my_method and other_method.
+        ... w_copy = w.copy(auto_provide=True)
 
     """
-    __slots__ = ('methods', 'auto_provide', 'dependencies', 'use_names',
+    __slots__ = ('methods', 'auto_provide', 'dependencies',
                  'raise_on_double_injection')
     methods: Union[Methods, FrozenSet[str]]
     """Method names that must be injected."""
     dependencies: DEPENDENCIES_TYPE
-    use_names: Union[bool, FrozenSet[str]]
     auto_provide: Union[bool, FrozenSet[str]]
     raise_on_double_injection: bool
 
@@ -60,7 +55,6 @@ class Wiring(FinalImmutable):
                  *,
                  methods: Union[Methods, Iterable[str]] = Methods.ALL,
                  dependencies: DEPENDENCIES_TYPE = None,
-                 use_names: Union[bool, Iterable[str]] = False,
                  auto_provide: Union[bool, Iterable[Hashable]] = False,
                  raise_on_double_injection: bool = False) -> None:
         """
@@ -68,7 +62,6 @@ class Wiring(FinalImmutable):
             methods: Names of methods to be injected. If any of them is already injected,
                 an error will be raised. Consider using :code:`attempt_methods` otherwise.
             dependencies: Propagated for every method to :py:func:`~.injection.inject`
-            use_names: Propagated for every method to :py:func:`~.injection.inject`
             auto_provide: Propagated for every method to :py:func:`~.injection.inject`
         """
         if not isinstance(raise_on_double_injection, bool):
@@ -90,16 +83,13 @@ class Wiring(FinalImmutable):
             if not all(isinstance(method, str) for method in methods):
                 raise TypeError("methods is expected to contain methods names (str)")
 
-        if not isinstance(use_names, str) and isinstance(use_names, c_abc.Iterable):
-            use_names = frozenset(use_names)
         if not isinstance(auto_provide, str) and isinstance(auto_provide,
                                                             c_abc.Iterable):
             auto_provide = frozenset(auto_provide)
-        validate_injection(dependencies, use_names, auto_provide)
+        validate_injection(dependencies, auto_provide)
 
         super().__init__(methods=methods,
                          dependencies=dependencies,
-                         use_names=use_names,
                          auto_provide=auto_provide,
                          raise_on_double_injection=raise_on_double_injection)
 
@@ -107,7 +97,6 @@ class Wiring(FinalImmutable):
              *,
              methods: Union[Methods, Iterable[str], Copy] = Copy.IDENTICAL,
              dependencies: Union[Optional[DEPENDENCIES_TYPE], Copy] = Copy.IDENTICAL,
-             use_names: Union[bool, Iterable[str], Copy] = Copy.IDENTICAL,
              auto_provide: Union[bool, Iterable[Hashable], Copy] = Copy.IDENTICAL,
              raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL
              ) -> 'Wiring':
@@ -118,7 +107,6 @@ class Wiring(FinalImmutable):
         return Copy.immutable(self,
                               methods=methods,
                               dependencies=dependencies,
-                              use_names=use_names,
                               auto_provide=auto_provide,
                               raise_on_double_injection=raise_on_double_injection)
 
@@ -141,7 +129,6 @@ def wire(__klass: C,  # noqa: E704  # pragma: no cover
          *,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         use_names: Union[bool, Iterable[str]] = False,
          auto_provide: Union[bool, Iterable[Hashable]] = False,
          raise_on_double_injection: bool = False
          ) -> C: ...
@@ -151,7 +138,6 @@ def wire(__klass: C,  # noqa: E704  # pragma: no cover
 def wire(*,  # noqa: E704  # pragma: no cover
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         use_names: Union[bool, Iterable[str]] = False,
          auto_provide: Union[bool, Iterable[Hashable]] = False,
          raise_on_double_injection: bool = False
          ) -> Callable[[C], C]: ...
@@ -162,7 +148,6 @@ def wire(__klass: C = None,
          *,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         use_names: Union[bool, Iterable[str]] = False,
          auto_provide: Union[bool, Iterable[Hashable]] = False,
          raise_on_double_injection: bool = False
          ) -> Union[C, Callable[[C], C]]:
@@ -170,15 +155,10 @@ def wire(__klass: C = None,
     Wire a class by injecting specified methods. This avoids repetition if similar
     dependencies need to be injected in different methods.
 
-    Injection arguments (:code:`dependencies`, :code:`use_names`,  :code:`auto_provide`)
-    are adapted for match the arguments of the method. Hence :py:func:`~.injection.inject`
-    won't raise an error that it has too much dependencies.
-
     Args:
         __klass: Class to wire.
         methods: Names of methods that must be injected.
         dependencies: Propagated for every method to :py:func:`~.injection.inject`.
-        use_names: Propagated for every method to :py:func:`~.injection.inject`.
         auto_provide: Propagated for every method to :py:func:`~.injection.inject`.
 
     Returns:
@@ -188,7 +168,6 @@ def wire(__klass: C = None,
     wiring = Wiring(
         methods=methods,
         dependencies=dependencies,
-        use_names=use_names,
         auto_provide=auto_provide,
         raise_on_double_injection=raise_on_double_injection
     )
@@ -218,16 +197,10 @@ class WithWiringMixin:
     def copy(self: W, *, wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL) -> W:
         raise NotImplementedError()  # pragma: no cover
 
-    def auto_provide(self: W) -> W:
-        return self.copy(wiring=(Wiring(auto_provide=True)
-                                 if self.wiring is None else
-                                 self.wiring.copy(auto_provide=True)))
-
     def with_wiring(self: W,
                     *,
                     methods: Union[Methods, Iterable[str], Copy] = Copy.IDENTICAL,
                     dependencies: Union[DEPENDENCIES_TYPE, Copy] = Copy.IDENTICAL,
-                    use_names: Union[bool, Iterable[str], Copy] = Copy.IDENTICAL,
                     auto_provide: Union[bool, Iterable[Hashable], Copy] = Copy.IDENTICAL,
                     raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL,
                     ) -> W:
@@ -243,13 +216,11 @@ class WithWiringMixin:
             return self.copy(wiring=Wiring().copy(
                 methods=methods,
                 dependencies=dependencies,
-                use_names=use_names,
                 auto_provide=auto_provide,
                 raise_on_double_injection=raise_on_double_injection))
         else:
             return self.copy(wiring=self.wiring.copy(
                 methods=methods,
                 dependencies=dependencies,
-                use_names=use_names,
                 auto_provide=auto_provide,
                 raise_on_double_injection=raise_on_double_injection))

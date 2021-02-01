@@ -1,9 +1,8 @@
 from typing import cast, overload
 
-from antidote import (Provide, const, Constants, inject, Service, world, factory, Get,
-                      From,
-                      ProvideArgName)
-from antidote._compatibility.typing import Protocol, Annotated
+from antidote import (Constants, From, Get, Provide, Service, const, factory, inject,
+                      world)
+from antidote._compatibility.typing import Annotated, Protocol
 
 
 def test_constants_typing() -> None:
@@ -46,7 +45,8 @@ def test_annotated_typing() -> None:
             assert dummy is not None
             return dummy
 
-        assert f().hello() is world.get[Dummy](Annotated[Dummy, Get('dummy')])  # noqa: F821, E501
+        assert f().hello() is world.get[Dummy](
+            Annotated[Dummy, Get('dummy')])  # noqa: F821, E501
         assert world.get[Dummy](Annotated[Dummy, Get('dummy')]) \
                is world.get[Dummy]('dummy')
 
@@ -56,13 +56,6 @@ def test_annotated_typing() -> None:
             return dummy
 
         assert g().hello() is world.get[Dummy](Dummy @ build_dummy)
-
-        @inject
-        def h(dummy: ProvideArgName[Dummy] = None) -> Dummy:
-            assert dummy is not None
-            return dummy
-
-        assert h().hello() is world.get[Dummy]('dummy')
 
 
 def test_proper_typing_assert_none() -> None:

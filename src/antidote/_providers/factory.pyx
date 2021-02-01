@@ -3,7 +3,7 @@ from typing import Callable, Dict, Hashable, Optional, Union
 
 # @formatter:off
 cimport cython
-from cpython.ref cimport PyObject, Py_XDECREF
+from cpython.ref cimport PyObject
 
 from antidote._providers.service cimport Build
 from antidote.core.container cimport (DependencyResult, FastProvider, Header,
@@ -20,6 +20,7 @@ cdef extern from "Python.h":
     PyObject*PyObject_Call(PyObject *callable, PyObject *args,
                            PyObject *kwargs) except NULL
     PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
+    void Py_DECREF(PyObject *o)
 
 
 @cython.final
@@ -119,7 +120,7 @@ cdef class FactoryProvider(FastProvider):
             assert header_is_singleton(
                 result.header), "factory dependency is expected to be a singleton"
             (<Factory> factory).function = <object> result.value
-            Py_XDECREF(result.value)
+            Py_DECREF(result.value)
 
         if is_build_dependency:
             result.header = (<Factory> factory).header

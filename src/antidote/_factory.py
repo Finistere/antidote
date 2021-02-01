@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Callable, cast, Dict, Hashable, Tuple, Type
+from typing import Callable, Dict, Hashable, Tuple, Type, cast
 
 from ._compatibility.typing import get_type_hints
 from ._internal import API
@@ -8,7 +8,7 @@ from ._internal.utils import AbstractMeta, FinalImmutable
 from ._providers import FactoryProvider, TagProvider
 from ._providers.factory import FactoryDependency
 from ._providers.service import Build
-from .core import Dependency, inject, Provide
+from .core import Dependency, Provide, inject
 from .service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'

@@ -1,7 +1,8 @@
 from ._providers import DuplicateTagError
-from .core.exceptions import (AntidoteError, DependencyCycleError, DoubleInjectionError,
+from .core.exceptions import (AntidoteError, DependencyCycleError,
                               DependencyInstantiationError, DependencyNotFoundError,
-                              DuplicateDependencyError, FrozenWorldError)
+                              DoubleInjectionError, DuplicateDependencyError,
+                              FrozenWorldError)
 
 __all__ = [
     'AntidoteError',

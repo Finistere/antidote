@@ -29,7 +29,7 @@ def test_override_singletons(container: OverridableRawContainer):
     container.override_singletons({'name': 'different-v2'})
     assert container.get('name') == 'different-v2'
     assert container.provide('name') == DependencyValue('different-v2',
-                                                     scope=Scope.singleton())
+                                                        scope=Scope.singleton())
 
 
 def test_override_factory(container: OverridableRawContainer):
@@ -40,7 +40,7 @@ def test_override_factory(container: OverridableRawContainer):
     container.override_factory('name', factory=lambda: 'different-v2', scope=None)
     assert container.get('name') == 'different-v2'
     assert container.provide('name') == DependencyValue('different-v2',
-                                                     scope=None)
+                                                        scope=None)
 
     # overriding previous factory which had no scope
     container.override_factory('name', factory=lambda: object(), scope=Scope.singleton())
@@ -66,7 +66,7 @@ def test_override_provider(container: OverridableRawContainer):
         lambda x: DependencyValue('different-v2') if x == 'name' else None)
     assert container.get('name') == 'different-v2'
     assert container.provide('name') == DependencyValue('different-v2',
-                                                     scope=None)
+                                                        scope=None)
 
     with pytest.raises(DependencyNotFoundError):
         container.get('x')  # new provider does not bring any other value

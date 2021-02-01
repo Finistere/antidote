@@ -2,8 +2,7 @@ import builtins
 import inspect
 from typing import Union
 
-from .annotations import (AntidoteAnnotation, From, FromArg, FromArgName, Get,
-                          INJECT_SENTINEL)
+from .annotations import (AntidoteAnnotation, From, FromArg, Get, INJECT_SENTINEL)
 from .injection import Arg
 from .._compatibility.typing import Annotated, get_args, get_origin
 from .._internal import API
@@ -80,8 +79,6 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
                           argument.type_hint,
                           argument.type_hint_with_extras)
                 return annotation.function(arg)  # type: ignore
-            elif isinstance(annotation, FromArgName):
-                return annotation.template.format(arg_name=argument.name)
             else:
                 raise TypeError(f"Unsupported AntidoteAnnotation, {type(annotation)}")
 

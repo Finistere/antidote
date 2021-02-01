@@ -19,7 +19,7 @@ as a service or one that can be provided by a factory.
 
 .. testcode:: recipes_interface_implementation
 
-    from antidote import implementation, Service, inject, Get
+    from antidote import implementation, Service, inject, Provide
     from typing import Annotated
     # from typing_extensions import Annotated # Python < 3.9
 
@@ -32,6 +32,10 @@ as a service or one that can be provided by a factory.
         def with_conf(cls, host: str, name: str):
             return cls._with_kwargs(host=host, name=name)
 
+    # static config, consider using Constants for more flexibility instead.
+    class Conf(Service):
+        DB_CONN_STR = 'postgres:localhost:my_project'
+
     class PostgresDB(Service, Database):
         pass
 
@@ -41,8 +45,8 @@ as a service or one that can be provided by a factory.
     # permanent is True by default. If you want to choose each time which implementation
     # should be used, set it to False.
     @implementation(Database, permanent=True)
-    def local_db(conn_str: Annotated[str, Get('db_conn_str')]):
-        db, host, name = conn_str.split(':')
+    def local_db(conf: Provide[Conf]):
+        db, host, name = conf.DB_CONN_STR.split(':')
         if db == 'postgres':
             # Complex dependencies are supported
             return PostgresDB.with_conf(host, name)
@@ -56,7 +60,6 @@ as a service or one that can be provided by a factory.
 .. doctest:: recipes_interface_implementation
 
     >>> from antidote import world
-    >>> world.test.singleton('db_conn_str', 'postgres:localhost:my_project')
     >>> db = world.get[Database](Database @ local_db)
     >>> db
     <PostgresDB ...>
@@ -239,9 +242,9 @@ Antidote supports stateful factories simply by using defining a class as a facto
             return "ID(id='{}')".format(self.id)
 
     class IDFactory(Factory):
-        __antidote__ = Factory.Conf(singleton=False).with_wiring(use_names=True)
+        __antidote__ = Factory.Conf(singleton=False)
 
-        def __init__(self, id_prefix: str):
+        def __init__(self, id_prefix: str = "example"):
             self._prefix = id_prefix
             self._next = 1
 
@@ -253,7 +256,6 @@ Antidote supports stateful factories simply by using defining a class as a facto
 .. doctest:: recipes_stateful_factory
 
     >>> from antidote import world
-    >>> world.test.singleton('id_prefix', "example")
     >>> world.get[ID](ID @ IDFactory)
     ID(id='example_1')
     >>> world.get[ID](ID @ IDFactory)
@@ -293,10 +295,10 @@ From the environment
     from antidote import Constants, const
 
     class Env(Constants):
-        SECRET = const[str]('SECRET')
+        SECRET = const[str]()
 
-        def get(self, value):
-            return os.environ[value]
+        def get(self, name: str, value: object):
+            return os.environ[name]
 
 .. doctest:: recipes_configuration_environment
 
@@ -331,9 +333,9 @@ to a dictionary and use the following:
                 }
             }
 
-        def get(self, key):
+        def get(self, name: str, value: object):
             from functools import reduce
-            return reduce(dict.get, key.split('.'), self._raw_conf)  # type: ignore
+            return reduce(dict.get, value.split('.'), self._raw_conf)  # type: ignore
 
 .. doctest:: recipes_configuration_environment
 
@@ -367,11 +369,11 @@ would be to support enums as presented here:
     class Conf(Constants):
         __antidote__ = Constants.Conf(auto_cast=[int, Env])
 
-        DB_PORT = const[int]('db.port')
-        ENV = const[Env]('env')
+        DB_PORT = const[int]()
+        ENV = const[Env]()
 
-        def get(self, key):
-            return {'db.port': '6789', 'env': 'prod'}[key]
+        def get(self, name: str, value: object):
+            return {'db_port': '6789', 'env': 'prod'}[name.lower()]
 
 
 .. doctest:: recipes_configuration_specify_type

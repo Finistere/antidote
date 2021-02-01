@@ -3,7 +3,7 @@ from typing import Callable, Dict, Hashable, Optional
 
 # @formatter:off
 cimport cython
-from cpython.ref cimport PyObject, Py_XDECREF
+from cpython.ref cimport PyObject
 
 from antidote.core.container cimport (DependencyResult, FastProvider, RawContainer,
                                      header_flag_cacheable)
@@ -19,6 +19,8 @@ cdef extern from "Python.h":
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
     PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
     int PySet_Contains(PyObject *anyset, PyObject *key) except -1
+    void Py_DECREF(PyObject *o)
+
 
 
 @cython.final
@@ -88,7 +90,7 @@ cdef class IndirectProvider(FastProvider):
             (<RawContainer> container).fast_get(target, result)
             if result.value is NULL:
                 error = DependencyNotFoundError(<object> target)
-                Py_XDECREF(target)
+                Py_DECREF(target)
                 raise error
 
             if (<ImplementationDependency> dependency).permanent:
@@ -99,7 +101,7 @@ cdef class IndirectProvider(FastProvider):
             else:
                 result.header = 0
 
-            Py_XDECREF(target)
+            Py_DECREF(target)
 
     def register_implementation(self,
                                 interface: type,

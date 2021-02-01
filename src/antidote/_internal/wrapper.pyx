@@ -2,10 +2,10 @@
 Cython version of the wrapper, doing the same thing but faster.
 """
 # @formatter:off
+import inspect
 cimport cython
-from cpython.dict cimport PyDict_Copy, PyDict_New
 from cpython.object cimport PyObject_Call, PyObject_CallMethodObjArgs
-from cpython.ref cimport PyObject, Py_XDECREF
+from cpython.ref cimport PyObject
 
 from antidote._internal.state cimport fast_get_container
 from antidote.core.container cimport (DependencyResult, RawContainer)
@@ -18,6 +18,11 @@ cdef extern from "Python.h":
     Py_ssize_t PyTuple_GET_SIZE(PyObject *p)
     int PyDict_Contains(PyObject *p, PyObject *key) except -1
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
+    Py_ssize_t PyDict_Size(PyObject *p)
+    PyObject*PyDict_Copy(PyObject *p)
+    PyObject*PyDict_New() except NULL
+    void Py_DECREF(PyObject *o)
+    void Py_INCREF(PyObject *o)
 
 
 compiled = True
@@ -29,7 +34,7 @@ cdef class Injection:
         object dependency
 
     def __repr__(self):
-        return f"{type(self).__name__}(arg_name={self.arg_name!r}, " \
+        return f"Injection(arg_name={self.arg_name!r}, " \
                f"required={self.required!r}, dependency={self.dependency!r})"
 
     def __init__(self, str arg_name, bint required, object dependency):
@@ -52,6 +57,9 @@ cdef class InjectionBlueprint:
                 return False
         return True
 
+    def __repr__(self):
+        return f"InjectionBlueprint({','.join(map(repr, self.injections))})"
+
 def build_wrapper(InjectionBlueprint blueprint,
                   object wrapped,
                   bint skip_first = False):
@@ -61,12 +69,14 @@ def build_wrapper(InjectionBlueprint blueprint,
     be created *every* time.
     """
     cdef:
-        InjectedWrapper wrapper = InjectedWrapper.__new__(InjectedWrapper)
+        InjectedWrapper wrapper
+    if inspect.iscoroutinefunction(wrapped):
+        wrapper = AsyncInjectedWrapper.__new__(AsyncInjectedWrapper)
+    else:
+        wrapper = SyncInjectedWrapper.__new__(SyncInjectedWrapper)
     wrapper.__wrapped__ = wrapped
     wrapper.__blueprint = blueprint
     wrapper.__injection_offset = 1 if skip_first else 0
-    wrapper.__is_classmethod = isinstance(wrapped, classmethod)
-    wrapper.__is_staticmethod = isinstance(wrapped, staticmethod)
     return wrapper
 
 def get_wrapper_dependencies(wrapper):
@@ -89,8 +99,7 @@ cdef class InjectedWrapper:
         readonly object __wrapped__
         InjectionBlueprint __blueprint
         int __injection_offset
-        bint __is_classmethod
-        bint __is_staticmethod
+        object __weakref__
 
     cdef list get_injections(self):
         cdef:
@@ -99,83 +108,124 @@ cdef class InjectedWrapper:
                 for inj in self.__blueprint.injections
                 if inj.dependency is not None]
 
+    def __getattr__(self, name):
+        return getattr(self.__wrapped__, name)
+
+# SYNC
+
+cdef class SyncInjectedWrapper(InjectedWrapper):
     def __call__(self, *args, **kwargs):
-        cdef:
-            RawContainer container = fast_get_container()
-            DependencyResult result
-            PyObject*injection
-            PyObject*arg_name
-            PyObject*injections = <PyObject*> self.__blueprint.injections
-            bint dirty_kwargs = False
-            Py_ssize_t i
-            Py_ssize_t offset = self.__injection_offset + PyTuple_GET_SIZE(
-                <PyObject*> args)
-            Py_ssize_t n = PyTuple_GET_SIZE(injections)
-        result.value = NULL
-
-        if kwargs:
-            for i in range(offset, n):
-                injection = PyTuple_GET_ITEM(injections, i)
-                if (<Injection> injection).dependency is not None:
-                    arg_name = <PyObject*> (<Injection> injection).arg_name
-                    if PyDict_Contains(<PyObject*> kwargs, arg_name) == 0:
-                        container.fast_get(
-                            <PyObject*> (<Injection> injection).dependency, &result)
-                        if result.value:
-                            if not dirty_kwargs:
-                                kwargs = PyDict_Copy(kwargs)
-                                dirty_kwargs = True
-                            PyDict_SetItem(<PyObject*> kwargs,
-                                           arg_name,
-                                           result.value)
-                            Py_XDECREF(result.value)
-
-                        elif (<Injection> injection).required:
-                            raise DependencyNotFoundError(
-                                (<Injection> injection).dependency)
-        else:
-            for i in range(offset, n):
-                injection = PyTuple_GET_ITEM(injections, i)
-                if (<Injection> injection).dependency is not None:
-                    container.fast_get(<PyObject*> (<Injection> injection).dependency,
-                                       &result)
-                    if result.value:
-                        if not dirty_kwargs:
-                            kwargs = PyDict_New()
-                            dirty_kwargs = True
-                        PyDict_SetItem(
-                            <PyObject*> kwargs,
-                            <PyObject*> (<Injection> injection).arg_name,
-                            result.value
-                        )
-                        Py_XDECREF(result.value)
-                    elif (<Injection> injection).required:
-                        raise DependencyNotFoundError((<Injection> injection).dependency)
-
+        kwargs = <object> build_kwargs(<PyObject*> args,
+                                       <PyObject*> kwargs,
+                                       <PyObject*> self)
+        Py_DECREF(<PyObject*> kwargs)
         return PyObject_Call(self.__wrapped__, args, kwargs)
 
     def __get__(self, instance, owner):
         cdef:
-            InjectedBoundWrapper wrapper = InjectedBoundWrapper.__new__(
-                InjectedBoundWrapper)
-        wrapper.__wrapped__ = PyObject_CallMethodObjArgs(self.__wrapped__,
-                                                         "__get__",
-                                                         <PyObject*> instance,
-                                                         <PyObject*> owner,
-                                                         NULL)
-        wrapper.__blueprint = self.__blueprint
-        if self.__is_classmethod or (not self.__is_staticmethod and instance is not None):
-            wrapper.__injection_offset = 1
-        else:
-            wrapper.__injection_offset = 0
-        wrapper.__is_classmethod = False
-        wrapper.__is_staticmethod = False
+            SyncInjectedBoundWrapper bound_wrapper = \
+                SyncInjectedBoundWrapper.__new__(SyncInjectedBoundWrapper)
+        setup_bound_wrapper(<PyObject*> self,
+                            <PyObject*> bound_wrapper,
+                            <PyObject*> instance,
+                            <PyObject*> owner)
+        return bound_wrapper
 
-        return wrapper
-
-    def __getattr__(self, name):
-        return getattr(self.__wrapped__, name)
-
-cdef class InjectedBoundWrapper(InjectedWrapper):
+cdef class SyncInjectedBoundWrapper(SyncInjectedWrapper):
     def __get__(self, instance, owner):
         return self
+
+# ASYNC
+
+cdef class AsyncInjectedWrapper(InjectedWrapper):
+    async def __call__(self, *args, **kwargs):
+        kwargs = <object> build_kwargs(<PyObject*> args,
+                                       <PyObject*> kwargs,
+                                       <PyObject*> self)
+        Py_DECREF(<PyObject*> kwargs)
+        return await PyObject_Call(self.__wrapped__, args, kwargs)
+
+    def __get__(self, instance, owner):
+        cdef:
+            AsyncInjectedBoundWrapper bound_wrapper = \
+                AsyncInjectedBoundWrapper.__new__(AsyncInjectedBoundWrapper)
+        setup_bound_wrapper(<PyObject*> self,
+                            <PyObject*> bound_wrapper,
+                            <PyObject*> instance,
+                            <PyObject*> owner)
+        return bound_wrapper
+
+cdef class AsyncInjectedBoundWrapper(AsyncInjectedWrapper):
+    def __get__(self, instance, owner):
+        return self
+
+# Mixin
+
+cdef inline setup_bound_wrapper(PyObject*wrapper,
+                                PyObject*bound_wrapper,
+                                PyObject*instance,
+                                PyObject*owner):
+    (<InjectedWrapper> bound_wrapper).__wrapped__ = \
+        PyObject_CallMethodObjArgs((<InjectedWrapper> wrapper).__wrapped__,
+                                    "__get__",
+                                    instance,
+                                    owner,
+                                    NULL)
+    (<InjectedWrapper> bound_wrapper).__blueprint = (<InjectedWrapper> wrapper).__blueprint
+    if instance != <PyObject*>None:
+        (<InjectedWrapper> bound_wrapper).__injection_offset = 1
+    else:
+        (<InjectedWrapper> bound_wrapper).__injection_offset = 0
+
+cdef PyObject* build_kwargs(PyObject*args,
+                            PyObject*original_kwargs,
+                            PyObject*wrapper) except NULL:
+    cdef:
+        RawContainer container = fast_get_container()
+        DependencyResult result
+        PyObject*injection
+        PyObject*arg_name
+        PyObject*kwargs = original_kwargs
+        PyObject*injections = <PyObject*> (<InjectedWrapper> wrapper).__blueprint.injections
+        Py_ssize_t i
+        Py_ssize_t offset = ((<InjectedWrapper> wrapper).__injection_offset
+                             + PyTuple_GET_SIZE(<PyObject*> args))
+        Py_ssize_t n = PyTuple_GET_SIZE(injections)
+
+    if PyDict_Size(kwargs):
+        for i in range(offset, n):
+            injection = PyTuple_GET_ITEM(injections, i)
+            if (<Injection> injection).dependency is not None:
+                arg_name = <PyObject*> (<Injection> injection).arg_name
+                if not PyDict_Contains(<PyObject*> kwargs, arg_name):
+                    container.fast_get(<PyObject*> (<Injection> injection).dependency,
+                                       &result)
+                    if result.value:
+                        if kwargs == original_kwargs:
+                            kwargs = PyDict_Copy(original_kwargs)
+                        PyDict_SetItem(<PyObject*> kwargs,
+                                       arg_name,
+                                       result.value)
+                        Py_DECREF(result.value)
+
+                    elif (<Injection> injection).required:
+                        raise DependencyNotFoundError((<Injection> injection).dependency)
+    else:
+        for i in range(offset, n):
+            injection = PyTuple_GET_ITEM(injections, i)
+            if (<Injection> injection).dependency is not None:
+                container.fast_get(<PyObject*> (<Injection> injection).dependency,
+                                   &result)
+                if result.value:
+                    if kwargs == original_kwargs:
+                        kwargs = PyDict_New()
+                    PyDict_SetItem(
+                        <PyObject*> kwargs,
+                        <PyObject*> (<Injection> injection).arg_name,
+                        result.value
+                    )
+                    Py_DECREF(result.value)
+                elif (<Injection> injection).required:
+                    raise DependencyNotFoundError((<Injection> injection).dependency)
+
+    return kwargs

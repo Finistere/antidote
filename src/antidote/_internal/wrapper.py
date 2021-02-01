@@ -1,12 +1,12 @@
 import functools
-from typing import Callable, Dict, Hashable, List, Sequence, Union
+import inspect
+from typing import Awaitable, Callable, Dict, Hashable, List, Sequence, Union, cast
 
 from . import API
+from .state import current_container
 from .utils import FinalImmutable
 from ..core.container import Container
 from ..core.exceptions import DependencyNotFoundError
-
-AnyF = Union[Callable[..., object], staticmethod, classmethod]
 
 compiled = False
 
@@ -37,10 +37,13 @@ class InjectionBlueprint(FinalImmutable):
 
 @API.private
 def build_wrapper(blueprint: InjectionBlueprint,
-                  wrapped: AnyF,
-                  skip_self: bool = False) -> 'InjectedWrapper':
-    """Used for consistency with Cython implementation."""
-    return InjectedWrapper(blueprint, wrapped, skip_self)
+                  wrapped: Callable[..., object],
+                  skip_self: bool = False) -> Callable[..., object]:
+    if inspect.iscoroutinefunction(wrapped):
+        return AsyncInjectedWrapper(blueprint,
+                                    cast(Callable[..., Awaitable[object]], wrapped),
+                                    skip_self)
+    return SyncInjectedWrapper(blueprint, wrapped, skip_self)
 
 
 @API.private
@@ -48,8 +51,13 @@ def get_wrapper_dependencies(wrapper: Callable[..., object]) -> List[Hashable]:
     if not isinstance(wrapper, InjectedWrapper):
         raise TypeError(f"Argument must be an {InjectedWrapper}")
 
+    if isinstance(wrapper, SyncInjectedWrapper):
+        prefix = f"_{SyncInjectedWrapper.__name__}"
+    else:
+        prefix = f"_{AsyncInjectedWrapper.__name__}"
     blueprint: InjectionBlueprint = getattr(wrapper,
-                                            f"_{InjectedWrapper.__name__}__blueprint")
+                                            f"{prefix}__blueprint")
+
     return [inj.dependency for inj in blueprint.injections if inj.dependency is not None]
 
 
@@ -66,6 +74,11 @@ def get_wrapped(x: object) -> object:
 
 @API.private
 class InjectedWrapper:
+    __wrapped__: object
+
+
+@API.private
+class SyncInjectedWrapper(InjectedWrapper):
     """
     Wrapper which injects all the dependencies not supplied in the passed
     arguments. An InjectionBlueprint is used to store the mapping of the
@@ -74,7 +87,7 @@ class InjectedWrapper:
 
     def __init__(self,
                  blueprint: InjectionBlueprint,
-                 wrapped: AnyF,
+                 wrapped: Callable[..., object],
                  skip_self: bool = False):
         """
         Args:
@@ -83,26 +96,24 @@ class InjectedWrapper:
             skip_self:  whether the first argument must be skipped. Used internally
         """
         self.__blueprint = blueprint
-        self.__wrapped__ = wrapped
+        self.__wrapped__: Callable[..., object] = wrapped
         self.__injection_offset = 1 if skip_self else 0
-        functools.wraps(wrapped, updated=())(self)  # type: ignore
+        functools.wraps(wrapped, updated=())(self)
 
     def __call__(self, *args: object, **kwargs: object) -> object:
-        from .state import current_container
         kwargs = _inject_kwargs(
             current_container(),
             self.__blueprint,
             self.__injection_offset + len(args),
             kwargs
         )
-        return self.__wrapped__(*args, **kwargs)  # type: ignore
+        return self.__wrapped__(*args, **kwargs)
 
     def __get__(self, instance: object, owner: type) -> object:
-        return InjectedBoundWrapper(
+        return SyncInjectedBoundWrapper(
             self.__blueprint,
             self.__wrapped__.__get__(instance, owner),  # type: ignore
-            isinstance(self.__wrapped__, classmethod)
-            or (not isinstance(self.__wrapped__, staticmethod) and instance is not None)
+            instance is not None
         )
 
     def __getattr__(self, item: str) -> object:
@@ -110,7 +121,61 @@ class InjectedWrapper:
 
 
 @API.private
-class InjectedBoundWrapper(InjectedWrapper):
+class SyncInjectedBoundWrapper(SyncInjectedWrapper):
+    """
+    Behaves like Python bound methods. Unsure whether this is really necessary
+    or not.
+    """
+
+    def __get__(self, instance: object, owner: type) -> object:
+        return self  # pragma: no cover
+
+
+@API.private
+class AsyncInjectedWrapper(InjectedWrapper):
+    """
+    Wrapper which injects all the dependencies not supplied in the passed
+    arguments. An InjectionBlueprint is used to store the mapping of the
+    arguments to their dependency if any and if the injection is required.
+    """
+
+    def __init__(self,
+                 blueprint: InjectionBlueprint,
+                 wrapped: Callable[..., Awaitable[object]],
+                 skip_self: bool = False):
+        """
+        Args:
+            blueprint: Injection blueprint for the underlying function
+            wrapped:  real function to be called
+            skip_self:  whether the first argument must be skipped. Used internally
+        """
+        self.__blueprint = blueprint
+        self.__wrapped__: Callable[..., Awaitable[object]] = wrapped
+        self.__injection_offset = 1 if skip_self else 0
+        functools.wraps(wrapped, updated=())(self)
+
+    async def __call__(self, *args: object, **kwargs: object) -> object:
+        kwargs = _inject_kwargs(
+            current_container(),
+            self.__blueprint,
+            self.__injection_offset + len(args),
+            kwargs
+        )
+        return await self.__wrapped__(*args, **kwargs)
+
+    def __get__(self, instance: object, owner: type) -> object:
+        return AsyncInjectedBoundWrapper(
+            self.__blueprint,
+            self.__wrapped__.__get__(instance, owner),  # type: ignore
+            instance is not None
+        )
+
+    def __getattr__(self, item: str) -> object:
+        return getattr(self.__wrapped__, item)
+
+
+@API.private
+class AsyncInjectedBoundWrapper(AsyncInjectedWrapper):
     """
     Behaves like Python bound methods. Unsure whether this is really necessary
     or not.

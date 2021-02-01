@@ -22,16 +22,13 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
     type is included in :code:`auto_cast`, the cast will be enforced. By default it is
     only applied to :code:`str`, :code:`float` and :code:`int`.
 
-    .. doctest:: helpers_Constants_v2
+    .. doctest:: Constants_v2
 
         >>> from antidote import Constants, const, world
         >>> class Config(Constants):
         ...     PORT = const[int]('80')
         ...     PORT_2 = const('8080')
         ...     DUMMY = const[dict]('dummy')
-        ...
-        ...     def get(self, value):
-        ...         return value
         >>> # Mypy will treat it as a int AND it'll be cast to int.
         ... Config().PORT
         80
@@ -104,5 +101,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
 
     __antidote__: Conf = Conf()
 
-    def get(self, key: Any) -> object:
-        raise NotImplementedError()
+    def get(self, name: str, value: Any) -> object:
+        if value is None:
+            raise ValueError(f"No value provided for const {name}")
+        return value

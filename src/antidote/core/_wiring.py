@@ -44,7 +44,6 @@ def wire_class(cls: C, wiring: Wiring) -> C:
             injected_method = inject(
                 method,
                 dependencies=wiring.dependencies,
-                use_names=wiring.use_names,
                 auto_provide=wiring.auto_provide,
                 strict_validation=False
             )

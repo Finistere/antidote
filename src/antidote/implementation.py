@@ -7,7 +7,7 @@ from ._implementation import ImplementationWrapper, validate_provided_class
 from ._internal import API
 from ._internal.wrapper import is_wrapper
 from ._providers import IndirectProvider
-from .core import inject, Provide
+from .core import Provide, inject
 from .core.exceptions import DoubleInjectionError
 
 F = TypeVar('F', bound=Callable[[], object])
@@ -39,11 +39,14 @@ def implementation(interface: type,
 
     The function will not be wired, you'll need to do it yourself if you need it.
 
-    .. doctest:: helpers_implementation
+    .. doctest:: implementation
 
-        >>> from antidote import implementation, Service, factory, world, Get
+        >>> from antidote import (implementation, Service, factory, world, Get,
+        ...                       Constants, const)
         >>> from typing import Annotated
         ... # from typing_extensions import Annotated # Python < 3.9
+        >>> class Config(Constants):
+        ...     DB = const('postgres')
         >>> class Database:
         ...     pass
         >>> class PostgreSQL(Database, Service):
@@ -54,17 +57,17 @@ def implementation(interface: type,
         ... def build_mysql() -> MySQL:
         ...     return MySQL()
         >>> @implementation(Database)
-        ... def local_db(choice: Annotated[str, Get('choice')]):
-        ...     if choice == 'a':
+        ... def local_db(choice: Annotated[str, Get(Config.DB)]):
+        ...     if choice == 'postgres':
         ...         return PostgreSQL
         ...     else:
         ...         return MySQL @ build_mysql
-        >>> world.test.singleton('choice', 'a')
         >>> world.get(Database @ local_db)
         <PostgreSQL ...>
-        >>> # Changing choice doesn't matter anymore as the implementation is permanent.
+        >>> # Changing choice doesn't matter anymore as the implementation is permanent
+        ... # by default
         ... with world.test.clone():
-        ...     world.test.override.singleton('choice', 'b')
+        ...     world.test.override.singleton(Config.DB, 'mysql')
         ...     world.get(Database @ local_db)
         <PostgreSQL ...>
 

@@ -1,7 +1,7 @@
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, Dict, Hashable, Iterable, List, Mapping, Set,
-                    TYPE_CHECKING, Union, cast)
+from typing import (Any, Callable, Dict, Hashable, Iterable, List, Mapping, TYPE_CHECKING,
+                    Union, cast)
 
 from .exceptions import DoubleInjectionError
 from .._internal import API
@@ -19,7 +19,6 @@ AnyF = Union[Callable[..., Any], staticmethod, classmethod]
 @API.private
 def raw_inject(f: AnyF,
                dependencies: 'DEPENDENCIES_TYPE',
-               use_names: Union[bool, Iterable[str]],
                auto_provide: Union[bool, Iterable[Hashable]],
                strict_validation: bool) -> AnyF:
     if not isinstance(strict_validation, bool):
@@ -42,7 +41,6 @@ def raw_inject(f: AnyF,
     blueprint = _build_injection_blueprint(
         arguments=Arguments.from_callable(f),
         dependencies=dependencies,
-        use_names=use_names,
         auto_provide=auto_provide,
         strict_validation=strict_validation
     )
@@ -62,7 +60,6 @@ def raw_inject(f: AnyF,
 @API.private
 def _build_injection_blueprint(arguments: Arguments,
                                dependencies: 'DEPENDENCIES_TYPE',
-                               use_names: Union[bool, Iterable[str]],
                                auto_provide: Union[bool, Iterable[Hashable]],
                                strict_validation: bool
                                ) -> InjectionBlueprint:
@@ -78,16 +75,11 @@ def _build_injection_blueprint(arguments: Arguments,
                                                      strict_validation)
     auto_provided = _build_auto_provide(arguments, auto_provide, annotated,
                                         strict_validation)
-    name_as_dependency = _build_from_arg_names(arguments, use_names, strict_validation)
 
     resolved_dependencies: List[object] = [
-        annotated.get(
-            arg.name,
-            explicit_dependencies.get(
-                arg.name,
-                auto_provided.get(
-                    arg.name,
-                    arg.name if arg.name in name_as_dependency else None)))
+        annotated.get(arg.name,
+                      explicit_dependencies.get(arg.name,
+                                                auto_provided.get(arg.name)))
         for arg in arguments
     ]
 
@@ -119,11 +111,6 @@ def _build_from_dependencies(arguments: Arguments,
     from .injection import Arg
     if dependencies is None:
         arg_to_dependency: Mapping[str, Hashable] = {}
-    elif isinstance(dependencies, str):
-        if "{arg_name}" not in dependencies:
-            raise ValueError("Missing formatting parameter {arg_name} in dependencies.")
-        arg_to_dependency = {arg.name: dependencies.format(arg_name=arg.name)
-                             for arg in arguments.without_self}
     elif callable(dependencies):
         arg_to_dependency = {arg.name: dependencies(Arg(arg.name,
                                                         arg.type_hint,
@@ -135,7 +122,7 @@ def _build_from_dependencies(arguments: Arguments,
                                arguments,
                                strict_validation)
         arg_to_dependency = dependencies
-    elif isinstance(dependencies, c_abc.Iterable):
+    elif isinstance(dependencies, c_abc.Iterable) and not isinstance(dependencies, str):
         # convert to Tuple in case we cannot iterate more than once.
         dependencies = tuple(dependencies)
         if strict_validation and len(arguments.without_self) < len(dependencies):
@@ -148,7 +135,7 @@ def _build_from_dependencies(arguments: Arguments,
         raise TypeError(f'Only a mapping or a iterable is supported for '
                         f'dependencies, not {type(dependencies)!r}')
 
-    # Remove any None as they would hide type_hints and use_names.
+    # Remove any None as they would hide type_hints.
     return {k: v for k, v in arg_to_dependency.items() if v is not None}
 
 
@@ -190,25 +177,6 @@ def _build_auto_provide(arguments: Arguments,
                          f"hints or consider specifying strict_validation=False")
 
     return auto_provided
-
-
-@API.private
-def _build_from_arg_names(arguments: Arguments,
-                          use_names: Union[bool, Iterable[str]],
-                          strict_validation: bool
-                          ) -> Set[str]:
-    if use_names is False:
-        return set()
-    elif use_names is True:
-        return {arg.name for arg in arguments.without_self}
-    elif isinstance(use_names, c_abc.Iterable):
-        # convert to Tuple in case we cannot iterate more than once.
-        use_names = tuple(use_names)
-        _check_valid_arg_names("use_names", use_names, arguments, strict_validation)
-        return set(use_names)
-    else:
-        raise TypeError(f'Only an iterable or a boolean is supported for '
-                        f'use_names, not {type(use_names)!r}')
 
 
 @API.private

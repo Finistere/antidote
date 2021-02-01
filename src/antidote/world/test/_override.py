@@ -27,18 +27,17 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
 
     .. doctest:: world_test_override_singleton
 
-        >>> from antidote import world
-        >>> world.test.singleton("test", 1)
-        >>> world.get[int]("test")
-        1
+        >>> from antidote import world, Service
+        >>> class MyService(Service):
+        ...     pass
+        >>> world.get(MyService)
+        <MyService ...>
         >>> with world.test.clone():
-        ...     world.test.override.singleton("test", 2)
-        ...     world.test.override.singleton({'test': 2})
-        ...     world.get[int]("test")
-        2
-        >>> # Overrides works only within the test world.
-        ... world.get[int]("test")
-        1
+        ...     # dependencies can also be overridden as many times as necessary
+        ...     world.test.override.singleton(MyService, "fake service")
+        ...     # Within the cloned world, we changed the dependency value of MyService
+        ...     world.get(MyService)
+        'fake service'
 
     Args:
         dependency: Singleton to declare, must be hashable. If a dict is provided, it'll
@@ -74,29 +73,26 @@ def factory(dependency: Hashable = None,
 
     .. doctest:: world_test_override_factory
 
-        >>> from antidote import world
-        >>> world.test.singleton("test", 1)
-        >>> world.get[int]("test")
-        1
-        >>> with world.test.clone():
-        ...     @world.test.override.factory('test', singleton=True)
-        ...     def test():
-        ...         return 2
-        ...     world.get[int]("test")
-        2
-        >>> # Overrides works only within the test world.
-        ... world.get[int]("test")
-        1
-        >>> class Dummy:
+        >>> from antidote import world, Service
+        >>> class MyService(Service):
         ...     pass
+        >>> world.get(MyService)
+        <MyService ...>
+        >>> with world.test.clone():
+        ...     @world.test.override.factory(MyService)
+        ...     def test():
+        ...         return "fake service"
+        ...     # Within the cloned world, we changed the dependency value of MyService
+        ...     world.get(MyService)
+        'fake service'
         >>> with world.test.clone():
         ...     # If not specified explicitly, the return type hint will be used
         ...     # as the dependency.
         ...     @world.test.override.factory()
-        ...     def test() -> Dummy:
-        ...         return Dummy()
-        ...     world.get[Dummy]()
-        <Dummy ...>
+        ...     def test() -> MyService:
+        ...         return "fake service"
+        ...     world.get(MyService)
+        'fake service'
 
     Args:
         dependency: Dependency to override.
@@ -118,7 +114,7 @@ def factory(dependency: Hashable = None,
     Returns:
         The decorated function, unchanged.
     """
-    scope = validated_scope(scope, singleton, default=None)
+    scope = validated_scope(scope, singleton, default=Scope.singleton())
 
     def decorate(f: F) -> F:
         if not callable(f):
@@ -150,21 +146,20 @@ def provider() -> Callable[[P], P]:
 
     .. doctest:: world_test_override_provider
 
-        >>> from antidote import world, Scope
-        >>> from antidote.core import DependencyValue
-        >>> world.test.singleton("test", 1)
-        >>> world.get[int]("test")
-        1
+        >>> from antidote import world, Service
+        >>> from antidote.core import DependencyValue, Scope
+        >>> class MyService(Service):
+        ...     pass
+        >>> world.get(MyService)
+        <MyService ...>
         >>> with world.test.clone():
         ...     @world.test.override.provider()
         ...     def test(dependency):
-        ...         if dependency == 'test':
-        ...             return DependencyValue(2, scope=Scope.singleton())
-        ...     world.get[int]("test")
-        2
-        >>> # Overrides works only within the test world.
-        ... world.get[int]("test")
-        1
+        ...         if dependency is MyService:
+        ...             return DependencyValue('fake service', scope=Scope.singleton())
+        ...     # Within the cloned world, we changed the dependency value of MyService
+        ...     world.get(MyService)
+        'fake service'
 
     .. note::
 

@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import world, Scope
+from antidote import Scope, world
 
 
 @pytest.fixture(autouse=True)

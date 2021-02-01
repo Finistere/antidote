@@ -25,37 +25,39 @@ def clone(*,
     .. doctest:: world_test_clone
 
         >>> from antidote import world, Service
-        >>> from antidote.exceptions import DependencyNotFoundError
-        >>> world.test.singleton("test", 1)
         >>> class MyService(Service):
         ...     pass
-        >>> with world.test.clone():
-        ...     # By default singletons are not propagated
-        ...     world.get[int]("test")
-        Traceback (most recent call last):
-        ...
-        DependencyNotFoundError: 'test'
-        >>> with world.test.clone():
-        ...     # But anything else will be accessible
+        >>> # Declared dependencies are available
+        ... with world.test.clone():
         ...     world.get[MyService]()
         <MyService object ...>
-        >>> # You can have the singletons if wish though:
+        >>> s = world.get[MyService]()
+        >>> # But by default singletons are NOT kept
+        ... with world.test.clone():
+        ...     world.get[MyService]() is s
+        False
+        >>> # which is of course configurable
         ... with world.test.clone(keep_singletons=True):
-        ...     assert world.get[int]("test") == 1
-        ...     # A clone is always frozen, its purpose is to test existing dependencies.
-        ...     world.test.singleton("test", 10)
+        ...     world.get[MyService]() is s
+        True
+        >>> # You'll keep the same objects though, so be careful !
+        ... with world.test.clone(keep_singletons=True):
+        ...     world.get[MyService]().new_attr = "hello"
+        >>> world.get[MyService]().new_attr
+        'hello'
+        >>> # You cannot define new dependencies
+        ... with world.test.clone():
+        ...     class NewService(Service):
+        ...         pass
         Traceback (most recent call last):
         ...
         FrozenWorldError
-        >>> with world.test.clone(keep_singletons=True):
+        >>> # but they can be overridden
+        ... with world.test.clone():
         ...     # dependencies can also be overridden as many times as necessary
-        ...     world.test.override.singleton("test", 9)
-        ...     world.test.override.singleton("test", 10)
-        ...     world.get[int]("test")
-        10
-        >>> # The original singleton is preserved
-        ... world.get[int]("test")
-        1
+        ...     world.test.override.singleton(MyService, "fake service")
+        ...     world.get(MyService)
+        'fake service'
 
     Args:
         keep_singletons: Whether current singletons should be kept in the new world.
@@ -87,22 +89,22 @@ def new() -> Iterator[None]:
     .. doctest:: world_test_new
 
         >>> from antidote import world
-        >>> world.test.singleton("test", 1)
         >>> with world.test.new():
-        ...     # Current world is empty
+        ...     # Current world is empty but has the same providers and scope as the
+        ...     # original one.
+        ...     # You can define dependencies locally with world.test.singleton or factory
+        ...     world.test.singleton("test", 1)
         ...     world.get[int]("test")
-        Traceback (most recent call last):
         ...
-        DependencyNotFoundError: 'test'
-        >>> with world.test.new():
-        ...     world.test.singleton("new", 2)
+        1
         >>> # Anything done within the context manager stays there.
-        ... world.get[int]("new")
+        ... world.get[int]("test")
         Traceback (most recent call last):
         ...
         DependencyNotFoundError: 'test'
 
     """
+
     def build_new_container(existing: RawContainer) -> RawContainer:
         c = RawContainer.with_same_providers_and_scopes(existing)
         try:
@@ -115,9 +117,9 @@ def new() -> Iterator[None]:
         yield
 
 
-######################################
-# Utilities usable inside test world #
-######################################
+#######################################
+# Utilities usable inside test worlds #
+#######################################
 
 __sentinel = object()
 
@@ -141,15 +143,13 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
     """
     Declare one or multiple singleton dependencies with its associated value.
 
-    .. doctest:: world_singletons_add
+    .. doctest:: world_test_singleton
 
         >>> from antidote import world
-        >>> world.test.singleton("test", 1)
-        >>> world.get[int]("test")
+        >>> with world.test.new():  # or empty()
+        ...     world.test.singleton("test", 1)
+        ...     world.get[int]("test")
         1
-        >>> world.test.singleton({'host': 'example.com', 'port': 80})
-        >>> world.get[str]("host")
-        'example.com'
 
     Args:
         dependency: Singleton to declare, must be hashable. If a dict is provided, it'll
@@ -184,15 +184,24 @@ def factory(dependency: Hashable = None,
     """
     Declare one or multiple singleton dependencies with its associated value.
 
-    .. doctest:: world_singletons_add
+    .. doctest:: world_test_factory
 
         >>> from antidote import world
-        >>> world.test.singleton("test", 1)
-        >>> world.get[int]("test")
-        1
-        >>> world.test.singleton({'host': 'example.com', 'port': 80})
-        >>> world.get[str]("host")
-        'example.com'
+        >>> class Dummy:
+        ...     pass
+        >>> with world.test.new():  # or empty()
+        ...     @world.test.factory()
+        ...     def build_dummy() -> Dummy:
+        ...         return Dummy()
+        ...     world.get[Dummy]()
+        <Dummy ...>
+        >>> with world.test.new():
+        ...     # You don't need to rely on type hints
+        ...     @world.test.factory(Dummy)
+        ...     def build_dummy():
+        ...         return Dummy()
+        ...     world.get[Dummy]()
+        <Dummy ...>
 
     Args:
         dependency: Dependency to override.
@@ -205,7 +214,7 @@ def factory(dependency: Hashable = None,
             :py:meth:`~.core.container.Scope.singleton`.
 
     """
-    scope = validated_scope(scope, singleton, default=None)
+    scope = validated_scope(scope, singleton, default=Scope.singleton())
 
     @inject
     def decorate(f: F, test_provider: Provide[WorldTestProvider] = None) -> F:
@@ -241,7 +250,8 @@ def empty() -> Iterator[None]:
     one or several providers in isolation. If you're not testing provider, consider use
     :py:func:`.new` instead.
     """
-    def build_container(_) -> RawContainer:
+
+    def build_container(_: RawContainer) -> RawContainer:
         c = RawContainer()
         c.add_provider(WorldTestProvider)
         return c

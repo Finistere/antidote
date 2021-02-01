@@ -2,7 +2,7 @@ import inspect
 from typing import (Callable, Iterable, Optional, Tuple, TypeVar, Union, cast, overload)
 
 from ._compatibility.typing import Protocol, final, get_type_hints
-from ._factory import FactoryMeta, FactoryWrapper, PreBuild
+from ._factory import FactoryMeta, FactoryWrapper
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from ._internal.wrapper import is_wrapper
@@ -48,7 +48,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
         If you only need a simple function, consider using :py:func:`.factory` instead.
 
-    .. doctest:: helpers_Factory
+    .. doctest:: Factory
 
         >>> from antidote import Factory, world
         >>> class ExternalService:
@@ -61,14 +61,13 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
     For customization use :py:attr:`.__antidote__`:
 
-    .. doctest:: helpers_Factory_v2
+    .. doctest:: Factory_v2
 
         >>> from antidote import Factory, world
         >>> class ExternalService:
         ...     pass
         >>> class MyFactory(Factory):
-        ...     __antidote__ = Factory.Conf(singleton=False) \\
-        ...         .with_wiring(use_names=True)
+        ...     __antidote__ = Factory.Conf(singleton=False)
         ...
         ...     def __call__(self) -> ExternalService:
         ...         return ExternalService()
@@ -76,7 +75,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
     One can customize the instantiation and use the same service with different
     configuration:
 
-    .. doctest:: helpers_Factory_v3
+    .. doctest:: Factory_v3
 
         >>> from antidote import Factory, world, inject
         >>> class ExternalService:
@@ -228,7 +227,7 @@ def factory(f: F = None,
         If you need a stateful factory or want to implement a complex one prefer using
         :py:class:`.Factory` instead.
 
-    .. doctest:: helpers_factory
+    .. doctest:: factory
 
         >>> from antidote import factory, world
         >>> class ExternalService:

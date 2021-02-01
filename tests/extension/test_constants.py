@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import const, Constants, Wiring, world
+from antidote import Constants, Wiring, const, world
 from antidote._providers import LazyProvider, ServiceProvider
 from antidote.core.exceptions import DependencyInstantiationError
 from antidote.exceptions import DependencyNotFoundError
@@ -23,8 +23,8 @@ def test_simple():
         A = const('a')
         B = const('b')
 
-        def get(self, key):
-            return key * 2
+        def get(self, name, value):
+            return value * 2
 
     assert world.get(Config.A) == 'aa'
     assert world.get(Config.B) == 'bb'
@@ -48,10 +48,10 @@ def test_default():
         # different error
         D = const('d', default='x')
 
-        def get(self, key):
-            if key == 'd':
+        def get(self, name, value):
+            if value == 'd':
                 raise Exception()
-            return dict(a=a)[key]
+            return dict(a=a)[value]
 
     assert world.get(Config.A) is a
     assert world.get(Config.B) is b
@@ -78,14 +78,14 @@ def test_auto_cast(auto_cast, a, b, c):
         C = const[str]('c')
         D = const[dict]('d')
 
-        def get(self, key):
-            if key == 'a':
+        def get(self, name, value):
+            if value == 'a':
                 return '109'
-            if key == 'b':
+            if value == 'b':
                 return '3.14'
-            if key == 'c':
+            if value == 'c':
                 return 199
-            if key == 'd':
+            if value == 'd':
                 return D
 
     assert world.get(Config.A) == a
@@ -99,13 +99,42 @@ def test_auto_cast(auto_cast, a, b, c):
     assert Config().D is D
 
 
+def test_name():
+    class Config(Constants):
+        A = const()
+        B = const()
+
+        def get(self, name, value):
+            return name
+
+    assert world.get(Config.A) == 'A'
+    assert world.get(Config.B) == 'B'
+    conf = Config()
+    assert conf.A == 'A'
+    assert conf.B == 'B'
+
+
+def test_default_get():
+    class Config(Constants):
+        NOTHING = const()
+        B = const("B")
+
+    with pytest.raises(DependencyInstantiationError):
+        world.get(Config.NOTHING)
+
+    with pytest.raises(ValueError, match=".*NOTHING.*"):
+        Config().NOTHING
+
+    assert world.get(Config.B) == 'B'
+    assert Config().B == "B"
+
+
 def test_no_const():
     class Config(Constants):
-        __antidote__ = Constants.Conf()
         A = 'a'
 
-        def get(self, key):
-            return key * 2
+        def get(self, name, value):
+            return value * 2
 
     with pytest.raises(DependencyNotFoundError):
         world.get(Config.A)
@@ -118,8 +147,7 @@ def test_no_get_method():
     class Config(Constants):
         A = const('a')
 
-    with pytest.raises(DependencyInstantiationError):
-        world.get(Config.A)
+    assert world.get(Config.A) == 'a'
 
 
 def test_invalid_conf():
@@ -127,19 +155,14 @@ def test_invalid_conf():
         class Config(Constants):
             __antidote__ = object()
 
-            def get(self, key):
-                pass
-
 
 def test_no_subclass_of_constants():
     class Dummy(Constants):
-        def get(self, key):
-            pass
+        pass
 
     with pytest.raises(TypeError, match=".*abstract.*"):
         class SubDummy(Dummy):
-            def get(self, key):
-                pass
+            pass
 
 
 @pytest.mark.parametrize('kwargs, expectation', [

@@ -171,4 +171,3 @@ def test_provide_from():
     world.provider(DummyIntProvider)
     with pytest.raises(RuntimeError):
         world.test.maybe_provide_from(world.get(DummyIntProvider), 10)
-

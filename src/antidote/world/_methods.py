@@ -1,5 +1,5 @@
 import inspect
-from typing import Dict, Hashable, Type, TypeVar, Union, overload
+from typing import Hashable, Type, TypeVar
 
 from .._internal import API
 from .._internal.state import current_container, init
@@ -23,13 +23,13 @@ Returns:
 .. doctest:: world_get
 
     >>> from antidote import world, Service
-    >>> world.test.singleton('dep', 1)
-    >>> world.get('dep')
-    1
-    >>> # mypy will treat x as a int
-    ... x = world.get[int]('dep')
     >>> class Dummy(Service):
     ...     pass
+    >>> world.get(Dummy)
+    <Dummy ...>
+    >>> # But Mypy will only an object, not a `Dummy` instance. For this Mypy needs help:
+    >>> world.get[Dummy](Dummy)  # Treated by Mypy as a Dummy
+    <Dummy ...>
     >>> # To avoid repetition, if a type hint is provided but no argument, it
     ... # will retrieve the type hint itself.
     ... world.get[Dummy]()
@@ -50,16 +50,16 @@ Returns:
 .. doctest:: world_lazy
 
     >>> from antidote import world, Service
-    >>> world.test.singleton('dep', 1)
-    >>> dep = world.lazy('dep')
-    >>> dep
-    Dependency(unwrapped='dep')
-    >>> dep.get()
-    1
-    >>> # mypy will treat x as a int
-    ... x = world.lazy[int]('dep').get()
     >>> class Dummy(Service):
     ...     pass
+    >>> dep = world.lazy(Dummy)
+    >>> dep
+    Dependency(unwrapped=<class 'Dummy'>)
+    >>> dep.get()
+    <Dummy ...>
+    >>> # But Mypy will only an object, not a `Dummy` instance. For this Mypy needs help:
+    >>> world.lazy[Dummy](Dummy).get()  # Treated by Mypy as a Dummy
+    <Dummy ...>
     >>> # To avoid repetition, if a type hint is provided but no argument, it
     ... # will retrieve the type hint itself.
     ... world.lazy[Dummy]().get()
@@ -111,9 +111,10 @@ def freeze() -> None:
 
     .. doctest:: world_freeze
 
-        >>> from antidote import world
+        >>> from antidote import world, Service
         >>> world.freeze()
-        >>> world.test.singleton('dependency', 1)
+        >>> class Dummy(Service):
+        ...     pass
         Traceback (most recent call last):
         ...
         FrozenWorldError
@@ -132,10 +133,15 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
 
     .. doctest:: world_debug
 
-        >>> from antidote import world
-        >>> world.test.singleton("test", 1)
-        >>> print(world.debug('test'))
-        Singleton: 'test' -> 1
+        >>> from antidote import world, Service, Provide
+        >>> class Dummy(Service):
+        ...     pass
+        >>> class Root(Service):
+        ...     def __init__(self, dummy: Provide[Dummy]):
+        ...         pass
+        >>> print(world.debug(Root))
+        Root
+        └── Dummy
         <BLANKLINE>
         Singletons have no scope markers.
         <∅> = no scope (new instance each time)

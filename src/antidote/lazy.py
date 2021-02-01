@@ -18,7 +18,7 @@ class LazyCall(FinalImmutable, Lazy):
     Dependency which is the result of the call of the given function with the
     given arguments.
 
-    .. doctest:: helpers_lazy_func
+    .. doctest:: lazy_func
 
         >>> from antidote import LazyCall, world
         >>> def f(x, y):
@@ -99,7 +99,7 @@ class LazyMethodCall(FinalImmutable):
     - if retrieved as a instance attribute it returns the result for this
       instance. This makes testing a lot easier as it does not pass through Antidote.
 
-    .. doctest:: helpers_lazy_method
+    .. doctest:: lazy_method
 
         >>> from antidote import LazyMethodCall, Service, world
         >>> class Api(Service):

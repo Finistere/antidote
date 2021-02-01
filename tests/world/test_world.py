@@ -2,7 +2,7 @@ from typing import Callable
 
 import pytest
 
-from antidote import From, FromArgName, Get, Service, world
+from antidote import From, FromArg, Get, Service, world
 from antidote._compatibility.typing import Annotated
 from antidote._providers import ServiceProvider
 from antidote.core import (Dependency)
@@ -60,7 +60,7 @@ def test_annotation_support(getter: Callable[[object], object]):
         getter(Annotated[A, Get('a'), Get('a')])  # noqa: F821
 
     with pytest.raises(TypeError):
-        getter(Annotated[A, FromArgName('{arg_name}')])  # noqa: F821
+        getter(Annotated[A, FromArg(lambda a: a)])  # noqa: F821
 
 
 @pytest.mark.parametrize('getter', [

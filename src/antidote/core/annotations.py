@@ -20,21 +20,45 @@ class AntidoteAnnotation:
     """Base class for all Antidote annotation."""
 
 
+# API.private
+INJECT_SENTINEL = AntidoteAnnotation()
+
+# API.public
+Provide = Annotated[T, INJECT_SENTINEL]
+Provide.__doc__ = """
+Annotation specifying that the type hint itself is the dependency:
+
+.. doctest:: core_annotation_provide
+
+    >>> from antidote import Service, world, inject, Provide
+    >>> from typing import Annotated
+    ... # from typing_extensions import Annotated # Python < 3.9
+    >>> class Database(Service):
+    ...     pass
+    >>> @inject
+    ... def load_db(db: Provide[Database]):
+    ...     return db
+    >>> load_db()
+    <Database ...>
+
+"""
+
+
 @API.public
 class Get(FinalImmutable, AntidoteAnnotation):
     """
     Annotation specifying explicitly which dependency to inject.
 
-    .. doctest:: core_annotation_give
+    .. doctest:: core_annotation_get
 
         >>> from typing import Annotated
-        >>> from antidote import Service, world, inject, Get
-        >>> world.test.singleton("db_host", 'localhost:6789')
-        >>> class Database(Service):
-        ...     # Reminder: __init__ is automatically injected in a Service by default.
-        ...     def __init__(self, host: Annotated[str, Get("db_host")]):
-        ...         self.host = host
-        >>> world.get[Database]().host == world.get("db_host")
+        >>> from antidote import world, inject, Get, Constants, const
+        >>> class Config(Constants):
+        ...     DB_HOST = const('localhost')
+        >>> @inject
+        ... def f(host: Annotated[str, Get(Config.DB_HOST)]):
+        ...     return host
+        >>> f() == world.get(Config.DB_HOST)
         True
 
     """
@@ -86,12 +110,18 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
     .. doctest:: core_annotations_from_arg
 
         >>> from typing import Annotated, TypeVar
-        >>> from antidote import world, inject, FromArg
+        >>> from antidote import world, inject, FromArg, Constants, const, Arg
+        >>> class Config(Constants):
+        ...     PORT = const(6789)
+        ...
+        ...     @classmethod
+        ...     def from_arg(cls, arg: Arg):
+        ...         return getattr(cls, arg.name.upper())
+        ...
         >>> T = TypeVar('T')
-        >>> Conf = Annotated[T, FromArg(lambda arg: "conf:" + arg.name)]
-        >>> world.test.singleton('conf:port', 6789)
+        >>> ProvideFromConfig = Annotated[T, FromArg(Config.from_arg)]
         >>> @inject
-        ... def f(port: Conf[int]) -> int:
+        ... def f(port: ProvideFromConfig[int]) -> int:
         ...     return port
         >>> f()
         6789
@@ -106,67 +136,3 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
             super().__init__(function=__function)
         else:
             raise TypeError(f"Expected a function, not {type(__function)}")
-
-
-@API.public
-class FromArgName(FinalImmutable, AntidoteAnnotation):
-    """
-    Annotation specifying which dependency should be provided based on the argument name
-    with a template. It is very similar to :py:class:`.FromArg` but simpler when only the
-    argument name is needed.
-
-    .. doctest:: core_annotations_from_arg_name
-
-        >>> from typing import Annotated, TypeVar
-        >>> from antidote import world, inject, FromArgName
-        >>> T = TypeVar('T')
-        >>> Conf = Annotated[T, FromArgName("conf:{arg_name}")]
-        >>> world.test.singleton('conf:port', 6789)
-        >>> @inject
-        ... def f(port: Conf[int]) -> int:
-        ...     return port
-        >>> f()
-        6789
-    """
-    __slots__ = ('template',)
-    template: str
-
-    def __init__(self,
-                 __template: str
-                 ) -> None:
-        if isinstance(__template, str):
-            if "{arg_name}" not in __template:
-                raise ValueError("Missing formatting parameter {arg_name} in template.")
-            super().__init__(template=__template)
-        else:
-            raise TypeError(f"Expected a string, not {type(__template)}")
-
-
-# API.private
-INJECT_SENTINEL = AntidoteAnnotation()
-
-# API.public
-Provide = Annotated[T, INJECT_SENTINEL]
-Provide.__doc__ = """
-Annotation specifying that the type hint itself is the dependency:
-
-.. doctest:: core_annotation_provide
-
-    >>> from antidote import Service, world, inject, Provide
-    >>> from typing import Annotated
-    ... # from typing_extensions import Annotated # Python < 3.9
-    >>> class Database(Service):
-    ...     pass
-    >>> @inject
-    ... def load_db(db: Provide[Database]):
-    ...     return db
-    >>> load_db()
-    <Database ...>
-
-"""
-
-# API.public
-ProvideArgName = Annotated[T, FromArgName("{arg_name}")]
-ProvideArgName.__doc__ = """
-The name of the argument will be used as the dependency.
-"""

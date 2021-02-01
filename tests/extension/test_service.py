@@ -2,7 +2,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from antidote import service, Service, Tag, Wiring, world
+from antidote import Service, Tag, Wiring, service, world
 from antidote._providers import ServiceProvider
 from antidote.exceptions import DuplicateDependencyError
 

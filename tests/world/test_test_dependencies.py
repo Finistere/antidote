@@ -84,15 +84,22 @@ def test_factory_from_annotation():
 
 def test_factory_singleton():
     with world.test.empty():
-        @world.test.factory(Service, singleton=True)
+        @world.test.factory(Service)
         def build():
             return Service()
 
         assert world.get(Service) is world.get(Service)
 
     with world.test.empty():
+        @world.test.factory(Service, singleton=True)
+        def build2():
+            return Service()
+
+        assert world.get(Service) is world.get(Service)
+
+    with world.test.empty():
         @world.test.factory(Service, scope=Scope.singleton())
-        def build():
+        def build3():
             return Service()
 
         assert world.get(Service) is world.get(Service)
@@ -100,7 +107,7 @@ def test_factory_singleton():
 
 def test_factory_no_scope():
     with world.test.empty():
-        @world.test.factory(Service)
+        @world.test.factory(Service, singleton=False)
         def build():
             return Service()
 

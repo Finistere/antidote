@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Callable, Generic, Hashable, Iterator, Optional, TypeVar, cast
+from typing import Callable, Generic, Hashable, Iterator, Optional, TypeVar, cast, Any
 
 from ._provider import ProviderMeta, _FREEZE_ATTR_NAME
 from .container import Container, DependencyValue, RawProvider
@@ -11,7 +11,7 @@ from .._internal.utils import debug_repr
 
 T = TypeVar('T', bound=Hashable)
 M = TypeVar('M', bound=Callable[..., object])
-P = TypeVar('P', bound='Provider')
+P = TypeVar('P', bound='Provider[Any]')
 
 
 @API.public
@@ -100,8 +100,8 @@ class Provider(RawProvider, Generic[T],
         2. You MUST NOT use :py:mod:`~antidote.world`. If you need a dependency, rely on
            the provided :py:class:`~.core.container.Container`.
         3. Methods will automatically freeze except those marked with the decorator
-           :py:func:`~.does_not_freeze`. Methods changing dependency *definitions* MUST
-           freeze, others SHOULD NOT.
+           :py:func:`~.does_not_freeze`. Methods changing dependencies *definitions* MUST
+           NOT use :py:func:`~.does_not_freeze`, others may.
         4. You may cache singletons by yourself, but you need to clean your cache when
            :py:meth:`~.clone` is called with :code:`keep_singletons_cache=False`.
     """
