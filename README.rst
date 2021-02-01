@@ -115,7 +115,7 @@ To install Antidote, simply run this command:
     pip install antidote
 
 
-Hands-on quick Start
+Hands-on quick start
 ====================
 
 Short and concise example of some of the most important features of Antidote. The docuemYou can find
@@ -178,8 +178,8 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
     to dot it.
     """
     from antidote import (Constants, factory, inject, world, const, Service,
-                          implementation, Get, From, FromArg)
-    from typing import Annotated, TypeVar
+                          implementation, Get, From)
+    from typing import Annotated
     # from typing_extensions import Annotated # Python < 3.9
 
      class MovieDB:
@@ -228,17 +228,6 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
                      ) -> ImdbAPI:
         # Here host = Conf().get('imdb.host')
         return ImdbAPI(host=host, port=port, api_key=api_key)
-
-    # You can go even further with the annotations:
-    T = TypeVar('T')
-    ProvideFromConf = Annotated[T, FromArg(lambda arg: getattr(Conf, arg.name.upper()))]
-
-    @factory
-    def imdb_factory(imdb_host: ProvideFromConf[str],
-                     imdb_port: ProvideFromConf[int],
-                     imdb_api_key: ProvideFromConf[str]
-                     ) -> ImdbAPI:
-        return ImdbAPI(host=imdb_host, port=imdb_port, api_key=imdb_api_key)
 
     # Without PEP-593
     @factory
