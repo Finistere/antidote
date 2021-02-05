@@ -5,8 +5,7 @@ Changelog
 Status
 ======
 
-Overall satisfied with the API, will take some time (weeks) to see what examples may be
-missing or what could be removed/simplified before making a v1.0.
+Pretty much v1.0-beta.
 
 
 
@@ -26,8 +25,8 @@ Features
   are automatically wired to support annotated type hints anywhere.
 
 
-Breaking change
----------------
+Breaking changes
+----------------
 
 - Remove :code:`public` configuration for :py:class:`.Factory` and :py:class:`.Constants`.
   They didn't really bring any value, you hardly hide anything in Python.

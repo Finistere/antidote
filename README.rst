@@ -2,6 +2,24 @@
 Antidote
 ********
 
+.. image:: https://img.shields.io/pypi/v/antidote.svg
+  :target: https://pypi.python.org/pypi/antidote
+
+.. image:: https://img.shields.io/pypi/l/antidote.svg
+  :target: https://pypi.python.org/pypi/antidote
+
+.. image:: https://img.shields.io/pypi/pyversions/antidote.svg
+  :target: https://pypi.python.org/pypi/antidote
+
+.. image:: https://travis-ci.org/Finistere/antidote.svg?branch=master
+  :target: https://travis-ci.org/Finistere/antidote
+
+.. image:: https://codecov.io/gh/Finistere/antidote/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/Finistere/antidote
+
+.. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
+  :target: http://antidote.readthedocs.io/en/stable/?badge=stable
+
 
 Antidotes is a dependency injection micro-framework for Python 3.6+. It is designed on two core ideas:
 
