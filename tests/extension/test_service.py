@@ -2,7 +2,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from antidote import Service, Tag, Wiring, service, world
+from antidote import Service, Wiring, service, world
 from antidote._providers import ServiceProvider
 from antidote.exceptions import DuplicateDependencyError
 
@@ -114,36 +114,6 @@ def test_invalid_service_args(kwargs, expectation):
             method = None
 
 
-def test_not_tags():
-    with world.test.empty():
-        world.provider(ServiceProvider)
-
-        @service
-        class A:
-            pass
-
-        assert isinstance(world.get(A), A)
-        assert world.get(A) is world.get(A)
-
-        class B(Service):
-            pass
-
-        assert isinstance(world.get(B), B)
-        assert world.get(B) is world.get(B)
-
-    with world.test.empty():
-        world.provider(ServiceProvider)
-        tag = Tag()
-        with pytest.raises(RuntimeError):
-            @service(tags=[tag])
-            class A:
-                pass
-
-        with pytest.raises(RuntimeError):
-            class B(Service):
-                __antidote__ = Service.Conf(tags=[tag])
-
-
 def test_no_subclass_of_service():
     class A(Service):
         pass
@@ -175,11 +145,10 @@ def test_invalid_conf_args(kwargs, expectation):
 
 @pytest.mark.parametrize('kwargs', [
     dict(singleton=False),
-    dict(tags=(Tag(),)),
     dict(wiring=Wiring(methods=['method'])),
 ])
 def test_conf_copy(kwargs):
-    conf = Service.Conf(singleton=True, tags=[]).copy(**kwargs)
+    conf = Service.Conf(singleton=True).copy(**kwargs)
     for k, v in kwargs.items():
         assert getattr(conf, k) == v
 

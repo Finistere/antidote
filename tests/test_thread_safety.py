@@ -3,7 +3,7 @@ import threading
 import time
 from typing import Callable
 
-from antidote import Tag, Tagged, factory, world
+from antidote import factory, world
 from antidote.core import Container
 
 
@@ -71,29 +71,6 @@ def test_container_instantiation_safety():
         ThreadSafetyTest.run(worker)
         assert len(set(singleton_got)) == 1
         assert len(set(non_singleton_got)) == ThreadSafetyTest.n_threads
-
-
-def test_tagged_dependencies_instantiation_safety():
-    with world.test.new():
-        tag = Tag()
-        n_dependencies = 40
-
-        for i in range(n_dependencies):
-            factory(delayed_new_class(type(f'Service{i}', (object,), {})),
-                    singleton=False,
-                    tags=[tag])
-
-        tagged: Tagged = world.get(Tagged.with_(tag))
-        dependencies = []
-
-        def worker():
-            for i, dep in enumerate(tagged.values()):
-                dependencies.append((i, dep))
-
-        ThreadSafetyTest.run(worker)
-
-        assert len(set(dependencies)) == n_dependencies
-        assert set(enumerate(tagged.values())) == set(dependencies)
 
 
 # Be sure not have used a fixture to create a new test world as it will

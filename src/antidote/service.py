@@ -3,11 +3,10 @@ from typing import Callable, Iterable, Optional, Tuple, TypeVar, Union, cast, ov
 from ._compatibility.typing import final
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
-from ._providers import Tag
 from ._service import ServiceMeta
 from .core import Scope, Wiring, WithWiringMixin
 from .core.exceptions import DuplicateDependencyError
-from .utils import validated_scope, validated_tags
+from .utils import validated_scope
 
 C = TypeVar('C', bound=type)
 
@@ -15,51 +14,78 @@ C = TypeVar('C', bound=type)
 @API.public
 class Service(metaclass=ServiceMeta, abstract=True):
     """
-    Abstract base class for a service. It can be retrieved from Antidote simply with its
-    class. It will only be instantiated when necessary. By default a service will be
-    a singleton and :py:meth:`.__init__` will be wired (injected).
+    Defines subclasses as services:
 
-    .. doctest:: Service
-
-        >>> from antidote import Service, world
-        >>> class MyService(Service):
-        ...     pass
-        >>> world.get[MyService]()
-        <MyService ...>
-
-    For customization use :py:attr:`.__antidote__`:
-
-    .. doctest:: Service_v2
-
-        >>> from antidote import Service, world
-        >>> class MyService(Service):
-        ...     __antidote__ = Service.Conf(singleton=False)
-
-    One can customize the instantiation and use the same service with different
-    configuration:
-
-    .. doctest:: Service_v3
+    .. doctest:: service_class
 
         >>> from antidote import Service, world, inject
-        >>> class MyService(Service):
-        ...     def __init__(self, name = 'default'):
-        ...         self.name = name
-        >>> world.get[MyService]().name
-        'default'
-        >>> s = world.get[MyService](MyService._with_kwargs(name='perfection'))
-        >>> s.name
-        'perfection'
-        >>> # The same instance will be returned for those keywords as MyService is
-        ... # defined as a singleton.
-        ... s is world.get(MyService._with_kwargs(name='perfection'))
+        >>> class Database(Service):
+        ...     pass
+
+    The service can then be retrieved by its class:
+
+    .. doctest:: service_class
+
+        >>> world.get(Database)  # treated as `object` by Mypy
+        <Database ...>
+        >>> # With Mypy casting
+        ... world.get[Database]()
+        <Database ...>
+        >>> @inject([Database])
+        ... def f(db: Database):
+        ...     pass
+
+    Or with annotated type hints:
+
+    .. doctest:: service_class
+
+        >>> from antidote import Provide
+        >>> @inject
+        ... def f(db: Provide[Database]):
+        ...     pass
+
+    All methods are injected by default and the service itself is a singleton.
+    All of this can be configured with :py:attr:`.__antidote__`:
+
+    .. doctest:: service_class
+
+        >>> # Singleton by default
+        ... world.get[Database]() is world.get[Database]()
         True
-        >>> # You can also keep the dependency and re-use it
-        ... PerfectionService = MyService._with_kwargs(name='perfection')
-        >>> @inject(dependencies=dict(service=PerfectionService))
-        ... def f(service):
-        ...     return service
-        >>> f() is s
+        >>> class Session(Service):
+        ...     __antidote__ = Service.Conf(singleton=False)
+        ...
+        ...     def __init__(self, db: Provide[Database]):
+        ...         self.db = db
+        ...
+        >>> world.get[Session]() is world.get[Session]()
+        False
+
+    You may also create custom dependencies based on the original one by passing arguments
+    to :code:`__init__()`:
+
+    .. doctest:: service_class
+
+        >>> class Database(Service):
+        ...     def __init__(self, host: str = 'localhost:6543'):
+        ...         self.host = host
+        ...
+        ...     @classmethod
+        ...     def hosted(cls, host: str) -> object:
+        ...         return cls._with_kwargs(host=host)
+        ...
+        >>> test_db = world.get[Database](Database.hosted('test'))
+        >>> test_db.host
+        'test'
+        >>> # The factory returns a singleton so our test_session will also be one
+        ... world.get[Database](Database.hosted('test')) is test_db
         True
+        >>> # Custom dependencies will NEVER be equal to the default one.
+        ... default_db = world.get[Database]()
+        >>> default_db is test_db
+        False
+        >>> default_db is world.get[Database](Database.hosted('localhost:6543'))
+        False
 
     """
 
@@ -70,10 +96,9 @@ class Service(metaclass=ServiceMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'scope', 'tags')
+        __slots__ = ('wiring', 'scope')
         wiring: Optional[Wiring]
         scope: Optional[Scope]
-        tags: Optional[Tuple[Tag]]
 
         @property
         def singleton(self) -> bool:
@@ -83,8 +108,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
                      *,
                      wiring: Optional[Wiring] = Wiring(),
                      singleton: bool = None,
-                     scope: Optional[Scope] = Scope.sentinel(),
-                     tags: Optional[Iterable[Tag]] = None):
+                     scope: Optional[Scope] = Scope.sentinel()):
             """
             Args:
                 wiring: Wiring to be applied on the service. By default only
@@ -98,8 +122,6 @@ class Service(metaclass=ServiceMeta, abstract=True):
                     The scope defines if and how long the service will be cached. See
                     :py:class:`~.core.container.Scope`. Defaults to
                     :py:meth:`~.core.container.Scope.singleton`.
-                tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
-                      service.
             """
             if not (wiring is None or isinstance(wiring, Wiring)):
                 raise TypeError(f"wiring can be a Wiring or None, "
@@ -108,15 +130,13 @@ class Service(metaclass=ServiceMeta, abstract=True):
             super().__init__(wiring=wiring,
                              scope=validated_scope(scope,
                                                    singleton,
-                                                   default=Scope.singleton()),
-                             tags=validated_tags(tags))
+                                                   default=Scope.singleton()))
 
         def copy(self,
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
                  scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
-                 tags: Union[Optional[Iterable[Tag]], Copy] = Copy.IDENTICAL
                  ) -> 'Service.Conf':
             """
             Copies current configuration and overrides only specified arguments.
@@ -126,7 +146,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
                 raise TypeError("Use either singleton or scope argument, not both.")
             if isinstance(singleton, bool):
                 scope = Scope.singleton() if singleton else None
-            return Copy.immutable(self, wiring=wiring, scope=scope, tags=tags)
+            return Copy.immutable(self, wiring=wiring, scope=scope)
 
     __antidote__: Conf = Conf()
     """
@@ -139,7 +159,6 @@ def service(klass: C,  # noqa: E704  # pragma: no cover
             *,
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            tags: Iterable[Tag] = None
             ) -> C: ...
 
 
@@ -147,7 +166,6 @@ def service(klass: C,  # noqa: E704  # pragma: no cover
 def service(*,  # noqa: E704  # pragma: no cover
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            tags: Iterable[Tag] = None
             ) -> Callable[[C], C]: ...
 
 
@@ -155,14 +173,11 @@ def service(*,  # noqa: E704  # pragma: no cover
 def service(klass: C = None,
             *,
             singleton: bool = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            tags: Iterable[Tag] = None) -> Union[C, Callable[[C], C]]:
+            scope: Optional[Scope] = Scope.sentinel()
+            ) -> Union[C, Callable[[C], C]]:
     """
-    Register a service: the class itself is the dependency. Prefer using
-    :py:class:`.Service` when possible, it provides more features such as
-    :py:meth:`.Service.with_kwargs` and wiring. This decorator is intended for
-    registration of class which cannot inherit :py:class:`.Service`. The class itself
-    will not be modified.
+    Defines the decorated class as a service. To be used when you cannot inherit
+    :py:class:`.Service`
 
     .. doctest:: register
 
@@ -174,8 +189,8 @@ def service(klass: C = None,
     .. note::
 
         If your wish to declare to register an external class to Antidote, prefer using
-        a factory with either :py:class:`~.extension.factory.Factory` or
-        :py:func:`~.extension.factory.factory`.
+        a factory with either :py:class:`~.factory.Factory` or
+        :py:func:`~.factory.factory`.
 
     Args:
         klass: Class to register as a dependency. It will be instantiated  only when
@@ -187,14 +202,12 @@ def service(klass: C = None,
             The scope defines if and how long the service will be cached. See
             :py:class:`~.core.container.Scope`. Defaults to
             :py:meth:`~.core.container.Scope.singleton`.
-        tags: Iterable of :py:class:`~.._providers.tag.Tag` applied to the service.
 
     Returns:
         The decorated class, unmodified, if specified or the class decorator.
 
     """
     scope = validated_scope(scope, singleton, default=Scope.singleton())
-    tags = validated_tags(tags)
 
     def reg(cls: C) -> C:
         from ._service import _configure_service
@@ -203,7 +216,7 @@ def service(klass: C = None,
             raise DuplicateDependencyError(f"{cls} is already defined as a dependency "
                                            f"by inheriting {Service}")
 
-        _configure_service(cls, conf=Service.Conf(wiring=None, scope=scope, tags=tags))
+        _configure_service(cls, conf=Service.Conf(wiring=None, scope=scope))
 
         return cast(C, cls)
 

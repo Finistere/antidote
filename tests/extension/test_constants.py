@@ -23,8 +23,8 @@ def test_simple():
         A = const('a')
         B = const('b')
 
-        def get(self, name, value):
-            return value * 2
+        def get_const(self, name, arg):
+            return arg * 2
 
     assert world.get(Config.A) == 'aa'
     assert world.get(Config.B) == 'bb'
@@ -48,10 +48,10 @@ def test_default():
         # different error
         D = const('d', default='x')
 
-        def get(self, name, value):
-            if value == 'd':
+        def get_const(self, name, arg):
+            if arg == 'd':
                 raise Exception()
-            return dict(a=a)[value]
+            return dict(a=a)[arg]
 
     assert world.get(Config.A) is a
     assert world.get(Config.B) is b
@@ -78,14 +78,14 @@ def test_auto_cast(auto_cast, a, b, c):
         C = const[str]('c')
         D = const[dict]('d')
 
-        def get(self, name, value):
-            if value == 'a':
+        def get_const(self, name, arg):
+            if arg == 'a':
                 return '109'
-            if value == 'b':
+            if arg == 'b':
                 return '3.14'
-            if value == 'c':
+            if arg == 'c':
                 return 199
-            if value == 'd':
+            if arg == 'd':
                 return D
 
     assert world.get(Config.A) == a
@@ -104,7 +104,7 @@ def test_name():
         A = const()
         B = const()
 
-        def get(self, name, value):
+        def get_const(self, name, arg):
             return name
 
     assert world.get(Config.A) == 'A'
@@ -133,8 +133,8 @@ def test_no_const():
     class Config(Constants):
         A = 'a'
 
-        def get(self, name, value):
-            return value * 2
+        def get_const(self, name, arg):
+            return arg * 2
 
     with pytest.raises(DependencyNotFoundError):
         world.get(Config.A)

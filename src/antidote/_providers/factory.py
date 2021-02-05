@@ -1,10 +1,10 @@
 import inspect
-from typing import Callable, Dict, Hashable, Optional, Union
+from typing import Callable, Dict, Hashable, Optional
 
 from .service import Build
 from .._internal import API
 from .._internal.utils import FinalImmutable, SlotRecord, debug_repr
-from ..core import (Container, Dependency, DependencyDebug, DependencyValue, Provider,
+from ..core import (Container, DependencyDebug, DependencyValue, Provider,
                     Scope)
 
 
@@ -92,23 +92,26 @@ class FactoryProvider(Provider[Hashable]):
     def register(self,
                  output: type,
                  *,
-                 factory: Union[Callable[..., object], Dependency[Hashable]],
-                 scope: Optional[Scope]
+                 scope: Optional[Scope],
+                 factory: Callable[..., object] = None,
+                 factory_dependency: Hashable = None
                  ) -> 'FactoryDependency':
         assert inspect.isclass(output) \
-               and (callable(factory) or isinstance(factory, Dependency)) \
+               and (factory is None or factory_dependency is None) \
+               and (factory is None or callable(factory)) \
                and (isinstance(scope, Scope) or scope is None)
-        factory_dependency = FactoryDependency(output, factory)
-        self._assert_not_duplicate(factory_dependency)
 
-        if isinstance(factory, Dependency):
-            self.__factories[factory_dependency] = Factory(scope,
-                                                           dependency=factory.unwrapped)
+        dependency = FactoryDependency(output, factory or factory_dependency)
+        self._assert_not_duplicate(dependency)
+
+        if factory_dependency:
+            self.__factories[dependency] = Factory(scope,
+                                                   dependency=factory_dependency)
         else:
-            self.__factories[factory_dependency] = Factory(scope,
-                                                           function=factory)
+            self.__factories[dependency] = Factory(scope,
+                                                   function=factory)
 
-        return factory_dependency
+        return dependency
 
 
 @API.private
@@ -119,8 +122,6 @@ class FactoryDependency(FinalImmutable):
     __hash: int
 
     def __init__(self, output: Hashable, factory: object):
-        if isinstance(factory, Dependency):
-            factory = factory.unwrapped
         super().__init__(output, factory, hash((output, factory)))
 
     def __repr__(self) -> str:

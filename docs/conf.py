@@ -90,7 +90,7 @@ author = 'Benjamin Rabier'
 # built documents.
 #
 # The full version, including alpha/beta/rc tag.
-release = antidote.__version__()
+release = antidote.__version__
 # The short X.Y version.
 version = release.rsplit(".", 1)[0]
 

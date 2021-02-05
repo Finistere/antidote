@@ -2,8 +2,7 @@ import pytest
 
 from antidote import world
 from antidote._providers import (FactoryProvider, IndirectProvider,
-                                 LazyProvider,
-                                 ServiceProvider, TagProvider)
+                                 LazyProvider, ServiceProvider)
 from antidote.core.container import RawProvider
 
 
@@ -11,7 +10,6 @@ from antidote.core.container import RawProvider
     FactoryProvider,
     ServiceProvider,
     LazyProvider,
-    TagProvider,
     IndirectProvider
 ])
 def provider(request):

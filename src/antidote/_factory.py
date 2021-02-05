@@ -5,10 +5,10 @@ from typing import Callable, Dict, Hashable, Tuple, Type, cast
 from ._compatibility.typing import get_type_hints
 from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
-from ._providers import FactoryProvider, TagProvider
+from ._providers import FactoryProvider
 from ._providers.factory import FactoryDependency
 from ._providers.service import Build
-from .core import Dependency, Provide, inject
+from .core import LazyDependency, Provide, inject
 from .service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'
@@ -48,12 +48,38 @@ class FactoryMeta(AbstractMeta):
     @API.public
     def _with_kwargs(cls, **kwargs: object) -> 'PreBuild':
         """
-        Creates a new dependency based on the factory which will have the keyword
-        arguments provided. If the factory provides a singleton and identical kwargs are
-        used, the same instance will be returned by Antidote.
+        Creates a new dependency based on the factory with the given arguments. The new
+        dependency will have the same scope as the original one.
+
+        The recommended usage is to provide a classmethod exposing only parameters that
+        may be changed:
+
+        .. doctest:: service_meta
+
+            >>> from antidote import Factory, world
+            >>> class Database:
+            ...     def __init__(self, host: str):
+            ...         self.host = host
+            >>> class DatabaseFactory(Factory):
+            ...     def __call__(self, host: str = 'localhost') -> Database:
+            ...         return Database(host)
+            ...
+            ...     @classmethod
+            ...     def with_host(cls, host: str) -> object:
+            ...         return cls._with_kwargs(host=host)
+            >>> db = world.get(Database @ DatabaseFactory.with_host(host='remote'))
+            >>> db.host
+            'remote'
+            >>> # As DatabaseFactory is defined to return a singleton,
+            ... # the same is applied:
+            ... world.get(Database @ DatabaseFactory.with_host(host='remote')) is db
+            True
+            >>> # Custom dependencies will NEVER be equal to the default one
+            ... world.get(Database @ DatabaseFactory) is db
+            False
 
         Args:
-            **kwargs: Arguments passed on to the factory.
+            **kwargs: Arguments passed on to :code:`__call__()`.
 
         Returns:
             Dependency to be retrieved from Antidote.
@@ -65,8 +91,8 @@ class FactoryMeta(AbstractMeta):
 @API.private
 @inject
 def _configure_factory(cls: FactoryMeta,
-                       factory_provider: Provide[FactoryProvider] = None,
-                       tag_provider: Provide[TagProvider] = None) -> FactoryDependency:
+                       factory_provider: Provide[FactoryProvider] = None
+                       ) -> FactoryDependency:
     from .factory import Factory
     assert factory_provider is not None
 
@@ -83,21 +109,14 @@ def _configure_factory(cls: FactoryMeta,
         raise TypeError(f"The return type hint is expected to be a class, "
                         f"not {type(output)}.")
 
-    if conf.tags is not None and tag_provider is None:
-        raise RuntimeError("No TagProvider registered, cannot use tags.")
-
     if conf.wiring is not None:
         conf.wiring.wire(cls)
 
     factory_dependency = factory_provider.register(
         output=output,
         scope=conf.scope,
-        factory=Dependency(service(cls, singleton=True))
+        factory_dependency=service(cls, singleton=True)
     )
-
-    if conf.tags:
-        assert tag_provider is not None  # for Mypy
-        tag_provider.register(dependency=factory_dependency, tags=conf.tags)
 
     return factory_dependency
 

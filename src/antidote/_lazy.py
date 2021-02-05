@@ -6,6 +6,7 @@ from ._internal import API
 from ._internal.utils import FinalImmutable, debug_repr, short_id
 from ._providers import Lazy
 from .core import Container, DependencyDebug, DependencyValue, Scope
+from .service import Service
 
 if TYPE_CHECKING:
     from .lazy import LazyMethodCall
@@ -34,7 +35,7 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
                                scope=self._scope,
                                wired=[self.func])
 
-    def lazy_get(self, container: Container) -> DependencyValue:
+    def provide(self, container: Container) -> DependencyValue:
         return DependencyValue(self.func(*self._args, **self._kwargs),
                                scope=self._scope)
 
@@ -62,6 +63,9 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable):
                          f"__antidote_dependency_{hex(id(self))}")
 
     def __get__(self, instance: object, owner: type) -> object:
+        if not issubclass(owner, Service):
+            raise RuntimeError("LazyMethod can only be used on a Service subclass.")
+
         if instance is None:
             try:
                 return getattr(owner, self.__cache_attr)
@@ -97,7 +101,7 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
                                wired=[getattr(owner, descriptor._method_name)],
                                dependencies=[owner])
 
-    def lazy_get(self, container: Container) -> DependencyValue:
+    def provide(self, container: Container) -> DependencyValue:
         owner = self.__owner_ref()
         assert owner is not None
         descriptor = cast('LazyMethodCall', self.__descriptor)

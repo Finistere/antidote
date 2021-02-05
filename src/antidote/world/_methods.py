@@ -53,8 +53,6 @@ Returns:
     >>> class Dummy(Service):
     ...     pass
     >>> dep = world.lazy(Dummy)
-    >>> dep
-    Dependency(unwrapped=<class 'Dummy'>)
     >>> dep.get()
     <Dummy ...>
     >>> # But Mypy will only an object, not a `Dummy` instance. For this Mypy needs help:

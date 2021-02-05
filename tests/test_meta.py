@@ -9,4 +9,4 @@ def test_is_compiled():
 
 
 def test_version():
-    assert isinstance(__version__(), str)
+    assert isinstance(__version__, str)

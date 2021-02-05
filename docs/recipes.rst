@@ -70,8 +70,8 @@ as a service or one that can be provided by a factory.
 
 
 
-Lazily call a function
-======================
+Lazily call a function / method
+===============================
 
 
 Calling lazily a function can be done with :py:class:`.LazyCall` or
@@ -79,8 +79,8 @@ Calling lazily a function can be done with :py:class:`.LazyCall` or
 and can either be singletons or not.
 
 
-Function call
--------------
+Function
+--------
 
 .. testsetup:: recipes_lazy
 
@@ -111,8 +111,10 @@ where this dependency is needed. Moreover neither :code:`f` nor its caller needs
 be aware on how to call :code:`fetch_remote_conf`.
 
 
-Method call
------------
+Method
+------
+
+Lazily calling a method requires the class to be :py:class:`.Service`.
 
 .. testcode:: recipes_lazy
 
@@ -124,13 +126,9 @@ Method call
 
         STATUS = LazyMethodCall(get, singleton=False)("/status")
 
-Lazily calling a method through :py:class:`.LazyMethodCall` requires the class
-to be defined as a service. The class itself will only be instantiated when
-necessary.
-
 .. note::
 
-    If you intend to define multiple constants lazily, consider using
+    If you intend to define lazy constants, consider using
     :py:class:`.Constants` instead.
 
 
@@ -143,13 +141,11 @@ It is possible to define an abstract service or factory by simply adding
 
 .. testcode:: recipes_abstract
 
-    from antidote import Service, Factory, Tag
-
-    tag = Tag()
+    from antidote import Service, Factory
 
     class AbstractService(Service, abstract=True):
         # Change default configuration
-        __antidote__ = Service.Conf(tags=[tag])
+        __antidote__ = Service.Conf(singleton=False)
 
     class AbstractFactory(Factory, abstract=True):
         pass
@@ -168,59 +164,13 @@ Abstract classes will not be registered, neither wired:
       File "<stdin>", line 1, in ?
     DependencyNotFoundError
 
-In the actual implementation you only need to use :code:`copy()` on the configuration
-to use the newly defined defaults:
+In the actual implementation you can then eventually override the configuration:
 
 .. testcode:: recipes_abstract
 
     class MyService(AbstractService):
-        # Change default configuration
-        __antidote__ = AbstractService.__antidote__.copy(singleton=False)
-
-
-
-
-Use tags to retrieve multiple dependencies
-==========================================
-
-
-Tags are a way to retrieve a list of services, such as plugins, extensions, etc... In
-Antidote tags are instance of :py:class:`.Tag`. Dependencies tagged with this instance
-can simply be retrieved by requesting this specific tag from Antidote. You'll get a
-:py:class:`.Tagged` instances containing both your dependencies and their associated
-instance of :py:class:`.Tag`.
-
-.. testcode:: recipes_tags
-
-    from antidote import Service, Tag
-
-    tag = Tag()
-
-    # Specifying abstract tells Antidote to NOT register Plugin. It's considered
-    # to be an abstract class.
-    class Plugin(Service, abstract=True):
-        pass
-
-    class PluginA(Plugin):
-        __antidote__ = Service.Conf(tags=[tag])
-
-    class PluginB(Plugin):
-        __antidote__ = Service.Conf(tags=[tag])
-
-.. doctest:: recipes_tags
-
-    >>> from antidote import world, Tagged
-    >>> tagged = world.get[Tagged](Tagged.with_(tag))
-    >>> list(sorted(tagged.values(), key=lambda plugin: type(plugin).__name__))
-    [<PluginA ...>, <PluginB ...>]
-
-Antidote will always return a :py:class:`.Tagged`, whether there are tagged instances or
-not.
-
-.. note::
-
-    :py:class:`.Tagged` has two generic parameters :code:`T` and :code:`D` which
-    respectfully represent the tag type and the dependency type.
+        # Override default configuration
+        __antidote__ = AbstractService.__antidote__.with_wiring(auto_provide=True)
 
 
 
@@ -297,7 +247,7 @@ From the environment
     class Env(Constants):
         SECRET = const[str]()
 
-        def get(self, name: str, value: object):
+        def get_const(self, name: str, arg: object):
             return os.environ[name]
 
 .. doctest:: recipes_configuration_environment
@@ -315,7 +265,7 @@ Configuration can be stored in a lot of different formats, or even be retrieved 
 remote endpoint at start-up. Most of the time you would be able to easily convert it
 to a dictionary and use the following:
 
-.. testcode:: recipes_configuration_environment
+.. testcode:: recipes_configuration_dictionary
 
     import os
     from antidote import Constants, const
@@ -333,11 +283,11 @@ to a dictionary and use the following:
                 }
             }
 
-        def get(self, name: str, value: object):
+        def get_const(self, name: str, arg: object):
             from functools import reduce
-            return reduce(dict.get, value.split('.'), self._raw_conf)  # type: ignore
+            return reduce(dict.get, arg.split('.'), self._raw_conf)  # type: ignore
 
-.. doctest:: recipes_configuration_environment
+.. doctest:: recipes_configuration_dictionary
 
     >>> from antidote import world
     >>> world.get[str](Conf.HOST)
@@ -357,7 +307,7 @@ the :code:`auto_cast` argument of :py:attr:`~.Constants.Conf`. A typical use cas
 would be to support enums as presented here:
 
 
-.. testcode:: recipes_configuration_specify_type
+.. testcode:: recipes_configuration_auto_cast
 
     from enum import Enum
     from antidote import Constants, const
@@ -372,11 +322,11 @@ would be to support enums as presented here:
         DB_PORT = const[int]()
         ENV = const[Env]()
 
-        def get(self, name: str, value: object):
+        def get_const(self, name: str, arg: object):
             return {'db_port': '6789', 'env': 'prod'}[name.lower()]
 
 
-.. doctest:: recipes_configuration_specify_type
+.. doctest:: recipes_configuration_auto_cast
 
     >>> from antidote import world
     >>> Conf().DB_PORT # will be treated as an int by Mypy

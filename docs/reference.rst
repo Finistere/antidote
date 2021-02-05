@@ -94,13 +94,6 @@ Implementation
     :members:
 
 
-Tags
-----
-
-.. automodule:: antidote.tag
-    :members: Tag, Tagged
-
-
 
 Core
 ====
@@ -123,11 +116,6 @@ Wiring
 ^^^^^^
 .. automodule:: antidote.core.wiring
     :members: Wiring, wire, WithWiringMixin
-
-Utility
-^^^^^^^
-.. autoclass:: antidote.core.utils.Dependency
-    :members:
 
 
 Provider

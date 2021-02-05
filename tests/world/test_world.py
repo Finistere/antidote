@@ -2,10 +2,10 @@ from typing import Callable
 
 import pytest
 
-from antidote import From, FromArg, Get, Service, world
+from antidote import From, FromArg, Get, Service, factory, world
 from antidote._compatibility.typing import Annotated
-from antidote._providers import ServiceProvider
-from antidote.core import (Dependency)
+from antidote._providers import FactoryProvider, ServiceProvider
+from antidote.core import (LazyDependency)
 from antidote.exceptions import DependencyNotFoundError, FrozenWorldError
 from .utils import DummyIntProvider
 
@@ -26,14 +26,33 @@ def test_get():
     world.test.singleton(A, a)
     assert world.get(A) is a
 
-    with pytest.raises(DependencyNotFoundError):
-        world.get("nothing")
-
     class B(Service):
         pass
 
     assert world.get[A](A) is a
     assert world.get[B]() is world.get(B)
+
+    x = object()
+    assert world.get(B, default=x) is world.get(B)
+    assert world.get[B](default=x) is world.get(B)
+
+    with pytest.raises(DependencyNotFoundError):
+        world.get(Service)
+
+    with pytest.raises(DependencyNotFoundError):
+        world.get[Service]()
+
+    assert world.get[Service](default=x) is x
+
+
+def test_get_factory():
+    world.provider(FactoryProvider)
+
+    @factory
+    def build_a() -> A:
+        return A()
+
+    assert world.get[A] @ build_a is world.get(A @ build_a)
 
 
 @pytest.mark.parametrize('getter', [
@@ -80,15 +99,25 @@ def test_lazy():
     })
 
     lazy = world.lazy('x')
-    assert isinstance(lazy, Dependency)
+    assert isinstance(lazy, LazyDependency)
     assert lazy.unwrapped == 'x'
     assert lazy.get() == world.get('x')
 
     lazy = world.lazy[int]('x')
-    assert isinstance(lazy, Dependency)
+    assert isinstance(lazy, LazyDependency)
     assert lazy.unwrapped == 'x'
     assert lazy.get() == world.get('x')
     assert world.lazy[A]().get() is world.get(A)
+
+
+def test_lazy_factory():
+    world.provider(FactoryProvider)
+
+    @factory
+    def build_a() -> A:
+        return A()
+
+    assert (world.lazy[A] @ build_a).get() is world.get(A @ build_a)
 
 
 def test_freeze():

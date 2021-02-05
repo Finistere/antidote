@@ -1,9 +1,8 @@
 import pytest
 
-from antidote import Tag
 from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
                                  DependencyNotFoundError, DuplicateDependencyError,
-                                 DuplicateTagError, FrozenWorldError)
+                                 FrozenWorldError)
 
 
 class Service:
@@ -41,15 +40,6 @@ def test_duplicate_dependency_error():
     message = "hello"
     error = DuplicateDependencyError(message)
     assert message in str(error)
-
-
-def test_duplicate_tag_error():
-    tag = Tag()
-    dependency = object()
-
-    error = DuplicateTagError(dependency, tag)
-    assert str(tag) in str(error)
-    assert str(dependency) in str(error)
 
 
 def test_frozen_world():

@@ -6,8 +6,7 @@ from antidote._compatibility.typing import Annotated
 
 
 def test_readme_simple():
-    from antidote import (inject, Service, Constants, const, world, Provide,
-                          Get)
+    from antidote import inject, Service, Constants, const, world, Provide, Get
     # from typing import Annotated
     # from typing_extensions import Annotated # Python < 3.9
 
@@ -19,11 +18,6 @@ def test_readme_simple():
         def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
             self._host = host  # <=> Conf().get('host')
 
-        # without PEP-593
-        @inject(dependencies={'host': Conf.DB_HOST})
-        def __init__(self, host: str):
-            self._host = host  # <=> Conf().get('host')
-
     @inject  # Nothing is injected implicitly.
     def f(db: Provide[Database] = None):
         # Defaulting to None allows for MyPy compatibility but isn't required to work.
@@ -33,19 +27,30 @@ def test_readme_simple():
     f()  # works !
     f(Database('localhost:6789'))  # but you can still use the function normally
 
-    # without PEP-593
-    # With auto_provide=True, all class type hints will be treated as dependencies.
-    # you can also explicitly say which classes with `auto_provide=[Database]`.
-    @inject(auto_provide=True)
-    def f(db: Database = None):
-        assert db is not None
-        pass
-
     # You can also retrieve dependencies by hand
     world.get(Conf.DB_HOST)
     world.get[str](Conf.DB_HOST)  # with type hint
     # if the dependency is the type itself, you may omit it:
     world.get[Database]()
+
+    ######################
+
+    class Database(Service):
+        @inject(dependencies={'host': Conf.DB_HOST})
+        def __init__(self, host: str):
+            self._host = host
+
+    @inject([Database])
+    def f(db: Database = None):
+        assert db is not None
+        pass
+
+    # Or with auto_provide=True, all class type hints will be treated as dependencies.
+    # you can also explicitly say which classes with `auto_provide=[Database]`.
+    @inject(auto_provide=True)
+    def f(db: Database = None):
+        assert db is not None
+        pass
 
 
 def test_readme():
@@ -61,9 +66,6 @@ def test_readme():
 
     class MovieDB:
         """ Interface """
-
-        def get_best_movies(self):
-            pass
 
     class ImdbAPI:
         """ Class from an external library. """
@@ -92,10 +94,10 @@ def test_readme():
                 }
             }
 
-        def get(self, name: str, value: str):
+        def get_const(self, name: str, arg: str):
             from functools import reduce
             # self.get('a.b') <=> self._raw_conf['a']['b']
-            return reduce(dict.get, value.split('.'), self._raw_conf)  # type: ignore
+            return reduce(dict.get, arg.split('.'), self._raw_conf)  # type: ignore
 
     # Provides ImdbAPI, as defined by the return type annotation.
     @factory
@@ -103,12 +105,6 @@ def test_readme():
                      port: Annotated[int, Get(Conf.IMDB_PORT)],
                      api_key: Annotated[str, Get(Conf.IMDB_API_KEY)]
                      ) -> ImdbAPI:
-        return ImdbAPI(host=host, port=port, api_key=api_key)
-
-    # Without PEP-593
-    @factory
-    @inject(dependencies=(Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY))
-    def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
         # Here host = Conf().get('imdb.host')
         return ImdbAPI(host=host, port=port, api_key=api_key)
 
@@ -123,26 +119,33 @@ def test_readme():
         def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
             self._imdb_api = imdb_api
 
-        # Without PEP-593
-        @inject(dependencies={'imdb_api': ImdbAPI @ imdb_factory})
-        def __init__(self, imdb_api: ImdbAPI):
-            self._imdb_api = imdb_api
-
-        def get_best_movies(self):
-            pass
-
     @inject
     def f(movie_db: Annotated[MovieDB, From(current_movie_db)] = None):
         assert movie_db is not None  # for Mypy
         pass
 
-    # Without PEP-593
-    @inject(dependencies=[MovieDB @ current_movie_db])
+    f()
+
+    ######################
+
+    @factory
+    @inject([Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY])
+    def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
+        return ImdbAPI(host=host, port=port, api_key=api_key)
+
+    class IMDBMovieDB(MovieDB, Service):
+        __antidote__ = Service.Conf(singleton=False)
+
+        @inject({'imdb_api': ImdbAPI @ imdb_factory})
+        def __init__(self, imdb_api: ImdbAPI):
+            self._imdb_api = imdb_api
+
+    @inject([MovieDB @ current_movie_db])
     def f(movie_db: MovieDB = None):
         assert movie_db is not None
         pass
 
-    f()
+    ######################
 
     conf = Conf()
     f(IMDBMovieDB(imdb_factory(
@@ -153,15 +156,17 @@ def test_readme():
         api_key=conf.IMDB_API_KEY,  # <=> conf.get('imdb.api_key')
     )))
 
+    ######################
+
     # When testing you can also override locally some dependencies:
     with world.test.clone(keep_singletons=True):
         world.test.override.singleton(Conf.IMDB_HOST, 'other host')
         f()
 
-    # If you encounter issues you can ask Antidote for a summary of what's happening
-    # for a specific dependency. It becomes useful as an cycle/instantiation error
-    # deep within the dependency tree results in a complex error stack.
+    ######################
+
     world.debug(f)
+    # will output:
     """
     f
     └── Permanent implementation: MovieDB @ current_movie_db

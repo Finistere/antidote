@@ -93,32 +93,46 @@ Singletons have no scope markers.
 @API.private
 def tree_debug_info(container: 'RawContainer',
                     origin: object,
-                    depth: int = -1) -> str:
+                    max_depth: int = -1) -> str:
     from ...core.wiring import WithWiringMixin
     from ...core.exceptions import DependencyNotFoundError
     from ...core import Scope
 
     @API.private
     class DebugTreeNode(Immutable):
-        __slots__ = ('info', 'scope', 'children')
+        __slots__ = ('info', 'scope', 'children', 'depth')
         info: str
         scope: 'Optional[Scope]'
         children: 'List[DebugTreeNode]'
+        depth: int
 
         def __init__(self,
                      info: str,
                      *,
+                     depth: int = 0,
                      scope: 'Optional[Scope]' = Scope.sentinel(),
                      children: 'List[DebugTreeNode]' = None) -> None:
-            super().__init__(info=textwrap.dedent(info),
-                             scope=scope,
-                             children=children or [])
+            super().__init__(textwrap.dedent(info),
+                             scope,
+                             children or [],
+                             depth)
 
-    if depth < 0:
-        depth = 1 << 31  # roughly infinity in this case.
+        def child(self,
+                  info: str,
+                  *,
+                  scope: 'Optional[Scope]' = Scope.sentinel()
+                  ) -> 'DebugTreeNode':
+            self.children.append(DebugTreeNode(
+                info,
+                depth=self.depth + 1,
+                scope=scope,
+            ))
+            return self.children[-1]
 
-    depth += 1  # To match root = depth 0
-    root = DebugTreeNode(info=debug_repr(origin))
+    if max_depth < 0:
+        max_depth = 1 << 31  # roughly infinity in this case.
+
+    root = DebugTreeNode(debug_repr(origin))
     original_root = root
     tasks: Deque[Tuple[DebugTreeNode, Set[object], Task]] = deque([
         (root, set(), DependencyTask(origin))
@@ -165,52 +179,41 @@ def tree_debug_info(container: 'RawContainer',
                 if dependency is origin:
                     add_root_injections(parent, parent_dependencies, dependency)
                 else:
-                    parent.children.append(DebugTreeNode(f"/!\\ Unknown: "
-                                                         f"{debug_repr(dependency)}"))
+                    parent.child(f"/!\\ Unknown: {debug_repr(dependency)}")
 
                 continue
 
             if dependency in parent_dependencies:
-                parent.children.append(DebugTreeNode(f"/!\\ Cyclic dependency: "
-                                                     f"{debug.info}"))
+                parent.child(f"/!\\ Cyclic dependency: {debug.info}")
                 continue
 
-            tree_node = DebugTreeNode(debug.info, scope=debug.scope)
-
-            parent.children.append(tree_node)
-            parent = tree_node
-            parent_dependencies = parent_dependencies | {dependency}
+            child = parent.child(debug.info, scope=debug.scope)
+            child_dependencies = parent_dependencies | {dependency}
 
             if dependency is origin:
-                root = tree_node  # previous root is redundant
-                add_root_injections(parent, parent_dependencies, dependency)
+                root = child  # previous root is redundant
+                add_root_injections(child, child_dependencies, dependency)
 
-            if len(parent_dependencies) < depth:
+            if child.depth < max_depth:
                 for d in debug.dependencies:
-                    tasks.append((parent, parent_dependencies,
+                    tasks.append((child, child_dependencies,
                                   DependencyTask(d)))
                 for w in debug.wired:
                     if isinstance(w, type) and inspect.isclass(w):
                         for d in get_injections(getattr(w, '__init__')):
-                            tasks.append((parent, parent_dependencies,
+                            tasks.append((child, child_dependencies,
                                           DependencyTask(d)))
                     else:
-                        tasks.append((parent, parent_dependencies, InjectionTask(
+                        tasks.append((child, child_dependencies, InjectionTask(
                             name=debug_repr(w),
                             injections=get_injections(w),
                         )))
         elif isinstance(task, InjectionTask) and task.injections:
-            tree_node = DebugTreeNode(task.name)
-            parent.children.append(tree_node)
-            parent = tree_node
+            child = parent.child(task.name)
             for d in task.injections:
-                tasks.append((parent, parent_dependencies, DependencyTask(d)))
+                tasks.append((child, parent_dependencies, DependencyTask(d)))
 
     if not root.children and original_root is root:
-        from ..._providers.tag import TagDependency
-        if isinstance(origin, TagDependency):
-            return f"No dependencies tagged with {origin.tag!r}"
-
         return f"{origin!r} is neither a dependency nor is anything injected."
 
     output = [

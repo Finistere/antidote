@@ -10,7 +10,7 @@ from antidote.core.container cimport (DependencyResult, FastProvider, Header,
                                       HeaderObject, header_is_singleton, Scope,
                                       RawContainer, header_flag_cacheable)
 from .._internal.utils import debug_repr
-from ..core import Dependency, DependencyDebug
+from ..core import DependencyDebug
 from ..core.exceptions import DependencyNotFoundError
 # @formatter:on
 
@@ -139,32 +139,35 @@ cdef class FactoryProvider(FastProvider):
     def register(self,
                  output: type,
                  *,
-                 factory: Union[Callable, Dependency],
-                 Scope scope) -> FactoryDependency:
+                 Scope scope,
+                 factory: Callable[..., object] = None,
+                 factory_dependency: Hashable = None
+                 ) -> FactoryDependency:
         cdef:
             Header header
         assert inspect.isclass(output) \
-               and (callable(factory) or isinstance(factory, Dependency)) \
+               and (factory is None or factory_dependency is None) \
+               and (factory is None or callable(factory)) \
                and (isinstance(scope, Scope) or scope is None)
         with self._bound_container_ensure_not_frozen():
-            factory_dependency = FactoryDependency(output, factory)
-            self._bound_container_raise_if_exists(factory_dependency)
+            dependency = FactoryDependency(output, factory or factory_dependency)
+            self._bound_container_raise_if_exists(dependency)
 
             header = HeaderObject.from_scope(scope).header
-            if isinstance(factory, Dependency):
-                self.__factories[factory_dependency] = Factory.__new__(
+            if factory_dependency:
+                self.__factories[dependency] = Factory.__new__(
                     Factory,
                     header,
-                    dependency=factory.unwrapped
+                    dependency=factory_dependency
                 )
             else:
-                self.__factories[factory_dependency] = Factory.__new__(
+                self.__factories[dependency] = Factory.__new__(
                     Factory,
                     header,
                     function=factory
                 )
 
-            return factory_dependency
+            return dependency
 
 @cython.final
 cdef class FactoryDependency:
@@ -175,7 +178,7 @@ cdef class FactoryDependency:
 
     def __init__(self, object output, object factory):
         self.output = output
-        self.factory = factory.unwrapped if isinstance(factory, Dependency) else factory
+        self.factory = factory
         self._hash = hash((output, factory))
 
     def __repr__(self) -> str:

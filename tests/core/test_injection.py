@@ -870,3 +870,35 @@ async def test_async(injector):
 
         res = await f()
         assert res == (service, None)
+
+
+def test_dependencies_shortcut():
+    with world.test.empty():
+        world.test.singleton(MyService, MyService())
+
+        @inject([MyService])
+        def f(x):
+            return x
+
+        assert f() is world.get[MyService]()
+
+        @inject(dict(x=MyService))
+        def g(x):
+            return x
+
+        assert g() is world.get[MyService]()
+
+        with pytest.raises(TypeError):
+            @inject("test")
+            def h(x):
+                return x
+
+        with pytest.raises(TypeError):
+            @inject([MyService], dependencies=dict())
+            def h2(x):
+                return x
+
+        with pytest.raises(TypeError):
+            @inject(dict(x=MyService), dependencies=dict())
+            def h3(x):
+                return x

@@ -1,11 +1,11 @@
 from antidote import world
-from antidote.core import Dependency, DependencyDebug, DependencyValue, Scope
+from antidote.core import LazyDependency, DependencyDebug, DependencyValue, Scope
 
 
 def test_dependency():
     with world.test.empty():
         world.test.singleton('x', object())
-        d = Dependency('x')
+        d = LazyDependency('x')
         assert d.unwrapped == 'x'
         assert d.get() is world.get('x')
 
@@ -45,9 +45,9 @@ def test_dependency_debug():
 
 
 def test_dependency_hash_eq():
-    d1 = Dependency('same')
-    d2 = Dependency('same')
-    x = Dependency('different')
+    d1 = LazyDependency('same')
+    d2 = LazyDependency('same')
+    x = LazyDependency('different')
 
     assert hash(d1) == hash(d2)
     assert d1 == d2

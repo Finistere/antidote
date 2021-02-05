@@ -31,24 +31,22 @@ def implementation(interface: type,
                    permanent: bool = True
                    ) -> Callable[[F], ImplementationProtocol[F]]:
     """
-    Function decorator which decides which implementation should be used for
-    :code:`interface`.
-
-    The underlying function is expected to return a dependency, typically the class of
-    the implementation when defined as a service. You may also use a factory dependency.
-
-    The function will not be wired, you'll need to do it yourself if you need it.
+    Defines which dependency should be retrieved when :code:`interface` is requested.
+    Suppose we have to support two different databases and the configuration defines
+    which one should be chosen:
 
     .. doctest:: implementation
 
-        >>> from antidote import (implementation, Service, factory, world, Get,
-        ...                       Constants, const)
-        >>> from typing import Annotated
-        ... # from typing_extensions import Annotated # Python < 3.9
+        >>> from antidote import Constants, const
         >>> class Config(Constants):
         ...     DB = const('postgres')
-        >>> class Database:
+        >>> # The interface
+        ... class Database:
         ...     pass
+
+    .. doctest:: implementation
+
+        >>> from antidote import Service, factory
         >>> class PostgreSQL(Database, Service):
         ...     pass
         >>> class MySQL(Database):
@@ -56,20 +54,56 @@ def implementation(interface: type,
         >>> @factory
         ... def build_mysql() -> MySQL:
         ...     return MySQL()
+
+    The decorated function must return the dependency that should be used for
+    :code:`Database`. It'll be automatically injected, so you can use annotated type hints
+    on it. Furthermore, the chosen implementation is by default permanent. Meaning that
+    the decorated function will only be called once, at most.
+
+    .. doctest:: implementation
+
+        >>> from antidote import implementation, Get
+        >>> from typing import Annotated
+        ... # from typing_extensions import Annotated # Python < 3.9
         >>> @implementation(Database)
         ... def local_db(choice: Annotated[str, Get(Config.DB)]):
         ...     if choice == 'postgres':
         ...         return PostgreSQL
         ...     else:
         ...         return MySQL @ build_mysql
-        >>> world.get(Database @ local_db)
+
+    To retrieve the actual implementation from Antidote you need to use a specific syntax
+    :code:`dependency @ implementation` as presented in the following examples.
+    The goal of it is twofold:
+
+    - Ensure that the implementation is loaded whenever you require the interface.
+    - Better maintainability as you know *where* the dependenciy comes from.
+
+    .. doctest:: implementation
+
+        >>> from antidote import world, inject
+        >>> world.get(Database @ local_db)  # treated as `object` by Mypy
         <PostgreSQL ...>
-        >>> # Changing choice doesn't matter anymore as the implementation is permanent
-        ... # by default
-        ... with world.test.clone():
-        ...     world.test.override.singleton(Config.DB, 'mysql')
-        ...     world.get(Database @ local_db)
+        >>> # With Mypy casting
+        ... world.get[Database](Database @ local_db)
         <PostgreSQL ...>
+        >>> # Concise Mypy casting
+        ... world.get[Database] @ local_db
+        <PostgreSQL ...>
+        >>> @inject([Database @ local_db])
+        ... def f(db: Database):
+        ...     pass
+
+    Or with annotated type hints:
+
+    .. doctest:: implementation
+
+        >>> from typing import Annotated
+        ... # from typing_extensions import Annotated # Python < 3.9
+        >>> from antidote import From
+        >>> @inject
+        ... def f(db: Annotated[Database, From(local_db)]):
+        ...     pass
 
     Args:
         interface: Interface for which an implementation will be provided

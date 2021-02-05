@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 
 from antidote import Scope, world
@@ -26,8 +24,8 @@ def provider():
         yield world.get(FactoryProvider)
 
 
-@pytest.fixture(params=[build, world.lazy('lazy_build')])
-def factory(request):
+@pytest.fixture(params=[dict(factory=build), dict(factory_dependency='lazy_build')])
+def factory_params(request):
     return request.param
 
 
@@ -54,15 +52,15 @@ def test_simple(provider: FactoryProvider):
 
 def test_lazy(provider: FactoryProvider):
     world.test.singleton('A', build)
-    factory_id = provider.register(A, factory=world.lazy('A'), scope=Scope.singleton())
+    factory_id = provider.register(A, factory_dependency='A', scope=Scope.singleton())
     assert isinstance(world.get(factory_id), A)
     # singleton
     assert world.get(factory_id) is world.get(factory_id)
 
 
-def test_exists(scope: Scope, factory: Any):
+def test_exists(scope: Scope, factory_params: dict):
     provider = FactoryProvider()
-    factory_id = provider.register(A, factory=factory, scope=scope)
+    factory_id = provider.register(A, scope=scope, **factory_params)
 
     assert not provider.exists(object())
     assert not provider.exists(Build(object(), kwargs=dict(a=1)))
@@ -73,9 +71,9 @@ def test_exists(scope: Scope, factory: Any):
 
 
 @pytest.mark.parametrize('singleton', [True, False])
-def test_singleton(provider: FactoryProvider, singleton: bool, factory: Any):
+def test_singleton(provider: FactoryProvider, singleton: bool, factory_params: dict):
     scope = Scope.singleton() if singleton else None
-    factory_id = provider.register(A, factory=factory, scope=scope)
+    factory_id = provider.register(A, scope=scope, **factory_params)
     assert isinstance(world.get(factory_id), A)
     assert (world.get(factory_id) is world.get(factory_id)) == singleton
 
@@ -91,16 +89,18 @@ def test_multiple_factories(provider: FactoryProvider, scope: Scope):
     assert isinstance(world.get(b2), A)
 
 
-def test_duplicate_dependency(provider: FactoryProvider, scope: Scope, factory: Any):
-    provider.register(A, factory=factory, scope=scope)
+def test_duplicate_dependency(provider: FactoryProvider,
+                              scope: Scope,
+                              factory_params: dict):
+    provider.register(A, scope=scope, **factory_params)
     with pytest.raises(DuplicateDependencyError):
-        provider.register(A, factory=factory, scope=scope)
+        provider.register(A, scope=scope, **factory_params)
 
 
-def test_build_dependency(provider: FactoryProvider, scope: Scope, factory: Any):
+def test_build_dependency(provider: FactoryProvider, scope: Scope, factory_params: dict):
     kwargs = dict(test=object())
     provider = world.get(FactoryProvider)
-    factory_id = provider.register(A, factory=factory, scope=scope)
+    factory_id = provider.register(A, scope=scope, **factory_params)
     a = world.get(Build(factory_id, kwargs))
     assert isinstance(a, A)
     assert a.kwargs == kwargs
@@ -137,7 +137,7 @@ def test_copy(scope: Scope):
     with world.test.empty():
         world.test.singleton('build', build)
         original = FactoryProvider()
-        a_id = original.register(A, factory=world.lazy('build'), scope=scope)
+        a_id = original.register(A, factory_dependency='build', scope=scope)
         a = world.test.maybe_provide_from(original, a_id).unwrapped
 
         assert isinstance(a, A)
@@ -173,7 +173,7 @@ def test_factory_id_repr(provider: FactoryProvider, scope: Scope):
     class B:
         pass
 
-    factory_id = provider.register(B, factory=world.lazy(build), scope=scope)
+    factory_id = provider.register(B, factory_dependency=build, scope=scope)
     assert f"{__name__}.test_factory_id_repr.<locals>.B" in repr(factory_id)
     assert f"{__name__}.build" in repr(factory_id)
 
@@ -191,7 +191,7 @@ def test_unknown_dependency(scope: Scope):
 
 def test_invalid_lazy_dependency(scope: Scope):
     provider = FactoryProvider()
-    fid = provider.register(A, factory=world.lazy("factory"), scope=scope)
+    fid = provider.register(A, factory_dependency="factory", scope=scope)
 
     with pytest.raises(DependencyNotFoundError, match=".*factory.*"):
         world.test.maybe_provide_from(provider, fid)

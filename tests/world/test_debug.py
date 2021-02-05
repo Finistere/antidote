@@ -1,7 +1,7 @@
 import textwrap
 
 from antidote import (Constants, Factory, From, LazyCall, LazyMethodCall, Provide,
-                      Service, Tag, Tagged, const, implementation, inject, world)
+                      Service, const, implementation, inject, world)
 from antidote._compatibility.typing import Annotated
 from antidote._internal.utils import short_id
 
@@ -311,33 +311,6 @@ def test_multiline_debug():
         ))
 
 
-def test_tag():
-    prefix = "tests.world.test_debug.test_tag.<locals>"
-
-    with world.test.new():
-        empty_tag = Tag('empty')
-        tag = Tag('dummy')
-
-        class S1(Service):
-            __antidote__ = Service.Conf(tags=[tag])
-
-        assert_valid(
-            DebugTestCase(
-                value=Tagged.with_(empty_tag),
-                expected=f"No dependencies tagged with "
-                         f"Tag('empty')#{short_id(empty_tag)}",
-                legend=False
-            ),
-            DebugTestCase(
-                value=Tagged.with_(tag),
-                expected=f"""
-                <∅> Tagged with Tag('dummy')#{short_id(tag)}
-                └── {prefix}.S1
-                """
-            )
-        )
-
-
 def test_lazy_method_debug():
     prefix = "tests.world.test_debug.test_lazy_method_debug.<locals>"
 
@@ -401,7 +374,7 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            def get(self, key):
+            def get_const(self, key, arg):
                 return key
 
         assert_valid(
@@ -420,7 +393,8 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            def get(self, key, service: Provide[MyService] = None):
+            def get_const(self, key, arg, service: Provide[MyService] = None):
+                assert isinstance(service, MyService)
                 return key
 
         assert_valid(
@@ -428,7 +402,7 @@ def test_constants_debug():
                 value=Conf.TEST,
                 expected=f"""
             Const: {prefix}.Conf.TEST
-            ├── {prefix}.Conf.get
+            ├── {prefix}.Conf.get_const
             │   └── {prefix}.MyService
             └── {prefix}.Conf
                     """
@@ -467,8 +441,6 @@ def test_custom_scope():
 
 def test_complex_debug():
     with world.test.new():
-        tag = Tag()
-
         class Interface:
             pass
 
@@ -488,8 +460,7 @@ def test_complex_debug():
             return Service4
 
         class Service3(Service):
-            __antidote__ = Service.Conf(singleton=False,
-                                        tags=[tag]).with_wiring(
+            __antidote__ = Service.Conf(singleton=False).with_wiring(
                 dependencies=dict(
                     i=Interface @ impl,
                     service2=Service2 @ BuildS2))
@@ -508,8 +479,6 @@ def test_complex_debug():
             X = LazyMethodCall(get)
 
         class Service4(Interface, Service):
-            __antidote__ = Service.Conf(tags=[tag])
-
             def __init__(self,
                          service1: Provide[Service1],
                          service2: Annotated[Service2, From(BuildS2)],
@@ -527,29 +496,35 @@ def test_complex_debug():
         def f_with_options(a, b):
             pass
 
+        @inject
+        def g(s: Provide[Service3], s4: Provide[Service4]):
+            pass
+
         prefix = "tests.world.test_debug.test_complex_debug.<locals>"
         assert_valid(
             DebugTestCase(
-                value=Tagged.with_(tag),
+                value=g,
                 depth=0,
                 expected=f"""
-                    <∅> Tagged with Tag#{short_id(tag)}
-                        """
-            ),
-            DebugTestCase(
-                value=Tagged.with_(tag),
-                depth=1,
-                expected=f"""
-                    <∅> Tagged with Tag#{short_id(tag)}
+                    {prefix}.g
                     ├── {prefix}.Service4
                     └──<∅> {prefix}.Service3
                         """
             ),
             DebugTestCase(
-                value=Tagged.with_(tag),
+                value=g,
+                depth=1,
+                expected=f"""
+                    {prefix}.g
+                    ├── {prefix}.Service4
+                    └──<∅> {prefix}.Service3
+                        """
+            ),
+            DebugTestCase(
+                value=g,
                 depth=2,
                 expected=f"""
-                    <∅> Tagged with Tag#{short_id(tag)}
+                    {prefix}.g
                     ├── {prefix}.Service4
                     │   ├──<∅> {prefix}.Service3
                     │   ├── {prefix}.Service2 @ {prefix}.BuildS2
@@ -561,10 +536,10 @@ def test_complex_debug():
                         """
             ),
             DebugTestCase(
-                value=Tagged.with_(tag),
+                value=g,
                 depth=3,
                 expected=f"""
-                <∅> Tagged with Tag#{short_id(tag)}
+                {prefix}.g
                 ├── {prefix}.Service4
                 │   ├──<∅> {prefix}.Service3
                 │   │   ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl
@@ -586,9 +561,9 @@ def test_complex_debug():
                         """
             ),
             DebugTestCase(
-                value=Tagged.with_(tag),
+                value=g,
                 expected=f"""
-                <∅> Tagged with Tag#{short_id(tag)}
+                {prefix}.g
                 ├── {prefix}.Service4
                 │   ├──<∅> {prefix}.Service3
                 │   │   ├── Permanent implementation: {prefix}.Interface @ {prefix}.impl

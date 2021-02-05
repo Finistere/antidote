@@ -48,8 +48,6 @@ define arguments as optional as shown below:
     s2: MyService = g()
 
 
-
-
 Note that any of this is only necessary if you're calling _explicitly_ the function, if only
 instantiate :code:`MyService` through Antidote for example, you won't need this for its
 :code:`__init__()` function typically. You could also use a :code:`Protocol` to define
@@ -131,24 +129,31 @@ will have their id added to help differentiate them:
 
 .. testcode:: how_to_debug
 
-    from antidote import Tag, Tagged
+    from antidote import LazyCall
 
-    dummy_tag = Tag('dummy')
-    dummy_tag2 = Tag('dummy')
+    def current_status():
+        pass
 
-    print(world.debug(Tagged.with_(dummy_tag)))
-    print(world.debug(Tagged.with_(dummy_tag2)))
+    STATUS = LazyCall(current_status)
+
+    print(world.debug(STATUS))
 
 will output the following
 
 .. testoutput:: how_to_debug
     :options: +NORMALIZE_WHITESPACE
 
-    No dependencies tagged with Tag('dummy')#...
-    No dependencies tagged with Tag('dummy')#...
+    Lazy: current_status()  #...
+
+    Singletons have no scope markers.
+    <∅> = no scope (new instance each time)
+    <name> = custom scope
 
 .. code-block:: text
 
-    No dependencies tagged with Tag('dummy')#QIKUBw
-    No dependencies tagged with Tag('dummy')#wCqrBw
+    Lazy: current_status()  #0P2QAw
+
+    Singletons have no scope markers.
+    <∅> = no scope (new instance each time)
+    <name> = custom scope
 

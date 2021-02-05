@@ -12,11 +12,9 @@ _SENTINEL = object()
 
 @API.public
 @final
-class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
+class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
     """
-    Used to clearly state that a value should be treated as a dependency and must
-    be retrieved from Antidote. It is recommended to use it through
-    :py:func:`..world.lazy` as presented:
+    Recommended usage is to usage :py:func:`..world.lazy`:
 
     .. doctest:: core_utils_dependency
 
@@ -24,10 +22,7 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
         >>> class MyService(Service):
         ...     pass
         >>> port = world.lazy[MyService]()
-        >>> port.unwrapped
-        <class 'MyService'>
-        >>> # to retrieve the dependency later, you may use get()
-        ... port.get()
+        >>> port.get()
         <MyService ...>
 
     """
@@ -54,7 +49,7 @@ class Dependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
         return hash(self.unwrapped)
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, Dependency)
+        return (isinstance(other, LazyDependency)
                 and (self.unwrapped is other.unwrapped
                      or self.unwrapped == other.unwrapped))
 

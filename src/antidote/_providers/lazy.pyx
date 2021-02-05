@@ -20,14 +20,14 @@ cdef class Lazy:
     def debug_info(self) -> DependencyDebug:
         raise DebugNotAvailableError()  # pragma: no cover
 
-    cdef fast_lazy_get(self, PyObject*container, DependencyResult*result):
+    cdef fast_provide(self, PyObject*container, DependencyResult*result):
         cdef:
             DependencyValue dependency_instance
-        dependency_instance = self.lazy_get(<Container> container)
+        dependency_instance = self.provide(<Container> container)
         if dependency_instance is not None:
             dependency_instance.to_result(result)
 
-    cpdef lazy_get(self, container: Container):
+    cpdef provide(self, container: Container):
         raise NotImplementedError()  # pragma: no cover
 
 @cython.final
@@ -52,4 +52,4 @@ cdef class LazyProvider(FastProvider):
                       PyObject*container,
                       DependencyResult*result):
         if PyObject_IsInstance(dependency, <PyObject*> Lazy):
-            return (<Lazy> dependency).fast_lazy_get(container, result)
+            return (<Lazy> dependency).fast_provide(container, result)

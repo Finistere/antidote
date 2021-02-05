@@ -21,8 +21,12 @@ def test_constants_typing() -> None:
             B = const[list]("b", default=[2])
 
             @inject
-            def get(self, key: str, my_service: Provide[MyService] = None) -> object:
-                assert my_service is not None
+            def get_const(self,
+                          name: str,
+                          arg: object,
+                          my_service: Provide[MyService] = None
+                          ) -> object:
+                assert isinstance(my_service, MyService)
                 return []
 
         Conf().A.append(1)

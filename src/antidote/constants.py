@@ -13,34 +13,79 @@ const = MakeConst()
 @API.public
 class Constants(metaclass=ConstantsMeta, abstract=True):
     """
-    Used to declare constants, typically configuration. The purpose is to make common
-    configuration manipulation easy. If you need complex operations, consider using the
-    Constants class as a service by specifying :code:`public=True`.
+    Used to declare constants, typically configuration which may be retrieved from the
+    environment, a file, etc...
 
-    Constants are defined using :py:func:`.const`. It accepts a single value which will
-    be given to :code:`get()`. You may also specify the type of the constants. If the
-    type is included in :code:`auto_cast`, the cast will be enforced. By default it is
-    only applied to :code:`str`, :code:`float` and :code:`int`.
+    Constants are simply defined with :py:func:`.const`:
 
-    .. doctest:: Constants_v2
+    .. doctest:: constants
 
         >>> from antidote import Constants, const, world
         >>> class Config(Constants):
-        ...     PORT = const[int]('80')
-        ...     PORT_2 = const('8080')
-        ...     DUMMY = const[dict]('dummy')
-        >>> # Mypy will treat it as a int AND it'll be cast to int.
+        ...     PORT = const(80)
+        ...     HOST = const('localhost')
+        >>> world.get[int](Config.PORT)
+        80
+        >>> world.get[str](Config.HOST)
+        'localhost'
+        >>> # Or directly from an instance, for testing typically:
         ... Config().PORT
         80
+
+    :py:class:`.Constants` really shines when you need to change *how* you retrieve the
+    constants. For example, let's suppose we need to load our configuration from a file:
+
+    .. doctest:: constants
+
+        >>> class Config(Constants):
+        ...     PORT = const[int]('port')
+        ...     UNTYPED_PORT = const('port')
+        ...     HOST = const[str]('host')
+        ...
+        ...     def __init__(self):
+        ...         self._data = {'host': 'localhost', 'port': '80'}
+        ...
+        ...     def get_const(self, name: str, arg: str):
+        ...         return self._data[arg]
+        ...
+        >>> # the actual constant will be auto casted to the type hint if present and
+        ... # is one of {str, float, int}.
+        ... world.get(Config.PORT)
+        80
+        >>> # The type hint is also used as... a type hint !
+        ... Config().PORT  # will be treated as an int by Mypy
+        80
+        >>> world.get(Config.UNTYPED_PORT)
+        '80'
+        >>> world.get(Config.HOST)
+        'localhost'
+
+    In the previous example we're also using the :code:`auto_cast` feature. It provides
+    a type hint for Mypy and will be used to cast the result of
+    :py:meth:`.Constants.get_const` if one of :code:`str`, :code:`int` or :code:`float`.
+    It can be configured to be either deactivated or extended to support enums for
+    example.
+
+    Another useful feature is :code:`default` which simply defines the default value to
+    be used if a :py:exc:`LookUpError` is raised in :py:meth:`.Constants.get_const`. It
+    must already have the correct type, :code:`auto_cast` will *not* be applied on it.
+
+    .. doctest:: constants
+
+        >>> class Config(Constants):
+        ...     PORT = const[int]('port', default=80)
+        ...     HOST = const[str]('host')
+        ...
+        ...     def __init__(self):
+        ...         self._data = {'host': 'localhost'}
+        ...
+        ...     def get_const(self, name: str, arg: str):
+        ...         return self._data[arg]
+        ...
         >>> world.get(Config.PORT)
         80
-        >>> Config().PORT_2
-        '8080'
-        >>> world.get(Config.PORT_2)
-        '8080'
-        >>> # Mypy will treat it as a dict but it'll not be cast to anything
-        ... Config().DUMMY
-        'dummy'
+        >>> world.get(Config.HOST)
+        'localhost'
 
     """
 
@@ -101,7 +146,19 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
 
     __antidote__: Conf = Conf()
 
-    def get(self, name: str, value: Any) -> object:
-        if value is None:
+    def get_const(self, name: str, arg: Any) -> object:
+        """
+        Used to retrieve the value of the constant defined with :py:func:`.const`.
+        If a :py:exc:`LookUpError` is raised, the :code:`default` value defined
+        with :py:func:`.const` will be used if any.
+
+        Args:
+            name: Name of the constant
+            arg: Argument given to :py:func:`.const` when creating the constant.
+
+        Returns:
+            Constant value.
+        """
+        if arg is None:
             raise ValueError(f"No value provided for const {name}")
-        return value
+        return arg

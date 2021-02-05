@@ -50,10 +50,8 @@ def test_method_call():
             return s
 
         A = LazyMethodCall(get)(x)
-        B = LazyMethodCall('get')(x)
 
     assert world.get(Test.A) is x
-    assert world.get(Test.B) is x
 
 
 def test_method_same_instance():
@@ -126,4 +124,25 @@ def test_invalid_lazy_method_call():
         LazyMethodCall(method=object())
 
     with pytest.raises(TypeError, match=".*singleton.*"):
-        LazyMethodCall(method='method', singleton=object())
+        LazyMethodCall(method=lambda: None, singleton=object())
+
+
+def test_invalid_lazy_method_class():
+    class Dummy:
+        def get(self, x):
+            pass
+
+        A = LazyMethodCall(get)
+        B = LazyMethodCall(get)(x=1)
+
+    with pytest.raises(RuntimeError):
+        Dummy.A
+
+    with pytest.raises(RuntimeError):
+        Dummy().A
+
+    with pytest.raises(RuntimeError):
+        Dummy.B
+
+    with pytest.raises(RuntimeError):
+        Dummy().B

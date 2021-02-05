@@ -11,7 +11,7 @@ class Lazy:
     def debug_info(self) -> DependencyDebug:
         raise DebugNotAvailableError()
 
-    def lazy_get(self, container: Container) -> DependencyValue:
+    def provide(self, container: Container) -> DependencyValue:
         raise NotImplementedError()  # pragma: no cover
 
 
@@ -26,4 +26,4 @@ class LazyProvider(StatelessProvider[Lazy]):
 
     def provide(self, dependency: Lazy, container: Container
                 ) -> DependencyValue:
-        return dependency.lazy_get(container)
+        return dependency.provide(container)

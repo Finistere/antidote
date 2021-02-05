@@ -31,13 +31,6 @@ class ImplementationWrapper:
 
 @API.private
 def validate_provided_class(dependency: Hashable, *, expected: type) -> None:
-    """
-    Verify that the dependency will provide a class which is a subclass
-    of :code:`expected`.
-
-    :meta: private
-    """
-    # import private stuff
     from ._providers.factory import FactoryDependency
     from ._providers.service import Build
     from ._providers.indirect import ImplementationDependency

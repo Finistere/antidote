@@ -2,9 +2,8 @@ from typing import Any, Callable, Type
 
 import pytest
 
-from antidote import Factory, Provide, Service, Tag, Wiring, factory, inject, world
-from antidote._providers import (FactoryProvider, LazyProvider, ServiceProvider,
-                                 TagProvider)
+from antidote import Factory, Provide, Service, Wiring, factory, inject, world
+from antidote._providers import (FactoryProvider, LazyProvider, ServiceProvider)
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +12,6 @@ def test_world():
         world.provider(ServiceProvider)
         world.provider(FactoryProvider)
         world.provider(LazyProvider)
-        world.provider(TagProvider)
         yield
 
 
@@ -228,11 +226,10 @@ def test_invalid_conf_args(kwargs, expectation):
 @pytest.mark.parametrize('kwargs', [
     dict(singleton=False),
     dict(scope=None),
-    dict(tags=(Tag(),)),
     dict(wiring=Wiring(methods=['method'])),
 ])
 def test_conf_copy(kwargs):
-    conf = Factory.Conf(singleton=True, tags=[]).copy(**kwargs)
+    conf = Factory.Conf(singleton=True).copy(**kwargs)
     for k, v in kwargs.items():
         assert getattr(conf, k) == v
 

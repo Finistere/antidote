@@ -137,20 +137,92 @@ It'll only confuse Mypy and your IDE.
 
 
 
-2. Services
+2. Injection
+============
+
+Injection is done with the decorator :py:func:`.inject`. By default it relies only on
+annotated type hints. Here is are the different ways to use it:
+
+1.  Annotated type hints.
+
+    .. testcode:: tutorial_injection
+
+        from antidote import inject, Service, Provide
+
+        class MyService(Service):
+            pass
+
+        @inject
+        def f(my_service: Provide[MyService]):
+            pass
+
+2.  :code:`dependencies` Defines explicitly which dependency to associate with which
+    argument. The most common usage are either with a dictionary:
+
+    .. testcode:: tutorial_injection
+
+        class AnotherService(Service):
+            pass
+
+        @inject(dependencies=dict(my_service=MyService, another=AnotherService))
+        def f(my_service: MyService, another: AnotherService):
+            pass
+
+        # Or more concisely
+        @inject(dict(my_service=MyService, another=AnotherService))
+        def f(my_service: MyService, another: AnotherService):
+            pass
+
+    Or with an iterable of dependencies. In this case the ordering of the dependencies
+    is used to
+
+    .. testcode:: tutorial_injection
+
+        # When needed None can be used a placeholder for argument that should be ignored.
+        @inject(dependencies=[MyService, AnotherService])
+        def f(my_service: MyService, another: AnotherService):
+            pass
+
+        # Or more concisely
+        @inject([MyService, AnotherService])
+        def f(my_service: MyService, another: AnotherService):
+            pass
+
+3.  :code:`auto_provide`: When set to :py:obj:`True`, class type hints will be treated
+    as dependencies. You can restrict this behavior by specifying a list of classes for
+    which it should be used:
+
+    .. testcode:: tutorial_injection
+
+        # Both `my_service` and `another` will be injected
+        @inject(auto_provide=True)
+        def f(my_service: MyService, another: AnotherService):
+            pass
+
+        # argument `another` won't be injected
+        @inject(auto_provide=[MyService])
+        def f(my_service: MyService, another: AnotherService):
+            pass
+
+
+Antidote will only try to retrieve dependencies for an argument when it's missing. If
+found, it'll be injected. If not, a :py:exc:`~.exceptions.DependencyNotFoundError` will
+be raised if there is no default argument.
+
+
+
+3. Services
 ===========
 
 
-We declared :code:`MyService` before as a singleton by hand, but Antidote provides a
-better way to do this, defining a :py:class:`.Service` ! A service is a class which
-provides some sort of functionality. A common example is a class serving as an interface
-to some external system like a database:
+We've seend :py:class`.Service` before to declare :code:`MyService` ! Let's take a better
+look at it. A service is a class which provides some sort of functionality. A common
+example is a class serving as an interface to some external system like a database:
 
 .. testcode:: tutorial_services
 
     from antidote import inject, Service, Provide
 
-    # Automatically declared by inheriting Service
     class Database(Service):
         def __init__(self):
             self.users = [dict(name='Bob')]
@@ -158,6 +230,12 @@ to some external system like a database:
     @inject
     def get_user_count(db: Provide[Database]):
         return len(db.users)
+
+    # Or without annotated type hints
+    @inject([Database])
+    def get_user_count(db: Database):
+        return len(db.users)
+
 
 .. doctest:: tutorial_services
 
@@ -192,9 +270,12 @@ hints anywhere and they will be taken into account as shown hereafter:
     >>> world.get[UserAPI]().get_user_count()
     1
 
-Those default behaviors can be changed easily with a custom
+This simplifies the code as annotated type hints are a good enough indication that
+something will be injected.
+
+All those default behaviors can be changed easily with a custom
 :py:class:`.Service.Conf` in your :py:class:`.Service`. For example you could create
-a non singleton service which uses :code:`auto_provide=True` by default:
+a non singleton service which uses :code:`auto_provide=True` on all methods by default:
 
 .. testcode:: tutorial_services
 
@@ -210,10 +291,10 @@ a non singleton service which uses :code:`auto_provide=True` by default:
     False
 
 You may also find yourself in situations where a single service should be used with
-different parameters. For example, let's create a simple service which accumulates metrics
+different parameters. For example, a simple service which accumulates metrics
 during the application lifetime and flushes it to the database. We could create subclasses
-for each possible metric, but that would obviously be cumbersome. Hence Antidote allows
-you to specify constructor arguments when requesting a :py:class:`.Service`:
+for each possible metric or have one service handle all metrics. But Antidote provides a
+nicer way: you to specify constructor arguments when requesting a :py:class:`.Service`:
 
 .. testcode:: tutorial_services
 
@@ -226,8 +307,8 @@ you to specify constructor arguments when requesting a :py:class:`.Service`:
         @classmethod
         def of(cls, name: str):
             """
-            Wrapping _with_kwargs() to provide a cleaner interface with arguments and type
-            hints and not just **kwargs.
+            Provides a clean interface with arguments and type hints as _with_kwargs()
+            only accepts **kwargs.
             """
             return cls._with_kwargs(name=name)
 
@@ -268,7 +349,7 @@ like this:
 
     # Or without annotated type hints. Here we're passing a list of dependencies, so
     # its mapped to the arguments through their position.
-    @inject(dependencies=[MetricAccumulator.of('count')])
+    @inject([MetricAccumulator.of('count')])
     def f(count_metric: MetricAccumulator):
         pass
 
@@ -294,81 +375,9 @@ like this:
 
 
 
-3. Injection & Wiring
-=====================
+4. Wiring
+=========
 
-
-Function
---------
-
-Injection is done with the decorator :py:func:`.inject`. Everything else,
-:py:func:`.auto_provide`, :py:func:`.wire` and auto-wiring of :py:class:`Service`
-through :py:class:`Wiring` relies on it. As such they mostly have the same arguments with
-the same behavior. Their differences are present a bit later.
-
-By default :py:func:`.inject` relies only on annotated type hints to determine what must
-be injected it supports also supports :code:`auto_provide` and :code:`dependencies`.
-As they can conflict with each other, the most explicit one is always used first:
-
-1.  Annotated type hints.
-
-    .. testcode:: tutorial_injection
-
-        from antidote import inject, Service, Provide
-
-        class MyService(Service):
-            pass
-
-        @inject
-        def f(my_service: Provide[MyService]):
-            pass
-
-2.  :code:`dependencies` Defines explicitly which dependency to associate with which
-    argument. The most common usage are either with a dictionary:
-
-    .. testcode:: tutorial_injection
-
-        class AnotherService(Service):
-            pass
-
-        @inject(dependencies=dict(my_service=MyService, another=AnotherService))
-        def f(my_service: MyService, another: AnotherService):
-            pass
-
-    Or with an iterable of dependencies. In this case the ordering of the dependencies
-    is used to
-
-    .. testcode:: tutorial_injection
-
-        # When needed None can be used a placeholder for argument that should be ignored.
-        @inject(dependencies=[MyService, AnotherService])
-        def f(my_service: MyService, another: AnotherService):
-            pass
-
-3.  :code:`auto_provide`: When set to :py:obj:`True`, class type hints will be treated
-    as dependencies. You can restrict this behavior by specifying a list of classes for
-    which it should be used:
-
-    .. testcode:: tutorial_injection
-
-        # Both `my_service` and `another` will be injected
-        @inject(auto_provide=True)
-        def f(my_service: MyService, another: AnotherService):
-            pass
-
-        # argument `another` won't be injected
-        @inject(auto_provide=[MyService])
-        def f(my_service: MyService, another: AnotherService):
-            pass
-
-
-Antidote will only try to retrieve dependencies for an argument when it's missing. If
-found, it'll be injected. If not, a :py:exc:`~.exceptions.DependencyNotFoundError` will
-be raised if there is no default argument.
-
-
-Class
------
 
 When declaring a service with :py:class:`.Service` we've seen that methods, such
 as :code:`__init__()` will be automatically wired. Underneath it relies on :py:class:`.Wiring`
@@ -412,7 +421,7 @@ If you don't want any wiring at all, you just have to set it to :py:obj:`None`:
         # No wiring, nothing will be injected not even annotated type hints.
         __antidote__ = Service.Conf(wiring=None)
 
-You can also :py:func:`.inject` with :py:class:`.Wiring`:
+You can also :py:func:`.inject` to override any :py:class:`.Wiring`:
 
 .. testcode:: tutorial_wiring
 
@@ -428,7 +437,7 @@ You can also :py:func:`.inject` with :py:class:`.Wiring`:
             return db
 
         # Wiring will not override any injection made explicitly.
-        @inject(dependencies=dict(db=MySQL))
+        @inject(dict(db=MySQL))
         def load_different_db(self, db: Database) -> Database:
             return db
 
@@ -476,12 +485,14 @@ For conciseness, Antidote provides some shortcuts:
         True
 
 
-4. Configuration
+
+5. Configuration
 ================
 
 
-Antidote main goal for configuration is to enable you to trace back where it comes from
-easily, like a service where you only need to go to the class definition.
+Antidote :py:class:`.Constants` allows you to define configuration that you can inject
+and maintain easily. Like a service where you only need to use "go to definition" to know
+how a constant is actually defined. And you know *where* it's used:
 
 .. testcode:: tutorial_conf
 
@@ -502,7 +513,7 @@ easily, like a service where you only need to go to the class definition.
 
     # Or without any annotated type hints.
     # Here None is simply a placeholder, nothing will be injected.
-    @inject(dependencies=(None, Config.DOMAIN, Config.PORT))
+    @inject([None, Config.DOMAIN, Config.PORT])
     def absolute_url(path: str, domain: str, port: int):
         return f"https://{domain}:{port}{path}"
 
@@ -516,63 +527,80 @@ easily, like a service where you only need to go to the class definition.
     ... Config().DOMAIN
     'example.com'
 
-You probably noticed that :code:`Config.PORT` we explicitly stated that it was an integer.
-Like for :py:func:`.world.get` it allows Mypy to have some information when accessing it
-directly, typically in tests:
-
-.. doctest:: tutorial_conf
-
-    >>> config = Config()
-    >>> config.PORT  # will be treated by Mypy as an `int`
-    3000
-
-But there is also another use to it. Let's suppose we're loading our configuration from a
-file now:
+Pretty easy isn't it ? But it feels a bit overkill to just define some constants in Python.
+But more often than not your configuration will be coming from a file or even a database.
+This can become increasingly complicated if you need to lazily load configuration. Luckily
+Antidote forces you to encapsulate how you retrieve the configuration, so it's easy to change:
 
 .. testcode:: tutorial_conf
 
     class Config(Constants):
-        PORT = const[int]()
-        DOMAIN = const()
+        PORT = const[int]('port')
+        DOMAIN = const('domain')
 
         def __init__(self):
-            # extracted dictionary from a file
-            self._raw_data = dict(domain='example.com', port='3000')
+            # Load configuration from somewhere. Config will only be instantiated if
+            # necessary.
+            self._data = dict(domain='example.com', port='80')
 
-        def get(self, name: str, value: object):
-            return self._raw_data[name.lower()]
+        def get_const(self, name: str, arg: str):
+            # Only called when needed.
+            return self._data[arg]
 
 .. doctest:: tutorial_conf
 
     >>> from antidote import world
-    >>> port = world.get(Config.PORT)
-    >>> port
-    3000
-    >>> type(port)
-    <class 'int'>
+    >>> world.get(Config.PORT)
+    80
+    >>> Config().DOMAIN
+    'example.com'
 
-It's still an integer ! This is one of the few cases where Antidote does use magic:
-:py:class:`.Constants` will, by default, automatically cast integers, floats and strings.
-This allows you to have a somewhat concise configuration class. You don't have to handle
-simple casting.You can control that behavior, by either extending or deactivating it,
-with :py:class:`.Constants.Conf.auto_cast`. Additional examples can be found in :doc:`./recipes`
+You probably noticed that :code:`Config.PORT` we explicitly stated that it was an integer.
+it serves two purposes:
 
-.. note::
+-   providing a type hint for Mypy:
 
-    Even though we radically change how we load the configuration, functions relying on
-    :code:`Config.PORT` or :code:`Config.DOMAIN` will still work and require
-    no change at all ! Furthermore all attributes defined with :py:func:`.const` are
-    lazily retrieved. Even :code:`Config` is lazily instantiated, only when needed.
+    .. doctest:: tutorial_conf
+
+        >>> world.get(Config.PORT)  # treated as a `int` by Mypy, whether that's true or not.
+        80
+-   If the type is one of :code:`str`, :code:`float` or :code:`int`, the result of
+    :py:meth:`~.Constants.get_const` will be cast automatically. This allows you to handle
+    simply cases where the configuration is retrieved as a string. You can either
+    deactivate this behavior or extend it to support enums with
+    :py:attr:`~.Constants.Const.auto_cast`.
+
+In the same spirit, :py:func:`.const` allows you to define a default value. It will
+only be used if :py:meth:`~.Constants.get_const` raises a :py:exc:`LookUpError`:
+
+.. testcode:: tutorial_conf
+
+    class Config(Constants):
+        PORT = const[int]('port', default=80)
+        DOMAIN = const('domain')
+
+        def __init__(self):
+            self._data = dict(domain='example.com')
+
+        def get_const(self, name: str, arg: str):
+            return self._data[arg]
+
+.. doctest:: tutorial_conf
+
+    >>> world.get(Config.PORT)
+    80
+    >>> Config().DOMAIN
+    'example.com'
 
 
 
-5. Factories & External dependencies
+6. Factories & External dependencies
 ====================================
 
 
 Factories are ideal to deal with external dependencies which you don't own,
 like library classes. The simplest way to declare a factory, is simply to use the function
-decorator :py:func:`.factory.factory`:
+decorator :py:func:`~.factory.factory`:
 
 .. testcode:: tutorial_factory
 
@@ -601,11 +629,11 @@ decorator :py:func:`.factory.factory`:
 
     # Or without annotated type hints
     @factory
-    @inject(dependencies=[Config.URL])
+    @inject([Config.URL])
     def default_db(url: str) -> Database:
         return Database(url)
 
-    @inject(dependencies=[Database @ default_db])
+    @inject([Database @ default_db])
     def f(db: Database) -> Database:
         return db
 
@@ -619,7 +647,7 @@ decorator :py:func:`.factory.factory`:
 
 
 The return type MUST always be specified, this is how Antidote knows which dependency you
-intend to provide. :py:func:`.factory.factory` will apply :py:func:`.inject` on the function if not
+intend to provide. :py:func:`~.factory.factory` will apply :py:func:`.inject` on the function if not
 done already. Hence you can use annotated type hints out of the box but no more without
 injecting explicitly. You're probably wondering about the custom syntax when not using
 annotated type hints :code:`Database @ default_db`. It provides some very nice properties
@@ -630,16 +658,9 @@ annotated type hints :code:`Database @ default_db`. It provides some very nice p
 
 If you need more complex factories, you can use a class instead by inheriting :py:class:`.Factory`:
 
-.. testcode:: tutorial_factory_v2
+.. testcode:: tutorial_factory
 
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-
-    from antidote import Factory, Constants, const, Get
-
-
-    class Config(Constants):
-        URL = const[str]('localhost:5432')
+    from antidote import Factory
 
     class Database:
         def __init__(self, url: str):
@@ -651,16 +672,22 @@ If you need more complex factories, you can use a class instead by inheriting :p
 
         # Will be called to instantiate Database
         def __call__(self) -> Database:
-            return Database(url)
+            return Database(self.url)
 
 :py:class:`.Factory` has more or less the same configuration parameters than :py:class:`.Service`:
 
 - :py:class:`.Factory.Conf` like :py:class:`.Service.Conf`
 - :py:class:`.Factory._with_kwargs` like :py:class:`.Service._with_kwargs`
 
+And you use it the same way as :py:func:`~.factory.factory`:
+
+.. doctest:: tutorial_factory
+
+    >>> world.get[Database](Database @ DefaultDB)
+    <Database ...>
 
 
-6. Tests
+7. Tests
 ========
 
 
@@ -678,16 +705,16 @@ the injection to be used:
     def f(my_service: Provide[MyService]) -> MyService:
         return my_service
 
-    # injection
+    # injected
     f()
 
-    # but you can still do either:
+    # manual override
     f(MyService())
     f(my_service=MyService())
 
 This allows to test easily individual components in unit-tests easily. But that's not always
-enough in more complex tests or integration tests. Don't worry, Antidote got you covered !
-In the first section Antidote was roughly described as working as follows::
+enough in more complex tests or integration tests. First of all, let's recap how Antidote
+works. In the first section Antidote was roughly described as working as follows::
 
                  +-----------+
           +----->|   world   +------+
@@ -728,7 +755,7 @@ But that's not really what is happening, in reality we have::
 The container handles all of the state of Antidote such as singletons. The good news is
 that :py:mod:`.world` does provide to you the tools to control it in :py:mod:`.world.test`.
 Allowing you to override dependencies or test in isolated environments. The most important
-one is :py:func:`.world.test.clone`. It'll keep all of your dependency declaration and
+one is :py:func:`.world.test.clone`. It'll keep all of your dependency declarations and
 isolate you from the outside world:
 
 .. doctest:: tutorial_test
@@ -737,14 +764,13 @@ isolate you from the outside world:
     >>> with world.test.clone():
     ...     # This works as expected !
     ...     my_service = f()
-    >>> # but it's isolated from the rest
+    >>> # but it's isolated from the rest, so you don't have the same instance
     ... my_service is world.get(MyService)
     False
 
 
-It'll also apply :py:func:`.world.freeze` the local world, meaning that no new dependencies
-cannot be added. It ensures that you cannot change the wiring of your dependencies which you
-intend to test.
+It'll also :py:func:`.world.freeze` the local world, meaning that no new dependencies
+cannot be added. After all you want to test your existing dependencies not create new ones.
 
 .. doctest:: tutorial_test
 
@@ -755,9 +781,24 @@ intend to test.
       File "<stdin>", line 1, in ?
     FrozenWorldError
 
+.. note::
 
-Doesn't sound very helpful by itself, but you can use :py:mod:`.world.test.override` to
-override any dependency in it:
+    To test new dependencies, you should use :py:func:`.world.test.new` instead:
+
+    .. doctest:: tutorial_test
+
+        >>> with world.test.new():
+        ...     class NewService(Service):
+        ...         pass
+        ...     world.get[NewService]()
+        <NewService ...>
+        >>> world.get[NewService]()
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in ?
+        DependencyNotFoundError
+
+
+To change dependencies, you need to use :py:mod:`.world.test.override`:
 
 .. doctest:: tutorial_test
 

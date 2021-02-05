@@ -38,7 +38,7 @@ DEPENDENCIES_TYPE = Optional[Union[
 
 
 @overload
-def inject(__func: staticmethod,  # noqa: E704  # pragma: no cover
+def inject(__arg: staticmethod,  # noqa: E704  # pragma: no cover
            *,
            dependencies: DEPENDENCIES_TYPE = None,
            auto_provide: Union[bool, Iterable[Hashable]] = None,
@@ -47,7 +47,7 @@ def inject(__func: staticmethod,  # noqa: E704  # pragma: no cover
 
 
 @overload
-def inject(__func: classmethod,  # noqa: E704  # pragma: no cover
+def inject(__arg: classmethod,  # noqa: E704  # pragma: no cover
            *,
            dependencies: DEPENDENCIES_TYPE = None,
            auto_provide: Union[bool, Iterable[Hashable]] = None,
@@ -56,7 +56,7 @@ def inject(__func: classmethod,  # noqa: E704  # pragma: no cover
 
 
 @overload
-def inject(__func: F,  # noqa: E704  # pragma: no cover
+def inject(__arg: F,  # noqa: E704  # pragma: no cover
            *,
            dependencies: DEPENDENCIES_TYPE = None,
            auto_provide: Union[bool, Iterable[Hashable]] = None,
@@ -72,8 +72,24 @@ def inject(*,  # noqa: E704  # pragma: no cover
            ) -> Callable[[F], F]: ...
 
 
+@overload
+def inject(__arg: Sequence[Hashable],  # noqa: E704  # pragma: no cover
+           *,
+           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           strict_validation: bool = True
+           ) -> Callable[[F], F]: ...
+
+
+@overload
+def inject(__arg: Mapping[str, Hashable],  # noqa: E704  # pragma: no cover
+           *,
+           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           strict_validation: bool = True
+           ) -> Callable[[F], F]: ...
+
+
 @API.public
-def inject(__func: AnyF = None,
+def inject(__arg: Union[AnyF, Sequence[Hashable], Mapping[str, Hashable]] = None,
            *,
            dependencies: DEPENDENCIES_TYPE = None,
            auto_provide: Union[bool, Iterable[Hashable]] = None,
@@ -100,13 +116,16 @@ def inject(__func: AnyF = None,
         ... def f(a: Provide[A]):
         ...     pass # a = world.get(A)
         >>> # All possibilities for dependency argument.
-        >>> @inject(dependencies=None)  # default
-        ... def f(a):
-        ...     pass  # a = <not injected>
         >>> @inject(dependencies=dict(b='dependency'))
         ... def f(a, b):
         ...     pass  # a, b = <not injected>, world.get('dependency')
-        >>> @inject(dependencies=[None, 'dependency'])  # Nothing will be injected a
+        >>> @inject(dict(b='dependency'))  # shortcut
+        ... def f(a, b):
+        ...     pass
+        >>> @inject(dependencies=[None, 'dependency'])  # `a` is ignored
+        ... def f(a, b):
+        ...     pass  # a, b = <not injected>, world.get('dependency')
+        >>> @inject([None, 'dependency'])  # shortcut
         ... def f(a, b):
         ...     pass  # a, b = <not injected>, world.get('dependency')
         >>> @inject(dependencies=lambda arg: 'dependency' if arg.name == 'b' else None)
@@ -124,8 +143,9 @@ def inject(__func: AnyF = None,
         ...     pass  # a = <not injected>
 
     Args:
-        __func: Callable to be wrapped. Can also be used on static methods or class
-            methods.
+        __arg: Callable to be wrapped. Can also be used on static methods or class
+            methods. May also be sequence of dependencies or mapping from argument
+            name to dependencies.
         dependencies: Explicit definition of the dependencies which overrides
             :code:`auto_provide`. Defaults to :py:obj:`None`.
             Can be one of:
@@ -151,6 +171,16 @@ def inject(__func: AnyF = None,
 
     from ._injection import raw_inject
 
+    if isinstance(__arg, (c_abc.Sequence, c_abc.Mapping)):
+        if isinstance(__arg, str):
+            raise TypeError("First argument must be an sequence/mapping of dependencies "
+                            "or the function to be wrapped, not a string.")
+        if dependencies is not None:
+            raise TypeError("dependencies must be None if a sequence/mapping of "
+                            "dependencies is provided as first argument.")
+        dependencies = __arg
+        __arg = None
+
     def decorate(f: AnyF) -> AnyF:
         return raw_inject(
             f,
@@ -158,7 +188,7 @@ def inject(__func: AnyF = None,
             auto_provide=auto_provide if auto_provide is not None else False,
             strict_validation=strict_validation)
 
-    return __func and decorate(__func) or decorate
+    return __arg and decorate(__arg) or decorate
 
 
 @API.public  # Function will be kept in sync with @inject, so you may use it.

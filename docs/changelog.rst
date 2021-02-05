@@ -10,13 +10,20 @@ missing or what could be removed/simplified before making a v1.0.
 
 
 
-0.11.0 (2021-01-??)
+0.11.0 (2021-02-05)
 ===================
 
 Features
 --------
 
 - Add scope support.
+- Add annotated type hints support (PEP-593).
+- Add async injection support.
+- Multiple factories can be defined for the same class.
+- Cleaner testing support, by separating explicitly the case where test existing
+  dependencies or want to create new ones.
+- All methods of :py:class:`.Service`, :py:class:`.Factory` and :py:class:`.Constants`
+  are automatically wired to support annotated type hints anywhere.
 
 
 Breaking change
@@ -24,16 +31,14 @@ Breaking change
 
 - Remove :code:`public` configuration for :py:class:`.Factory` and :py:class:`.Constants`.
   They didn't really bring any value, you hardly hide anything in Python.
-
-
-Change
-------
-
-- Multiple factories can be defined for the same class.
-- Only classes will be injected through type hints by :py:func:`.inject`.
-- Adding a new scope or provider in a cloned world will raise an error. The goal of cloning
-  is to allow easier testing of an existing dependency, not create new ones.
-
+- Removed tags. They didn't bring enough value.
+- Reworked :py:func:`.inject`: it will only inject annotated type, nothing else anymore.
+  :code:`use_type_hint` has been replaced by :code:`auto_provide` and :code:`use_names`
+  has been removed.
+- Reworked :py:class:`.Constants` to be more flexible.
+- Removed :code:`world.singletons`. There was no way to track back where a singleton
+  was defined.
+- Reworked :py:class:`.Wiring` to be simpler, not super class wiring
 
 
 0.10.0 (2020-12-24)

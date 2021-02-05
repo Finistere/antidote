@@ -2,7 +2,7 @@ from typing import Dict, Tuple, Type, cast
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
-from ._providers import ServiceProvider, TagProvider
+from ._providers import ServiceProvider
 from ._providers.service import Build
 from .core import Provide, inject
 
@@ -28,9 +28,31 @@ class ServiceMeta(AbstractMeta):
     @API.public
     def _with_kwargs(cls, **kwargs: object) -> object:
         """
-        Creates a new dependency based on the service which will have the keyword
-        arguments provided. If the service is a singleton and identical kwargs are used,
-        the same instance will be given by Antidote.
+        Creates a new dependency based on the service with the given arguments. The new
+        dependency will have the same scope as the original one.
+
+        The recommended usage is to provide a classmethod exposing only parameters that
+        may be changed:
+
+        .. doctest:: service_meta
+
+            >>> from antidote import Service, world
+            >>> class Database(Service):
+            ...     def __init__(self, host: str = 'localhost'):
+            ...         self.host = host
+            ...
+            ...     @classmethod
+            ...     def with_host(cls, host: str) -> object:
+            ...         return cls._with_kwargs(host=host)
+            >>> db = world.get(Database.with_host(host='remote'))
+            >>> db.host
+            'remote'
+            >>> # As Database is defined as a singleton, the same is applied:
+            ... world.get(Database.with_host(host='remote')) is db
+            True
+            >>> # Custom dependencies will NEVER be equal to the default one
+            ... world.get(Database) is db
+            False
 
         Args:
             **kwargs: Arguments passed on to :code:`__init__()`.
@@ -45,7 +67,6 @@ class ServiceMeta(AbstractMeta):
 @inject
 def _configure_service(cls: type,
                        service_provider: Provide[ServiceProvider] = None,
-                       tag_provider: Provide[TagProvider] = None,
                        conf: object = None) -> None:
     from .service import Service
     assert service_provider is not None
@@ -55,15 +76,9 @@ def _configure_service(cls: type,
         raise TypeError(f"Service configuration (__antidote__) is expected to be a "
                         f"{Service.Conf}, not a {type(conf)}")
 
-    if conf.tags is not None and tag_provider is None:
-        raise RuntimeError("No TagProvider registered, cannot use tags.")
-
     wiring = conf.wiring
 
     if wiring is not None:
         wiring.wire(cls)
 
     service_provider.register(cls, scope=conf.scope)
-    if conf.tags:
-        assert tag_provider is not None  # for Mypy
-        tag_provider.register(dependency=cls, tags=conf.tags)

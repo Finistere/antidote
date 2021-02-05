@@ -2,29 +2,15 @@ from contextlib import contextmanager
 
 import pytest
 
-from antidote import Scope, Tag
-from antidote.utils import validated_scope, validated_tags
+from antidote import Scope
+from antidote.utils import validated_scope
 
-tag = Tag()
 dummy_scope = Scope('dummy')
 
 
 @contextmanager
 def does_not_raise():
     yield
-
-
-@pytest.mark.parametrize('expectation, tags, result', [
-    pytest.param(pytest.raises(TypeError), object(), None, id='object'),
-    pytest.param(pytest.raises(TypeError), [1], None, id='wrong iterable'),
-    pytest.param(does_not_raise(), None, None, id='None'),
-    pytest.param(does_not_raise(), [], tuple(), id='[]'),
-    pytest.param(does_not_raise(), [tag], (tag,), id='[tag]'),
-    pytest.param(does_not_raise(), iter([tag]), (tag,), id='iter')
-])
-def test_validated_tags(expectation, tags, result):
-    with expectation:
-        assert result == validated_tags(tags)
 
 
 @pytest.mark.parametrize('expectation, kwargs', [

@@ -12,7 +12,6 @@ T = TypeVar('T')
 if TYPE_CHECKING:
     from mypy_extensions import DefaultNamedArg, DefaultArg
 
-_CONST_CONSTRUCTOR_METHOD = 'get'
 _SENTINEL = object()
 
 
@@ -25,19 +24,19 @@ class Const(Generic[T]):
 @final
 class MakeConst(metaclass=FinalMeta):
     def __call__(self,
-                 __value: Optional[object] = None,
+                 __arg: Optional[object] = None,
                  *,
                  default: Any = _SENTINEL) -> Const[object]:
         # Not true yet, but will be changed by ConstantsMeta
-        return cast(Const[object], LazyConstToDo(__value, None, default))
+        return cast(Const[object], LazyConstToDo(__arg, None, default))
 
     def __getitem__(self,
                     tpe: Type[T]
                     ) -> 'Callable[[DefaultArg(object), DefaultNamedArg(T, "default")], Const[T]]':  # noqa: F821, E501
-        def f(__value: Optional[object] = None,
+        def f(__arg: Optional[object] = None,
               *,
               default: T = cast(T, _SENTINEL)) -> Const[T]:
-            return cast(Const[T], LazyConstToDo(__value, tpe, default))
+            return cast(Const[T], LazyConstToDo(__arg, tpe, default))
 
         return f
 
@@ -45,8 +44,8 @@ class MakeConst(metaclass=FinalMeta):
 @API.private
 @final
 class LazyConstToDo(FinalImmutable):
-    __slots__ = ('value', 'type_', 'default')
-    value: Optional[object]
+    __slots__ = ('arg', 'type_', 'default')
+    arg: Optional[object]
     type_: Optional[type]
     default: object
 
@@ -89,8 +88,8 @@ def _configure_constants(cls: ConstantsMeta) -> None:
                     LazyConstDescriptor(
                         name=name,
                         dependency=dependency,
-                        method_name=_CONST_CONSTRUCTOR_METHOD,
-                        value=v.value,
+                        method_name=Constants.get_const.__name__,
+                        arg=v.arg,
                         default=v.default,
                         cast=v.type_ if v.type_ in conf.auto_cast else None))
 
@@ -101,12 +100,12 @@ Cast = Callable[[object], object]
 @API.private
 @final
 class LazyConstDescriptor(FinalImmutable):
-    __slots__ = ('name', 'dependency', 'method_name', 'value', 'default', 'cast',
+    __slots__ = ('name', 'dependency', 'method_name', 'arg', 'default', 'cast',
                  '_cache')
     name: str
     dependency: Hashable
     method_name: str
-    value: object
+    arg: object
     default: object
     cast: Cast
     _cache: str
@@ -116,14 +115,14 @@ class LazyConstDescriptor(FinalImmutable):
                  name: str,
                  dependency: Hashable,
                  method_name: str,
-                 value: object,
+                 arg: object,
                  default: object,
                  cast: Cast = None):
         super().__init__(
             name=name,
             dependency=dependency,
             method_name=method_name,
-            value=value,
+            arg=arg,
             default=default,
             cast=cast or (lambda x: x),
             _cache=f"__antidote_dependency_{hex(id(self))}"
@@ -141,8 +140,9 @@ class LazyConstDescriptor(FinalImmutable):
                 return dependency
         _cast = cast(Cast, getattr(self, 'cast'))
         try:
-            return _cast(getattr(instance, self.method_name)(self.name, self.value))
-        except KeyError:
+            return _cast(getattr(instance, self.method_name)(name=self.name,
+                                                             arg=self.arg))
+        except LookupError:
             if self.default is not _SENTINEL:
                 return self.default
             raise
@@ -167,7 +167,7 @@ class LazyConst(FinalImmutable, Lazy):
                                #       didn't show as unknown as it's always provided.
                                wired=[getattr(cls, descriptor.method_name)])
 
-    def lazy_get(self, container: Container) -> DependencyValue:
+    def provide(self, container: Container) -> DependencyValue:
         # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
         descriptor = cast(LazyConstDescriptor, self.descriptor)
         return DependencyValue(
