@@ -293,8 +293,8 @@ have a quick summary of what is actually going on:
 Hooked ? Check out the documentation ! There are still features not presented here !
 
 
-Alternatives
-============
+Comparison
+==========
 
 Disclaimer: This comparison is mostly based on the documentation of the most popular libraries I know of and is obviously
 somewhat biased. :)
