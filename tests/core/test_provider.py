@@ -4,7 +4,8 @@ from typing import Hashable, Optional
 import pytest
 
 from antidote import world
-from antidote.core import (Container, DependencyValue, Provider, StatelessProvider,
+from antidote.core import (Container, DependencyDebug, DependencyValue, Provider,
+                           StatelessProvider,
                            does_not_freeze)
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.exceptions import FrozenWorldError
@@ -209,7 +210,8 @@ def test_assert_not_duplicate():
         a.add(x, 1)
 
         with pytest.raises(DuplicateDependencyError):
-            a.add(x, 1)
+            with pytest.warns(UserWarning, match="(?i).*debug.*"):
+                a.add(x, 1)
 
     with world.test.empty():
         world.provider(A)
@@ -219,6 +221,9 @@ def test_assert_not_duplicate():
             def __init__(self):
                 super().__init__()
                 self.registered = dict()
+
+            def debug(self, dependency: Hashable) -> DependencyDebug:
+                return DependencyDebug("DebugInfo")
 
             def exists(self, dependency: Hashable) -> bool:
                 return dependency in self.registered
@@ -232,7 +237,7 @@ def test_assert_not_duplicate():
                 self._assert_not_duplicate(dependency)
                 self.registered[dependency] = value
 
-        world.get[A]().add(x, 1)
+        world.get[B]().add(x, 1)
 
-        with pytest.raises(DuplicateDependencyError):
-            world.get[B]().add(x, 1)
+        with pytest.raises(DuplicateDependencyError, match=".*DebugInfo.*"):
+            world.get[A]().add(x, 1)
