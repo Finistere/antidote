@@ -59,7 +59,11 @@ It provides the following features:
     - Antidote has two implementations: the pure Python one which is the reference and the
       compiled one (cython) which is heavily tuned for fast injection. The compiled version is the fastest dependency
       injection library.
-      See `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_
+      See `comparison benchmark <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_ and
+      `antidote benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
+
+.. image:: https://github.com/Finistere/antidote/blob/master/docs/_static/img/comparison_benchmark.png
+    :alt: Comparison benchmark
 
 
 Installation

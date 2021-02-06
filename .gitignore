@@ -35,3 +35,4 @@ src/antidote/_internal/scm_version.py
 
 # Keep benchmark notebook
 !benchmark.ipynb
+!comparison.ipynb
