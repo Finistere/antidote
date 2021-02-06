@@ -57,8 +57,8 @@ It provides the following features:
     - Override locally in a test any dependencies.
 - Performance
     - Antidote has two implementations: the pure Python one which is the reference and the
-      Cython one which is heavily tuned for fast injection. :code:`@inject` is roughly
-      10x times faster than with the pure Python. It allows using injections without impact on most functions.
+      compiled one (cython) which is heavily tuned for fast injection. The compiled version is the fastest dependency
+      injection library.
       See `injection benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_
 
 
