@@ -33,7 +33,7 @@ It provides the following features:
     - injection anywhere you need through a decorator :code:`@inject`, be it static methods, functions, etc..
       By default, it will only rely on annotated type hints, but it supports a lot more!
     - no \*\*kwargs arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
-    - `documented <https://antidote.readthedocs.io/en/stable>`_.
+    - `documented <https://antidote.readthedocs.io/en/stable>`_, everything has working examples.
     - thread-safe, cycle detection.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
