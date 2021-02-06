@@ -31,9 +31,9 @@ It provides the following features:
 
 - Ease of use
     - injection anywhere you need through a decorator :code:`@inject`, be it static methods, functions, etc..
-      By default, it will only rely on type hints (classes), but it supports a lot more!
+      By default, it will only rely on annotated type hints, but it supports a lot more!
     - no \*\*kwargs arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
-    - documented, see `<https://antidote.readthedocs.io/en/stable>`_. If you don't find what you need, open an issue ;)
+    - `documented <https://antidote.readthedocs.io/en/stable>`_.
     - thread-safe, cycle detection.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
@@ -77,7 +77,7 @@ To install Antidote, simply run this command:
 Documentation
 =============
 
-Beginner friendly tutorial, recipes and the reference can be found at `<https://antidote.readthedocs.io/en/stable>`_.
+Beginner friendly tutorial, recipes and the reference can be found in the ` documentation <https://antidote.readthedocs.io/en/stable>`_.
 
 
 Hands-on quick start
@@ -420,7 +420,7 @@ Cython
 
 The cython implementation is roughly 10x faster than the Python one and strictly follows the
 same API than the pure Python implementation. This implies that you cannot depend on it in your
-own Cython code if any. It may be moved to another language.
+own Cython code if any. It isn't part of the public API.
 
 If you encounter any inconsistencies, please open an issue !
 You can avoid the Cython version from PyPI with the following:
