@@ -1,4 +1,4 @@
-from typing import Generic, Hashable, Optional, Sequence, TypeVar, cast
+from typing import Generic, Hashable, Optional, Sequence, Type, TypeVar
 
 from .container import Scope
 from .._compatibility.typing import final
@@ -7,7 +7,6 @@ from .._internal.utils import FinalImmutable, Immutable
 from .._internal.utils.immutable import ImmutableGenericMeta
 
 T = TypeVar('T')
-_SENTINEL = object()
 
 
 @API.public
@@ -18,24 +17,27 @@ class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
 
     .. doctest:: core_utils_dependency
 
-        >>> from antidote import world, Service
-        >>> class MyService(Service):
+        >>> from antidote import Service, world
+        ... class MyService(Service):
         ...     pass
         >>> port = world.lazy[MyService]()
         >>> port.get()
         <MyService ...>
 
     """
-    __slots__ = ('unwrapped',)
+    __slots__ = ('unwrapped', '_type')
     unwrapped: Hashable
     """Actual dependency to be retrieved"""
+    _type: Type[T]
 
-    def __init__(self, __dependency: Hashable) -> None:
+    def __init__(self,
+                 __dependency: Hashable,
+                 expected_type: Type[T]) -> None:
         """
         Args:
             __dependency: actual dependency to be retrieved.
         """
-        super().__init__(unwrapped=__dependency)
+        super().__init__(__dependency, expected_type)
 
     def get(self) -> T:
         """
@@ -43,15 +45,13 @@ class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
             dependency value retrieved from :py:mod:`~..world`.
         """
         from antidote import world
-        return cast(T, world.get(self.unwrapped))
+        value = world.get(self.unwrapped)
 
-    def __hash__(self) -> int:
-        return hash(self.unwrapped)
+        if not isinstance(value, self._type):
+            raise TypeError(f"Dependency is not an instance of {self._type}, "
+                            f"but {type(value)}")
 
-    def __eq__(self, other: object) -> bool:
-        return (isinstance(other, LazyDependency)
-                and (self.unwrapped is other.unwrapped
-                     or self.unwrapped == other.unwrapped))
+        return value
 
 
 @API.public

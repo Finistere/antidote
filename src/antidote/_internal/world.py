@@ -2,7 +2,7 @@
 Utilities used by world, mostly for syntactic sugar.
 """
 from typing import (Any, Generic, Hashable, TYPE_CHECKING, Type, TypeVar, Union,
-                    cast)
+                    cast, overload)
 
 from . import API
 from .state import current_container
@@ -18,7 +18,7 @@ from ..core.utils import LazyDependency
 T = TypeVar('T')
 
 if TYPE_CHECKING:
-    pass
+    from .._constants import Const
 
 
 @API.private
@@ -30,7 +30,25 @@ class SupportsRMatmul(Protocol):
 @API.private
 @final
 class WorldGet(metaclass=FinalMeta):
-    def __call__(self, __dependency: Hashable, *, default: Any = Default.sentinel) -> Any:
+    @overload
+    def __call__(self,  # noqa: E704
+                 __dependency: 'Const[T]',
+                 *,
+                 default: Union[T, Default] = Default.sentinel
+                 ) -> T: ...  # pragma: no cover
+
+    @overload
+    def __call__(self,  # noqa: E704
+                 __dependency: Hashable,
+                 *,
+                 default: object = Default.sentinel
+                 ) -> object: ...  # pragma: no cover
+
+    def __call__(self,
+                 __dependency: Hashable,
+                 *,
+                 default: object = Default.sentinel
+                 ) -> object:
         dependency = extract_annotated_dependency(__dependency)
         try:
             return current_container().get(dependency)
@@ -46,33 +64,43 @@ class WorldGet(metaclass=FinalMeta):
 @API.private
 @final
 class TypedWorldGet(Generic[T], Immutable, metaclass=ImmutableGenericMeta):
-    __slots__ = ('__tpe',)
-    __tpe: Type[T]
+    __slots__ = ('__type',)
+    __type: Type[T]
 
     def __call__(self,
                  __dependency: Hashable = None,
                  *,
                  default: Union[T, Default] = Default.sentinel) -> T:
+        if not isinstance(default, (self.__type, Default)):
+            raise TypeError(f"default is not an instance of {self.__type}, "
+                            f"but {type(default)}")
+
         if __dependency is None:
-            dependency: object = self.__tpe
+            dependency: object = self.__type
         else:
             dependency = extract_annotated_dependency(__dependency)
         try:
-            return cast(T, current_container().get(dependency))
+            value = current_container().get(dependency)
         except DependencyNotFoundError:
             if default is not Default.sentinel:
                 return default
             raise
 
+        if not isinstance(value, self.__type):
+            raise TypeError(f"Dependency is not an instance of {self.__type}, "
+                            f"but {type(value)}")
+
+        return value
+
     def __matmul__(self, other: SupportsRMatmul) -> T:
-        return self.__call__(self.__tpe @ other)
+        return self.__call__(self.__type @ other)
 
 
 @API.private
 @final
 class WorldLazy(metaclass=FinalMeta):
-    def __call__(self, __dependency: Hashable) -> LazyDependency[Any]:
-        return LazyDependency(__dependency)
+    def __call__(self, __dependency: Hashable) -> LazyDependency[object]:
+        return LazyDependency(__dependency, object)
 
     def __getitem__(self, tpe: Type[T]) -> 'TypedWorldLazy[T]':
         return TypedWorldLazy(tpe)
@@ -81,14 +109,15 @@ class WorldLazy(metaclass=FinalMeta):
 @API.private
 @final
 class TypedWorldLazy(Generic[T], Immutable, metaclass=ImmutableGenericMeta):
-    __slots__ = ('__tpe',)
-    __tpe: Type[T]
+    __slots__ = ('__type',)
+    __type: Type[T]
 
     def __call__(self, __dependency: Hashable = None) -> LazyDependency[T]:
-        return LazyDependency[T](self.__tpe if __dependency is None else __dependency)
+        return LazyDependency[T](self.__type if __dependency is None else __dependency,
+                                 self.__type)
 
     def __matmul__(self, other: SupportsRMatmul) -> LazyDependency[T]:
-        return self.__call__(self.__tpe @ other)
+        return self.__call__(self.__type @ other)
 
 
 @API.private

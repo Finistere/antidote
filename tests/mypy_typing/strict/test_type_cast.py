@@ -14,18 +14,16 @@ def test_constants_typing() -> None:
         world.get[list]('test').append(1)
         world.lazy[list]('test').get().append(2)
 
-        world.get('test').append(1)
-
         class Conf(Constants):
             A = const[list]("a")
             B = const[list]("b", default=[2])
 
             @inject
-            def get_const(self,
-                          name: str,
-                          arg: object,
-                          my_service: Provide[MyService] = None
-                          ) -> object:
+            def provide_const(self,
+                              name: str,
+                              arg: object,
+                              my_service: Provide[MyService] = None
+                              ) -> object:
                 assert isinstance(my_service, MyService)
                 return []
 

@@ -97,16 +97,15 @@ an :py:class:`object`. To avoid this, Antidote provides a syntax similar to stat
     ... world.get[MyService]()
     <MyService object at ...>
 
-The type information will be used to cast the result to the right type. The cast follows
-the same philosophy as Mypy, it won't actually check the type. Specifying the wrong type
-will not raise an error:
+Antidote ensures that the type you specify is valid. A :py:exc:`TypeError` will be raised
+otherwise:
 
 .. doctest:: tutorial_overview
 
-    >>> world.get[str](MyService)  # will be considered as a `str` by Mypy
-    <MyService object at ...>
-
-It'll only confuse Mypy and your IDE.
+    >>> world.get[str](MyService)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in ?
+    TypeError
 
 .. note::
 
@@ -543,7 +542,7 @@ Antidote forces you to encapsulate how you retrieve the configuration, so it's e
             # necessary.
             self._data = dict(domain='example.com', port='80')
 
-        def get_const(self, name: str, arg: str):
+        def provide_const(self, name: str, arg: str):
             # Only called when needed.
             return self._data[arg]
 
@@ -556,22 +555,36 @@ Antidote forces you to encapsulate how you retrieve the configuration, so it's e
     'example.com'
 
 You probably noticed that :code:`Config.PORT` we explicitly stated that it was an integer.
-it serves two purposes:
+it serves several purposes:
+
+-   the actual type of constant value is type checked at runtime.
+
+    .. doctest:: tutorial_conf
+
+        >>> class InvalidConf(Constants):
+        ...     WRONG_TYPE = const[Constants]('test')
+        >>> InvalidConf().WRONG_TYPE
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in ?
+        TypeError
 
 -   providing a type hint for Mypy:
 
     .. doctest:: tutorial_conf
 
-        >>> world.get(Config.PORT)  # treated as a `int` by Mypy, whether that's true or not.
+        >>> Config().PORT  # treated as an `int` by Mypy
         80
+        >>> world.get(Config.PORT)  # same
+        80
+
 -   If the type is one of :code:`str`, :code:`float` or :code:`int`, the result of
-    :py:meth:`~.Constants.get_const` will be cast automatically. This allows you to handle
+    :py:meth:`~.Constants.provide_const` will be cast automatically. This allows you to handle
     simply cases where the configuration is retrieved as a string. You can either
     deactivate this behavior or extend it to support enums with
     :py:attr:`~.Constants.Const.auto_cast`.
 
 In the same spirit, :py:func:`.const` allows you to define a default value. It will
-only be used if :py:meth:`~.Constants.get_const` raises a :py:exc:`LookUpError`:
+only be used if :py:meth:`~.Constants.provide_const` raises a :py:exc:`LookUpError`:
 
 .. testcode:: tutorial_conf
 
@@ -582,7 +595,7 @@ only be used if :py:meth:`~.Constants.get_const` raises a :py:exc:`LookUpError`:
         def __init__(self):
             self._data = dict(domain='example.com')
 
-        def get_const(self, name: str, arg: str):
+        def provide_const(self, name: str, arg: str):
             return self._data[arg]
 
 .. doctest:: tutorial_conf

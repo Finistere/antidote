@@ -6,7 +6,7 @@
 .. highlight:: python
 
 
-.. include:: ../README.rst
+.. include:: _build/README.rst
 
 
 Table of Content

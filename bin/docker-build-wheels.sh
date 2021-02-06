@@ -22,7 +22,7 @@ big-step() {
 clean() {
     rm -rf build/*
     for DIR in src tests; do
-        find "$DIR" | grep -E "(__pycache__|\.pyc$|\.pyo$|\.cpp$|\.so$|\.html$)" || true | xargs rm -rf
+        (find "$DIR" | grep -E "(__pycache__|\.pyc$|\.pyo$|\.cpp$|\.so$|\.html$)" | xargs rm -rf) || true
     done
 }
 

@@ -247,7 +247,7 @@ From the environment
     class Env(Constants):
         SECRET = const[str]()
 
-        def get_const(self, name: str, arg: object):
+        def provide_const(self, name: str, arg: object):
             return os.environ[name]
 
 .. doctest:: recipes_configuration_environment
@@ -283,7 +283,7 @@ to a dictionary and use the following:
                 }
             }
 
-        def get_const(self, name: str, arg: object):
+        def provide_const(self, name: str, arg: object):
             from functools import reduce
             return reduce(dict.get, arg.split('.'), self._raw_conf)  # type: ignore
 
@@ -322,20 +322,20 @@ would be to support enums as presented here:
         DB_PORT = const[int]()
         ENV = const[Env]()
 
-        def get_const(self, name: str, arg: object):
-            return {'db_port': '6789', 'env': 'prod'}[name.lower()]
+        def provide_const(self, name: str, arg: object):
+            return {'db_port': '5432', 'env': 'prod'}[name.lower()]
 
 
 .. doctest:: recipes_configuration_auto_cast
 
     >>> from antidote import world
     >>> Conf().DB_PORT # will be treated as an int by Mypy
-    6789
+    5432
     >>> # will be treated as a Env instance by Mypy even
     ... Conf().ENV
     <Env.PROD: 'prod'>
     >>> world.get[int](Conf.DB_PORT)
-    6789
+    5432
     >>> world.get[Env](Conf.ENV)
     <Env.PROD: 'prod'>
 

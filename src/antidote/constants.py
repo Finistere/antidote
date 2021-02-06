@@ -1,5 +1,5 @@
 import collections.abc as c_abc
-from typing import Any, FrozenSet, Iterable, Optional, Sequence, Union
+from typing import (Any, FrozenSet, Iterable, Optional, Sequence, Union)
 
 from ._compatibility.typing import final
 from ._constants import ConstantsMeta, MakeConst
@@ -8,6 +8,10 @@ from ._internal.utils import Copy, FinalImmutable
 from .core.wiring import Wiring, WithWiringMixin
 
 const = MakeConst()
+const.__doc__ = """
+Used to create a constant in :py:class:`.Constants`. If a type is provided, the constant
+value will be type checked at runtime.
+"""
 
 
 @API.public
@@ -39,36 +43,41 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
 
         >>> class Config(Constants):
         ...     PORT = const[int]('port')
-        ...     UNTYPED_PORT = const('port')
+        ...     WRONG_TYPE = const[Constants]('port')
         ...     HOST = const[str]('host')
         ...
         ...     def __init__(self):
         ...         self._data = {'host': 'localhost', 'port': '80'}
         ...
-        ...     def get_const(self, name: str, arg: str):
+        ...     def provide_const(self, name: str, arg: str):
         ...         return self._data[arg]
         ...
         >>> # the actual constant will be auto casted to the type hint if present and
-        ... # is one of {str, float, int}.
+        ... # is one of {str, float, int}. In all cases, the type of the constant value
+        ... # is always checked at runtime.
         ... world.get(Config.PORT)
         80
+        >>> Config().WRONG_TYPE
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in ?
+        TypeError
         >>> # The type hint is also used as... a type hint !
         ... Config().PORT  # will be treated as an int by Mypy
         80
-        >>> world.get(Config.UNTYPED_PORT)
-        '80'
+        >>> world.get(Config.PORT)  # will also be treated as an int by Mypy
+        80
         >>> world.get(Config.HOST)
         'localhost'
 
     In the previous example we're also using the :code:`auto_cast` feature. It provides
     a type hint for Mypy and will be used to cast the result of
-    :py:meth:`.Constants.get_const` if one of :code:`str`, :code:`int` or :code:`float`.
-    It can be configured to be either deactivated or extended to support enums for
-    example.
+    :py:meth:`.Constants.provide_const` if one of :code:`str`, :code:`int` or
+    :code:`float`. It can be configured to be either deactivated or extended to support
+    enums for example.
 
     Another useful feature is :code:`default` which simply defines the default value to
-    be used if a :py:exc:`LookUpError` is raised in :py:meth:`.Constants.get_const`. It
-    must already have the correct type, :code:`auto_cast` will *not* be applied on it.
+    be used if a :py:exc:`LookUpError` is raised in :py:meth:`.Constants.provide_const`.
+    It must already have the correct type, :code:`auto_cast` will *not* be applied on it.
 
     .. doctest:: constants
 
@@ -79,7 +88,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         ...     def __init__(self):
         ...         self._data = {'host': 'localhost'}
         ...
-        ...     def get_const(self, name: str, arg: str):
+        ...     def provide_const(self, name: str, arg: str):
         ...         return self._data[arg]
         ...
         >>> world.get(Config.PORT)
@@ -146,7 +155,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
 
     __antidote__: Conf = Conf()
 
-    def get_const(self, name: str, arg: Any) -> object:
+    def provide_const(self, name: str, arg: Any) -> object:
         """
         Used to retrieve the value of the constant defined with :py:func:`.const`.
         If a :py:exc:`LookUpError` is raised, the :code:`default` value defined

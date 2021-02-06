@@ -23,7 +23,7 @@ def test_simple():
         A = const('a')
         B = const('b')
 
-        def get_const(self, name, arg):
+        def provide_const(self, name, arg):
             return arg * 2
 
     assert world.get(Config.A) == 'aa'
@@ -48,7 +48,7 @@ def test_default():
         # different error
         D = const('d', default='x')
 
-        def get_const(self, name, arg):
+        def provide_const(self, name, arg):
             if arg == 'd':
                 raise Exception()
             return dict(a=a)[arg]
@@ -60,43 +60,101 @@ def test_default():
     with pytest.raises(DependencyInstantiationError):
         world.get(Config.D)
 
+    class Config(Constants):
+        with pytest.raises(TypeError):
+            X = const[A](default='x')
 
-@pytest.mark.parametrize('auto_cast, a, b, c', [
-    pytest.param(True, 109, 3.14, '199', id='True'),
-    pytest.param(False, '109', '3.14', 199, id='False'),
-    pytest.param([str, int], 109, '3.14', '199', id='(str, int)'),
-    pytest.param([float], '109', 3.14, 199, id='(float,)'),
-])
-def test_auto_cast(auto_cast, a, b, c):
-    D = object()
+
+def test_auto_cast():
+    class AutoCast(Constants):
+        __antidote__ = Constants.Conf(auto_cast=True)
+        A = const[int]('109')
+        B = const[float]('3.14')
+        C = const[str](199)
+
+    assert AutoCast().A == 109
+    assert AutoCast().B == 3.14
+    assert AutoCast().C == '199'
+
+    assert world.get(AutoCast.A) == 109
+    assert world.get(AutoCast.B) == 3.14
+    assert world.get(AutoCast.C) == '199'
+
+    #######
+
+    class LimitedAutoCast(Constants):
+        __antidote__ = Constants.Conf(auto_cast=[int, float])
+        A = const[int]('109')
+        B = const[float]('3.14')
+        C = const[str](199)
+
+    assert LimitedAutoCast().A == 109
+    assert LimitedAutoCast().B == 3.14
+
+    with pytest.raises(TypeError, match=".*C.*"):
+        LimitedAutoCast().C
+
+    assert world.get(LimitedAutoCast.A) == 109
+    assert world.get(LimitedAutoCast.B) == 3.14
+
+    with pytest.raises(DependencyInstantiationError, match=".*C.*"):
+        world.get(LimitedAutoCast.C)
+
+    #######
+
+    class NoAutoCast(Constants):
+        __antidote__ = Constants.Conf(auto_cast=False)
+        A = const[int]('109')
+        B = const[float]('3.14')
+        C = const[str](199)
+
+    with pytest.raises(TypeError, match=".*A.*"):
+        NoAutoCast().A
+
+    with pytest.raises(TypeError, match=".*B.*"):
+        NoAutoCast().B
+
+    with pytest.raises(TypeError, match=".*C.*"):
+        NoAutoCast().C
+
+    #######
+
+    class MetaDummy:
+        def __new__(cls, *args, **kwargs):
+            raise RuntimeError()
+
+    class ImpossibleCast(Constants):
+        __antidote__ = Constants.Conf(auto_cast=[MetaDummy])
+        A = const[MetaDummy]('x')
+
+    with pytest.raises(RuntimeError):
+        ImpossibleCast().A
+
+    with pytest.raises(DependencyInstantiationError):
+        world.get(ImpossibleCast.A)
+
+
+def test_type_safety():
+    class MetaDummy:
+        def __new__(cls, *args, **kwargs):
+            return object()
 
     class Config(Constants):
-        __antidote__ = Constants.Conf(auto_cast=auto_cast)
+        __antidote__ = Constants.Conf(auto_cast=[MetaDummy])
+        INVALID = const[int]('109')
+        INVALID_CAST = const[MetaDummy]('x')
 
-        A = const[int]('a')
-        B = const[float]('b')
-        C = const[str]('c')
-        D = const[dict]('d')
+    with pytest.raises(TypeError, match=".*INVALID.*"):
+        Config().INVALID
 
-        def get_const(self, name, arg):
-            if arg == 'a':
-                return '109'
-            if arg == 'b':
-                return '3.14'
-            if arg == 'c':
-                return 199
-            if arg == 'd':
-                return D
+    with pytest.raises(TypeError, match=".*INVALID_CAST.*"):
+        Config().INVALID_CAST
 
-    assert world.get(Config.A) == a
-    assert world.get(Config.B) == b
-    assert world.get(Config.C) == c
-    assert world.get(Config.D) is D
+    with pytest.raises(DependencyInstantiationError):
+        world.get(Config.INVALID)
 
-    assert Config().A == a
-    assert Config().B == b
-    assert Config().C == c
-    assert Config().D is D
+    with pytest.raises(DependencyInstantiationError):
+        world.get(Config.INVALID_CAST)
 
 
 def test_name():
@@ -104,7 +162,7 @@ def test_name():
         A = const()
         B = const()
 
-        def get_const(self, name, arg):
+        def provide_const(self, name, arg):
             return name
 
     assert world.get(Config.A) == 'A'
@@ -133,7 +191,7 @@ def test_no_const():
     class Config(Constants):
         A = 'a'
 
-        def get_const(self, name, arg):
+        def provide_const(self, name, arg):
             return arg * 2
 
     with pytest.raises(DependencyNotFoundError):

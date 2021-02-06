@@ -9,6 +9,18 @@ Pretty much v1.0-beta.
 
 
 
+0.12.0 (2021-02-06)
+===================
+
+
+Feature / Breaking Change
+-------------------------
+
+- Add runtime type checks when a type is explicitly defined with :py:func:`.world.get`,
+  :py:func:`.world.lazy` or :py:class:`.Constants`.
+
+
+
 0.11.0 (2021-02-05)
 ===================
 

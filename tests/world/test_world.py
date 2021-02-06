@@ -32,9 +32,9 @@ def test_get():
     assert world.get[A](A) is a
     assert world.get[B]() is world.get(B)
 
-    x = object()
-    assert world.get(B, default=x) is world.get(B)
-    assert world.get[B](default=x) is world.get(B)
+    b = B()
+    assert world.get(B, default=b) is world.get(B)
+    assert world.get[B](default=b) is world.get(B)
 
     with pytest.raises(DependencyNotFoundError):
         world.get(Service)
@@ -42,7 +42,23 @@ def test_get():
     with pytest.raises(DependencyNotFoundError):
         world.get[Service]()
 
-    assert world.get[Service](default=x) is x
+    assert world.get[Service](default=b) is b
+
+
+def test_get_type_safety():
+    x = object()
+    world.test.singleton(A, x)
+
+    assert world.get(A) is x  # without type hints, it should not fail
+    with pytest.raises(TypeError):
+        world.get[A]()
+
+    class B:
+        pass
+
+    assert world.get(B, default=x) is x
+    with pytest.raises(TypeError, match=".*default.*"):
+        world.get[B](default=x)
 
 
 def test_get_factory():
@@ -82,16 +98,6 @@ def test_annotation_support(getter: Callable[[object], object]):
         getter(Annotated[A, FromArg(lambda a: a)])  # noqa: F821
 
 
-@pytest.mark.parametrize('getter', [
-    pytest.param(lambda x, d: world.get(x, default=d), id='get'),
-    pytest.param(lambda x, d: world.get[A](x, default=d), id='get[A]')
-])
-def test_default(getter: Callable[[object, object], object]):
-    world.test.singleton(A, A())
-    assert getter(A, 'default') is world.get(A)
-    assert getter('a', 'default') == 'default'
-
-
 def test_lazy():
     world.test.singleton({
         'x': object(),
@@ -103,11 +109,22 @@ def test_lazy():
     assert lazy.unwrapped == 'x'
     assert lazy.get() == world.get('x')
 
-    lazy = world.lazy[int]('x')
+    lazy = world.lazy[A](A)
     assert isinstance(lazy, LazyDependency)
-    assert lazy.unwrapped == 'x'
-    assert lazy.get() == world.get('x')
+    assert lazy.unwrapped == A
+    assert lazy.get() == world.get(A)
+
     assert world.lazy[A]().get() is world.get(A)
+
+
+def test_lazy_type_safety():
+    x = object()
+    world.test.singleton(A, x)
+
+    assert world.lazy(A).get() is x
+
+    with pytest.raises(TypeError):
+        world.lazy[A]().get()
 
 
 def test_lazy_factory():

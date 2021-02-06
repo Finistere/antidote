@@ -84,13 +84,13 @@ class From(FinalImmutable, AntidoteAnnotation):
         ...     def __init__(self, host: str):
         ...         self.host = host
         >>> @factory
-        ... def build_db(host: str = 'localhost:6789') -> Database:
+        ... def build_db(host: str = 'localhost:5432') -> Database:
         ...     return Database(host=host)
         >>> @inject
         ... def f(db: Annotated[Database, From(build_db)]) -> Database:
         ...     return db
         >>> f().host
-        'localhost:6789'
+        'localhost:5432'
 
     """
     __slots__ = ('source',)
@@ -112,7 +112,7 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
         >>> from typing import Annotated, TypeVar
         >>> from antidote import world, inject, FromArg, Constants, const, Arg
         >>> class Config(Constants):
-        ...     PORT = const(6789)
+        ...     PORT = const(5432)
         ...
         ...     @classmethod
         ...     def from_arg(cls, arg: Arg):
@@ -124,7 +124,7 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
         ... def f(port: ProvideFromConfig[int]) -> int:
         ...     return port
         >>> f()
-        6789
+        5432
     """
     __slots__ = ('function',)
     function: 'Callable[[Arg], Optional[Hashable]]'

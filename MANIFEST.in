@@ -15,6 +15,9 @@ include tox.ini .coveragerc
 recursive-include tests *.py
 include benchmark.ipynb
 
+# comparison is not really part of the source, it's advertising :)
+exclude comparison.ipynb
+
 # Requirements
 recursive-include requirements *.txt
 

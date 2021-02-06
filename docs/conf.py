@@ -23,7 +23,6 @@
 
 import antidote
 
-
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -219,5 +218,9 @@ texinfo_documents = [
 
 
 def setup(app):
-    # app.connect("autodoc-skip-member", do_not_skip_antidote)
+    # Fix image path
+    with open('../README.rst', 'r') as readme, \
+            open('_build/README.rst', 'w') as build_readme:
+        build_readme.write(readme.read().replace('docs/_static/img', '_static/img'))
+
     app.add_css_file('css/style.css')  # may also be an URL

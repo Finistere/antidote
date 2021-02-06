@@ -374,7 +374,7 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            def get_const(self, key, arg):
+            def provide_const(self, key, arg):
                 return key
 
         assert_valid(
@@ -393,7 +393,7 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            def get_const(self, key, arg, service: Provide[MyService] = None):
+            def provide_const(self, key, arg, service: Provide[MyService] = None):
                 assert isinstance(service, MyService)
                 return key
 
@@ -402,7 +402,7 @@ def test_constants_debug():
                 value=Conf.TEST,
                 expected=f"""
             Const: {prefix}.Conf.TEST
-            ├── {prefix}.Conf.get_const
+            ├── {prefix}.Conf.provide_const
             │   └── {prefix}.MyService
             └── {prefix}.Conf
                     """
