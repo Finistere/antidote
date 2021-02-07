@@ -165,8 +165,7 @@ Or without annotated type hints (PEP-593):
             self._host = host
 
     @inject([Database])
-    def f(db: Database = None):
-        assert db is not None
+    def f(db: Database):  # the optional is only needed for Mypy, not Antidote.
         pass
 
     # auto_provide => Class type hints are treated as dependencies.
