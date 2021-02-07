@@ -21,11 +21,40 @@ Antidote
   :target: http://antidote.readthedocs.io/en/stable/?badge=stable
 
 
-Antidotes is a dependency injection micro-framework for Python 3.6+. The core idea
-is ensuring best *maintainability* while avoiding the need of declaring dependencies in a
-separate file. Dependency injection is about removing the responsibility of building
-dependencies from their clients. It does not imply that dependency management should
-be done in a separate file.
+Antidotes is a dependency injection micro-framework for Python 3.6+. It is built on the
+idea of ensuring best **maintainability** of your code while being as **easy to use** as possible.
+It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere.
+
+*Why dependency injection ?* By injecting dependencies, you remove the responsability of building
+them from their users (classes/functions). Instead of having:
+
+.. code-block:: python
+
+  class Database:
+       pass
+       
+  def f():
+      db = Database()
+  
+  f()
+      
+You do:
+
+.. code-block:: python
+
+  class Database:
+       pass
+       
+  def f(db: Database):
+      pass
+      
+  f(Database())
+
+This leads to better code by being more modular and easier to test. 
+
+*Why Antidote ?* As your project grows, you'll have more and more dependencies leading to complex code only to manage them. 
+That's what Antidote solves for you. You don't have to manage dependencies, you just need to declare how it should be
+managed and where it should be injected. A comparison with other libraries can be found further down.
 
 It provides the following features:
 
@@ -53,10 +82,10 @@ It provides the following features:
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
     - Override locally in a test any dependency.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with `world.debug`.
-- Performance
+- Fast
     - Antidote has two implementations: the pure Python one which is the reference and the
       compiled one (cython) which is heavily tuned for fast injection. The compiled version is the fastest dependency
-      injection library.
+      injection library. See compiled section further down for more details.
       See `comparison benchmark <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_ and
       `antidote benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
 
@@ -408,6 +437,10 @@ But with Antidote you can **always** track back to the definition of a dependenc
 IMHO, this makes Antidote on of the, if not the, most maintainable dependency injection library. There is
 no container to manage and you can always understand the wiring easily.
 
+Dependency injection is about removing the responsibility of building
+dependencies from their clients. It does not imply that dependency management should
+be done in a separate file.
+
 .. _dependency_injector: https://python-dependency-injector.ets-labs.org/introduction/di_in_python.html
 .. _pinject: https://github.com/google/pinject
 .. _injector: https://github.com/alecthomas/injector
@@ -415,21 +448,35 @@ no container to manage and you can always understand the wiring easily.
 .. _lagom: https://github.com/meadsteve/lagom
 
 
-Cython
-======
+Compiled
+========
 
-The cython implementation is roughly 10x faster than the Python one and strictly follows the
-same API than the pure Python implementation. This implies that you cannot depend on it in your
-own Cython code if any. It isn't part of the public API.
+The compiled implementation is roughly 10x faster than the Python one and strictly follows the
+same API than the pure Python implementation. Pre-compiled wheels are available only for Linux currently.
+You can check whether you're using the compiled version or not with:
 
-If you encounter any inconsistencies, please open an issue !
-You can avoid the Cython version from PyPI with the following:
+.. code-block:: python
+
+    from antidote import is_compiled
+    
+    print(f"Antidote is compiled ? {is_compiled()}")
+
+You can force the compilation of antidote yourself when installing:
+
+.. code-block:: bash
+
+    ANTIDOTE_COMPILED=true pip install antidote
+    
+On the contrary, you can force the pure Python version with:
 
 .. code-block:: bash
 
     pip install --no-binary antidote
 
-Beware that PyPy is only tested with the pure Python version, not the Cython one.
+.. note::
+
+    The compiled version is not tested against PyPy. The compiled version relies currently on Cython,
+    but it is not part of the public API. Relying on it in your own Cython code is at your risk.
 
 
 Issues / Feature Requests / Questions
