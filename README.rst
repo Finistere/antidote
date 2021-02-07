@@ -25,45 +25,15 @@ Antidotes is a dependency injection micro-framework for Python 3.6+. It is built
 idea of ensuring best **maintainability** of your code while being as **easy to use** as possible.
 It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere.
 
-*Why dependency injection ?* By injecting dependencies, you remove the responsability of building
-them from their users (classes/functions). Instead of having:
-
-.. code-block:: python
-
-  class Database:
-       pass
-       
-  def f():
-      db = Database()
-  
-  f()
-      
-You do:
-
-.. code-block:: python
-
-  class Database:
-       pass
-       
-  def f(db: Database):
-      pass
-      
-  f(Database())
-
-This leads to better code by being more modular and easier to test. 
-
-*Why Antidote ?* As your project grows, you'll have more and more dependencies leading to complex code only to manage them. 
-That's what Antidote solves for you. You don't have to manage dependencies, you just need to declare how it should be
-managed and where it should be injected. A comparison with other libraries can be found further down.
-
-It provides the following features:
+Antidote provides the following features:
 
 - Ease of use
-    - injection anywhere you need through a decorator :code:`@inject`, be it static methods, functions, etc..
+    - Injection anywhere you need through a decorator :code:`@inject`, be it static methods, functions, etc..
       By default, it will only rely on annotated type hints, but it supports a lot more!
-    - no \*\*kwargs arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
-    - `documented <https://antidote.readthedocs.io/en/stable>`_, everything has working examples.
-    - thread-safe, cycle detection.
+    - No :code:`**kwargs` arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
+    - `Documented <https://antidote.readthedocs.io/en/stable>`_, everything has tested examples.
+    - No need for any custom setup, just use your injected function as usual. You just don't have to specify injected
+      arguments anymore.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
     - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
@@ -74,14 +44,15 @@ It provides the following features:
     - All dependencies can be tracked back to their declaration/implementation easily.
     - Mypy compatibility and usage of type hints as much as possible.
     - Overriding dependencies will raise an error outside of tests.
-    - Dependencies can be frozen, which blocks any new definitions.
+    - Dependencies can be frozen, which blocks any new declarations.
     - No double injection.
-    - :code:`@inject` does not inject anything implicitly.
+    - Everything is as explicit as possible, :code:`@inject` does not inject anything implicitly.
     - type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
+    - thread-safe, cycle detection.
 - Testability
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
     - Override locally in a test any dependency.
-    - When encountering issues you can retrieve the full dependency tree, nicely formatted, with `world.debug`.
+    - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Fast
     - Antidote has two implementations: the pure Python one which is the reference and the
       compiled one (cython) which is heavily tuned for fast injection. The compiled version is the fastest dependency
@@ -106,13 +77,49 @@ To install Antidote, simply run this command:
 Documentation
 =============
 
-Beginner friendly tutorial, recipes and the reference can be found in the ` documentation <https://antidote.readthedocs.io/en/stable>`_.
+Beginner friendly tutorial, recipes and the reference can be found in the `documentation <https://antidote.readthedocs.io/en/stable>`_.
 
+
+Why dependency injection ?
+==========================
+
+By injecting dependencies, you remove the responsibility of building
+them from their users (classes/functions). Instead of having:
+
+.. code-block:: python
+
+  class Database:
+       pass
+
+  def f():
+      db = Database()
+
+  f()
+
+You do:
+
+.. code-block:: python
+
+  class Database:
+       pass
+
+  def f(db: Database):
+      pass
+
+  f(Database())
+
+This leads to better code by being more modular and easier to test.
+
+As your project grows, you'll have more and more dependencies leading to complex code only to manage them.
+That's what Antidote solves for you. You don't have to manage dependencies, you just need to declare how it should be
+managed and where it should be injected. A comparison with other libraries can be found further down.
 
 Hands-on quick start
 ====================
 
-Short and concise example of some of the most important features of Antidote.
+Showcase of the most important features of Antidote with short and concise examples.
+Checkout the `Getting started <https://antidote.readthedocs.io/en/stable/tutorial.html>`_ for a more beginner
+friendly tutorial.
 
 How does injection looks like ? Here is a simple example:
 
@@ -362,22 +369,58 @@ dependencies to the :code:`container` and their implementation are in two separa
 
     # services.py
     # Dependency Injector
+    import sys
     from dependency_injector import containers, providers
 
     class Container(containers.DeclarativeContainer):
         my_service = providers.Singleton(MyService)
 
+    container = Container()
+    container.wire(modules=[sys.modules["client"]])
+
+.. code-block:: python
+
+    # client.py
+    # Dependency Injector
+    from dependency_injector.wiring import inject, Provide
+    from services import container
+    from my_service import MyService
+
+    @inject
+    def f(my_service: MyService = Provide[container.my_service]):
+        pass
+
 
 This implies that you have one more file to maintain. And with a lot of dependencies you start managing either
-one big container or multiple ones.
+one big container or multiple ones. In comparison with Antidote:
 
-However this one big advantage compared to most other dependency injection libraries: it's easy to understand how
-dependencies are wired together, making it a lot more maintainable than most libraries. It is especially visible
+.. code-block:: python
+
+    # my_service.py
+    # Antidote
+    from antidote import Service
+
+    class MyService(Service):
+        pass
+
+.. code-block:: python
+
+    # client.py
+    # Antidote
+    from antidote import Provide, inject
+    from my_service import MyService
+
+    @inject
+    def f(my_service: Provide[MyService]):
+        pass
+
+
+The reason dependency_injector_ does this is simple: it's easy to understand how dependencies are wired together,
+making it a lot more maintainable than most libraries. It is especially visible
 when declaring factories. With dependency_injector_ you would do something like that:
 
 .. code-block:: python
 
-    # services.py
     # Dependency Injector
     class Container(containers.DeclarativeContainer):
         my_service = providers.Factory(my_factory)
@@ -387,7 +430,6 @@ framework:
 
 .. code-block:: python
 
-    # services.py
     # Injector
     @provider
     def my_factory() -> MyService:
@@ -418,6 +460,7 @@ But with Antidote you can **always** track back to the definition of a dependenc
 
 .. code-block:: python
 
+    # Antidote
     from antidote import factory, inject, From
 
     @factory
