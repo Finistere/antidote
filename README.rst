@@ -335,8 +335,8 @@ Hooked ? Check out the `documentation <https://antidote.readthedocs.io/en/stable
 There are still features not presented here !
 
 
-Comparison
-==========
+Why Antidote ?
+==============
 
 *Disclaimer: This comparison is mostly based on the documentation of the most popular libraries I know of, not less not more.*
 
@@ -354,6 +354,8 @@ Why choose Antidote ?
 - **Performance**: Antidote's :code:`@inject` is heavily tuned for performance in the compiled version (Cython). No other
   library goes as far. Now whether it's really useful for a dependency injection library is debatable. But this allows
   you to use :code:`@inject` virtually anywhere without any impact. (See benchmarks on the top)
+
+Why not dependency_injector_ ?
 
 The main difference with dependency_injector_ is the philosophy of the library. With dependency_injector_ declaration of
 dependencies to the :code:`container` and their implementation are in two separate files:
@@ -425,8 +427,7 @@ when declaring factories. With dependency_injector_ you would do something like 
     class Container(containers.DeclarativeContainer):
         my_service = providers.Factory(my_factory)
 
-While most other libraries you have no easy way to know how :code:`MyService` is created by the dependency injection
-framework:
+Most other libraries won't expose how :code:`MyService` is created:
 
 .. code-block:: python
 
@@ -477,7 +478,7 @@ But with Antidote you can **always** track back to the definition of a dependenc
         pass
 
 
-IMHO, this makes Antidote on of the, if not the, most maintainable dependency injection library. There is
+IMHO, this makes Antidote one of the, if not the, most maintainable dependency injection library. There is
 no container to manage and you can always understand the wiring easily.
 
 Dependency injection is about removing the responsibility of building
