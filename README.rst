@@ -32,8 +32,7 @@ Antidote provides the following features:
       By default, it will only rely on annotated type hints, but it supports a lot more!
     - No :code:`**kwargs` arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
     - `Documented <https://antidote.readthedocs.io/en/stable>`_, everything has tested examples.
-    - No need for any custom setup, just use your injected function as usual. You just don't have to specify injected
-      arguments anymore.
+    - No need for any custom setup, just use your injected function as usual. You just don't have to specify injected arguments anymore.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
     - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
