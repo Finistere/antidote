@@ -18,7 +18,7 @@ Antidote
   :target: https://codecov.io/gh/Finistere/antidote
 
 .. image:: https://readthedocs.org/projects/antidote/badge/?version=latest
-  :target: http://antidote.readthedocs.io/en/stable/?badge=stable
+  :target: http://antidote.readthedocs.io/en/latest/?badge=latest
 
 
 Antidotes is a dependency injection micro-framework for Python 3.6+. It is built on the
@@ -31,7 +31,7 @@ Antidote provides the following features:
     - Injection anywhere you need through a decorator :code:`@inject`, be it static methods, functions, etc..
       By default, it will only rely on annotated type hints, but it supports a lot more!
     - No :code:`**kwargs` arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
-    - `Documented <https://antidote.readthedocs.io/en/stable>`_, everything has tested examples.
+    - `Documented <https://antidote.readthedocs.io/en/latest>`_, everything has tested examples.
     - No need for any custom setup, just use your injected function as usual. You just don't have to specify injected arguments anymore.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
@@ -77,7 +77,7 @@ To install Antidote, simply run this command:
 Documentation
 =============
 
-Beginner friendly tutorial, recipes and the reference can be found in the `documentation <https://antidote.readthedocs.io/en/stable>`_.
+Beginner friendly tutorial, recipes and the reference can be found in the `documentation <https://antidote.readthedocs.io/en/latest>`_.
 
 
 Why dependency injection ?
@@ -88,25 +88,25 @@ them from their users (classes/functions). Instead of having:
 
 .. code-block:: python
 
-  class Database:
-       pass
+class Database:
+   pass
 
-  def f():
-      db = Database()
+def f():
+  db = Database()
 
-  f()
+f()
 
 You do:
 
 .. code-block:: python
 
-  class Database:
-       pass
+class Database:
+   pass
 
-  def f(db: Database):
-      pass
+def f(db: Database):
+  pass
 
-  f(Database())
+f(Database())
 
 This leads to better code by being more modular and easier to test.
 
@@ -118,7 +118,7 @@ Hands-on quick start
 ====================
 
 Showcase of the most important features of Antidote with short and concise examples.
-Checkout the `Getting started <https://antidote.readthedocs.io/en/stable/tutorial.html>`_ for a more beginner
+Checkout the `Getting started <https://antidote.readthedocs.io/en/latest/tutorial.html>`_ for a more beginner
 friendly tutorial.
 
 How does injection looks like ? Here is a simple example:
@@ -330,7 +330,7 @@ have a quick summary of what is actually going on:
     """
 
 
-Hooked ? Check out the `documentation <https://antidote.readthedocs.io/en/stable>`_ !
+Hooked ? Check out the `documentation <https://antidote.readthedocs.io/en/latest>`_ !
 There are still features not presented here !
 
 

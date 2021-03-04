@@ -19,7 +19,7 @@ as a service or one that can be provided by a factory.
 
 .. testcode:: recipes_interface_implementation
 
-    from antidote import implementation, Service, inject, Provide
+    from antidote import implementation, Service, inject, Get, Constants, const
     from typing import Annotated
     # from typing_extensions import Annotated # Python < 3.9
 
@@ -32,9 +32,8 @@ as a service or one that can be provided by a factory.
         def with_conf(cls, host: str, name: str):
             return cls._with_kwargs(host=host, name=name)
 
-    # static config, consider using Constants for more flexibility instead.
-    class Conf(Service):
-        DB_CONN_STR = 'postgres:localhost:my_project'
+    class Conf(Constants):
+        DB_CONN_STR = const('postgres:localhost:my_project')
 
     class PostgresDB(Service, Database):
         pass
@@ -42,11 +41,12 @@ as a service or one that can be provided by a factory.
     class MySQLDB(Service, Database):
         pass
 
-    # permanent is True by default. If you want to choose each time which implementation
+    # permanent is True by default. If you want to choose on each call which implementation
     # should be used, set it to False.
     @implementation(Database, permanent=True)
-    def local_db(conf: Provide[Conf]):
-        db, host, name = conf.DB_CONN_STR.split(':')
+    @inject([Conf.DB_CONN_STR])
+    def local_db(db_conn_str: str):
+        db, host, name = db_conn_str.split(':')
         if db == 'postgres':
             # Complex dependencies are supported
             return PostgresDB.with_conf(host, name)
@@ -57,10 +57,54 @@ as a service or one that can be provided by a factory.
             raise RuntimeError(f"{db} is not a supported database")
 
 
+Now Antidote will force you to specify explicitly from where the :code:`Database` is coming
+from:
+
+.. doctest:: recipes_interface_implementation
+
+    >>> @inject
+    ... def invalid(db: Database):
+    ...     return db
+    >>> invalid()
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in ?
+    TypeError: invalid() missing 1 required positional argument: 'db'
+    >>> @inject([Database @ local_db])  # Now you know from where Database comes.
+    ... def f(db: Database):
+    ...     return db
+    >>> f()
+    <PostgresDB ...>
+
+You can also use annotated type hints:
+
+.. doctest:: recipes_interface_implementation
+
+    >>> from antidote import From
+    >>> @inject
+    ... def f(db: Annotated[Database, From(local_db)]):
+    ...     return db
+    >>> f()
+    <PostgresDB ...>
+
+If you use often in your code, consider using a type alias:
+
+.. doctest:: recipes_interface_implementation
+
+    >>> LocalDatabase = Annotated[Database, From(local_db)]
+    >>> @inject
+    ... def f(db: LocalDatabase):
+    ...     return db
+    >>> f()
+    <PostgresDB ...>
+
+Or you can retrieve it directly from :py:mod:`.world`, in tests for example:
+
 .. doctest:: recipes_interface_implementation
 
     >>> from antidote import world
     >>> db = world.get[Database](Database @ local_db)
+    >>> # Or shorter
+    ... db = world.get[Database] @ local_db
     >>> db
     <PostgresDB ...>
     >>> db.host
