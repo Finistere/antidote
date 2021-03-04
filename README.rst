@@ -53,7 +53,6 @@ Antidote provides the following features:
     - Override locally in a test any dependency.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Fast
-    - As much as possible is done at import time with `@inject`.
     - Antidote has two implementations: the pure Python one which is the reference and the
       compiled one (cython) which is heavily tuned for fast injection. The compiled version is the fastest dependency
       injection library. See compiled section further down for more details.
@@ -88,25 +87,25 @@ them from their users (classes/functions). Instead of having:
 
 .. code-block:: python
 
-class Database:
-   pass
+    class Database:
+       pass
 
-def f():
-  db = Database()
+    def f():
+      db = Database()
 
-f()
+    f()
 
-You do:
+    You do:
 
-.. code-block:: python
+    .. code-block:: python
 
-class Database:
-   pass
+    class Database:
+       pass
 
-def f(db: Database):
-  pass
+    def f(db: Database):
+      pass
 
-f(Database())
+    f(Database())
 
 This leads to better code by being more modular and easier to test.
 
