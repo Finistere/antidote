@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Dict, Hashable, Optional
+from typing import Callable, Hashable, Optional
 
 # @formatter:off
 cimport cython
@@ -28,18 +28,15 @@ cdef class IndirectProvider(FastProvider):
     cdef:
         dict __implementations
 
-    def __init__(self):
-        super().__init__()
-        self.__implementations = dict()
+    def __cinit__(self, dict implementations = None):
+        self.__implementations = implementations or dict()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(" \
                f"implementations={list(self.__implementations.keys())})"
 
-    def clone(self, keep_singletons_cache: bool) -> IndirectProvider:
-        p = IndirectProvider()
-        p.__implementations = self.__implementations.copy()
-        return p
+    cpdef IndirectProvider clone(self, bint keep_singletons_cache):
+        return IndirectProvider.__new__(IndirectProvider, self.__implementations.copy())
 
     def exists(self, dependency: Hashable) -> bool:
         return (isinstance(dependency, ImplementationDependency)

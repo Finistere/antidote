@@ -18,6 +18,9 @@ cdef extern from "Python.h":
     PyObject*PyObject_Call(PyObject *callable, PyObject *args, PyObject *kwargs) except NULL
     PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
 
+cdef:
+    tuple empty_tuple = tuple()
+
 
 @cython.final
 cdef class Build:
@@ -56,12 +59,9 @@ cdef class ServiceProvider(FastProvider):
     """
     cdef:
         dict __services
-        tuple __empty_tuple
 
-    def __init__(self):
-        super().__init__()
-        self.__empty_tuple = tuple()
-        self.__services = dict()  # type: Dict[Hashable, HeaderObject]
+    def __cinit__(self, dict services = None):
+        self.__services = services or dict()  # type: Dict[Hashable, HeaderObject]
 
     def __repr__(self):
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
@@ -71,10 +71,8 @@ cdef class ServiceProvider(FastProvider):
             return dependency.dependency in self.__services
         return dependency in self.__services
 
-    def clone(self, keep_singletons_cache: bool) -> ServiceProvider:
-        p = ServiceProvider()
-        p.__services = self.__services.copy()
-        return p
+    cpdef ServiceProvider clone(self, bint keep_singletons_cache):
+        return ServiceProvider.__new__(ServiceProvider, self.__services.copy())
 
     def maybe_debug(self, build: Hashable):
         klass = build.dependency if isinstance(build, Build) else build
@@ -104,7 +102,7 @@ cdef class ServiceProvider(FastProvider):
                 result.header = (<HeaderObject> ptr).header
                 result.value = PyObject_Call(
                     <PyObject*> (<Build> dependency).dependency,
-                    <PyObject*> self.__empty_tuple,
+                    <PyObject*> empty_tuple,
                     <PyObject*> (<Build> dependency).kwargs
                 )
         else:

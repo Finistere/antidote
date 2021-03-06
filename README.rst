@@ -49,18 +49,21 @@ Antidote provides the following features:
     - type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
     - thread-safe, cycle detection.
 - Testability
+    - fully isolate all the dependencies of each test.
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
     - Override locally in a test any dependency.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
-- Fast
-    - Antidote has two implementations: the pure Python one which is the reference and the
-      compiled one (cython) which is heavily tuned for fast injection. The compiled version is the fastest dependency
-      injection library. See compiled section further down for more details.
-      See `comparison benchmark <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_ and
-      `antidote benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_.
+- Fast, with compiled version (Cython)
+    - fastest :code:`@inject` in Python (see benchmarks further down)
+    - testing utilities are also tuned to ensure that even with full isolation it stays fast.
+    - benchmarks:
+      `comparison <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
+      `injection <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_,
+      `test utilities <https://github.com/Finistere/antidote/blob/master/benchmark_test_utils.ipynb>`_
 
 .. image:: docs/_static/img/comparison_benchmark.png
     :alt: Comparison benchmark image
+
 
 
 Installation
@@ -76,42 +79,9 @@ To install Antidote, simply run this command:
 Documentation
 =============
 
-Beginner friendly tutorial, recipes and the reference can be found in the `documentation <https://antidote.readthedocs.io/en/latest>`_.
+Beginner friendly tutorial, recipes, the reference and a FAQ can be found in the
+`documentation <https://antidote.readthedocs.io/en/latest>`_.
 
-
-Why dependency injection ?
-==========================
-
-By injecting dependencies, you remove the responsibility of building
-them from their users (classes/functions). Instead of having:
-
-.. code-block:: python
-
-    class Database:
-       pass
-
-    def f():
-      db = Database()
-
-    f()
-
-    You do:
-
-    .. code-block:: python
-
-    class Database:
-       pass
-
-    def f(db: Database):
-      pass
-
-    f(Database())
-
-This leads to better code by being more modular and easier to test.
-
-As your project grows, you'll have more and more dependencies leading to complex code only to manage them.
-That's what Antidote solves for you. You don't have to manage dependencies, you just need to declare how it should be
-managed and where it should be injected. A comparison with other libraries can be found further down.
 
 Hands-on quick start
 ====================
@@ -124,52 +94,45 @@ How does injection looks like ? Here is a simple example:
 
 .. code-block:: python
 
-    from antidote import inject, Service, Constants, const, world, Provide, Get
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
+    from antidote import inject, Service, Constants, const, world
 
     class Conf(Constants):
-        DB_HOST = const[str]('localhost:5432')
-        DB_HOST_WITHOUT_TYPE_HINT = const('localhost:5432')
+        DB_HOST = const('localhost:5432')
 
-    # Declared as a Service
     class Database(Service):
-        # All methods are decorated with @inject by default
-        def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
+        @inject([Conf.DB_HOST])  # based on argument position
+        def __init__(self, host: str):
             self._host = host
 
-    @inject  # Uses only annotated type hints by default
-    def f(db: Provide[Database] = None):
-        # Used to tell Mypy that `db` is optional but must be either injected or given.
-        assert db is not None
+    @inject({'db': Database})
+    def f(db: Database):
         pass
 
     f()  # yeah !
     f(Database('localhost:5432'))  # override injection
 
-    # You can also retrieve dependencies by hand
+    # Retrieve dependencies by hand
     world.get(Conf.DB_HOST)
     world.get[str](Conf.DB_HOST)  # with type hint
-    # if the dependency is the type itself, you may omit it:
-    world.get[Database]()
+    world.get[Database]()  # omit dependency if it's the type hint itself
 
 
-Or without annotated type hints (PEP-593):
+Or with annotated type hints (PEP-593):
 
 .. code-block:: python
 
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
+    from antidote import Get, Provide
+
     class Database(Service):
-        @inject({'host': Conf.DB_HOST})
-        def __init__(self, host: str):
+        # All methods are decorated with @inject by default
+        def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
             self._host = host
 
-    @inject([Database])
-    def f(db: Database):  # the optional is only needed for Mypy, not Antidote.
-        pass
-
-    # auto_provide => Class type hints are treated as dependencies.
-    @inject(auto_provide=True)
-    def f(db: Database = None):
+    @inject
+    def f(db: Provide[Database] = None):
+        # Used to tell Mypy that `db` is optional but must be either injected or given.
         assert db is not None
         pass
 
@@ -192,7 +155,12 @@ Want more ? Here is an over-engineered example to showcase a lot more features:
 
     # Code using MovieDB
     @inject
-    def f(movie_db: Annotated[MovieDB, From(current_movie_db)] = None):
+    def f(movie_db: Annotated[MovieDB, From(current_movie_db)]):
+        pass
+
+    # Or
+    @inject([MovieDB @ current_movie_db])
+    def f(movie_db: MovieDB = None):
         assert movie_db is not None  # for Mypy
         pass
 
@@ -217,10 +185,6 @@ Now searching for the definition of :code:`current_movie_db` would lead you to:
         IMDB_API_KEY = const('imdb.api_key')
 
         def __init__(self):
-            """
-            Load configuration from somewhere. You can change how you configure your
-            application later, it won't impact the whole application.
-            """
             self._raw_conf = {
                 'imdb': {
                     'host': 'dummy_host',
@@ -239,7 +203,7 @@ Now searching for the definition of :code:`current_movie_db` would lead you to:
                      port: Annotated[int, Get(Conf.IMDB_PORT)],
                      api_key: Annotated[str, Get(Conf.IMDB_API_KEY)]
                      ) -> ImdbAPI:
-        # Here host = Conf().get('imdb.host')
+        # Here host = Conf().provide_const('IMDB_HOST', 'imdb.host')
         return ImdbAPI(host=host, port=port, api_key=api_key)
 
     class IMDBMovieDB(MovieDB, Service):
@@ -252,7 +216,7 @@ Now searching for the definition of :code:`current_movie_db` would lead you to:
             pass
 
     @implementation(MovieDB)
-    def current_movie_db():
+    def current_movie_db() -> object:
         return IMDBMovieDB  # dependency to be provided for MovieDB
 
 
@@ -333,163 +297,6 @@ Hooked ? Check out the `documentation <https://antidote.readthedocs.io/en/latest
 There are still features not presented here !
 
 
-Why Antidote ?
-==============
-
-*Disclaimer: This comparison is mostly based on the documentation of the most popular libraries I know of, not less not more.*
-
-Why choose Antidote ?
-
-- **Everything is explicit**: Some libraries using an :code:`@inject`-like decorator, such as injector_, lagom_ or python_inject_ will
-  instantiate any missing arguments. Antidote will only inject dependencies
-  that you have defined as such and only when told so. Making it easier to understand what is injected or not at first glance.
-- **Flexibility**: With the exception of dependency_injector_, most libraries will only support services (class), simple factories and singletons.
-  Antidote also provides configuration, interfaces, stateful factories, lazy methods/functions, scopes, async injection.
-- **Maintainability**: Again with the exception of dependency_injector_, dependency injection libraries can make it difficult to
-  understand how/where a dependency is created. Typically when declaring a factory for a service (class), you won't have any way
-  of finding easily the function when using the service. Antidote syntax *always* ensures that you can. Antidote primary
-  goal is helping you create maintainable code.
-- **Performance**: Antidote's :code:`@inject` is heavily tuned for performance in the compiled version (Cython). No other
-  library goes as far. Now whether it's really useful for a dependency injection library is debatable. But this allows
-  you to use :code:`@inject` virtually anywhere without any impact. (See benchmarks on the top)
-
-Why not dependency_injector_ ?
-
-The main difference with dependency_injector_ is the philosophy of the library. With dependency_injector_ declaration of
-dependencies to the :code:`container` and their implementation are in two separate files:
-
-.. code-block:: python
-
-    # my_service.py
-    # Dependency Injector
-    class MyService:
-        pass
-
-.. code-block:: python
-
-    # services.py
-    # Dependency Injector
-    import sys
-    from dependency_injector import containers, providers
-
-    class Container(containers.DeclarativeContainer):
-        my_service = providers.Singleton(MyService)
-
-    container = Container()
-    container.wire(modules=[sys.modules["client"]])
-
-.. code-block:: python
-
-    # client.py
-    # Dependency Injector
-    from dependency_injector.wiring import inject, Provide
-    from services import container
-    from my_service import MyService
-
-    @inject
-    def f(my_service: MyService = Provide[container.my_service]):
-        pass
-
-
-This implies that you have one more file to maintain. And with a lot of dependencies you start managing either
-one big container or multiple ones. In comparison with Antidote:
-
-.. code-block:: python
-
-    # my_service.py
-    # Antidote
-    from antidote import Service
-
-    class MyService(Service):
-        pass
-
-.. code-block:: python
-
-    # client.py
-    # Antidote
-    from antidote import Provide, inject
-    from my_service import MyService
-
-    @inject
-    def f(my_service: Provide[MyService]):
-        pass
-
-
-The reason dependency_injector_ does this is simple: it's easy to understand how dependencies are wired together,
-making it a lot more maintainable than most libraries. It is especially visible
-when declaring factories. With dependency_injector_ you would do something like that:
-
-.. code-block:: python
-
-    # Dependency Injector
-    class Container(containers.DeclarativeContainer):
-        my_service = providers.Factory(my_factory)
-
-Most other libraries won't expose how :code:`MyService` is created:
-
-.. code-block:: python
-
-    # Injector
-    @provider
-    def my_factory() -> MyService:
-        pass
-
-    @inject
-    def f(s: MyService):
-        pass
-
-    # Lagom
-    container[MyService] = my_factory
-
-    @magic_bind_to_container(container)
-    def f(s: MyService):
-        pass
-
-    # Python Inject
-    def config(binder):
-        binder.bind(MyService, my_factory)
-
-    inject.configure(config)
-
-    @inject.autoparams()
-    def f(s: MyService):
-        pass
-
-But with Antidote you can **always** track back to the definition of a dependency:
-
-.. code-block:: python
-
-    # Antidote
-    from antidote import factory, inject, From
-
-    @factory
-    def my_factory() -> MyService:
-        pass
-
-    @inject(dict(my_service=MyService @ my_factory))
-    def f(my_service: MyService):
-        pass
-
-    # Or with annotated type hints
-    @inject
-    def f(my_service: Annotated[MyService, From(my_factory)]):
-        pass
-
-
-IMHO, this makes Antidote one of the, if not the, most maintainable dependency injection library. There is
-no container to manage and you can always understand the wiring easily.
-
-Dependency injection is about removing the responsibility of building
-dependencies from their clients. It does not imply that dependency management should
-be done in a separate file.
-
-.. _dependency_injector: https://python-dependency-injector.ets-labs.org/introduction/di_in_python.html
-.. _pinject: https://github.com/google/pinject
-.. _injector: https://github.com/alecthomas/injector
-.. _python_inject: https://github.com/ivankorobkov/python-inject
-.. _lagom: https://github.com/meadsteve/lagom
-
-
 Compiled
 ========
 
@@ -501,7 +308,7 @@ You can check whether you're using the compiled version or not with:
 
     from antidote import is_compiled
     
-    print(f"Antidote is compiled ? {is_compiled()}")
+    print(f"Is Antidote compiled ? {is_compiled()}")
 
 You can force the compilation of antidote yourself when installing:
 

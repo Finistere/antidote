@@ -12,4 +12,4 @@ find src -name '*.cpp' -exec rm {} +
 rm -rf build
 
 # Actual compilation
-ANTIDOTE_COMPILED=true python setup.py build_ext --inplace
+ANTIDOTE_COMPILED=true ANTIDOTE_CYTHON_OPTIONS=all python setup.py build_ext --inplace

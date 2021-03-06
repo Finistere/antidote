@@ -21,8 +21,12 @@ if os.environ.get("ANTIDOTE_COMPILED") == "true":
     from Cython.Compiler import Options
 
     cython_options = set(os.environ.get("ANTIDOTE_CYTHON_OPTIONS", "").split(","))
+    if "all" in cython_options:
+        cython_options |= {"annotate", "debug", "trace", "profile"}
+
     extension_extras = {}
     cythonize_extras = {}
+    compiler_directives_extras = {}
 
     if "annotate" in cython_options:
         Options.annotate = True
@@ -31,11 +35,14 @@ if os.environ.get("ANTIDOTE_COMPILED") == "true":
     if "debug" in cython_options:
         cythonize_extras['gdb_debug'] = True
 
-    if "trace" in cython_options:
+    if "trace" in cython_options:  # line_profiler / coverage
         directive_defaults = Options.get_directive_defaults()
         directive_defaults['linetrace'] = True
         directive_defaults['binding'] = True
         extension_extras['define_macros'] = [('CYTHON_TRACE', '1')]
+
+    if "profile" in cython_options:  # cProfile
+        compiler_directives_extras["profile"] = True
 
 
     def generate_extensions():
@@ -56,7 +63,8 @@ if os.environ.get("ANTIDOTE_COMPILED") == "true":
                                                      boundscheck=False,
                                                      wraparound=False,
                                                      annotation_typing=False,
-                                                     cdivision=True),
+                                                     cdivision=True,
+                                                     **compiler_directives_extras),
                             **cythonize_extras)
 
 setup(

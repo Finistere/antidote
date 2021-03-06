@@ -45,7 +45,7 @@ as a service or one that can be provided by a factory.
     # should be used, set it to False.
     @implementation(Database, permanent=True)
     @inject([Conf.DB_CONN_STR])
-    def local_db(db_conn_str: str):
+    def local_db(db_conn_str: str) -> object:
         db, host, name = db_conn_str.split(':')
         if db == 'postgres':
             # Complex dependencies are supported

@@ -66,7 +66,7 @@ def implementation(interface: type,
         >>> from typing import Annotated
         ... # from typing_extensions import Annotated # Python < 3.9
         >>> @implementation(Database)
-        ... def local_db(choice: Annotated[str, Get(Config.DB)]):
+        ... def local_db(choice: Annotated[str, Get(Config.DB)]) -> object:
         ...     if choice == 'postgres':
         ...         return PostgreSQL
         ...     else:

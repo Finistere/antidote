@@ -32,8 +32,8 @@ cdef class Lazy:
 
 @cython.final
 cdef class LazyProvider(FastProvider):
-    def clone(self, keep_singletons_cache: bool) -> FastProvider:
-        return LazyProvider()
+    cpdef LazyProvider clone(self, bint keep_singletons_cache):
+        return LazyProvider.__new__(LazyProvider)
 
     def exists(self, dependency: Hashable) -> bool:
         return isinstance(dependency, Lazy)

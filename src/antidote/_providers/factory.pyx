@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Dict, Hashable, Optional, Union
+from typing import Callable, Dict, Hashable, Optional
 
 # @formatter:off
 cimport cython
@@ -14,48 +14,38 @@ from ..core import DependencyDebug
 from ..core.exceptions import DependencyNotFoundError
 # @formatter:on
 
+ctypedef Py_ssize_t Py_hash_t
+
 cdef extern from "Python.h":
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
+    int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
     PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
     PyObject*PyObject_Call(PyObject *callable, PyObject *args,
                            PyObject *kwargs) except NULL
     PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
     void Py_DECREF(PyObject *o)
 
+cdef:
+    tuple empty_tuple = tuple()
 
-@cython.final
+
 cdef class FactoryProvider(FastProvider):
     cdef:
         dict __factories
-        tuple __empty_tuple
-        object __weakref__
 
-    def __init__(self):
-        super().__init__()
-        self.__factories = dict()  # type: Dict[FactoryDependency, Factory]
-        self.__empty_tuple = tuple()
+    def __cinit__(self, dict factories = None):
+        self.__factories = factories or dict()  # type: Dict[FactoryDependency, Factory]
 
     def __repr__(self):
         return f"{type(self).__name__}(factories={self.__factories})"
 
-    def clone(self, keep_singletons_cache: bool) -> FactoryProvider:
+    cpdef FactoryProvider clone(self, bint keep_singletons_cache):
         cdef:
-            Factory f
-            FactoryProvider p
-
-        p = FactoryProvider()
-        if keep_singletons_cache:
-            factories = {
-                k: (f.copy() if f.dependency is not None else f)
-                for k, f in self.__factories.items()
-            }
-        else:
-            factories = {
-                k: (f.copy_without_function() if f.dependency is not None else f)
-                for k, f in self.__factories.items()
-            }
-        p.__factories = factories
-        return p
+            ClonedFactoryProvider provider
+        provider = ClonedFactoryProvider.__new__(ClonedFactoryProvider,
+                                                 self.__factories.copy())
+        provider.__keep_singletons_cache = keep_singletons_cache
+        return provider
 
     def exists(self, dependency: Hashable) -> bool:
         if isinstance(dependency, Build):
@@ -126,7 +116,7 @@ cdef class FactoryProvider(FastProvider):
             result.header = (<Factory> factory).header
             result.value = PyObject_Call(
                 <PyObject*> (<Factory> factory).function,
-                <PyObject*> self.__empty_tuple,
+                <PyObject*> empty_tuple,
                 <PyObject*> (<Build> dependency).kwargs
             )
         else:
@@ -145,6 +135,7 @@ cdef class FactoryProvider(FastProvider):
                  ) -> FactoryDependency:
         cdef:
             Header header
+            Factory f
         assert inspect.isclass(output) \
                and (factory is None or factory_dependency is None) \
                and (factory is None or callable(factory)) \
@@ -153,28 +144,89 @@ cdef class FactoryProvider(FastProvider):
             dependency = FactoryDependency(output, factory or factory_dependency)
             self._bound_container_raise_if_exists(dependency)
 
-            header = HeaderObject.from_scope(scope).header
+            f = Factory.__new__(Factory)
+            f.origin = <PyObject*> self
+            f.header = HeaderObject.from_scope(scope).header
             if factory_dependency:
-                self.__factories[dependency] = Factory.__new__(
-                    Factory,
-                    header,
-                    dependency=factory_dependency
-                )
+                f.dependency = factory_dependency
+                f.function = None
             else:
-                self.__factories[dependency] = Factory.__new__(
-                    Factory,
-                    header,
-                    function=factory
-                )
-
+                f.dependency = None
+                f.function = factory
+            self.__factories[dependency] = f
             return dependency
+
+cdef class ClonedFactoryProvider(FactoryProvider):
+    cdef:
+        bint __keep_singletons_cache
+
+    cdef object provider_type(self):
+        return FactoryProvider
+
+    cdef fast_provide(self,
+                      PyObject*dependency,
+                      PyObject*container,
+                      DependencyResult*result):
+        cdef:
+            Factory f
+            PyObject* factory
+            bint is_build_dependency = PyObject_IsInstance(dependency, <PyObject*> Build)
+            PyObject*dependency_factory = (<PyObject*> (<Build> dependency).dependency
+                                           if is_build_dependency else
+                                           dependency)
+
+        if not PyObject_IsInstance(dependency_factory, <PyObject*> FactoryDependency):
+            return
+
+        factory = PyDict_GetItem(<PyObject*> self.__factories, dependency_factory)
+        if factory is NULL:
+            return
+
+        if (<Factory> factory).origin != <PyObject*> self \
+                and (<Factory> factory).dependency is not None:
+            f = Factory.__new__(Factory)
+            f.origin = <PyObject*> self
+            f.header = (<Factory> factory).header
+            f.dependency = (<Factory> factory).dependency
+            if self.__keep_singletons_cache:
+                f.function = (<Factory> factory).function
+            else:
+                f.function = None
+            PyDict_SetItem(<PyObject*> self.__factories, dependency_factory, <PyObject*> f)
+            factory = <PyObject*> f
+
+        if (<Factory> factory).function is None:
+            (<RawContainer> container).fast_get(
+                <PyObject*> (<Factory> factory).dependency,
+                result)
+            if result.value is NULL:
+                raise DependencyNotFoundError((<Factory> factory).dependency)
+            assert header_is_singleton(
+                result.header), "factory dependency is expected to be a singleton"
+            (<Factory> factory).function = <object> result.value
+            Py_DECREF(result.value)
+
+        if is_build_dependency:
+            result.header = (<Factory> factory).header
+            result.value = PyObject_Call(
+                <PyObject*> (<Factory> factory).function,
+                <PyObject*> empty_tuple,
+                <PyObject*> (<Build> dependency).kwargs
+            )
+        else:
+            result.header = (<Factory> factory).header | header_flag_cacheable()
+            result.value = PyObject_CallObject(
+                <PyObject*> (<Factory> factory).function,
+                NULL
+            )
+
 
 @cython.final
 cdef class FactoryDependency:
     cdef:
         readonly object output
         readonly object factory
-        int _hash
+        Py_hash_t _hash
 
     def __init__(self, object output, object factory):
         self.output = output
@@ -207,29 +259,15 @@ cdef class FactoryDependency:
                 and (self.factory is fd.factory
                      or self.factory == fd.factory))  # noqa
 
+@cython.freelist(64)
 @cython.final
 cdef class Factory:
     cdef:
         Header header
+        void* origin
         object function
         object dependency
-
-    def __cinit__(self,
-                  Header header,
-                  function: Callable = None,
-                  dependency: Hashable = None):
-        assert function is not None or dependency is not None
-        self.header = header
-        self.function = function
-        self.dependency = dependency
 
     def __repr__(self):
         return (f"{type(self).__name__}(function={self.function}, "
                 f"dependency={self.dependency})")
-
-    def copy(self):
-        return Factory(self.header, self.function, self.dependency)
-
-    def copy_without_function(self):
-        assert self.dependency is not None
-        return Factory(self.header, None, self.dependency)

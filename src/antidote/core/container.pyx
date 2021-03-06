@@ -166,10 +166,14 @@ cdef class RawProvider:
     on fast_provide(). This is done to improve performance by avoiding object creation.
     """
 
-    def __init__(self):
+    def __cinit__(self):
         self._container_ref = None
 
-    def clone(self, keep_singletons_cache: bool) -> 'RawProvider':
+    # Hack to support custom cloned type for FactoryProvider.
+    cdef object provider_type(self):
+        return type(self)
+
+    cpdef RawProvider clone(self, bint keep_singletons_cache):
         raise NotImplementedError()  # pragma: no cover
 
     def exists(self, dependency: Hashable) -> bool:
@@ -284,9 +288,12 @@ cdef class RawContainer(Container):
 
     @staticmethod
     def with_same_providers_and_scopes(RawContainer original):
+        cdef:
+            RawProvider provider
+
         container = RawContainer()
         for provider in original.providers:
-            container.add_provider(type(provider))
+            container.add_provider(provider.provider_type())
         container.__scopes = original.__scopes.copy()
         container.__scope_dependencies = [dict() for _ in range(len(original.__scopes))]
         return container
@@ -322,9 +329,11 @@ cdef class RawContainer(Container):
 
     def add_provider(self, provider_cls: Type[RawProvider]):
         cdef:
-            RawProvider provider
+            RawProvider provider, p
+
         with self.locked(freezing=True):
-            assert all(provider_cls != type(p) for p in self.__providers)
+            for p in self.__providers:
+                assert provider_cls != p.provider_type()
             provider = provider_cls()
             provider._container_ref = ref(self)
             self.__providers.append(provider)
@@ -363,6 +372,9 @@ cdef class RawContainer(Container):
         return <Scope> self.__scopes[scope_id - 1]
 
     def raise_if_exists(self, dependency: Hashable):
+        cdef:
+            RawProvider provider
+
         with self._registration_lock:
             if dependency in self.__singletons:
                 raise DuplicateDependencyError(
@@ -373,7 +385,7 @@ cdef class RawContainer(Container):
                 if provider.exists(dependency):
                     debug = provider.maybe_debug(dependency)
                     message = f"{dependency!r} has already been declared " \
-                              f"in {type(provider)}"
+                              f"in {provider.provider_type()}"
                     if debug is None:
                         raise DuplicateDependencyError(message)
                     else:
@@ -385,7 +397,7 @@ cdef class RawContainer(Container):
               keep_scopes: bool = False) -> 'RawContainer':
         cdef:
             RawContainer clone
-            RawProvider p_clone
+            RawProvider p, p_clone
 
         with self.locked():
             clone = OverridableRawContainer()
@@ -407,7 +419,7 @@ cdef class RawContainer(Container):
                                        "instance when copy() is called.")
                 p_clone._container_ref = ref(clone)
                 clone.__providers.append(p_clone)
-                clone.__singletons[type(p)] = p_clone
+                clone.__singletons[p.provider_type()] = p_clone
 
             return clone
 

@@ -16,6 +16,7 @@ Table of Content
     :maxdepth: 2
 
     tutorial
+    faq
     recipes
     how_to
     extend

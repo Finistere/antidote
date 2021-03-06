@@ -50,6 +50,8 @@ cdef class RawProvider:
     cdef:
         object _container_ref
 
+    cdef object provider_type(self)
+    cpdef RawProvider clone(self, bint keep_singletons_cache)
     cdef fast_provide(self,
                       PyObject *dependency,
                       PyObject *container,
