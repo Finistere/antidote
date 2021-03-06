@@ -54,7 +54,7 @@ Antidote provides the following features:
     - Override locally in a test any dependency.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Fast\*
-    - fastest :code:`@inject` in Python (see benchmarks further down)
+    - fastest :code:`@inject`.
     - testing utilities are also tuned to ensure that even with full isolation it stays fast.
     - benchmarks:
       `comparison <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
