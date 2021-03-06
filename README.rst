@@ -53,13 +53,15 @@ Antidote provides the following features:
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
     - Override locally in a test any dependency.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
-- Fast, with compiled version (Cython)
+- Fast\*
     - fastest :code:`@inject` in Python (see benchmarks further down)
     - testing utilities are also tuned to ensure that even with full isolation it stays fast.
     - benchmarks:
       `comparison <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
       `injection <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_,
       `test utilities <https://github.com/Finistere/antidote/blob/master/benchmark_test_utils.ipynb>`_
+
+*\*with the compiled version, in Cython. Pre-built wheels for Linux. See further down for more details.*
 
 .. image:: docs/_static/img/comparison_benchmark.png
     :alt: Comparison benchmark image
@@ -81,6 +83,12 @@ Documentation
 
 Beginner friendly tutorial, recipes, the reference and a FAQ can be found in the
 `documentation <https://antidote.readthedocs.io/en/latest>`_.
+
+
+Issues / Feature Requests / Questions
+=====================================
+
+Feel free to open an issue on Github for questions, requests or issues !
 
 
 Hands-on quick start
@@ -326,12 +334,6 @@ On the contrary, you can force the pure Python version with:
 
     The compiled version is not tested against PyPy. The compiled version relies currently on Cython,
     but it is not part of the public API. Relying on it in your own Cython code is at your risk.
-
-
-Issues / Feature Requests / Questions
-=====================================
-
-Feel free to open an issue on Github for questions, requests or issues ! ;)
 
 
 How to Contribute
