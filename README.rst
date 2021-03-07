@@ -23,7 +23,8 @@ Antidote
 
 Antidotes is a dependency injection micro-framework for Python 3.6+. It is built on the
 idea of ensuring best **maintainability** of your code while being as **easy to use** as possible.
-It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere.
+It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere
+and **full isolation in tests**.
 
 Antidote provides the following features:
 
