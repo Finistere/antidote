@@ -174,8 +174,10 @@ Why choose Antidote ?
   goal is helping you create maintainable code.
 - **Performance**: Antidote's :code:`@inject` is heavily tuned for performance in the compiled version (Cython). This allows
   you to use :code:`@inject` virtually anywhere without any impact, even in tests. No other libraries goes as far as Antidote.
+  (`comparison benchmark <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
+  `antidote benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_)
 - **Testing**: Antidote provides testing utilities to fully isolate your tests and are tuned to ensure to be fast even
-  in big projects.
+  in big projects. (`test utilities benchmark <https://github.com/Finistere/antidote/blob/master/benchmark_test_utils.ipynb>`_)
 
 .. image:: https://github.com/Finistere/antidote/raw/master/docs/_static/img/comparison_benchmark.png
     :alt: Comparison benchmark image
@@ -255,7 +257,8 @@ the whole application. In pytest you would do:
         pass
 
 Unfortunately, :code:`wire` is extremely slow because it has to check all objects and retrieve
-their arguments. Doing this took *minutes* in a project I worked on. On a very simple case, Antidote provides
+their arguments. Doing this took *minutes* in a project I worked on, as slow as dropping
+and re-creating the whole database for each test. On a very simple case, Antidote provides
 full isolation two orders of magnitude faster.
 
 Let's see how the same example looks with Antidote:
@@ -299,8 +302,9 @@ Let's see how the same example looks with Antidote:
         pass
 
 We don't need to manage a container anymore making the code simpler. Hence Antidote is:
+
 - simpler
-- faster, see `benchmark <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_
+- faster, see `comparison benchmark`_
 - as maintainable
 
 .. _dependency_injector: https://python-dependency-injector.ets-labs.org/introduction/di_in_python.html
