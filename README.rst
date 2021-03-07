@@ -311,7 +311,11 @@ The configuration can also be easily tracked down:
             root, key = arg.split('.')
             return self._raw_conf[root][key]
 
-Now you can override any of the arguments, typically in tests:
+Testing
+-------
+
+Based on the previous example. You can test your application by simply overriding
+any of the arguments:
 
 .. code-block:: python
 
