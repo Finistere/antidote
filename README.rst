@@ -84,6 +84,14 @@ Documentation
 Beginner friendly tutorial, recipes, the reference and a FAQ can be found in the
 `documentation <https://antidote.readthedocs.io/en/latest>`_.
 
+Here are some links:
+
+- `Why dependency injection ? <https://antidote.readthedocs.io/en/latest/faq.html#why-dependency-injection>`_
+- `Why use a dependency injection framework ? <https://antidote.readthedocs.io/en/latest/faq.html#why-use-a-dependency-injection-framework>`_
+- `Why choose Antidote ? <https://antidote.readthedocs.io/en/latest/faq.html#why-choose-antidote>`_
+- `Getting Started <https://antidote.readthedocs.io/en/latest/tutorial.html#getting-started>`_
+- `Changelog <https://antidote.readthedocs.io/en/latest/changelog.html>`_
+
 
 Issues / Feature Requests / Questions
 =====================================
@@ -95,8 +103,10 @@ Hands-on quick start
 ====================
 
 Showcase of the most important features of Antidote with short and concise examples.
-Checkout the `Getting started <https://antidote.readthedocs.io/en/latest/tutorial.html>`_ for a more beginner
-friendly tutorial.
+Checkout the `Getting started`_ for a full beginner friendly tutorial.
+
+A simple service
+----------------
 
 How does injection looks like ? Here is a simple example:
 
@@ -119,7 +129,7 @@ How does injection looks like ? Here is a simple example:
     f()  # yeah !
     f(Database('localhost:5432'))  # override injection
 
-    # Retrieve dependencies by hand
+    # Retrieve dependencies by hand, in tests typically
     world.get(Conf.DB_HOST)
     world.get[str](Conf.DB_HOST)  # with type hint
     world.get[Database]()  # omit dependency if it's the type hint itself
@@ -139,53 +149,149 @@ Or with annotated type hints (PEP-593):
             self._host = host
 
     @inject
+    def f(db: Provide[Database]):
+        pass
+
+Or with :code:`auto_provide`:
+
+.. code-block:: python
+
+    # auto_provide => Class type hints are treated as dependencies.
+    @inject(auto_provide=True)
+    def f(db: Database):
+        pass
+
+If you want to be compatible with Mypy type checking, you just need to do the following:
+
+.. code-block:: python
+
+    @inject
     def f(db: Provide[Database] = None):
         # Used to tell Mypy that `db` is optional but must be either injected or given.
         assert db is not None
         pass
 
+This might look a bit cumbersome, but in reality you'll only need to do it in functions
+you are actually calling yourself in your code. Typically :code:`Database.__init__()`
+won't need it because it'll always be Antidote injecting the arguments.
 
-Want more ? Here is an over-engineered example to showcase a lot more features:
+A more complex case
+-------------------
+
+Want more ? Here is an over-engineered example to showcase a lot more features. First we have
+an :code:`ImdbAPI` coming from a external library:
 
 .. code-block:: python
 
-    # Some library.py
+    # from a library
     class ImdbAPI:
         def __init__(self, host: str, port: int, api_key: str):
             pass
 
+
+You have your own interface to manipulate the movies:
+
 .. code-block:: python
 
-    # The interface exposed in your code
+    # movie.py
     class MovieDB:
-        def get_best_movies():
+        """ Interface """
+
+        def get_best_movies(self):
             pass
 
-    # Code using MovieDB
-    @inject
-    def f(movie_db: Annotated[MovieDB, From(current_movie_db)]):
-        pass
 
-    # Or
-    @inject([MovieDB @ current_movie_db])
-    def f(movie_db: MovieDB = None):
-        assert movie_db is not None  # for Mypy
-        pass
-
-    f()
-
-
-Now searching for the definition of :code:`current_movie_db` would lead you to:
+Now that's the entry point of your application:
 
 .. code-block:: python
 
+    # main.py
+    from movie import MovieDB
+    from current_movie import current_movie_db
+
+
+    @inject([MovieDB @ current_movie_db])
+    def main(movie_db: MovieDB = None):
+        assert movie_db is not None  # for Mypy, to understand that movie_db is optional
+        pass
+
+    # Or with annotated type hints
+    @inject
+    def main(movie_db: Annotated[MovieDB, From(current_movie_db)]):
+        pass
+
+    if __name__ == '__main__':
+        main()
+
+
+Note that you can search for the definition of :code:`current_movie_db`. So you can simply
+use "Go to definition" of your IDE which would open:
+
+.. code-block:: python
+
+    # current_movie.py
     # Code implementing/managing MovieDB
-    from antidote import (Constants, factory, inject, world, const, Service,
-                          implementation, Get, From)
+    from antidote import factory, inject, Service, implementation
+    from config import Config
+
+    # Provides ImdbAPI, as defined by the return type annotation.
+    @factory
+    @inject([Config.IMDB_HOST, Config.IMDB_PORT, Config.IMDB_API_KEY])
+    def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
+        # Here host = Config().provide_const('IMDB_HOST', 'imdb.host')
+        return ImdbAPI(host=host, port=port, api_key=api_key)
+
+    class IMDBMovieDB(MovieDB, Service):
+        __antidote__ = Service.Conf(singleton=False)  # New instance each time
+
+        @inject({'imdb_api': ImdbAPI @ imdb_factory})
+        def __init__(self, imdb_api: ImdbAPI):
+            self._imdb_api = imdb_api
+
+        def get_best_movies(self):
+            pass
+
+    @implementation(MovieDB)
+    def current_movie_db() -> object:
+        return IMDBMovieDB  # dependency to be provided for MovieDB
+
+
+Or with annotated type hints:
+
+.. code-block:: python
+
+    # current_movie.py
+    # Code implementing/managing MovieDB
+    from antidote import factory, Service, Get, From
     from typing import Annotated
     # from typing_extensions import Annotated # Python < 3.9
+    from config import Config
 
-    class Conf(Constants):
+    @factory
+    def imdb_factory(host: Annotated[str, Get(Config.IMDB_HOST)],
+                     port: Annotated[int, Get(Config.IMDB_PORT)],
+                     api_key: Annotated[str, Get(Config.IMDB_API_KEY)]
+                     ) -> ImdbAPI:
+        return ImdbAPI(host, port, api_key)
+
+    class IMDBMovieDB(MovieDB, Service):
+        __antidote__ = Service.Conf(singleton=False)
+
+        def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
+            self._imdb_api = imdb_api
+
+        def get_best_movies(self):
+            pass
+
+
+The configuration can also be easily tracked down:
+
+.. code-block:: python
+
+    # config.py
+    from antidote import Constants, const
+
+    class Config(Constants):
         # with str/int/float, the type hint is enforced. Can be removed or extend to
         # support Enums.
         IMDB_HOST = const[str]('imdb.host')
@@ -203,97 +309,52 @@ Now searching for the definition of :code:`current_movie_db` would lead you to:
 
         def provide_const(self, name: str, arg: str):
             root, key = arg.split('.')
-            return self._raw_const[root][key]
+            return self._raw_conf[root][key]
 
-    # Provides ImdbAPI, as defined by the return type annotation.
-    @factory
-    def imdb_factory(host: Annotated[str, Get(Conf.IMDB_HOST)],
-                     port: Annotated[int, Get(Conf.IMDB_PORT)],
-                     api_key: Annotated[str, Get(Conf.IMDB_API_KEY)]
-                     ) -> ImdbAPI:
-        # Here host = Conf().provide_const('IMDB_HOST', 'imdb.host')
-        return ImdbAPI(host=host, port=port, api_key=api_key)
-
-    class IMDBMovieDB(MovieDB, Service):
-        __antidote__ = Service.Conf(singleton=False)  # New instance each time
-
-        def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
-            self._imdb_api = imdb_api
-
-        def get_best_movies():
-            pass
-
-    @implementation(MovieDB)
-    def current_movie_db() -> object:
-        return IMDBMovieDB  # dependency to be provided for MovieDB
-
-
-Or without annotated type hints:
+Now you can override any of the arguments, typically in tests:
 
 .. code-block:: python
 
-    @factory
-    @inject([Conf.IMDB_HOST, Conf.IMDB_PORT, Conf.IMDB_API_KEY])
-    def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
-        return ImdbAPI(host, port, api_key)
-
-    class IMDBMovieDB(MovieDB, Service):
-        __antidote__ = Service.Conf(singleton=False)
-
-        @inject({'imdb_api': ImdbAPI @ imdb_factory})
-        def __init__(self, imdb_api: ImdbAPI):
-            self._imdb_api = imdb_api
-
-    @inject([MovieDB @ current_movie_db])
-    def f(movie_db: MovieDB = None):
-        assert movie_db is not None
-        pass
-
-
-We've seen that you can override any parameter:
-
-.. code-block:: python
-
-    conf = Conf()
-    f(IMDBMovieDB(imdb_factory(
+    conf = Config()
+    main(IMDBMovieDB(imdb_factory(
         # constants can be retrieved directly on an instance
         host=conf.IMDB_HOST,
         port=conf.IMDB_PORT,
         api_key=conf.IMDB_API_KEY,
     )))
 
-But if you only to change one part in a complex dependency graph, you can override them
-locally with:
+You can also fully isolate your tests from each other while relying on Antidote and
+override any dependencies within that context:
 
 .. code-block:: python
 
-    # Override locally some dependencies:
-    with world.test.clone(keep_singletons=True):
-        world.test.override.singleton(Conf.IMDB_HOST, 'other host')
-        f()
+    from antidote import world
+
+    # Clone current world to isolate it from the rest
+    with world.test.clone():
+        # Override the configuration
+        world.test.override.singleton(Config.IMDB_HOST, 'other host')
+        main()
 
 If you ever need to debug your dependency injections, Antidote also provides a tool to
 have a quick summary of what is actually going on:
 
 .. code-block:: python
 
-    world.debug(f)
+    world.debug(main)
     # will output:
     """
-    f
+    main
     └── Permanent implementation: MovieDB @ current_movie_db
         └──<∅> IMDBMovieDB
             └── ImdbAPI @ imdb_factory
                 └── imdb_factory
-                    ├── Const: Conf.IMDB_API_KEY
-                    │   └── Conf
-                    │       └── Singleton: 'conf_path' -> '/etc/app.conf'
-                    ├── Const: Conf.IMDB_PORT
-                    │   └── Conf
-                    │       └── Singleton: 'conf_path' -> '/etc/app.conf'
-                    └── Const: Conf.IMDB_HOST
-                        └── Conf
-                            └── Singleton: 'conf_path' -> '/etc/app.conf'
+                    ├── Const: Config.IMDB_API_KEY
+                    │   └── Config
+                    ├── Const: Config.IMDB_PORT
+                    │   └── Config
+                    └── Const: Config.IMDB_HOST
+                        └── Config
 
     Singletons have no scope markers.
     <∅> = no scope (new instance each time)

@@ -160,11 +160,9 @@ how it's defined.
 
 
 
-Comparison with other frameworks
-================================
-
-
 Why choose Antidote ?
+=====================
+
 
 - **Everything is explicit**: Some libraries using an :code:`@inject`-like decorator, such as injector_, lagom_ or python_inject_ will
   instantiate any missing arguments. Antidote won't, you have to specify explicitly what must injected.

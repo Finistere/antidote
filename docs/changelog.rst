@@ -9,6 +9,18 @@ Pretty much v1.0-beta.
 
 
 
+0.12.1 (2021-03-07)
+===================
+
+
+Change
+------
+
+- Improved :py:func:`.world.test.clone` performance to be as fast as possible to avoid
+  any overhead in tests in the compiled version.
+
+
+
 0.12.0 (2021-02-06)
 ===================
 
