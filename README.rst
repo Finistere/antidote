@@ -49,9 +49,9 @@ Antidote provides the following features:
     - type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
     - thread-safe, cycle detection.
 - Testability
-    - fully isolate all the dependencies of each test.
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
-    - Override locally in a test any dependency.
+    - fully isolate each test with :code:`world.test.clone`. They will work on the separate objects.
+    - Override any dependency locally in a test.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Performance\*
     - fastest :code:`@inject` with heavily tuned Cython.
