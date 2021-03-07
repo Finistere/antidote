@@ -37,8 +37,8 @@ You do:
 Here :code:`get_total_count()` doesn't rely directly on the class :code:`Database` anymore. It only expects
 to be given an object that exposes the same interface, a method :code:`query(sql: str) -> Any`.
 This leads to more **modular code** as there less coupling between :code:`get_total_count()` and :code:`Database`.
-In the later you can change how :code:`Database` must be created without changing :code:`get_total_count()`. It
-also leads to **easier testing**, you only need to prove an object that behaves the same way, no need
+In the later you can change how :code:`Database` is instantiated without changing :code:`get_total_count()`. It
+also leads to **easier testing**, you only need to provide an object that behaves the same way, no need
 to know how :code:`Database` actually works.
 
 Now in simple projects, you would just have an instance of :code:`Database` in a module and give it to the functions that needs it.
@@ -78,8 +78,8 @@ Why use a dependency injection framework ?
 ==========================================
 
 
-Based on the previous example, let's suppose you don't always need the database. Instantiating it takes times, so you
-want to avoid it if possible. A simple way to do
+Based on the previous example, let's suppose you don't always need the database. Creating the connections takes times,
+so you want to avoid it if possible. A simple way to do
 
 .. testcode:: why_dependency_injection
 
@@ -101,7 +101,8 @@ That's still fine to maintain. But how does :code:`Database` know where the data
     # config.py
 
     class Config:
-        pass
+        host: str = 'localhost'
+        port: int = 5432
 
 .. testcode:: why_dependency_injection
 
@@ -117,10 +118,10 @@ That's still fine to maintain. But how does :code:`Database` know where the data
         return __db
 
 Now it starts to get complicated. How should the :code:`config` be handled ? With the above you need to have access
-the :code:`config` to be able to retrieve the :code:`Database` because host and port must be given. So you have a global
+the :code:`config` to be able to retrieve the :code:`Database` because :code:`host` and :code:`port` must be specified. So you have a global
 object that you carry everywhere. You could use :code:`config` inside the :code:`get_db()` but that breaks dependency
-injection. Is it that bad ? It can quickly become cumbersome in tests, you have to manage a global state used by your
-code. Starts to get really ugly, but kinda manageable.
+injection. Is it that bad ? Well, it can quickly become cumbersome in tests, you have to manage a global state used by your
+code. Starts to get really ugly, but manageable.
 
 But what if the configuration isn't coming from a file but it's stored in the Database / on a remote server ? This starts
 to get really complex. Now imagine if you have tens of services: templating engine, database, AWS s3 storage,
@@ -129,7 +130,7 @@ other micro-services with which you communicate, APIs of clients/data sources et
 Now that you write all your custom code, is it maintainable ? Will a newcomer easily find where a service is coming
 from / how it's defined ? Is it easy to override in tests ?
 
-That's where Antidote shines, it handles all of it for you in a simple, yet maintainable way. So you worry less on how
+That's where Antidote shines, it handles all of it for you in a simple, fast, yet maintainable way. So you worry less on how
 to do all that wiring properly. Here is the same example with Antidote:
 
 .. testcode:: why_dependency_injection
@@ -156,7 +157,7 @@ to do all that wiring properly. Here is the same example with Antidote:
     get_total_count()
 
 Everything is lazily instantiated, only when necessary. You can easily find where the a dependency is coming from and
-how it's defined.
+how it's defined. And you can test any parts of it easily.
 
 
 
@@ -166,14 +167,11 @@ Why choose Antidote ?
 
 - **Everything is explicit**: Some libraries using an :code:`@inject`-like decorator, such as injector_, lagom_ or python_inject_ will
   instantiate any missing arguments. Antidote won't, you have to specify explicitly what must injected.
-- **Flexibility**: With the exception of dependency_injector_, most libraries will only support services (class), simple factories and singletons.
+- **Flexibility**: Most libraries will only support services (class), simple factories and singletons.
   Antidote also provides configuration, interfaces, stateful factories, lazy methods/functions, scopes, async injection.
-- **Maintainability**: Again with the exception of dependency_injector_, dependency injection libraries can make it difficult to
-  understand how/where a dependency is created. Typically when declaring a factory for a service (class), you won't have any way
-  of finding easily the function when using the service. Antidote *always* ensures that you can. After all Antidote primary
-  goal is helping you create maintainable code.
-- **Performance**: Antidote's :code:`@inject` is heavily tuned for performance in the compiled version (Cython). This allows
-  you to use :code:`@inject` virtually anywhere without any impact, even in tests. No other libraries goes as far as Antidote.
+- **Maintainability**: Most libraries can make it difficult to understand how/where a dependency is created, typically
+  when using a factory to create the dependency. Antidote never hides anything.
+- **Performance**: Antidote's :code:`@inject` is heavily tuned for performance in the compiled version (Cython).
   (`comparison benchmark <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
   `antidote benchmark <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_)
 - **Testing**: Antidote provides testing utilities to fully isolate your tests and are tuned to ensure to be fast even
@@ -182,7 +180,7 @@ Why choose Antidote ?
 .. image:: https://github.com/Finistere/antidote/raw/master/docs/_static/img/comparison_benchmark.png
     :alt: Comparison benchmark image
 
-How does it compare to dependency_injector_ ?
+How does it compare to the most popular dependency injection library, dependency_injector_ ?
 
 The fundamental difference with dependency_injector_ is how the container of dependencies is managed. dependency_injector_
 requires a container with all its dependencies to be explicitly created. Afterwards you have to manage the container yourself.
