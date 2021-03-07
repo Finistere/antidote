@@ -114,8 +114,8 @@ Or you can retrieve it directly from :py:mod:`.world`, in tests for example:
 
 
 
-Lazily call a function / method
-===============================
+Lazily call a function
+======================
 
 
 Calling lazily a function can be done with :py:class:`.LazyCall` or

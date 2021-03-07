@@ -168,7 +168,15 @@ def provider() -> Callable[[P], P]:
 
     .. warning::
 
-        Currently, provider overrides won't appear in :py:func:`.world.debug`.
+        Beware of :py:func:`~.world.test.override.provider`, it can conflict with
+        :py:func:`~.world.test.override.factory` and
+        :py:func:`~.world.test.override.singleton`.
+        Dependencies declared with :py:func:`~.world.test.override.singleton` will hide
+        :py:func:`~.world.test.override.provider`. And
+        :py:func:`~.world.test.override.provider` will hide
+        :py:func:`~.world.test.override.factory`.
+
+        Moreover it won't appear in :py:func:`.world.debug`.
 
     Returns:
         Function decorator.

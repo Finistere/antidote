@@ -6,13 +6,57 @@ from antidote._compatibility.typing import Annotated
 
 
 def test_readme_simple():
-    from antidote import inject, Service, Constants, const, world
+    # from typing import Annotated
+    # # from typing_extensions import Annotated # Python < 3.9
+    from antidote import Service, inject, Provide
 
-    class Conf(Constants):
+    class Database(Service):
+        pass
+
+    @inject
+    def f(db: Provide[Database]):
+        pass
+
+    f()  # works !
+
+    ######################
+
+    f(Database())
+
+    ######################
+
+    @inject
+    def f(db: Provide[Database]):
+        pass
+
+    ######################
+
+    @inject([Database])
+    def f(db):
+        pass
+
+    ######################
+
+    @inject({'db': Database})
+    def f(db):
+        pass
+
+    ######################
+
+    # All class type hints are treated as dependencies
+    @inject(auto_provide=True)
+    def f(db: Database):
+        pass
+
+    ######################
+
+    from antidote import inject, Service, Constants, const
+
+    class Config(Constants):
         DB_HOST = const('localhost:5432')
 
     class Database(Service):
-        @inject([Conf.DB_HOST])  # based on argument position
+        @inject([Config.DB_HOST])  # self is ignored when specifying a list
         def __init__(self, host: str):
             self._host = host
 
@@ -21,34 +65,15 @@ def test_readme_simple():
         pass
 
     f()  # yeah !
-    f(Database('localhost:5432'))  # override injection
+
+    ######################
+
+    from antidote import world
 
     # Retrieve dependencies by hand, in tests typically
-    world.get(Conf.DB_HOST)
-    world.get[str](Conf.DB_HOST)  # with type hint
+    world.get(Config.DB_HOST)
+    world.get[str](Config.DB_HOST)  # with type hint
     world.get[Database]()  # omit dependency if it's the type hint itself
-
-    ######################
-
-    # from typing import Annotated
-    # # from typing_extensions import Annotated # Python < 3.9
-    from antidote import Get, Provide
-
-    class Database(Service):
-        # All methods are decorated with @inject by default
-        def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
-            self._host = host
-
-    @inject
-    def f(db: Provide[Database]):
-        pass
-
-    ######################
-
-    # auto_provide => Class type hints are treated as dependencies.
-    @inject(auto_provide=True)
-    def f(db: Database):
-        pass
 
     ######################
 

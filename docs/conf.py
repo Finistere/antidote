@@ -221,6 +221,7 @@ def setup(app):
     # Fix image path
     with open('../README.rst', 'r') as readme, \
             open('_build/README.rst', 'w') as build_readme:
-        build_readme.write(readme.read().replace('docs/_static/img', '_static/img'))
+        build_readme.write(readme.read()
+                           .replace('docs/_static/img', '_static/img'))
 
     app.add_css_file('css/style.css')  # may also be an URL

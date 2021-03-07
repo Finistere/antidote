@@ -139,3 +139,19 @@ in a thread-safe environment. This also means that you're not expected to call t
 
 If your method does not add any dependencies and is only used for instantiation, you can tell
 Antidote to avoid it by decorating it with :py:func:`~.core.does_not_freeze`.
+
+
+
+Test extensions
+===============
+
+
+You can test a *new kind of dependency* with :py:func:`.world.test.new`. It creates a
+new world with the same providers and scopes but without any of the existing dependencies.
+For a new :py:class:`.Provider` you should usually use :py:func:`.world.test.empty`. It
+creates an almost empty world. To test the :code:`provide()` you should rely on
+:py:func:`.world.test.maybe_provide_from`
+
+Both world provide a simple way to define a singleton with :py:func:`.world.test.singleton` and a
+factory with :py:func:`.world.test.factory`. They will behave like any other dependency,
+contrary to the overrides available in :py:func:`.world.test.clone`.

@@ -24,7 +24,7 @@ Antidote
 Antidotes is a dependency injection micro-framework for Python 3.6+. It is built on the
 idea of ensuring best **maintainability** of your code while being as **easy to use** as possible.
 It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere
-and **full isolation in tests**.
+and **fast full isolation of your tests**.
 
 Antidote provides the following features:
 
@@ -106,20 +106,75 @@ Hands-on quick start
 Showcase of the most important features of Antidote with short and concise examples.
 Checkout the `Getting started`_ for a full beginner friendly tutorial.
 
-A simple service
-----------------
+Injection, Service and Constants
+--------------------------------
 
-How does injection looks like ? Here is a simple example:
+How does injection looks like ?
 
 .. code-block:: python
 
-    from antidote import inject, Service, Constants, const, world
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
+    from antidote import Service, inject, Provide
 
-    class Conf(Constants):
+    class Database(Service):
+        pass
+
+    @inject
+    def f(db: Provide[Database]):
+        pass
+
+    f()  # works !
+
+Simple, right ? And you can still use it like a normal function, typically when testing it:
+
+.. code-block:: python
+
+    f(Database())
+
+:code:`@inject` supports a lot of different ways to express which dependency should be
+used, the most important ones are:
+
+- annotated type hints:
+    .. code-block:: python
+
+        @inject
+        def f(db: Provide[Database]):
+            pass
+
+- list:
+    .. code-block:: python
+
+        @inject([Database])
+        def f(db):
+            pass
+
+- dictionary:
+    .. code-block:: python
+
+        @inject({'db': Database})
+        def f(db):
+            pass
+
+- auto_provide
+    .. code-block:: python
+
+        # All class type hints are treated as dependencies
+        @inject(auto_provide=True)
+        def f(db: Database):
+            pass
+
+Now let's get back to our :code:`Database`. It lacks some configuration !
+
+.. code-block:: python
+
+    from antidote import inject, Service, Constants, const
+
+    class Config(Constants):
         DB_HOST = const('localhost:5432')
 
     class Database(Service):
-        @inject([Conf.DB_HOST])  # based on argument position
+        @inject([Config.DB_HOST])  # self is ignored when specifying a list
         def __init__(self, host: str):
             self._host = host
 
@@ -128,39 +183,21 @@ How does injection looks like ? Here is a simple example:
         pass
 
     f()  # yeah !
-    f(Database('localhost:5432'))  # override injection
+
+Looks a bit overkill here, but doing so allows you to change later how :code:`DB_HOST` is
+actually retrieved. You could load a configuration file for example, it wouldn't change the
+rest of your code. And you can easily find where a configuration parameter is used.
+
+You can also retrieve dependencies by hand when testing for example:
+
+.. code-block:: python
+
+    from antidote import world
 
     # Retrieve dependencies by hand, in tests typically
-    world.get(Conf.DB_HOST)
-    world.get[str](Conf.DB_HOST)  # with type hint
+    world.get(Config.DB_HOST)
+    world.get[str](Config.DB_HOST)  # with type hint
     world.get[Database]()  # omit dependency if it's the type hint itself
-
-
-Or with annotated type hints (PEP-593):
-
-.. code-block:: python
-
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-    from antidote import Get, Provide
-
-    class Database(Service):
-        # All methods are decorated with @inject by default
-        def __init__(self, host: Annotated[str, Get(Conf.DB_HOST)]):
-            self._host = host
-
-    @inject
-    def f(db: Provide[Database]):
-        pass
-
-Or with :code:`auto_provide`:
-
-.. code-block:: python
-
-    # auto_provide => Class type hints are treated as dependencies.
-    @inject(auto_provide=True)
-    def f(db: Database):
-        pass
 
 If you want to be compatible with Mypy type checking, you just need to do the following:
 
@@ -176,8 +213,8 @@ This might look a bit cumbersome, but in reality you'll only need to do it in fu
 you are actually calling yourself in your code. Typically :code:`Database.__init__()`
 won't need it because it'll always be Antidote injecting the arguments.
 
-A more complex case
--------------------
+Factories and Interface/Implementation
+--------------------------------------
 
 Want more ? Here is an over-engineered example to showcase a lot more features. First we have
 an :code:`ImdbAPI` coming from a external library:
@@ -221,8 +258,7 @@ Now that's the entry point of your application:
     def main(movie_db: Annotated[MovieDB, From(current_movie_db)]):
         pass
 
-    if __name__ == '__main__':
-        main()
+    main()
 
 
 Note that you can search for the definition of :code:`current_movie_db`. So you can simply
@@ -312,8 +348,8 @@ The configuration can also be easily tracked down:
             root, key = arg.split('.')
             return self._raw_conf[root][key]
 
-Testing
--------
+Testing and Debugging
+---------------------
 
 Based on the previous example. You can test your application by simply overriding
 any of the arguments:

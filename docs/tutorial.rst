@@ -878,6 +878,8 @@ To change dependencies, you need to use :py:mod:`.world.test.override`:
         :py:func:`~.world.test.override.provider`. And :py:func:`~.world.test.override.provider`
         will hide :py:func:`~.world.test.override.factory`.
 
+        Moreover it won't appear in :py:func:`.world.debug`.
+
 :py:func:`.world.test.clone` will not keep any existing singleton by default, but you may change
 it:
 
