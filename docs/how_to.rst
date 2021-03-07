@@ -130,6 +130,19 @@ There is also :py:class:`.FromArg` which allows you to use information on the ar
 itself to decide what should be injected. The same can be done without annotated type hints
 with the arguments :code:`dependencies` of :py:func:`.inject`.
 
+.. note::
+
+    As annotated type hints can quickly become a bit tedious, using type aliases can help:
+
+    .. doctest:: how_to_annotated_type_hints
+
+        >>> CurrentDatabase = Annotated[Database, From(current_db)]
+        >>> @inject
+        ... def f(db: CurrentDatabase) -> Database:
+        ...     return db
+        >>> f()
+        <Database ...>
+
 
 
 Test in isolation
