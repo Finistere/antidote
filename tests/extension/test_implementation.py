@@ -68,16 +68,18 @@ def test_implementation(singleton: bool, permanent: bool):
         assert (world.get(dependency) is world.get(B)) is singleton
 
 
-def test_implementation_with_service():
+def test_implementation_parameterized_service():
     x = object()
 
     class A(Interface, Service):
+        __antidote__ = Service.Conf(parameters=['test'])
+
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
     @implementation(Interface)
     def impl():
-        return A._with_kwargs(test=x)
+        return A.parameterized(test=x)
 
     a = world.get(Interface @ impl)
     assert isinstance(a, A)
@@ -92,12 +94,14 @@ def test_implementation_with_factory():
             self.kwargs = kwargs
 
     class BuildA(Factory):
+        __antidote__ = Factory.Conf(parameters=['test'])
+
         def __call__(self, **kwargs) -> A:
             return A(**kwargs)
 
     @implementation(Interface)
     def impl2():
-        return A @ BuildA._with_kwargs(test=x)
+        return A @ BuildA.parameterized(test=x)
 
     a = world.get(Interface @ impl2)
     assert isinstance(a, A)
@@ -161,14 +165,16 @@ def test_invalid_implementation_return_type():
 
     with world.test.new():
         class C(Service):
+            __antidote__ = Service.Conf(parameters=['test'])
+
             def __init__(self, **kwargs):
                 self.kwargs = kwargs
 
         @implementation(Interface)
         def impl():
-            return C._with_kwargs(test=1)
+            return C.parameterized(test=1)
 
-        world.get(C._with_kwargs(test=1))
+        world.get(C.parameterized(test=1))
         with pytest.raises(DependencyInstantiationError):
             world.get(Interface @ impl)
 
@@ -178,14 +184,16 @@ def test_invalid_implementation_return_type():
                 self.kwargs = kwargs
 
         class BuildD(Factory):
+            __antidote__ = Factory.Conf(parameters=['test'])
+
             def __call__(self, **kwargs) -> D:
                 return D(**kwargs)
 
         @implementation(Interface)
         def impl2():
-            return D @ BuildD._with_kwargs(test=1)
+            return D @ BuildD.parameterized(test=1)
 
-        world.get(D @ BuildD._with_kwargs(test=1))
+        world.get(D @ BuildD.parameterized(test=1))
         with pytest.raises(DependencyInstantiationError):
             world.get(Interface @ impl2)
 
@@ -232,20 +240,20 @@ def test_validate_provided_class():
         validate_provided_class(object(), expected=Interface)
 
     class A(Interface, Service):
-        pass
+        __antidote__ = Service.Conf(parameters=['a'])
 
     class B(Service):
-        pass
+        __antidote__ = Service.Conf(parameters=['a'])
 
     validate_provided_class(A, expected=Interface)
     validate_provided_class(B, expected=B)
     with pytest.raises(TypeError):
         validate_provided_class(B, expected=Interface)
 
-    validate_provided_class(A._with_kwargs(a=1), expected=Interface)
-    validate_provided_class(B._with_kwargs(a=1), expected=B)
+    validate_provided_class(A.parameterized(a=1), expected=Interface)
+    validate_provided_class(B.parameterized(a=1), expected=B)
     with pytest.raises(TypeError):
-        validate_provided_class(B._with_kwargs(a=1), expected=Interface)
+        validate_provided_class(B.parameterized(a=1), expected=Interface)
 
     @implementation(Interface)
     def choose_a():
@@ -287,10 +295,14 @@ def test_validate_provided_class_factory():
 
     with world.test.new():
         class BuildA(Factory):
+            __antidote__ = Factory.Conf(parameters=['a'])
+
             def __call__(self, **kwargs) -> A:
                 return A(**kwargs)
 
         class BuildB(Factory):
+            __antidote__ = Factory.Conf(parameters=['a'])
+
             def __call__(self, **kwargs) -> B:
                 return B(**kwargs)
 
@@ -299,10 +311,10 @@ def test_validate_provided_class_factory():
         with pytest.raises(TypeError):
             validate_provided_class(B @ BuildB, expected=Interface)
 
-        validate_provided_class(A @ BuildA._with_kwargs(a=1), expected=Interface)
-        validate_provided_class(B @ BuildB._with_kwargs(a=1), expected=B)
+        validate_provided_class(A @ BuildA.parameterized(a=1), expected=Interface)
+        validate_provided_class(B @ BuildB.parameterized(a=1), expected=B)
         with pytest.raises(TypeError):
-            validate_provided_class(B @ BuildB._with_kwargs(a=1), expected=Interface)
+            validate_provided_class(B @ BuildB.parameterized(a=1), expected=Interface)
 
 
 def test_default_injection():

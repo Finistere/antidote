@@ -1,5 +1,6 @@
 import inspect
-from typing import (Callable, Optional, TypeVar, Union, cast, overload)
+from typing import (Callable, FrozenSet, Iterable, Optional, TypeVar, Union, cast,
+                    overload)
 
 from ._compatibility.typing import Protocol, final, get_type_hints
 from ._factory import FactoryMeta, FactoryWrapper
@@ -7,6 +8,7 @@ from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from ._internal.wrapper import is_wrapper
 from ._providers import FactoryProvider
+from ._utils import validated_parameters
 from .core import Provide, Scope, Wiring, WithWiringMixin, inject
 from .core.exceptions import DoubleInjectionError
 from .utils import validated_scope
@@ -104,8 +106,8 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         >>> world.get[Session] @ SessionFactory is world.get[Session] @ SessionFactory
         False
 
-    You may also create custom dependencies based on the original one by passing arguments
-    to :code:`__call__()`:
+    You may also parameterize the service. Parameters will be passed on to
+    :code:`__call__()`:
 
     .. doctest:: factory_class
 
@@ -114,12 +116,14 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         ...         self.host = host
         ...
         >>> class DatabaseFactory(Factory):
-        ...     def __call__(self, host: str = 'localhost:6543') -> Database:
+        ...     __antidote__ = Factory.Conf(parameters=['host'])
+        ...
+        ...     def __call__(self, host: str) -> Database:
         ...         return Database(host)
         ...
         ...     @classmethod
         ...     def hosted(cls, host: str) -> object:
-        ...          return cls._with_kwargs(host=host)
+        ...          return cls.parameterized(host=host)
         ...
         >>> test_db = world.get[Database] @ DatabaseFactory.hosted('test')
         >>> test_db.host
@@ -127,12 +131,6 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         >>> # The factory returns a singleton so our test_session will also be one
         ... world.get[Database] @ DatabaseFactory.hosted('test') is test_db
         True
-        >>> # Custom dependencies will NEVER be equal to the default one.
-        ... default_db = world.get[Database] @ DatabaseFactory
-        >>> default_db is test_db
-        False
-        >>> default_db is world.get[Database] @ DatabaseFactory.hosted('localhost:6543')
-        False
 
     """
 
@@ -143,9 +141,10 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'scope')
+        __slots__ = ('wiring', 'scope', 'parameters')
         wiring: Optional[Wiring]
         scope: Optional[Scope]
+        parameters: Optional[FrozenSet[str]]
 
         @property
         def singleton(self) -> bool:
@@ -155,7 +154,8 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                      *,
                      wiring: Optional[Wiring] = Wiring(),
                      singleton: bool = None,
-                     scope: Optional[Scope] = Scope.sentinel()):
+                     scope: Optional[Scope] = Scope.sentinel(),
+                     parameters: Iterable[str] = None):
             """
 
             Args:
@@ -169,8 +169,6 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                     :code:`singleton`. The scope defines if and how long the returned
                     dependency will be cached. See :py:class:`~.core.container.Scope`.
                     Defaults to :py:meth:`~.core.container.Scope.singleton`.
-                tags: Iterable of :py:class:`~.._providers.tag.Tag` tagging to the
-                      provided dependency.
             """
             if not (wiring is None or isinstance(wiring, Wiring)):
                 raise TypeError(f"wiring must be a Wiring or None, "
@@ -179,13 +177,15 @@ class Factory(metaclass=FactoryMeta, abstract=True):
             super().__init__(wiring=wiring,
                              scope=validated_scope(scope,
                                                    singleton,
-                                                   default=Scope.singleton()))
+                                                   default=Scope.singleton()),
+                             parameters=validated_parameters(parameters))
 
         def copy(self,
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
                  scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
+                 parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
                  ) -> 'Factory.Conf':
             """
             Copies current configuration and overrides only specified arguments.
@@ -197,16 +197,14 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                 scope = Scope.singleton() if singleton else None
             return Copy.immutable(self,
                                   wiring=wiring,
-                                  scope=scope)
+                                  scope=scope,
+                                  parameters=parameters)
 
     __antidote__: Conf = Conf()
     """
     Configuration of the factory. Defaults to wire :py:meth:`.__init__` and
     :py:meth:`.__call__`.
     """
-
-    def __call__(self) -> object:
-        raise NotImplementedError()  # pragma: no cover
 
 
 @overload

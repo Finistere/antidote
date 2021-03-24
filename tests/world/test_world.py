@@ -139,7 +139,7 @@ def test_lazy_factory():
 
 def test_freeze():
     world.provider(ServiceProvider)
-    factory = world.get(ServiceProvider)
+    provider = world.get[ServiceProvider]()
 
     class Service:
         pass
@@ -149,7 +149,7 @@ def test_freeze():
         world.test.singleton("test", "x")
 
     with pytest.raises(FrozenWorldError):
-        factory.register(Service, scope=None)
+        provider.register(Service, scope=None)
 
 
 def test_add_provider():

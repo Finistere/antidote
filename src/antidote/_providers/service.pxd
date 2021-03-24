@@ -1,5 +1,5 @@
-cdef class Build:
+cdef class Parameterized:
     cdef:
-        readonly object dependency
-        readonly dict kwargs
-        readonly int _hash
+        readonly object wrapped
+        readonly dict parameters
+        int _hash

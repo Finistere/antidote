@@ -9,6 +9,21 @@ Pretty much v1.0-beta.
 
 
 
+0.13.0 (2021-03-24)
+===================
+
+
+Breaking Change
+---------------
+
+- :code:`_with_kwargs()` class method has been replaced by :py:meth:`.Service.parameterized` and
+  :py:meth:`.Factory.parameterized` with a cleaner design. Now parameters must be explicitly
+  defined in their respective configuration. Those will be verified to ensure they don't have
+  any injections or default values, as sanity checks. Otherwise passing the default value as a
+  parameter or relying on the actual default would not point to the same dependency value.
+
+
+
 0.12.1 (2021-03-07)
 ===================
 

@@ -298,6 +298,8 @@ nicer way: you to specify constructor arguments when requesting a :py:class:`.Se
 .. testcode:: tutorial_services
 
     class MetricAccumulator(Service):
+        __antidote__ = Service.Conf(parameters=['name'])
+
         def __init__(self, name: str, database: Provide[Database]):
             self.name = name
             self._database = database
@@ -306,10 +308,10 @@ nicer way: you to specify constructor arguments when requesting a :py:class:`.Se
         @classmethod
         def of(cls, name: str):
             """
-            Provides a clean interface with arguments and type hints as _with_kwargs()
+            Provides a clean interface with arguments and type hints as parameterized()
             only accepts **kwargs.
             """
-            return cls._with_kwargs(name=name)
+            return cls.parameterized(name=name)
 
         def add(self, value: int):
             self._buffer.append(value)
@@ -690,7 +692,7 @@ If you need more complex factories, you can use a class instead by inheriting :p
 :py:class:`.Factory` has more or less the same configuration parameters than :py:class:`.Service`:
 
 - :py:class:`.Factory.Conf` like :py:class:`.Service.Conf`
-- :py:class:`.Factory._with_kwargs` like :py:class:`.Service._with_kwargs`
+- :py:meth:`.Factory.parameterized` like :py:meth:`.Service.parameterized`
 
 And you use it the same way as :py:func:`~.factory.factory`:
 

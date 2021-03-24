@@ -1,9 +1,15 @@
+from contextlib import contextmanager
 from typing import Any, Callable, Type
 
 import pytest
 
 from antidote import Factory, Provide, Service, Wiring, factory, inject, world
 from antidote._providers import (FactoryProvider, LazyProvider, ServiceProvider)
+
+
+@contextmanager
+def does_not_raise():
+    yield
 
 
 @pytest.fixture(autouse=True)
@@ -92,18 +98,69 @@ def test_custom_scope():
     assert world.get(Scoped @ scoped_factory) is not x
 
 
-def test_with_kwargs():
+def test_parameterized():
     x = object()
 
     class BuildA(Factory):
+        __antidote__ = Factory.Conf(parameters=['x'])
+
         def __call__(self, **kwargs) -> A:
             return A(**kwargs)
 
-    a = world.get(A @ BuildA._with_kwargs(x=x))
+    a = world.get(A @ BuildA.parameterized(x=x))
     assert a.kwargs == dict(x=x)
 
-    with pytest.raises(ValueError, match=".*with_kwargs.*"):
-        A @ BuildA._with_kwargs()
+    with pytest.raises(ValueError, match=".*parameters.*'x'.*"):
+        A @ BuildA.parameterized()
+
+    with pytest.raises(ValueError, match=".*parameters.*'x'.*"):
+        A @ BuildA.parameterized(unknown='something')
+
+
+def test_not_parametrized():
+    class BuildA(Factory):
+        def __call__(self) -> A:
+            return A()
+
+    with pytest.raises(RuntimeError, match=".*parameters.*"):
+        B @ BuildA.parameterized(x=1)
+
+
+def test_invalid_with_default_parameters():
+    with pytest.raises(ValueError, match=".*default.*"):
+        class BuildA(Factory):
+            __antidote__ = Factory.Conf(parameters=['x'])
+
+            def __call__(self, x: str = 'default') -> A:
+                return A()
+
+
+def test_invalid_with_injected_parameters():
+    class Dummy(Service):
+        pass
+
+    with pytest.raises(ValueError, match=".*injected.*class.*Dummy.*"):
+        class BuildA(Factory):
+            __antidote__ = Factory.Conf(parameters=['x'])
+
+            def __call__(self, x: Provide[Dummy]) -> A:
+                return A()
+
+
+def test_invalid_parameterized_dependency():
+    class BuildA(Factory):
+        __antidote__ = Factory.Conf(parameters=['x'])
+
+        def __call__(self, x) -> A:
+            return A()
+
+    with pytest.raises(ValueError, match="Unsupported output.*"):
+        B @ BuildA.parameterized(x=1)
+
+
+def test_invalid_dependency(build: Type[Factory]):
+    with pytest.raises(ValueError, match="Unsupported output.*"):
+        B @ build
 
 
 def test_getattr():
@@ -117,20 +174,6 @@ def test_getattr():
 
     build.new_hello = 'new_world'
     assert build.new_hello == 'new_world'
-
-
-def test_invalid_dependency(build: Type[Factory]):
-    with pytest.raises(ValueError, match="Unsupported output.*"):
-        B @ build
-
-
-def test_invalid_dependency_with_kwargs():
-    class BuildA(Factory):
-        def __call__(self) -> A:
-            return A()
-
-    with pytest.raises(ValueError, match="Unsupported output.*"):
-        B @ BuildA._with_kwargs(x=1)
 
 
 def test_missing_call():
@@ -208,6 +251,23 @@ def test_invalid_conf():
                 pass
 
 
+@pytest.mark.parametrize('expectation, parameters', [
+    (pytest.raises(TypeError), "string"),
+    (pytest.raises(TypeError), object()),
+    (pytest.raises(TypeError), [1]),
+    (does_not_raise(), ['x']),
+    (does_not_raise(), []),
+    (does_not_raise(), None),
+])
+def test_conf_parameters(expectation, parameters):
+    with expectation:
+        class Build(Factory):
+            __antidote__ = Factory.Conf(parameters=parameters)
+
+            def __call__(self, *args, **kwargs) -> A:
+                pass
+
+
 @pytest.mark.parametrize('expectation, kwargs', [
     pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
                  {arg: object()},
@@ -215,8 +275,7 @@ def test_invalid_conf():
     for arg in ['wiring',
                 'singleton',
                 'scope',
-                'tags',
-                'public']
+                'parameters']
 ])
 def test_invalid_conf_args(kwargs, expectation):
     with expectation:
@@ -227,6 +286,7 @@ def test_invalid_conf_args(kwargs, expectation):
     dict(singleton=False),
     dict(scope=None),
     dict(wiring=Wiring(methods=['method'])),
+    dict(parameters=frozenset(['x']))
 ])
 def test_conf_copy(kwargs):
     conf = Factory.Conf(singleton=True).copy(**kwargs)

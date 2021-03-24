@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Awaitable, Callable, Dict, Hashable, List, Sequence, Union, cast
+from typing import Awaitable, Callable, Dict, Hashable, Sequence, cast
 
 from . import API
 from .state import current_container
@@ -47,7 +47,7 @@ def build_wrapper(blueprint: InjectionBlueprint,
 
 
 @API.private
-def get_wrapper_dependencies(wrapper: Callable[..., object]) -> List[Hashable]:
+def get_wrapper_injections(wrapper: Callable[..., object]) -> Dict[str, Hashable]:
     if not isinstance(wrapper, InjectedWrapper):
         raise TypeError(f"Argument must be an {InjectedWrapper}")
 
@@ -58,7 +58,8 @@ def get_wrapper_dependencies(wrapper: Callable[..., object]) -> List[Hashable]:
     blueprint: InjectionBlueprint = getattr(wrapper,
                                             f"{prefix}__blueprint")
 
-    return [inj.dependency for inj in blueprint.injections if inj.dependency is not None]
+    return {inj.arg_name: inj.dependency for inj in blueprint.injections if
+            inj.dependency is not None}
 
 
 @API.private

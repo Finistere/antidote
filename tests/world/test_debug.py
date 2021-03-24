@@ -445,13 +445,15 @@ def test_complex_debug():
             pass
 
         class Service1(Service):
-            pass
+            __antidote__ = Service.Conf(parameters=['test'])
 
         class Service2:
             def __init__(self, service1: Provide[Service1]):
                 self.service1 = service1
 
         class BuildS2(Factory):
+            __antidote__ = Factory.Conf(parameters=['option'])
+
             def __call__(self, service1: Provide[Service1] = None) -> Service2:
                 return Service2(service1)
 
@@ -491,8 +493,8 @@ def test_complex_debug():
         def f(s: Provide[Service4]):
             pass
 
-        @inject(dependencies=[Service1._with_kwargs(test=1),
-                              Service2 @ BuildS2._with_kwargs(option=2)])
+        @inject(dependencies=[Service1.parameterized(test=1),
+                              Service2 @ BuildS2.parameterized(option=2)])
         def f_with_options(a, b):
             pass
 
@@ -618,12 +620,12 @@ def test_complex_debug():
             DebugTestCase(
                 value=f_with_options,
                 expected=f"""
-                    {prefix}.f_with_options
-                    ├── {prefix}.Service2 @ {prefix}.BuildS2 with kwargs={{'option': 2}}
-                    │   ├── {prefix}.BuildS2.__call__
-                    │   │   └── {prefix}.Service1
-                    │   └── {prefix}.BuildS2
-                    └── {prefix}.Service1 with kwargs={{'test': 1}}
+                {prefix}.f_with_options
+                ├── {prefix}.Service2 @ {prefix}.BuildS2 with parameters={{'option': 2}}
+                │   ├── {prefix}.BuildS2.__call__
+                │   │   └── {prefix}.Service1
+                │   └── {prefix}.BuildS2
+                └── {prefix}.Service1 with parameters={{'test': 1}}
                     """
             )
         )

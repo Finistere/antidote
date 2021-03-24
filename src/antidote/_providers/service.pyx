@@ -23,34 +23,32 @@ cdef:
 
 
 @cython.final
-cdef class Build:
-    def __init__(self, dependency: Hashable, kwargs: Dict):
-        assert isinstance(kwargs, dict) and len(kwargs) > 0
-        self.dependency = dependency  # type: Hashable
-        self.kwargs = kwargs  # type: Dict
+cdef class Parameterized:
+    def __init__(self, wrapped: Hashable, parameters: dict):
+        assert isinstance(parameters, dict) and len(parameters) > 0
+        self.wrapped = wrapped
+        self.parameters = parameters
 
         try:
-            # Try most precise hash first
-            self._hash = hash((self.dependency, tuple(self.kwargs.items())))
+            self._hash = hash((self.wrapped, tuple(self.parameters.items())))
         except TypeError:
-            # If type error, return the best error-free hash possible
-            self._hash = hash((self.dependency, tuple(self.kwargs.keys())))
+            self._hash = hash((self.wrapped, tuple(self.parameters.keys())))
 
     def __hash__(self):
         return self._hash
 
     def __repr__(self):
-        return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
+        return f"Parameterized(dependency={self.wrapped}, parameters={self.parameters})"
 
     def __antidote_debug_repr__(self):
-        return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
+        return f"{debug_repr(self.wrapped)} with parameters={self.parameters}"
 
     def __eq__(self, other):
-        return (isinstance(other, Build)
-                and self._hash == other._hash
-                and (self.dependency is other.dependency
-                     or self.dependency == other.dependency)
-                and self.kwargs == other.kwargs)  # noqa
+        return (isinstance(other, Parameterized)
+                and self._hash == (<Parameterized> other)._hash
+                and (self.wrapped is other.wrapped
+                     or self.wrapped == other.wrapped)
+                and self.parameters == other.parameters)  # noqa
 
 @cython.final
 cdef class ServiceProvider(FastProvider):
@@ -67,15 +65,15 @@ cdef class ServiceProvider(FastProvider):
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
 
     def exists(self, dependency: Hashable) -> bool:
-        if isinstance(dependency, Build):
-            return dependency.dependency in self.__services
+        if isinstance(dependency, Parameterized):
+            return dependency.wrapped in self.__services
         return dependency in self.__services
 
     cpdef ServiceProvider clone(self, bint keep_singletons_cache):
         return ServiceProvider.__new__(ServiceProvider, self.__services.copy())
 
     def maybe_debug(self, build: Hashable):
-        klass = build.dependency if isinstance(build, Build) else build
+        klass = build.wrapped if isinstance(build, Parameterized) else build
         try:
             header = self.__services[klass]
         except KeyError:
@@ -95,28 +93,27 @@ cdef class ServiceProvider(FastProvider):
             object factory
             int scope_or_singleton
 
-        if PyObject_IsInstance(dependency, <PyObject*> Build):
+        if PyObject_IsInstance(dependency, <PyObject*> Parameterized):
             ptr = PyDict_GetItem(<PyObject*> self.__services,
-                                 <PyObject*> (<Build> dependency).dependency)
+                                 <PyObject*> (<Parameterized> dependency).wrapped)
             if ptr:
                 result.header = (<HeaderObject> ptr).header
                 result.value = PyObject_Call(
-                    <PyObject*> (<Build> dependency).dependency,
+                    <PyObject*> (<Parameterized> dependency).wrapped,
                     <PyObject*> empty_tuple,
-                    <PyObject*> (<Build> dependency).kwargs
+                    <PyObject*> (<Parameterized> dependency).parameters
                 )
         else:
             ptr = PyDict_GetItem(<PyObject*> self.__services, dependency)
             if ptr:
                 result.header = (<HeaderObject> ptr).header | header_flag_cacheable()
-                result.value = PyObject_CallObject( dependency, NULL)
+                result.value = PyObject_CallObject(dependency, NULL)
 
 
     def register(self, klass: type, *, Scope scope):
-        cdef:
-            Header header
         assert inspect.isclass(klass) \
                and (isinstance(scope, Scope) or scope is None)
         with self._bound_container_ensure_not_frozen():
             self._bound_container_raise_if_exists(klass)
             self.__services[klass] = HeaderObject.from_scope(scope)
+

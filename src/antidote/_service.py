@@ -1,9 +1,11 @@
+import inspect
 from typing import Dict, Tuple, Type, cast
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
 from ._providers import ServiceProvider
-from ._providers.service import Build
+from ._providers.service import Parameterized
+from ._utils import validate_method_parameters
 from .core import Provide, inject
 
 _ABSTRACT_FLAG = '__antidote_abstract'
@@ -26,7 +28,7 @@ class ServiceMeta(AbstractMeta):
         return cls
 
     @API.public
-    def _with_kwargs(cls, **kwargs: object) -> object:
+    def parameterized(cls, **kwargs: object) -> object:
         """
         Creates a new dependency based on the service with the given arguments. The new
         dependency will have the same scope as the original one.
@@ -38,21 +40,20 @@ class ServiceMeta(AbstractMeta):
 
             >>> from antidote import Service, world
             >>> class Database(Service):
-            ...     def __init__(self, host: str = 'localhost'):
+            ...     __antidote__ = Service.Conf(parameters=['host'])
+            ...
+            ...     def __init__(self, host: str):
             ...         self.host = host
             ...
             ...     @classmethod
             ...     def with_host(cls, host: str) -> object:
-            ...         return cls._with_kwargs(host=host)
+            ...         return cls.parameterized(host=host)
             >>> db = world.get(Database.with_host(host='remote'))
             >>> db.host
             'remote'
             >>> # As Database is defined as a singleton, the same is applied:
             ... world.get(Database.with_host(host='remote')) is db
             True
-            >>> # Custom dependencies will NEVER be equal to the default one
-            ... world.get(Database) is db
-            False
 
         Args:
             **kwargs: Arguments passed on to :code:`__init__()`.
@@ -60,7 +61,20 @@ class ServiceMeta(AbstractMeta):
         Returns:
             Dependency to be retrieved from Antidote. You cannot use it directly.
         """
-        return Build(cls, kwargs)
+        from .service import Service
+        # Guaranteed through _configure_service()
+        conf = cast(Service.Conf, getattr(cls, '__antidote__'))
+        if conf.parameters is None:
+            raise RuntimeError(f"Service {cls} does not accept any parameters. You must "
+                               f"specify them explicitly in the configuration with: "
+                               f"Service.Conf(parameters=...))")
+
+        if set(kwargs.keys()) != conf.parameters:
+            raise ValueError(f"Given parameters do not match expected ones. "
+                             f"Got: ({','.join(map(repr, kwargs.keys()))}) "
+                             f"Expected: ({','.join(map(repr, conf.parameters))})")
+
+        return Parameterized(cls, kwargs)
 
 
 @API.private
@@ -80,5 +94,7 @@ def _configure_service(cls: type,
 
     if wiring is not None:
         wiring.wire(cls)
+
+    validate_method_parameters(cls.__init__, conf.parameters)  # type: ignore
 
     service_provider.register(cls, scope=conf.scope)

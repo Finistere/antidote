@@ -79,7 +79,7 @@ def build_wrapper(InjectionBlueprint blueprint,
     wrapper.__injection_offset = 1 if skip_first else 0
     return wrapper
 
-def get_wrapper_dependencies(wrapper):
+def get_wrapper_injections(wrapper):
     if not isinstance(wrapper, InjectedWrapper):
         raise TypeError(f"Argument must be an {InjectedWrapper}")
 
@@ -101,12 +101,12 @@ cdef class InjectedWrapper:
         int __injection_offset
         object __weakref__
 
-    cdef list get_injections(self):
+    cdef dict get_injections(self):
         cdef:
             Injection inj
-        return [inj.dependency
+        return {inj.arg_name: inj.dependency
                 for inj in self.__blueprint.injections
-                if inj.dependency is not None]
+                if inj.dependency is not None}
 
     def __getattr__(self, name):
         return getattr(self.__wrapped__, name)

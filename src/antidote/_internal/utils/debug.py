@@ -47,9 +47,9 @@ def debug_repr(__obj: object) -> str:
 
 @API.private
 def get_injections(__func: object) -> Sequence[object]:
-    from ..wrapper import get_wrapper_dependencies
+    from ..wrapper import get_wrapper_injections
     try:
-        return get_wrapper_dependencies(__func)  # type: ignore
+        return list(get_wrapper_injections(__func).values())  # type: ignore
     except TypeError:
         return []
 

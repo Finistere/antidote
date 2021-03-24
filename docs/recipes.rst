@@ -24,16 +24,10 @@ as a service or one that can be provided by a factory.
     # from typing_extensions import Annotated # Python < 3.9
 
     class Database:
-        def __init__(self, host: str, name: str):
-            self.host = host
-            self.name = name
-
-        @classmethod
-        def with_conf(cls, host: str, name: str):
-            return cls._with_kwargs(host=host, name=name)
+        pass
 
     class Conf(Constants):
-        DB_CONN_STR = const('postgres:localhost:my_project')
+        DB_CONN_STR = const('postgres:...')
 
     class PostgresDB(Service, Database):
         pass
@@ -46,10 +40,10 @@ as a service or one that can be provided by a factory.
     @implementation(Database, permanent=True)
     @inject([Conf.DB_CONN_STR])
     def local_db(db_conn_str: str) -> object:
-        db, host, name = db_conn_str.split(':')
+        db, *rest = db_conn_str.split(':')
         if db == 'postgres':
             # Complex dependencies are supported
-            return PostgresDB.with_conf(host, name)
+            return PostgresDB
         elif db == 'mysql':
             # But you can also simply return the class
             return MySQLDB
@@ -107,10 +101,6 @@ Or you can retrieve it directly from :py:mod:`.world`, in tests for example:
     ... db = world.get[Database] @ local_db
     >>> db
     <PostgresDB ...>
-    >>> db.host
-    'localhost'
-    >>> db.name
-    'my_project'
 
 
 
@@ -216,6 +206,98 @@ In the actual implementation you can then eventually override the configuration:
         # Override default configuration
         __antidote__ = AbstractService.__antidote__.with_wiring(auto_provide=True)
 
+
+Parameterized Service / Factory
+===============================
+
+:py:class:`.Service`\ s and :py:class:`.Factory`\ s can accept parameters when requested as a
+dependency. This allows to re-use the same class for different services having different
+configurations but a similar behavior. For example suppose you have several queues
+(Kafka topics, multiprocessing queues, etc..) and you abstract them in your own class, to
+be not be vendor-dependent or because you need share logic, such as serialization:
+
+.. testcode:: recipes_parameterized_service
+
+    from antidote import Service, Provide
+
+    class Serializer(Service):
+        pass
+
+    class MyQueue(Service):
+        __antidote__ = Service.Conf(parameters=['name'])
+
+        def __init__(self, name: str, serializer: Provide[Serializer]) -> None:
+            self.name = name
+            self.serializer = serializer
+
+        def __repr__(self):
+            return f"MyQueue(name={self.name!r})"
+
+        # While not necessary, parameters() is less user-friendly as it does not have any
+        # type hints, exposing only the **kwargs argument.
+        @classmethod
+        def named(cls, name: str) -> object:
+            return cls.parameterized(name=name)
+
+    WorkQueue = MyQueue.named("work")
+    ResultQueue = MyQueue.named("result")
+
+.. doctest:: recipes_parameterized_service
+
+    >>> from antidote import world
+    >>> world.get[MyQueue](WorkQueue)
+    MyQueue(name='work')
+    >>> world.get[MyQueue](ResultQueue)
+    MyQueue(name='result')
+
+As :code:`MyQueue` is declared as a singleton, we will always retrieve the same instance of
+:code:`WorkQueue`:
+
+.. doctest:: recipes_parameterized_service
+
+    >>> world.get[MyQueue](WorkQueue) is world.get[MyQueue](WorkQueue)
+    True
+
+The same can be done with a :py:class:`Factory`:
+
+.. testcode:: recipes_parameterized_factory
+
+    from antidote import Factory, Provide
+
+    class MyQueue:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def __repr__(self):
+            return f"MyQueue(name={self.name!r})"
+
+    class MyQueueBuilder(Factory):
+        __antidote__ = Factory.Conf(parameters=['name'], singleton=False)
+
+        def __call__(self, name: str) -> MyQueue:
+            return MyQueue(name)
+
+        @classmethod
+        def named(cls, name: str) -> object:
+            return cls.parameterized(name=name)
+
+    WorkQueue = MyQueue @ MyQueueBuilder.named("work")
+
+.. doctest:: recipes_parameterized_factory
+
+    >>> from antidote import world
+    >>> world.get[MyQueue](WorkQueue)
+    MyQueue(name='work')
+    >>> world.get[MyQueue] @ MyQueueBuilder.named("result")
+    MyQueue(name='result')
+
+Contrary to before, we declared :code:`WorkQueue` to not be a singleton. So we will have
+a new instance each time:
+
+.. doctest:: recipes_parameterized_factory
+
+    >>> world.get[MyQueue](WorkQueue) is world.get[MyQueue](WorkQueue)
+    False
 
 
 Create a stateful factory

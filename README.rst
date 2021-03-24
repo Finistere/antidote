@@ -57,6 +57,7 @@ Antidote provides the following features:
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Performance\*
     - fastest :code:`@inject` with heavily tuned Cython.
+    - As much as possible is done at import time.
     - testing utilities are tuned to ensure that even with full isolation it stays fast.
     - benchmarks:
       `comparison <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,

@@ -1,9 +1,10 @@
-from typing import Callable, Iterable, Optional, Tuple, TypeVar, Union, cast, overload
+from typing import Callable, FrozenSet, Iterable, Optional, TypeVar, Union, cast, overload
 
 from ._compatibility.typing import final
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from ._service import ServiceMeta
+from ._utils import validated_parameters
 from .core import Scope, Wiring, WithWiringMixin
 from .core.exceptions import DuplicateDependencyError
 from .utils import validated_scope
@@ -61,18 +62,20 @@ class Service(metaclass=ServiceMeta, abstract=True):
         >>> world.get[Session]() is world.get[Session]()
         False
 
-    You may also create custom dependencies based on the original one by passing arguments
-    to :code:`__init__()`:
+    You may also parameterize the service. Parameters will be passed on to
+    :code:`__init__()`:
 
     .. doctest:: service_class
 
         >>> class Database(Service):
-        ...     def __init__(self, host: str = 'localhost:6543'):
+        ...     __antidote__ = Service.Conf(parameters=['host'])
+        ...
+        ...     def __init__(self, host: str):
         ...         self.host = host
         ...
         ...     @classmethod
         ...     def hosted(cls, host: str) -> object:
-        ...         return cls._with_kwargs(host=host)
+        ...         return cls.parameterized(host=host)
         ...
         >>> test_db = world.get[Database](Database.hosted('test'))
         >>> test_db.host
@@ -80,12 +83,6 @@ class Service(metaclass=ServiceMeta, abstract=True):
         >>> # The factory returns a singleton so our test_session will also be one
         ... world.get[Database](Database.hosted('test')) is test_db
         True
-        >>> # Custom dependencies will NEVER be equal to the default one.
-        ... default_db = world.get[Database]()
-        >>> default_db is test_db
-        False
-        >>> default_db is world.get[Database](Database.hosted('localhost:6543'))
-        False
 
     """
 
@@ -96,9 +93,10 @@ class Service(metaclass=ServiceMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'scope')
+        __slots__ = ('wiring', 'scope', 'parameters')
         wiring: Optional[Wiring]
         scope: Optional[Scope]
+        parameters: Optional[FrozenSet[str]]
 
         @property
         def singleton(self) -> bool:
@@ -108,7 +106,8 @@ class Service(metaclass=ServiceMeta, abstract=True):
                      *,
                      wiring: Optional[Wiring] = Wiring(),
                      singleton: bool = None,
-                     scope: Optional[Scope] = Scope.sentinel()):
+                     scope: Optional[Scope] = Scope.sentinel(),
+                     parameters: Iterable[str] = None):
             """
             Args:
                 wiring: Wiring to be applied on the service. By default only
@@ -124,19 +123,20 @@ class Service(metaclass=ServiceMeta, abstract=True):
                     :py:meth:`~.core.container.Scope.singleton`.
             """
             if not (wiring is None or isinstance(wiring, Wiring)):
-                raise TypeError(f"wiring can be a Wiring or None, "
-                                f"not {type(wiring)}")
+                raise TypeError(f"wiring must be a Wiring or None, not {type(wiring)}")
 
             super().__init__(wiring=wiring,
                              scope=validated_scope(scope,
                                                    singleton,
-                                                   default=Scope.singleton()))
+                                                   default=Scope.singleton()),
+                             parameters=validated_parameters(parameters))
 
         def copy(self,
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
                  scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
+                 parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
                  ) -> 'Service.Conf':
             """
             Copies current configuration and overrides only specified arguments.
@@ -146,7 +146,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
                 raise TypeError("Use either singleton or scope argument, not both.")
             if isinstance(singleton, bool):
                 scope = Scope.singleton() if singleton else None
-            return Copy.immutable(self, wiring=wiring, scope=scope)
+            return Copy.immutable(self, wiring=wiring, scope=scope, parameters=parameters)
 
     __antidote__: Conf = Conf()
     """

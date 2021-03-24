@@ -1,5 +1,5 @@
 import inspect
-from typing import Dict, Hashable, Optional, cast
+from typing import Dict, Hashable, Optional, Tuple, cast
 
 from .._internal import API
 from .._internal.utils import FinalImmutable, debug_repr
@@ -7,39 +7,39 @@ from ..core import Container, DependencyDebug, DependencyValue, Provider, Scope
 
 
 @API.private
-class Build(FinalImmutable):
-    __slots__ = ('dependency', 'kwargs', '_hash')
-    dependency: Hashable
-    kwargs: Dict[str, object]
+class Parameterized(FinalImmutable):
+    __slots__ = ('wrapped', 'parameters', '_hash')
+    wrapped: Hashable
+    parameters: Dict[str, object]
     _hash: int
 
-    def __init__(self, dependency: Hashable, kwargs: Dict[str, object]) -> None:
-        assert isinstance(kwargs, dict) and kwargs
+    def __init__(self, dependency: Hashable, parameters: Dict[str, object]) -> None:
+        assert isinstance(parameters, dict) and parameters
 
         try:
             # Try most precise hash first
-            _hash = hash((dependency, tuple(kwargs.items())))
+            _hash = hash((dependency, tuple(parameters.items())))
         except TypeError:
-            # If type error, return the best error-free hash possible
-            _hash = hash((dependency, tuple(kwargs.keys())))
+            # If type error, use the best error-free hash possible
+            _hash = hash((dependency, tuple(parameters.keys())))
 
-        super().__init__(dependency, kwargs, _hash)
+        super().__init__(dependency, parameters, _hash)
 
     def __hash__(self) -> int:
         return self._hash
 
     def __repr__(self) -> str:
-        return f"Build(dependency={self.dependency}, kwargs={self.kwargs})"
+        return f"Parameterized(dependency={self.wrapped}, parameters={self.parameters})"
 
     def __antidote_debug_repr__(self) -> str:
-        return f"{debug_repr(self.dependency)} with kwargs={self.kwargs}"
+        return f"{debug_repr(self.wrapped)} with parameters={self.parameters}"
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, Build)
+        return (isinstance(other, Parameterized)
                 and self._hash == other._hash
-                and (self.dependency is other.dependency
-                     or self.dependency == other.dependency)
-                and self.kwargs == other.kwargs)  # noqa
+                and (self.wrapped is other.wrapped
+                     or self.wrapped == other.wrapped)
+                and self.parameters == other.parameters)  # noqa
 
 
 @API.private
@@ -52,8 +52,8 @@ class ServiceProvider(Provider[Hashable]):
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
 
     def exists(self, dependency: Hashable) -> bool:
-        if isinstance(dependency, Build):
-            return dependency.dependency in self.__services
+        if isinstance(dependency, Parameterized):
+            return dependency.wrapped in self.__services
         return dependency in self.__services
 
     def clone(self, keep_singletons_cache: bool) -> 'ServiceProvider':
@@ -62,7 +62,7 @@ class ServiceProvider(Provider[Hashable]):
         return p
 
     def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
-        klass = build.dependency if isinstance(build, Build) else build
+        klass = build.wrapped if isinstance(build, Parameterized) else build
         try:
             scope = self.__services[klass]
         except KeyError:
@@ -71,17 +71,17 @@ class ServiceProvider(Provider[Hashable]):
                                scope=scope,
                                wired=[klass])
 
-    def maybe_provide(self, build: Hashable, container: Container
+    def maybe_provide(self, dependency: Hashable, container: Container
                       ) -> Optional[DependencyValue]:
-        dependency = build.dependency if isinstance(build, Build) else build
+        dep = dependency.wrapped if isinstance(dependency, Parameterized) else dependency
         try:
-            scope = self.__services[dependency]
+            scope = self.__services[dep]
         except KeyError:
             return None
 
-        klass = cast(type, dependency)
-        if isinstance(build, Build) and build.kwargs:
-            instance = klass(**build.kwargs)
+        klass = cast(type, dep)
+        if isinstance(dependency, Parameterized):
+            instance = klass(**dependency.parameters)
         else:
             instance = klass()
 

@@ -57,7 +57,7 @@ Service
     :members: __antidote__
     :inherited-members:
 
-    .. automethod:: _with_kwargs
+    .. automethod:: parameterized
 
 
 Factory
@@ -70,7 +70,7 @@ Factory
     :members:
     :inherited-members:
 
-    .. automethod:: _with_kwargs
+    .. automethod:: parameterized
 
 
 Constants

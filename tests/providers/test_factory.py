@@ -2,7 +2,7 @@ import pytest
 
 from antidote import Scope, world
 from antidote._providers import FactoryProvider
-from antidote._providers.service import Build
+from antidote._providers.service import Parameterized
 from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
                                  FrozenWorldError)
 
@@ -63,9 +63,9 @@ def test_exists(scope: Scope, factory_params: dict):
     factory_id = provider.register(A, scope=scope, **factory_params)
 
     assert not provider.exists(object())
-    assert not provider.exists(Build(object(), kwargs=dict(a=1)))
+    assert not provider.exists(Parameterized(object(), parameters=dict(a=1)))
     assert provider.exists(factory_id)
-    assert provider.exists(Build(factory_id, kwargs=dict(a=1)))
+    assert provider.exists(Parameterized(factory_id, parameters=dict(a=1)))
     assert not provider.exists(A)
     assert not provider.exists(build)
 
@@ -97,13 +97,16 @@ def test_duplicate_dependency(provider: FactoryProvider,
         provider.register(A, scope=scope, **factory_params)
 
 
-def test_build_dependency(provider: FactoryProvider, scope: Scope, factory_params: dict):
-    kwargs = dict(test=object())
-    provider = world.get(FactoryProvider)
-    factory_id = provider.register(A, scope=scope, **factory_params)
-    a = world.get(Build(factory_id, kwargs))
-    assert isinstance(a, A)
-    assert a.kwargs == kwargs
+def test_parameterized_dependency(scope: Scope, factory_params: dict):
+    with world.test.empty():
+        world.test.singleton('lazy_build', build)
+        provider = FactoryProvider()
+        factory_id = provider.register(A, scope=scope, **factory_params)
+        kwargs = dict(test=object())
+        a = world.test.maybe_provide_from(provider,
+                                          Parameterized(factory_id, kwargs)).unwrapped
+        assert isinstance(a, A)
+        assert a.kwargs == kwargs
 
 
 def test_copy(scope: Scope):

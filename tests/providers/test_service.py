@@ -1,7 +1,7 @@
 import pytest
 
 from antidote import Scope, world
-from antidote._providers.service import Build, ServiceProvider
+from antidote._providers.service import Parameterized, ServiceProvider
 from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
                                  FrozenWorldError)
 
@@ -43,8 +43,8 @@ class B(KeepInit):
         (A, {'not_hashable': {'hey': 'hey'}})
     ]
 )
-def test_build_str_repr(wrapped, kwargs):
-    b = Build(wrapped, kwargs)
+def test_parameterized_str_repr(wrapped, kwargs):
+    b = Parameterized(wrapped, kwargs)
 
     # does not fail
     hash(b)
@@ -53,18 +53,18 @@ def test_build_str_repr(wrapped, kwargs):
     assert repr(kwargs) in repr(b)
 
 
-def test_build_eq_hash():
-    a = Build(A, dict(test=1))
+def test_parameterized_eq_hash():
+    a = Parameterized(A, dict(test=1))
     assert hash(a) == hash(a)
     assert a == a
 
-    a2 = Build(A, dict(test=1))
+    a2 = Parameterized(A, dict(test=1))
     assert hash(a) == hash(a2)
     assert a == a2
 
-    for x in [Build(A, dict(test=2)),
-              Build(A, dict(hey=1)),
-              Build(1, dict(test=1))]:
+    for x in [Parameterized(A, dict(test=2)),
+              Parameterized(A, dict(hey=1)),
+              Parameterized(1, dict(test=1))]:
         assert hash(a) != hash(x)
         assert a != x
 
@@ -84,10 +84,12 @@ def test_register(singleton: bool):
         assert isinstance(world.test.maybe_provide_from(provider, A).unwrapped, A)
 
 
-def test_build(provider: ServiceProvider, scope: Scope):
+def test_parameterized(scope: Scope):
+    provider = ServiceProvider()
     provider.register(A, scope=scope)
 
-    s = world.get(Build(A, dict(val=object)))
+    s = world.test.maybe_provide_from(provider,
+                                      Parameterized(A, dict(val=object))).unwrapped
     assert isinstance(s, A)
     assert dict(val=object) == s.kwargs
 
@@ -145,8 +147,8 @@ def test_exists(provider: ServiceProvider, scope: Scope):
     provider.register(A, scope=scope)
     assert not provider.exists(object())
     assert provider.exists(A)
-    assert provider.exists(Build(A, dict(a=1)))
-    assert not provider.exists(Build(B, dict(a=1)))
+    assert provider.exists(Parameterized(A, dict(a=1)))
+    assert not provider.exists(Parameterized(B, dict(a=1)))
 
 
 def test_custom_scope(provider: ServiceProvider):

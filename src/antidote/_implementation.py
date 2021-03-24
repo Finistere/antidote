@@ -32,12 +32,12 @@ class ImplementationWrapper:
 @API.private
 def validate_provided_class(dependency: Hashable, *, expected: type) -> None:
     from ._providers.factory import FactoryDependency
-    from ._providers.service import Build
+    from ._providers.service import Parameterized
     from ._providers.indirect import ImplementationDependency
 
     cls: object = dependency
-    if isinstance(cls, Build):
-        cls = cls.dependency
+    if isinstance(cls, Parameterized):
+        cls = cls.wrapped
     if isinstance(cls, FactoryDependency):
         cls = cls.output
     if isinstance(cls, ImplementationDependency):

@@ -7,8 +7,9 @@ from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
 from ._providers import FactoryProvider
 from ._providers.factory import FactoryDependency
-from ._providers.service import Build
-from .core import LazyDependency, Provide, inject
+from ._providers.service import Parameterized
+from ._utils import validate_method_parameters
+from .core import Provide, inject
 from .service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'
@@ -46,7 +47,7 @@ class FactoryMeta(AbstractMeta):
         return cls.__factory_dependency
 
     @API.public
-    def _with_kwargs(cls, **kwargs: object) -> 'PreBuild':
+    def parameterized(cls, **kwargs: object) -> 'PreBuild':
         """
         Creates a new dependency based on the factory with the given arguments. The new
         dependency will have the same scope as the original one.
@@ -61,22 +62,23 @@ class FactoryMeta(AbstractMeta):
             ...     def __init__(self, host: str):
             ...         self.host = host
             >>> class DatabaseFactory(Factory):
-            ...     def __call__(self, host: str = 'localhost') -> Database:
+            ...     __antidote__ = Factory.Conf(parameters=['host'])
+            ...
+            ...     def __call__(self, host: str) -> Database:
             ...         return Database(host)
             ...
             ...     @classmethod
             ...     def with_host(cls, host: str) -> object:
-            ...         return cls._with_kwargs(host=host)
+            ...         return cls.parameterized(host=host)
             >>> db = world.get(Database @ DatabaseFactory.with_host(host='remote'))
+            >>> # or with Mypy type hint
+            ... db = world.get[Database] @ DatabaseFactory.with_host(host='remote')
             >>> db.host
             'remote'
             >>> # As DatabaseFactory is defined to return a singleton,
             ... # the same is applied:
             ... world.get(Database @ DatabaseFactory.with_host(host='remote')) is db
             True
-            >>> # Custom dependencies will NEVER be equal to the default one
-            ... world.get(Database @ DatabaseFactory) is db
-            False
 
         Args:
             **kwargs: Arguments passed on to :code:`__call__()`.
@@ -84,7 +86,21 @@ class FactoryMeta(AbstractMeta):
         Returns:
             Dependency to be retrieved from Antidote.
         """
+        from .factory import Factory
         assert cls.__factory_dependency is not None
+
+        # Guaranteed through _configure_factory()
+        conf = cast(Factory.Conf, getattr(cls, '__antidote__'))
+        if conf.parameters is None:
+            raise RuntimeError(f"Factory {cls} does not accept any parameters. You must "
+                               f"specify them explicitly in the configuration with: "
+                               f"Factory.Conf(parameters=...))")
+
+        if set(kwargs.keys()) != conf.parameters:
+            raise ValueError(f"Given parameters do not match expected ones. "
+                             f"Got: ({','.join(map(repr, kwargs.keys()))}) "
+                             f"Expected: ({','.join(map(repr, conf.parameters))})")
+
         return PreBuild(cls.__factory_dependency, kwargs)
 
 
@@ -111,6 +127,8 @@ def _configure_factory(cls: FactoryMeta,
 
     if conf.wiring is not None:
         conf.wiring.wire(cls)
+
+    validate_method_parameters(cls.__call__, conf.parameters)
 
     factory_dependency = factory_provider.register(
         output=output,
@@ -147,14 +165,7 @@ class PreBuild(FinalImmutable):
     __factory_dependency: FactoryDependency
     __kwargs: Dict[str, object]
 
-    def __init__(self, factory_dependency: FactoryDependency,
-                 kwargs: Dict[str, object]) -> None:
-        if not kwargs:
-            raise ValueError("When calling with_kwargs(), "
-                             "at least one argument must be provided.")
-        super().__init__(factory_dependency, kwargs)
-
     def __rmatmul__(self, left_operand: Hashable) -> object:
         if left_operand is not self.__factory_dependency.output:
             raise ValueError(f"Unsupported output {left_operand}")
-        return Build(self.__factory_dependency, self.__kwargs)
+        return Parameterized(self.__factory_dependency, self.__kwargs)

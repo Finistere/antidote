@@ -5,7 +5,7 @@ from typing import Callable, Dict, Hashable, Optional
 cimport cython
 from cpython.ref cimport PyObject
 
-from antidote._providers.service cimport Build
+from antidote._providers.service cimport Parameterized
 from antidote.core.container cimport (DependencyResult, FastProvider, Header,
                                       HeaderObject, header_is_singleton, Scope,
                                       RawContainer, header_flag_cacheable)
@@ -48,16 +48,16 @@ cdef class FactoryProvider(FastProvider):
         return provider
 
     def exists(self, dependency: Hashable) -> bool:
-        if isinstance(dependency, Build):
-            dependency = dependency.dependency
+        if isinstance(dependency, Parameterized):
+            dependency = dependency.wrapped
         return (isinstance(dependency, FactoryDependency)
                 and dependency in self.__factories)
 
-    def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
         cdef:
             Factory factory
 
-        dependency_factory = build.dependency if isinstance(build, Build) else build
+        dependency_factory = dependency.wrapped if isinstance(dependency, Parameterized) else dependency
         if not isinstance(dependency_factory, FactoryDependency):
             return None
 
@@ -78,7 +78,7 @@ cdef class FactoryProvider(FastProvider):
 
         header = HeaderObject(factory.header)
         return DependencyDebug(
-            debug_repr(build),
+            debug_repr(dependency),
             scope=header.to_scope(self._bound_container()),
             wired=wired,
             dependencies=dependencies)
@@ -89,9 +89,9 @@ cdef class FactoryProvider(FastProvider):
                       DependencyResult*result):
         cdef:
             PyObject*factory
-            bint is_build_dependency = PyObject_IsInstance(dependency, <PyObject*> Build)
-            PyObject*dependency_factory = (<PyObject*> (<Build> dependency).dependency
-                                           if is_build_dependency else
+            bint is_parameterized = PyObject_IsInstance(dependency, <PyObject*> Parameterized)
+            PyObject*dependency_factory = (<PyObject*> (<Parameterized> dependency).wrapped
+                                           if is_parameterized else
                                            dependency)
 
         if not PyObject_IsInstance(dependency_factory, <PyObject*> FactoryDependency):
@@ -112,12 +112,12 @@ cdef class FactoryProvider(FastProvider):
             (<Factory> factory).function = <object> result.value
             Py_DECREF(result.value)
 
-        if is_build_dependency:
+        if is_parameterized:
             result.header = (<Factory> factory).header
             result.value = PyObject_Call(
                 <PyObject*> (<Factory> factory).function,
                 <PyObject*> empty_tuple,
-                <PyObject*> (<Build> dependency).kwargs
+                <PyObject*> (<Parameterized> dependency).parameters
             )
         else:
             result.header = (<Factory> factory).header | header_flag_cacheable()
@@ -170,9 +170,9 @@ cdef class ClonedFactoryProvider(FactoryProvider):
         cdef:
             Factory f
             PyObject* factory
-            bint is_build_dependency = PyObject_IsInstance(dependency, <PyObject*> Build)
-            PyObject*dependency_factory = (<PyObject*> (<Build> dependency).dependency
-                                           if is_build_dependency else
+            bint is_parameterized = PyObject_IsInstance(dependency, <PyObject*> Parameterized)
+            PyObject*dependency_factory = (<PyObject*> (<Parameterized> dependency).wrapped
+                                           if is_parameterized else
                                            dependency)
 
         if not PyObject_IsInstance(dependency_factory, <PyObject*> FactoryDependency):
@@ -206,12 +206,12 @@ cdef class ClonedFactoryProvider(FactoryProvider):
             (<Factory> factory).function = <object> result.value
             Py_DECREF(result.value)
 
-        if is_build_dependency:
+        if is_parameterized:
             result.header = (<Factory> factory).header
             result.value = PyObject_Call(
                 <PyObject*> (<Factory> factory).function,
                 <PyObject*> empty_tuple,
-                <PyObject*> (<Build> dependency).kwargs
+                <PyObject*> (<Parameterized> dependency).parameters
             )
         else:
             result.header = (<Factory> factory).header | header_flag_cacheable()

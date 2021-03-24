@@ -1,7 +1,7 @@
 import inspect
 from typing import Callable, Dict, Hashable, Optional
 
-from .service import Build
+from .service import Parameterized
 from .._internal import API
 from .._internal.utils import FinalImmutable, SlotRecord, debug_repr
 from ..core import (Container, DependencyDebug, DependencyValue, Provider,
@@ -37,13 +37,15 @@ class FactoryProvider(Provider[Hashable]):
         # is sharing the dependency with another provider. Simply because I don't see a
         # use case where it would make sense.
         # Open for discussions though, create an issue if you a use case.
-        if isinstance(dependency, Build):
-            dependency = dependency.dependency
+        if isinstance(dependency, Parameterized):
+            dependency = dependency.wrapped
         return (isinstance(dependency, FactoryDependency)
                 and dependency in self.__factories)
 
-    def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
-        dependency_factory = build.dependency if isinstance(build, Build) else build
+    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+        dependency_factory = (dependency.wrapped
+                              if isinstance(dependency, Parameterized)
+                              else dependency)
         if not isinstance(dependency_factory, FactoryDependency):
             return None
 
@@ -62,14 +64,16 @@ class FactoryProvider(Provider[Hashable]):
         else:
             wired.append(factory.function)
 
-        return DependencyDebug(debug_repr(build),
+        return DependencyDebug(debug_repr(dependency),
                                scope=factory.scope,
                                wired=wired,
                                dependencies=dependencies)
 
-    def maybe_provide(self, build: Hashable, container: Container
+    def maybe_provide(self, dependency: Hashable, container: Container
                       ) -> Optional[DependencyValue]:
-        dependency_factory = build.dependency if isinstance(build, Build) else build
+        dependency_factory = (dependency.wrapped
+                              if isinstance(dependency, Parameterized)
+                              else dependency)
         if not isinstance(dependency_factory, FactoryDependency):
             return None
 
@@ -83,9 +87,10 @@ class FactoryProvider(Provider[Hashable]):
             assert f.is_singleton(), "factory dependency is expected to be a singleton"
             factory.function = f.unwrapped
 
-        instance = (factory.function(**build.kwargs)
-                    if isinstance(build, Build) and build.kwargs
-                    else factory.function())
+        if isinstance(dependency, Parameterized):
+            instance = factory.function(**dependency.parameters)
+        else:
+            instance = factory.function()
 
         return DependencyValue(instance, scope=factory.scope)
 
