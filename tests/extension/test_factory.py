@@ -72,7 +72,7 @@ def test_pass_through(build):
 
 
 def test_custom_scope():
-    dummy_scope = world.scopes.new('dummy')
+    dummy_scope = world.scopes.new(name='dummy')
 
     class Scoped:
         pass

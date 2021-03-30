@@ -9,6 +9,19 @@ Pretty much v1.0-beta.
 
 
 
+0.14.0 (2021-03-30)
+===================
+
+
+Breaking Change
+---------------
+
+- :code:`LazyDependency` and :code:`WithWiringMixin` are not part of the public API anymore.
+  For the first just use :py:obj:`.world.lazy` instead, and the later was experimental.
+- :py:func:`.world.scopes.new` argument :code:`name` is keyword-only now.
+
+
+
 0.13.0 (2021-03-24)
 ===================
 
@@ -43,8 +56,8 @@ Change
 Feature / Breaking Change
 -------------------------
 
-- Add runtime type checks when a type is explicitly defined with :py:func:`.world.get`,
-  :py:func:`.world.lazy` or :py:class:`.Constants`.
+- Add runtime type checks when a type is explicitly defined with :py:obj:`.world.get`,
+  :py:obj:`.world.lazy` or :py:class:`.Constants`.
 
 
 
@@ -144,8 +157,8 @@ Features
     - Override utilities in :py:mod:`.world.test.override` to be used in tests.
     - Debug utility :py:func:`.world.debug` which returns a tree of all the dependencies
       that will/may be retrieved by Antidote.
-    - Add type hints to :py:func:`.world.get` which can now be used like :code:`world.get[<class>]("x")`
-    - Add :py:func:`.world.lazy` for dependencies to retrieve dependencies lazily.
+    - Add type hints to :py:obj:`.world.get` which can now be used like :code:`world.get[<class>]("x")`
+    - Add :py:obj:`.world.lazy` for dependencies to retrieve dependencies lazily.
 - :py:func:`.implementation` is more flexible than :code:`@implements` and supports changing the
   implementation at runtime for example.
 - :py:class:`.Service` and :py:class:`.Factory` expose a handy class method

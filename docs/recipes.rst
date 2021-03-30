@@ -334,7 +334,7 @@ Antidote supports stateful factories simply by using defining a class as a facto
     >>> from antidote import world
     >>> world.get[ID](ID @ IDFactory)
     ID(id='example_1')
-    >>> world.get[ID](ID @ IDFactory)
+    >>> world.get[ID] @ IDFactory
     ID(id='example_2')
 
 
@@ -470,18 +470,6 @@ or configuration files. If you need complex behavior, consider using a service f
 or define your Configuration class as :code:`public=True` in :py:attr:`~.Constants.Conf`
 and use it as a one.
 
-.. warning::
-
-    They are two "cast" to differentiate here. When using :code:`ENV = const[T]('env')`
-    there is a first cast done by :py:func:`.const` that will make mypy consider
-    :code:`Conf().ENV` to be a :code:`T` instance whether this is the case or not. It is
-    up to you to guarantee it. This only gives the necessary type hints to Mypy for it to
-    work as :code:`ENV` will be transformed to a descriptor. Hence Mypy can't infer the
-    actual return type.
-    The second cast is done by :py:class:`.Constants`, controlled by :code:`auto_cast`.
-    This will do an actual cast, which provides a nice syntactic sugar to cast integers or
-    floats typically as configuration may be stored as a string.
-
 
 Default values
 --------------
@@ -533,7 +521,7 @@ have a friendly identifier when debugging.
 .. doctest:: recipes_scope
 
     >>> from antidote import world
-    >>> REQUEST_SCOPE = world.scopes.new('request')
+    >>> REQUEST_SCOPE = world.scopes.new(name='request')
 
 To use the newly created scope, use :code:`scope` parameters:
 

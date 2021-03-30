@@ -222,6 +222,8 @@ def setup(app):
     with open('../README.rst', 'r') as readme, \
             open('_build/README.rst', 'w') as build_readme:
         build_readme.write(readme.read()
-                           .replace('docs/_static/img', '_static/img'))
+                           .replace('docs/_static/img', '_static/img')
+                           .replace('.. code-block:: python',
+                                    '.. testcode:: readme'))
 
     app.add_css_file('css/style.css')  # may also be an URL

@@ -76,7 +76,7 @@ def test_world(context: Callable, keeps_singletons: bool, strategy: str):
             world.provider(DummyFloatProvider)
             assert world.get(1.2) == 1.2 ** 2
 
-            s = world.scopes.new('dummy')
+            s = world.scopes.new(name='dummy')
             world.scopes.reset(s)
 
     with pytest.raises(DependencyNotFoundError):
@@ -109,7 +109,7 @@ def test_clone_restrictions(keep_singletons, keep_scopes):
     with world.test.clone(keep_singletons=keep_singletons,
                           keep_scopes=keep_scopes):
         with pytest.raises(FrozenWorldError):
-            world.scopes.new("new scope")
+            world.scopes.new(name="new scope")
 
         with pytest.raises(FrozenWorldError):
             world.provider(DummyIntProvider)

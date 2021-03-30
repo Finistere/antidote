@@ -35,12 +35,13 @@ Antidote provides the following features:
     - `Documented <https://antidote.readthedocs.io/en/latest>`_, everything has tested examples.
     - No need for any custom setup, just use your injected function as usual. You just don't have to specify
       injected arguments anymore. Allowing you to gradually migrate an existing project.
+    - Documented, with a lot of tested examples.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
     - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
       a good chance you can implement it yourself.
-    - scope support
-    - async injection
+    - Scope support
+    - Async injection
 - Maintainability
     - All dependencies can be tracked back to their declaration/implementation easily.
     - Mypy compatibility and usage of type hints as much as possible.
@@ -48,18 +49,19 @@ Antidote provides the following features:
     - Dependencies can be frozen, which blocks any new declarations.
     - No double injection.
     - Everything is as explicit as possible, :code:`@inject` does not inject anything implicitly.
-    - type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
-    - thread-safe, cycle detection.
+    - Type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
+    - Thread-safe, cycle detection.
+    - Immutable whenever possible. Overrides are not possible outside of tests.
 - Testability
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
-    - fully isolate each test with :code:`world.test.clone`. They will work on the separate objects.
+    - Fully isolate each test with :code:`world.test.clone`. They will work on the separate objects.
     - Override any dependency locally in a test.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Performance\*
-    - fastest :code:`@inject` with heavily tuned Cython.
+    - Fastest :code:`@inject` with heavily tuned Cython.
     - As much as possible is done at import time.
-    - testing utilities are tuned to ensure that even with full isolation it stays fast.
-    - benchmarks:
+    - Testing utilities are tuned to ensure that even with full isolation it stays fast.
+    - Benchmarks:
       `comparison <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
       `injection <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_,
       `test utilities <https://github.com/Finistere/antidote/blob/master/benchmark_test_utils.ipynb>`_
@@ -96,10 +98,10 @@ Here are some links:
 - `Changelog <https://antidote.readthedocs.io/en/latest/changelog.html>`_
 
 
-Issues / Feature Requests / Questions
-=====================================
+Issues / Questions
+==================
 
-Feel free to open an issue on Github for questions, requests or issues !
+Feel free to open an issue on Github for questions or issues !
 
 
 Hands-on quick start
@@ -108,15 +110,11 @@ Hands-on quick start
 Showcase of the most important features of Antidote with short and concise examples.
 Checkout the `Getting started`_ for a full beginner friendly tutorial.
 
-Injection, Service and Constants
---------------------------------
-
-How does injection looks like ?
+Injection
+---------
 
 .. code-block:: python
 
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
     from antidote import Service, inject, Provide
 
     class Database(Service):
@@ -166,208 +164,234 @@ used, the most important ones are:
         def f(db: Database):
             pass
 
-Now let's get back to our :code:`Database`. It lacks some configuration !
-
-.. code-block:: python
-
-    from antidote import inject, Service, Constants, const
-
-    class Config(Constants):
-        DB_HOST = const('localhost:5432')
-
-    class Database(Service):
-        @inject([Config.DB_HOST])  # self is ignored when specifying a list
-        def __init__(self, host: str):
-            self._host = host
-
-    @inject({'db': Database})
-    def f(db: Database):
-        pass
-
-    f()  # yeah !
-
-Looks a bit overkill here, but doing so allows you to change later how :code:`DB_HOST` is
-actually retrieved. You could load a configuration file for example, it wouldn't change the
-rest of your code. And you can easily find where a configuration parameter is used.
-
-You can also retrieve dependencies by hand when testing for example:
+You can also retrieve the dependency by hand with :code:`world.get`:
 
 .. code-block:: python
 
     from antidote import world
 
     # Retrieve dependencies by hand, in tests typically
-    world.get(Config.DB_HOST)
-    world.get[str](Config.DB_HOST)  # with type hint
+    world.get(Database)
+    world.get[Database](Database)  # with type hint
     world.get[Database]()  # omit dependency if it's the type hint itself
 
-If you want to be compatible with Mypy type checking, you just need to do the following:
+
+Service
+-------
+
+Services are classes for which Antidote provides an instance. It can be a singleton or not.
+Scopes are also supported. Every method is injected by default, relying on annotated type
+hints. It can also be parametrized or configured differently.
 
 .. code-block:: python
 
-    @inject
-    def f(db: Provide[Database] = None):
-        # Used to tell Mypy that `db` is optional but must be either injected or given.
-        assert db is not None
+    from antidote import Service, Provide, inject
+
+    class QueryBuilder(Service):
+        __antidote__ = Service.Conf(singleton=False)  # new instance each time
+
+        # methods injected by default
+        def __init__(self, db: Provide[Database]):
+            self._db = db
+
+    @inject({'builder': QueryBuilder})
+    def load_data(builder):
         pass
 
-This might look a bit cumbersome, but in reality you'll only need to do it in functions
-you are actually calling yourself in your code. Typically :code:`Database.__init__()`
-won't need it because it'll always be Antidote injecting the arguments.
-
-Factories and Interface/Implementation
---------------------------------------
-
-Want more ? Here is an over-engineered example to showcase a lot more features. First we have
-an :code:`ImdbAPI` coming from a external library:
-
-.. code-block:: python
-
-    # from a library
-    class ImdbAPI:
-        def __init__(self, host: str, port: int, api_key: str):
-            pass
+    load_data()  # yeah !
 
 
-You have your own interface to manipulate the movies:
+Constants
+---------
+
+Constants are, by definition, constants that Antidote provides lazily. It's primary use
+case is configuration:
 
 .. code-block:: python
 
-    # movie.py
-    class MovieDB:
-        """ Interface """
-
-        def get_best_movies(self):
-            pass
-
-
-Now that's the entry point of your application:
-
-.. code-block:: python
-
-    # main.py
-    from movie import MovieDB
-    from current_movie import current_movie_db
-
-
-    @inject([MovieDB @ current_movie_db])
-    def main(movie_db: MovieDB = None):
-        assert movie_db is not None  # for Mypy, to understand that movie_db is optional
-        pass
-
-    # Or with annotated type hints
-    @inject
-    def main(movie_db: Annotated[MovieDB, From(current_movie_db)]):
-        pass
-
-    main()
-
-
-Note that you can search for the definition of :code:`current_movie_db`. So you can simply
-use "Go to definition" of your IDE which would open:
-
-.. code-block:: python
-
-    # current_movie.py
-    # Code implementing/managing MovieDB
-    from antidote import factory, inject, Service, implementation
-    from config import Config
-
-    # Provides ImdbAPI, as defined by the return type annotation.
-    @factory
-    @inject([Config.IMDB_HOST, Config.IMDB_PORT, Config.IMDB_API_KEY])
-    def imdb_factory(host: str, port: int, api_key: str) -> ImdbAPI:
-        # Here host = Config().provide_const('IMDB_HOST', 'imdb.host')
-        return ImdbAPI(host=host, port=port, api_key=api_key)
-
-    class IMDBMovieDB(MovieDB, Service):
-        __antidote__ = Service.Conf(singleton=False)  # New instance each time
-
-        @inject({'imdb_api': ImdbAPI @ imdb_factory})
-        def __init__(self, imdb_api: ImdbAPI):
-            self._imdb_api = imdb_api
-
-        def get_best_movies(self):
-            pass
-
-    @implementation(MovieDB)
-    def current_movie_db() -> object:
-        return IMDBMovieDB  # dependency to be provided for MovieDB
-
-
-Or with annotated type hints:
-
-.. code-block:: python
-
-    # current_movie.py
-    # Code implementing/managing MovieDB
-    from antidote import factory, Service, Get, From
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-    from config import Config
-
-    @factory
-    def imdb_factory(host: Annotated[str, Get(Config.IMDB_HOST)],
-                     port: Annotated[int, Get(Config.IMDB_PORT)],
-                     api_key: Annotated[str, Get(Config.IMDB_API_KEY)]
-                     ) -> ImdbAPI:
-        return ImdbAPI(host, port, api_key)
-
-    class IMDBMovieDB(MovieDB, Service):
-        __antidote__ = Service.Conf(singleton=False)
-
-        def __init__(self, imdb_api: Annotated[ImdbAPI, From(imdb_factory)]):
-            self._imdb_api = imdb_api
-
-        def get_best_movies(self):
-            pass
-
-
-The configuration can also be easily tracked down:
-
-.. code-block:: python
-
-    # config.py
-    from antidote import Constants, const
+    from antidote import inject, Constants, const
 
     class Config(Constants):
-        # with str/int/float, the type hint is enforced. Can be removed or extend to
-        # support Enums.
-        IMDB_HOST = const[str]('imdb.host')
-        IMDB_PORT = const[int]('imdb.port')
-        IMDB_API_KEY = const('imdb.api_key')
+        DB_HOST = const('localhost')
 
-        def __init__(self):
-            self._raw_conf = {
-                'imdb': {
-                    'host': 'dummy_host',
-                    'api_key': 'dummy_api_key',
-                    'port': '80'
-                }
-            }
+    @inject([Config.DB_HOST])
+    def ping_db(db_host: str):
+        pass
 
-        def provide_const(self, name: str, arg: str):
-            root, key = arg.split('.')
-            return self._raw_conf[root][key]
+    ping_db()  # nice !
+
+Now this looks a bit overkill, but it allows you to refactor it easily or load complex
+configuration lazily. Here is a similar example, but loading the configuration from
+the environment:
+
+.. code-block:: python
+
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
+    from antidote import inject, Constants, const, Get
+
+    class Config(Constants):
+        DB_HOST = const[str]()  # used as a type annotation
+        DB_PORT = const[int]()  # and also to cast the value retrieved from `provide_const`
+        DB_USER = const[str](default='postgres')  # defaults are supported
+
+        def provide_const(self, name: str, arg: object):
+            return os.environ[name]
+
+    import os
+    os.environ['DB_HOST'] = 'localhost'
+    os.environ['DB_PORT'] = '5432'
+
+    @inject()
+    def check_connection(db_host: Annotated[str, Get(Config.DB_HOST)],
+                         db_port: Annotated[int, Get(Config.DB_PORT)]):
+        pass
+
+    check_connection()  # perfect !
+
+Note that we could have replaced the previous :code:`Config` without any changes in the
+clients.
+
+
+Factory
+-------
+
+Factories are used by Antidote to generate a dependency. It can either be a class or a function.
+The resulting dependency can be a singleton or not. Scopes are also supported. If a class is used
+it'll be wired (injection of methods) in the same way as :code:`Service`:
+
+.. code-block:: python
+
+    from antidote import factory, inject, Provide
+
+    class User:
+        pass
+
+    @factory(singleton=False)  # annotated type hints can be used or you can @inject manually
+    def current_user(db: Provide[Database]) -> User:  # return type annotation is used
+        return User()
+
+    # Note that here you *know* exactly where it's coming from.
+    @inject({'user': User @ current_user})
+    def is_admin(user: User):
+        pass
+
+Easy to understand where the dependency is actually coming from ! Like :code:`Service`,
+you can also retrieve it by hand:
+
+.. code-block:: python
+
+    from antidote import world
+
+    world.get(User @ current_user)
+    world.get[User](User @ current_user)  # with type hint
+    world.get[User] @ current_user  # same, but shorter
+
+Now with a request scope and a factory class:
+
+.. code-block:: python
+
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
+    from antidote import Factory, inject, Provide, world, From
+
+    REQUEST_SCOPE = world.scopes.new(name='request')
+
+    class CurrentUser(Factory):
+        __antidote__ = Factory.Conf(scope=REQUEST_SCOPE)
+
+        # injecting it in __call__() would have also worked
+        def __init__(self, db: Provide[Database]):
+            self._db = db
+
+        def __call__(self) -> User:
+            return User()
+
+    @inject
+    def is_admin(user: Annotated[User, From(CurrentUser)]):
+        pass
+
+    is_admin()
+
+    # Reset all dependencies in the specified scope.
+    world.scopes.reset(REQUEST_SCOPE)
+
+Here also, knowing where and how a scope is used is straightforward with an IDE.
+
+
+Interface/Implementation
+------------------------
+
+The distinction between an interface and its implementation lets you choose between multiple
+implementations, which one to use. This choice can be permanent or not. For the latter, Antidote
+will retrieve the current implementation each time:
+
+.. code-block:: python
+
+    from antidote import Service, implementation, inject, factory
+
+    class Cache:
+        pass
+
+    class MemoryCache(Cache, Service):
+        pass
+
+    class Redis:
+        """ class from an external library """
+
+    @factory
+    def redis_cache() -> Redis:
+        return Redis()
+
+    @implementation(Cache)
+    def cache_impl():
+        import os
+
+        if os.environ.get('USE_REDIS_CACHE'):
+            return Redis @ redis_cache
+
+        # Returning the dependency that must be retrieved
+        return MemoryCache
+
+The cache can then be retrieved with the same syntax as a factory:
+
+.. code-block:: python
+
+    from typing import Annotated
+    # from typing_extensions import Annotated # Python < 3.9
+    from antidote import world, inject, From
+
+    @inject
+    def heavy_compute(cache: Annotated[Cache, From(cache_impl)]):
+        pass
+
+
+    world.get[Cache] @ cache_impl
+
+Like factories, it's easy to know where the dependency is coming from !
+
 
 Testing and Debugging
 ---------------------
 
-Based on the previous example. You can test your application by simply overriding
-any of the arguments:
+:code:`inject` always allows you to pass your own argument to override the injection:
 
 .. code-block:: python
 
-    conf = Config()
-    main(IMDBMovieDB(imdb_factory(
-        # constants can be retrieved directly on an instance
-        host=conf.IMDB_HOST,
-        port=conf.IMDB_PORT,
-        api_key=conf.IMDB_API_KEY,
-    )))
+    from antidote import Service, inject, Provide
 
-You can also fully isolate your tests from each other while relying on Antidote and
-override any dependencies within that context:
+    class Database(Service):
+        pass
+
+    @inject
+    def f(db: Provide[Database]):
+        pass
+
+    f()
+    f(Database())  # test with specific arguments in unit tests
+
+You can also fully isolate your tests from each other and override any dependency within
+that context:
 
 .. code-block:: python
 
@@ -375,17 +399,30 @@ override any dependencies within that context:
 
     # Clone current world to isolate it from the rest
     with world.test.clone():
-        # Override the configuration
-        world.test.override.singleton(Config.IMDB_HOST, 'other host')
-        main()
+        x = object()
+        # Override the Database
+        world.test.override.singleton(Database, x)
+        f()  # will have `x` injected for the Databas
+
+        @world.test.override.factory(Database)
+        def override_database():
+            class DatabaseMock:
+                pass
+
+            return DatabaseMock()
+
+        f()  # will have `DatabaseMock()` injected for the Database
 
 If you ever need to debug your dependency injections, Antidote also provides a tool to
 have a quick summary of what is actually going on:
 
 .. code-block:: python
 
-    world.debug(main)
-    # will output:
+    def function_with_complex_dependencies():
+        pass
+
+    world.debug(function_with_complex_dependencies)
+    # would output something like this:
     """
     main
     └── Permanent implementation: MovieDB @ current_movie_db
@@ -420,7 +457,7 @@ You can check whether you're using the compiled version or not with:
 
     from antidote import is_compiled
     
-    print(f"Is Antidote compiled ? {is_compiled()}")
+    f"Is Antidote compiled ? {is_compiled()}"
 
 You can force the compilation of antidote yourself when installing:
 
@@ -459,8 +496,7 @@ to open a pull request and ask for help !
 
 Pull requests **will not** be accepted if:
 
-- classes and non trivial functions have not docstrings documenting their behavior.
+- public classes/functions have not docstrings documenting their behavior with examples.
 - tests do not cover all of code changes (100% coverage) in the pure python.
 
-If you face issues with the Cython part of Antidote just send the pull request, I can
-adapt the Cython part myself.
+If you face issues with the Cython part of Antidote, I may implement it myself.

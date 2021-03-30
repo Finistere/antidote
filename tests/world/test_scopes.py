@@ -10,7 +10,7 @@ def empty_world():
 
 
 def test_new():
-    s = world.scopes.new("test")
+    s = world.scopes.new(name="test")
     assert isinstance(s, Scope)
     assert s.name == "test"
 
@@ -23,17 +23,17 @@ def test_new():
 ])
 def test_invalid_new_scope_name(expectation, name):
     with expectation:
-        world.scopes.new(name)
+        world.scopes.new(name=name)
 
 
 def test_no_duplicate_scope():
-    world.scopes.new("dummy")
+    world.scopes.new(name='dummy')
     with pytest.raises(ValueError, match=".*already exists.*"):
-        world.scopes.new("dummy")
+        world.scopes.new(name='dummy')
 
 
 def test_reset():
-    s = world.scopes.new("dummy")
+    s = world.scopes.new(name='dummy')
     world.scopes.reset(s)  # should just work, the reset() is tested directly in providers
 
 
@@ -48,7 +48,7 @@ def test_invalid_reset(expectation, scope):
 
 
 def test_reset_unknown_scope():
-    s = world.scopes.new('1')
+    s = world.scopes.new(name='1')
 
     with world.test.empty():
         with pytest.raises(ValueError, match=".*Unknown.*"):

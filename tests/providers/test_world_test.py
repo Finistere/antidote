@@ -50,7 +50,7 @@ def test_factory_no_scope(provider: WorldTestProvider):
 
 
 def test_factory_scope(provider: WorldTestProvider):
-    scope = world.scopes.new('dummy')
+    scope = world.scopes.new(name='dummy')
     provider.add_factory(Service, factory=lambda: Service(), scope=scope)
 
     s = world.get(Service)

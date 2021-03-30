@@ -36,11 +36,17 @@ class Wiring(FinalImmutable):
 
     .. doctest:: core_Wiring
 
-        >>> from antidote import Wiring
-        >>> # Methods must always be specified.
-        ... w = Wiring(methods=['my_method', 'other_method'])
-        >>> # Now auto_provide will be used on both my_method and other_method.
-        ... w_copy = w.copy(auto_provide=True)
+        >>> from antidote import Wiring, Service, Provide
+        >>> wiring = Wiring(methods=['my_method'])
+        >>> class Database(Service):
+        ...     pass
+        >>> @wiring.wire
+        ... class Dummy:
+        ...     def my_method(self, db: Provide[Database]) -> Database:
+        ...         return db
+        >>> Dummy().my_method()
+        <Database ...>
+
 
     """
     __slots__ = ('methods', 'auto_provide', 'dependencies',
@@ -182,14 +188,8 @@ def wire(__klass: C = None,
 W = TypeVar('W', bound='WithWiringMixin')
 
 
-@API.experimental
+@API.private
 class WithWiringMixin:
-    """**Experimental**
-
-    Used by configuration classes (immutable having a :code:`copy()` method) with a
-    :code:`wiring` attribute to change it more simply with the :py:meth:`~.with_wiring`
-    method.
-    """
     __slots__ = ()
 
     wiring: Optional[Wiring]
@@ -204,14 +204,6 @@ class WithWiringMixin:
                     auto_provide: Union[bool, Iterable[Hashable], Copy] = Copy.IDENTICAL,
                     raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL,
                     ) -> W:
-        """
-        Accepts the same arguments as :py:class:`~.Wiring`. And behaves the same way
-        as :py:meth:`.Wiring.copy`.
-
-        Returns:
-            Copy of current instance with its :code:`wiring` attribute modified with
-            provided arguments.
-        """
         if self.wiring is None:
             return self.copy(wiring=Wiring().copy(
                 methods=methods,

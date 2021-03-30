@@ -17,9 +17,6 @@ get.__doc__ = """
 Used to retrieve a dependency from Antidote. A type hint can be provided and the result
 will cast to match it. It follows the same philosophy as mypy and will NOT enforce it.
 
-Returns:
-    Retrieves given dependency or raises a :py:exc:`~.exceptions.DependencyNotFoundError`
-
 .. doctest:: world_get
 
     >>> from antidote import world, Service
@@ -43,9 +40,6 @@ lazy.__doc__ = """
 Used to retrieves lazily a dependency. A type hint can be provided and the retrieved
 instance will be cast to match it. It follows the same philosophy as mypy and will NOT
 enforce it.
-
-Returns:
-    Dependency: wrapped dependency.
 
 .. doctest:: world_lazy
 
@@ -163,7 +157,7 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
     return tree_debug_info(current_container(), dependency, depth)
 
 
-def new(name: str) -> Scope:
+def new(*, name: str) -> Scope:
     """
     Creates a new scope. See :py:class:`~.core.container.Scope` for more information on
     scopes.
@@ -171,7 +165,7 @@ def new(name: str) -> Scope:
     .. doctest:: world_scopes_new
 
         >>> from antidote import world, Service
-        >>> REQUEST_SCOPE = world.scopes.new('request')
+        >>> REQUEST_SCOPE = world.scopes.new(name='request')
         >>> class Dummy(Service):
         ...     __antidote__ = Service.Conf(scope=REQUEST_SCOPE)
 
@@ -199,7 +193,7 @@ def reset(scope: Scope) -> None:
     .. doctest:: world_scopes_reset
 
         >>> from antidote import world
-        >>> REQUEST_SCOPE = world.scopes.new('request')
+        >>> REQUEST_SCOPE = world.scopes.new(name='request')
         >>> # All cached dependencies value with scope=REQUEST_SCOPE will be discarded.
         ... world.scopes.reset(REQUEST_SCOPE)
 

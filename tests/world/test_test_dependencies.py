@@ -116,7 +116,7 @@ def test_factory_no_scope():
 
 def test_factory_scope():
     with world.test.empty():
-        scope = world.scopes.new('dummy')
+        scope = world.scopes.new(name='dummy')
 
         @world.test.factory(Service, scope=scope)
         def build():

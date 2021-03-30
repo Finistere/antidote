@@ -27,12 +27,25 @@ def validated_scope(scope: Optional[Scope] = Scope.sentinel(),
     Top-level APIs exposes both singleton and scope arguments. Users can choose either,
     but not both. This function does all validation necessary in those APIs.
 
+    .. doctest:: utils_validated_scope
+
+        >>> from antidote import Scope, world
+        >>> from antidote.utils import validated_scope
+        >>> custom_scope = world.scopes.new(name='custom')
+        >>> validated_scope(singleton=None, default=custom_scope)
+        Scope(name='custom')
+        >>> validated_scope(singleton=True, default=None)
+        Scope(name='singleton')
+        >>> validated_scope(scope=Scope.singleton(), default=None)
+        Scope(name='singleton')
+
     Args:
         scope: Scope argument to validate. Neutral value is :py:meth:`.Scope.sentinel`.
         singleton: Singleton argument to validate. Neutral value is :py:obj:`None`.
         default: Default value to use if both scope and singleton have neutral values.
 
     Returns:
+        Scope defined by either :code:`singleton` or :code:`scope`.
 
     """
     if not (scope is None or isinstance(scope, Scope)):

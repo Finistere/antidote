@@ -77,7 +77,7 @@ You surely noticed the declaration of :code:`MyService` with:
 This declares :code:`MyService` as a :py:class:`.Service` just by inheriting it. By default
 it will be a singleton. A singleton is a dependency that never changes, it always returns
 the same object. :py:func:`.inject` allows us to retrieve it in a function, but you also
-can retrieve with :py:func:`.world.get`:
+can retrieve with :py:obj:`.world.get`:
 
 .. doctest:: tutorial_overview
 
@@ -109,7 +109,7 @@ otherwise:
 
 .. note::
 
-    While you're free to use :py:func:`.world.get` anywhere you want, better use
+    While you're free to use :py:obj:`.world.get` anywhere you want, better use
     :py:func:`.inject`:
 
     .. testcode:: tutorial_overview

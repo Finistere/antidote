@@ -4,8 +4,8 @@ API Reference
 
 
 
-World Utilities
-===============
+World
+=====
 
 
 world
@@ -17,9 +17,6 @@ world
     .. autodata:: get
 
     .. autodata:: lazy
-
-.. automodule:: antidote.utils
-    :members: is_compiled
 
 
 world.scopes
@@ -41,6 +38,13 @@ world.test.override
 
 .. automodule:: antidote.world.test.override
     :members:
+
+
+Utilities
+=========
+
+.. automodule:: antidote.utils
+    :members: is_compiled, validated_scope, validate_injection
 
 
 Dependencies
@@ -110,12 +114,12 @@ Inject
 Annotations
 ^^^^^^^^^^^
 .. automodule:: antidote.core.annotations
-    :members:
+    :members: Provide, Get, From, FromArg
 
 Wiring
 ^^^^^^
 .. automodule:: antidote.core.wiring
-    :members: Wiring, wire, WithWiringMixin
+    :members: Wiring, wire
 
 
 Provider
@@ -125,9 +129,9 @@ Provider
     :members:
 
 .. automodule:: antidote.core.container
-    :members:
+    :members: Scope, DependencyValue, Container
 
-.. autoclass::antidote.core.utils.DependencyDebug
+.. automodule:: antidote.core.utils
     :members:
 
 

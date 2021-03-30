@@ -168,7 +168,7 @@ def test_provider():
 
 
 def test_scope_support():
-    dummy_scope = world.scopes.new("dummy")
+    dummy_scope = world.scopes.new(name='dummy')
 
     class X(Service):
         __antidote__ = Service.Conf(scope=dummy_scope)

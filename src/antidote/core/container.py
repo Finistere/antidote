@@ -35,7 +35,7 @@ class Scope(FinalImmutable):
     .. doctest:: core_container_scope
 
         >>> from antidote import world
-        >>> REQUEST_SCOPE = world.scopes.new('request')
+        >>> REQUEST_SCOPE = world.scopes.new(name='request')
 
     To use the newly created scope, use :code:`scope` parameters:
 

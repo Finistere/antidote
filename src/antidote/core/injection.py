@@ -194,6 +194,23 @@ def inject(__arg: Union[AnyF, Sequence[Hashable], Mapping[str, Hashable]] = None
 @API.public  # Function will be kept in sync with @inject, so you may use it.
 def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
                        auto_provide: Union[bool, Iterable[Hashable]] = None) -> None:
+    """
+    Validates that injection parameters are valid. If not, an error is raised.
+
+    .. doctest:: core_injection_validate_injection
+
+        >>> from antidote.utils import validate_injection
+        >>> validate_injection(auto_provide=True)
+        >>> validate_injection(auto_provide=object())
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in ?
+        TypeError: auto_provide must be either a boolean or an iterable of classes ...
+
+
+    Args:
+        dependencies: As defined by :py:func:`~.injection.inject`
+        auto_provide: As defined by  :py:func:`~.injection.inject`
+    """
     if not (dependencies is None
             or (isinstance(dependencies, (c_abc.Sequence, c_abc.Mapping))
                 and not isinstance(dependencies, str))

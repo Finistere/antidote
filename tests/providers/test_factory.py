@@ -211,7 +211,7 @@ def test_sanity_checks(provider: FactoryProvider, output, factory, scope):
 
 
 def test_custom_scope(provider: FactoryProvider):
-    dummy_scope = world.scopes.new('dummy')
+    dummy_scope = world.scopes.new(name='dummy')
 
     class MyService:
         pass

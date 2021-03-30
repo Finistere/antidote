@@ -413,7 +413,7 @@ def test_custom_scope():
     prefix = "tests.world.test_debug.test_custom_scope.<locals>"
 
     with world.test.new():
-        dummy_scope = world.scopes.new('dummy')
+        dummy_scope = world.scopes.new(name='dummy')
 
         class MyService(Service):
             __antidote__ = Service.Conf(scope=dummy_scope)

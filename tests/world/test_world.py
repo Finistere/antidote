@@ -4,8 +4,8 @@ import pytest
 
 from antidote import From, FromArg, Get, Service, factory, world
 from antidote._compatibility.typing import Annotated
+from antidote._internal.world import LazyDependency
 from antidote._providers import FactoryProvider, ServiceProvider
-from antidote.core import (LazyDependency)
 from antidote.exceptions import DependencyNotFoundError, FrozenWorldError
 from .utils import DummyIntProvider
 

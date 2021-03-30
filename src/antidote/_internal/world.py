@@ -1,8 +1,8 @@
 """
 Utilities used by world, mostly for syntactic sugar.
 """
-from typing import (Any, Generic, Hashable, TYPE_CHECKING, Type, TypeVar, Union,
-                    cast, overload)
+from typing import (Generic, Hashable, TYPE_CHECKING, Type, TypeVar, Union,
+                    overload)
 
 from . import API
 from .state import current_container
@@ -13,7 +13,6 @@ from .._compatibility.typing import Protocol, final
 from ..core._annotations import extract_annotated_dependency
 from ..core.container import RawContainer
 from ..core.exceptions import DependencyNotFoundError
-from ..core.utils import LazyDependency
 
 T = TypeVar('T')
 
@@ -29,20 +28,67 @@ class SupportsRMatmul(Protocol):
 
 @API.private
 @final
+class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
+    """
+    Recommended usage is to usage :py:func:`..world.lazy`:
+
+    .. doctest:: core_utils_dependency
+
+        >>> from antidote import Service, world
+        ... class MyService(Service):
+        ...     pass
+        >>> port = world.lazy[MyService]()
+        >>> port.get()
+        <MyService ...>
+
+    """
+    __slots__ = ('unwrapped', '_type')
+    unwrapped: Hashable
+    """Actual dependency to be retrieved"""
+    _type: Type[T]
+
+    def __init__(self,
+                 __dependency: Hashable,
+                 expected_type: Type[T]) -> None:
+        """
+        Args:
+            __dependency: actual dependency to be retrieved.
+        """
+        super().__init__(__dependency, expected_type)
+
+    def get(self) -> T:
+        """
+        Returns:
+            dependency value retrieved from :py:mod:`~..world`.
+        """
+        from antidote import world
+        value = world.get(self.unwrapped)
+
+        if not isinstance(value, self._type):
+            raise TypeError(f"Dependency is not an instance of {self._type}, "
+                            f"but {type(value)}")
+
+        return value
+
+
+@API.private
+@final
 class WorldGet(metaclass=FinalMeta):
     @overload
     def __call__(self,  # noqa: E704
                  __dependency: 'Const[T]',
                  *,
                  default: Union[T, Default] = Default.sentinel
-                 ) -> T: ...  # pragma: no cover
+                 ) -> T:
+        ...  # pragma: no cover
 
     @overload
     def __call__(self,  # noqa: E704
                  __dependency: Hashable,
                  *,
                  default: object = Default.sentinel
-                 ) -> object: ...  # pragma: no cover
+                 ) -> object:
+        ...  # pragma: no cover
 
     def __call__(self,
                  __dependency: Hashable,

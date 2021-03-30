@@ -1,57 +1,9 @@
-from typing import Generic, Hashable, Optional, Sequence, Type, TypeVar
+from typing import Hashable, Optional, Sequence
 
 from .container import Scope
 from .._compatibility.typing import final
 from .._internal import API
-from .._internal.utils import FinalImmutable, Immutable
-from .._internal.utils.immutable import ImmutableGenericMeta
-
-T = TypeVar('T')
-
-
-@API.public
-@final
-class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
-    """
-    Recommended usage is to usage :py:func:`..world.lazy`:
-
-    .. doctest:: core_utils_dependency
-
-        >>> from antidote import Service, world
-        ... class MyService(Service):
-        ...     pass
-        >>> port = world.lazy[MyService]()
-        >>> port.get()
-        <MyService ...>
-
-    """
-    __slots__ = ('unwrapped', '_type')
-    unwrapped: Hashable
-    """Actual dependency to be retrieved"""
-    _type: Type[T]
-
-    def __init__(self,
-                 __dependency: Hashable,
-                 expected_type: Type[T]) -> None:
-        """
-        Args:
-            __dependency: actual dependency to be retrieved.
-        """
-        super().__init__(__dependency, expected_type)
-
-    def get(self) -> T:
-        """
-        Returns:
-            dependency value retrieved from :py:mod:`~..world`.
-        """
-        from antidote import world
-        value = world.get(self.unwrapped)
-
-        if not isinstance(value, self._type):
-            raise TypeError(f"Dependency is not an instance of {self._type}, "
-                            f"but {type(value)}")
-
-        return value
+from .._internal.utils import FinalImmutable
 
 
 @API.public

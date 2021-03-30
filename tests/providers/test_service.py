@@ -152,7 +152,7 @@ def test_exists(provider: ServiceProvider, scope: Scope):
 
 
 def test_custom_scope(provider: ServiceProvider):
-    dummy_scope = world.scopes.new('dummy')
+    dummy_scope = world.scopes.new(name='dummy')
 
     class MyService:
         pass

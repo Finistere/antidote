@@ -65,7 +65,7 @@ def test_singleton():
 
 
 def test_custom_scope():
-    dummy_scope = world.scopes.new('dummy')
+    dummy_scope = world.scopes.new(name='dummy')
 
     class Scoped(Service):
         __antidote__ = Service.Conf(scope=dummy_scope)
