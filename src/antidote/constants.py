@@ -97,6 +97,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         'localhost'
 
     """
+    __slots__ = ()
 
     @final
     class Conf(FinalImmutable, WithWiringMixin):

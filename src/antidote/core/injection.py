@@ -35,13 +35,18 @@ DEPENDENCIES_TYPE = Optional[Union[
     Sequence[Optional[Hashable]],  # (dependency for arg 1, ...)
     Callable[[Arg], Optional[Hashable]],  # arg -> dependency
 ]]
+AUTO_PROVIDE_TYPE = Optional[Union[
+    bool,  # all class type hints or nothing
+    Iterable[type],  # specific list of classes
+    Callable[[type], bool]  # Function determining which classes should be auto provided
+]]
 
 
 @overload
 def inject(__arg: staticmethod,  # noqa: E704  # pragma: no cover
            *,
            dependencies: DEPENDENCIES_TYPE = None,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> staticmethod: ...
 
@@ -50,7 +55,7 @@ def inject(__arg: staticmethod,  # noqa: E704  # pragma: no cover
 def inject(__arg: classmethod,  # noqa: E704  # pragma: no cover
            *,
            dependencies: DEPENDENCIES_TYPE = None,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> classmethod: ...
 
@@ -59,7 +64,7 @@ def inject(__arg: classmethod,  # noqa: E704  # pragma: no cover
 def inject(__arg: F,  # noqa: E704  # pragma: no cover
            *,
            dependencies: DEPENDENCIES_TYPE = None,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> F: ...
 
@@ -67,7 +72,7 @@ def inject(__arg: F,  # noqa: E704  # pragma: no cover
 @overload
 def inject(*,  # noqa: E704  # pragma: no cover
            dependencies: DEPENDENCIES_TYPE = None,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> Callable[[F], F]: ...
 
@@ -75,7 +80,7 @@ def inject(*,  # noqa: E704  # pragma: no cover
 @overload
 def inject(__arg: Sequence[Hashable],  # noqa: E704  # pragma: no cover
            *,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> Callable[[F], F]: ...
 
@@ -83,7 +88,7 @@ def inject(__arg: Sequence[Hashable],  # noqa: E704  # pragma: no cover
 @overload
 def inject(__arg: Mapping[str, Hashable],  # noqa: E704  # pragma: no cover
            *,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> Callable[[F], F]: ...
 
@@ -92,7 +97,7 @@ def inject(__arg: Mapping[str, Hashable],  # noqa: E704  # pragma: no cover
 def inject(__arg: Union[AnyF, Sequence[Hashable], Mapping[str, Hashable]] = None,
            *,
            dependencies: DEPENDENCIES_TYPE = None,
-           auto_provide: Union[bool, Iterable[Hashable]] = None,
+           auto_provide: AUTO_PROVIDE_TYPE = None,
            strict_validation: bool = True
            ) -> AnyF:
     """
@@ -157,11 +162,16 @@ def inject(__arg: Union[AnyF, Sequence[Hashable], Mapping[str, Hashable]] = None
               return the matching dependency. :py:obj:`None` should be used for
               arguments without dependency.
             - String which must have :code:`{arg_name}` as format parameter
-        auto_provide: Whether or not the type hints should be used as the arguments
-            dependency. An iterable of argument names may also be supplied to activate
-            this feature only for those. Any type hints from the builtins (str, int...)
-            or the typing (except :py:class:`~typing.Optional`) are ignored.
-            Defaults to :code:`False`.
+        auto_provide: Whether or not class type hints should be used as the arguments
+            dependency. Only classes are taken into account and it works with
+            :py:class:`~typing.Optional`. An iterable of classes  may also be supplied
+            to activate this feature only for those. A function may also be provided, in
+            which case it'll be called to determine whether the class type hint ca be
+            provided or not. Defaults to :code:`False`.
+        strict_validation: Whether arguments should be strictly validated given the
+            decorated function's argumnet. For example, a key in the dependencies dict
+            that does not match any argument would raise error. Defaults to
+            :py:obj:`True`.
 
     Returns:
         The decorator to be applied or the injected function if the
@@ -193,7 +203,7 @@ def inject(__arg: Union[AnyF, Sequence[Hashable], Mapping[str, Hashable]] = None
 
 @API.public  # Function will be kept in sync with @inject, so you may use it.
 def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
-                       auto_provide: Union[bool, Iterable[Hashable]] = None) -> None:
+                       auto_provide: AUTO_PROVIDE_TYPE = None) -> None:
     """
     Validates that injection parameters are valid. If not, an error is raised.
 
@@ -226,6 +236,7 @@ def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
 
     if isinstance(auto_provide, str) \
             or not (auto_provide is None
+                    or callable(auto_provide)
                     or isinstance(auto_provide, (bool, c_abc.Iterable))):
         raise TypeError(
             f"auto_provide must be either a boolean or an iterable of classes, "

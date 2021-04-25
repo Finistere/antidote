@@ -9,7 +9,7 @@ from antidote.core.annotations import Provide
 from antidote.core.injection import inject, validate_injection
 from antidote.exceptions import DependencyNotFoundError, DoubleInjectionError
 
-SENTINEL = object()
+SENTINEL = "SENTINEL"
 
 
 class DoesNotRaise:
@@ -172,6 +172,9 @@ def test_without_type_hints(injector, expected, kwargs):
     pytest.param((MyService, AnotherService),
                  dict(auto_provide=True),
                  id='auto_provide:True'),
+    pytest.param((None, None),
+                 dict(auto_provide=False),
+                 id='auto_provide:False'),
     pytest.param((MyService, None),
                  dict(auto_provide=[MyService]),
                  id='auto_provide:list-first'),
@@ -179,8 +182,20 @@ def test_without_type_hints(injector, expected, kwargs):
                  dict(auto_provide=[AnotherService]),
                  id='auto_provide:list-second'),
     pytest.param((None, None),
-                 dict(auto_provide=False),
-                 id='auto_provide:False'),
+                 dict(auto_provide=[]),
+                 id='auto_provide:list-None'),
+    pytest.param((MyService, AnotherService),
+                 dict(auto_provide=lambda cls: True),
+                 id='auto_provide:func-True'),
+    pytest.param((None, None),
+                 dict(auto_provide=lambda cls: False),
+                 id='auto_provide:func-False'),
+    pytest.param((MyService, None),
+                 dict(auto_provide=lambda cls: issubclass(cls, MyService)),
+                 id='auto_provide:func-first'),
+    pytest.param((None, AnotherService),
+                 dict(auto_provide=lambda cls: issubclass(cls, AnotherService)),
+                 id='auto_provide:func-second'),
     pytest.param((MyService, MyService),
                  dict(dependencies=dict(second=MyService), auto_provide=True),
                  id='auto_provide&dependencies:second'),
@@ -218,10 +233,10 @@ def test_with_auto_provide(injector, expected, kwargs):
         world.test.singleton({
             MyService: MyService(),
             AnotherService: AnotherService(),
-            'first': object(),
-            'second': object(),
-            'prefix:first': object(),
-            'prefix:second': object()
+            'first': "first",
+            'second': "second",
+            'prefix:first': "prefix:first",
+            'prefix:second': "prefix:second"
         })
 
         expected = tuple((
@@ -229,7 +244,7 @@ def test_with_auto_provide(injector, expected, kwargs):
             for d in expected
         ))
         (first, second) = expected
-        a, b = object(), object()
+        a, b = "a", "b"
 
         assert (a, second) == f(first=a)
         assert (a, second) == A().method(first=a)
@@ -287,14 +302,20 @@ def test_with_auto_provide(injector, expected, kwargs):
                      dict(auto_provide=True),
                      id='auto_provide:True'),
         pytest.param((MyService, None),
+                     dict(auto_provide=False),
+                     id='auto_provide:False'),
+        pytest.param((MyService, None),
                      dict(auto_provide=[MyService]),
                      id='auto_provide:list-first'),
         pytest.param((MyService, AnotherService),
                      dict(auto_provide=[AnotherService]),
                      id='auto_provide:list-second'),
         pytest.param((MyService, None),
-                     dict(auto_provide=False),
-                     id='auto_provide:False'),
+                     dict(auto_provide=lambda cls: issubclass(cls, MyService)),
+                     id='auto_provide:func-first'),
+        pytest.param((MyService, AnotherService),
+                     dict(auto_provide=lambda cls: issubclass(cls, AnotherService)),
+                     id='auto_provide:func-second'),
     ]
 )
 def test_with_provide(injector, expected, kwargs):

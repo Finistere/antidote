@@ -104,6 +104,123 @@ Or you can retrieve it directly from :py:mod:`.world`, in tests for example:
 
 
 
+Resolve metaclass conflict with Service
+=======================================
+
+
+Under the hood a metaclass is used to handle the :py:class:`.Service`. It can lead to
+conflicts as Python is a more strict regarding metaclass inheritance. You have two
+ways to handle it:
+
+-   The :py:func:`.service` class decorator is designed for this very reason, when
+    inheriting :py:class:`.Service` is cumbersome. However, it will not wire the class,
+    for this you'll need to explicitly use :py:func:`.inject` or :py:func:`.wire`. You
+    also won't be able to create a parameterized service.
+
+    .. testcode:: recipes_metaclass_service
+
+        from abc import ABC, abstractmethod
+        from antidote import service
+
+        class AbstractClass(ABC):
+            @abstractmethod
+            def hello(self) -> str:
+                pass
+
+        @service
+        class MyService(AbstractClass):
+            def hello(self) -> str:
+                return "world"
+
+    .. doctest:: recipes_metaclass_service
+
+        >>> from antidote import world
+        >>> world.get[MyService]().hello()
+        'world'
+
+-   If you're only trying to inherit an abstract class defined with :py:class:`abc.ABC`,
+    you may also use the :py:class:`.ABCService`. You keep all the functionality of
+    :py:class:`.Service` contrary to :py:func:`.service`.
+
+    .. testcode:: recipes_metaclass_service
+
+        from abc import ABC, abstractmethod
+        from antidote import ABCService
+
+        class AbstractClass(ABC):
+            @abstractmethod
+            def hello(self) -> str:
+                pass
+
+        class MyService(AbstractClass, ABCService):
+            def hello(self) -> str:
+                return "world"
+
+    .. doctest:: recipes_metaclass_service
+
+        >>> from antidote import world
+        >>> world.get[MyService]().hello()
+        'world'
+
+
+
+Abstract Service
+================
+
+It is possible to define an abstract service by simply adding
+:code:`abstract=True` as a metaclass argument:
+
+.. testcode:: recipes_abstract
+
+    from antidote import Service
+
+    class AbstractService(Service, abstract=True):
+        # Change default configuration
+        __antidote__ = Service.Conf(singleton=False)
+
+You can also use :py:class:`.ABCService` which is compatible with :py:class:`abc.ABC`:
+
+.. testcode:: recipes_abstract
+
+    from antidote import ABCService
+    from abc import abstractmethod
+
+    class AbstractService(ABCService, abstract=True):
+        # Change default configuration
+        __antidote__ = ABCService.Conf(singleton=False)
+
+        @abstractmethod
+        def run(self):
+            pass
+
+Abstract classes will not be registered, neither wired:
+
+.. doctest:: recipes_abstract
+
+    >>> from antidote import world
+    >>> world.get[AbstractService]()
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in ?
+    DependencyNotFoundError
+
+In the actual implementation you can then eventually override the configuration:
+
+.. testcode:: recipes_abstract
+
+    class MyService(AbstractService):
+        # Override default configuration
+        __antidote__ = AbstractService.__antidote__.with_wiring(auto_provide=True)
+
+        def run(self):
+            return "something"
+
+.. doctest:: recipes_abstract
+
+    >>> world.get[MyService]().run()
+    'something'
+
+
+
 Lazily call a function
 ======================
 
@@ -164,47 +281,6 @@ Lazily calling a method requires the class to be :py:class:`.Service`.
 
     If you intend to define lazy constants, consider using
     :py:class:`.Constants` instead.
-
-
-
-Abstract Service / Factory
-==========================
-
-It is possible to define an abstract service or factory by simply adding
-:code:`abstract=True` as a metaclass argument:
-
-.. testcode:: recipes_abstract
-
-    from antidote import Service, Factory
-
-    class AbstractService(Service, abstract=True):
-        # Change default configuration
-        __antidote__ = Service.Conf(singleton=False)
-
-    class AbstractFactory(Factory, abstract=True):
-        pass
-
-Abstract classes will not be registered, neither wired:
-
-.. doctest:: recipes_abstract
-
-    >>> from antidote import world
-    >>> world.get[AbstractService]()
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in ?
-    DependencyNotFoundError
-    >>> world.get[AbstractFactory]()
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in ?
-    DependencyNotFoundError
-
-In the actual implementation you can then eventually override the configuration:
-
-.. testcode:: recipes_abstract
-
-    class MyService(AbstractService):
-        # Override default configuration
-        __antidote__ = AbstractService.__antidote__.with_wiring(auto_provide=True)
 
 
 Parameterized Service / Factory

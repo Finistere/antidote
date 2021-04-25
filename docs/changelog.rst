@@ -8,6 +8,16 @@ Status
 Pretty much v1.0-beta.
 
 
+0.14.1 (2021-04-25)
+===================
+
+
+Features
+--------
+
+- Added :py:class:`.ABCService` for services to be easier to work with ABC abstract classes.
+- Added support for a function in :code:`auto_provide`
+
 
 0.14.0 (2021-03-30)
 ===================

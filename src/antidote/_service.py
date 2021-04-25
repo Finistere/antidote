@@ -1,4 +1,5 @@
 import inspect
+from abc import ABCMeta
 from typing import Dict, Tuple, Type, cast
 
 from ._internal import API
@@ -75,6 +76,11 @@ class ServiceMeta(AbstractMeta):
                              f"Expected: ({','.join(map(repr, conf.parameters))})")
 
         return Parameterized(cls, kwargs)
+
+
+@API.private
+class ABCServiceMeta(ServiceMeta, ABCMeta):
+    pass
 
 
 @API.private

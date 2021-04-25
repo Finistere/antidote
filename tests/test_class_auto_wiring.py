@@ -194,6 +194,24 @@ def test_auto_provide(class_builder: F):
     assert a is world.get(A)
     assert b is None
 
+    dummy = class_builder(Wiring(methods=('method_AB',),
+                                 auto_provide=lambda cls: True))()
+    (a, b) = dummy.method_AB()
+    assert a is world.get(A)
+    assert b is world.get(B)
+
+    dummy = class_builder(Wiring(methods=('method_AB',),
+                                 auto_provide=lambda cls: issubclass(cls, A)))()
+    (a, b) = dummy.method_AB()
+    assert a is world.get(A)
+    assert b is None
+
+    dummy = class_builder(Wiring(methods=('method_AB',),
+                                 auto_provide=lambda cls: False))()
+    (a, b) = dummy.method_AB()
+    assert a is None
+    assert b is None
+
 
 def test_dependencies_dict(class_builder: F):
     dummy = class_builder(Wiring(dependencies=dict(),

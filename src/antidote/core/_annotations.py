@@ -1,6 +1,6 @@
 import builtins
 import inspect
-from typing import Union
+from typing import Union, Optional
 
 from .annotations import (AntidoteAnnotation, From, FromArg, Get, INJECT_SENTINEL)
 from .injection import Arg
@@ -86,7 +86,7 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
 
 
 @API.private
-def extract_auto_provided_arg_dependency(argument: Argument) -> object:
+def extract_auto_provided_arg_dependency(argument: Argument) -> Optional[type]:
     type_hint = argument.type_hint_with_extras
     origin = get_origin(type_hint)
     args = get_args(type_hint)

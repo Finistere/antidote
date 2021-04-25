@@ -286,6 +286,7 @@ def test_wiring_auto_provide(wire, wired_method_builder, annotation):
     with pytest.raises(TypeError):
         f()
 
+    # Boolean
     f = wired_method_builder(wire(methods=['f'], auto_provide=False),
                              annotation=annotation)
     with pytest.raises(TypeError):
@@ -299,6 +300,7 @@ def test_wiring_auto_provide(wire, wired_method_builder, annotation):
         with pytest.raises(TypeError):
             f()
 
+    # List
     f = wired_method_builder(wire(methods=['f'], auto_provide=[MyService]),
                              annotation=annotation)
     if annotation is MyService:
@@ -311,6 +313,21 @@ def test_wiring_auto_provide(wire, wired_method_builder, annotation):
         pass
 
     f = wired_method_builder(wire(methods=['f'], auto_provide=[Unknown]),
+                             annotation=annotation)
+    with pytest.raises(TypeError):
+        f()
+
+    # Function
+    f = wired_method_builder(wire(methods=['f'],
+                                  auto_provide=lambda cls: issubclass(cls, MyService)),
+                             annotation=annotation)
+    if annotation is MyService:
+        assert f() is world.get(MyService)
+    else:
+        with pytest.raises(TypeError):
+            f()
+
+    f = wired_method_builder(wire(methods=['f'], auto_provide=lambda cls: False),
                              annotation=annotation)
     with pytest.raises(TypeError):
         f()
@@ -366,7 +383,7 @@ class DummyConf(WithWiringMixin):
     def __init__(self, wiring=None):
         self.wiring = wiring
 
-    def copy(self, wiring):
+    def copy(self, wiring: Wiring):
         return DummyConf(wiring)
 
 

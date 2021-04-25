@@ -1,17 +1,16 @@
 import collections.abc as c_abc
 import inspect
 from typing import (Any, Callable, Dict, Hashable, Iterable, List, Mapping, TYPE_CHECKING,
-                    Union, cast)
+                    Union, cast, Set)
 
 from .exceptions import DoubleInjectionError
 from .._internal import API
 from .._internal.argspec import Arguments
-from .._internal.utils import YesSet
 from .._internal.wrapper import (Injection, InjectionBlueprint, build_wrapper,
                                  get_wrapped, is_wrapper)
 
 if TYPE_CHECKING:
-    from .injection import DEPENDENCIES_TYPE
+    from .injection import DEPENDENCIES_TYPE, AUTO_PROVIDE_TYPE
 
 AnyF = Union[Callable[..., Any], staticmethod, classmethod]
 
@@ -19,7 +18,7 @@ AnyF = Union[Callable[..., Any], staticmethod, classmethod]
 @API.private
 def raw_inject(f: AnyF,
                dependencies: 'DEPENDENCIES_TYPE',
-               auto_provide: Union[bool, Iterable[Hashable]],
+               auto_provide: 'AUTO_PROVIDE_TYPE',
                strict_validation: bool) -> AnyF:
     if not isinstance(strict_validation, bool):
         raise TypeError(f"strict_validation must be a boolean, "
@@ -60,7 +59,7 @@ def raw_inject(f: AnyF,
 @API.private
 def _build_injection_blueprint(arguments: Arguments,
                                dependencies: 'DEPENDENCIES_TYPE',
-                               auto_provide: Union[bool, Iterable[Hashable]],
+                               auto_provide: 'AUTO_PROVIDE_TYPE',
                                strict_validation: bool
                                ) -> InjectionBlueprint:
     """
@@ -141,16 +140,15 @@ def _build_from_dependencies(arguments: Arguments,
 
 @API.private
 def _build_auto_provide(arguments: Arguments,
-                        auto_provide: Union[bool, Iterable[Hashable]],
+                        auto_provide: 'AUTO_PROVIDE_TYPE',
                         annotated: Dict[str, Hashable],
                         strict_validation: bool
                         ) -> Dict[str, Hashable]:
     from ._annotations import extract_auto_provided_arg_dependency
 
-    if auto_provide is True:
-        auto_provide = YesSet()
-    elif auto_provide is False:
-        auto_provide = set()
+    if isinstance(auto_provide, bool):
+        def is_auto_provided(__cls: type) -> bool:
+            return cast(bool, auto_provide)
     elif isinstance(auto_provide, c_abc.Iterable):
         # convert to Tuple in case we cannot iterate more than once.
         auto_provide = set(auto_provide)
@@ -158,19 +156,25 @@ def _build_auto_provide(arguments: Arguments,
             if not (isinstance(cls, type) and inspect.isclass(cls)):
                 raise TypeError(f"auto_provide must be a boolean or an iterable of "
                                 f"classes, but contains {cls!r} which is not a class.")
-    else:
-        raise TypeError(f"auto_provide must be a boolean or an iterable of classes,"
-                        f"not {type(auto_provide)}.")
 
-    auto_provided = {}
+        def is_auto_provided(__cls: type) -> bool:
+            return __cls in cast(Set[type], auto_provide)
+    elif callable(auto_provide):
+        is_auto_provided = auto_provide
+    else:
+        raise TypeError(f"auto_provide must be a boolean, an iterable of classes, "
+                        f"or a function not {type(auto_provide)}.")
+
+    auto_provided: Dict[str, Union[type, Hashable]] = {}
     for arg in arguments.without_self:
         dependency = extract_auto_provided_arg_dependency(arg)
-        if dependency is not None and dependency in auto_provide:
+        if dependency is not None and is_auto_provided(dependency):
             auto_provided[arg.name] = dependency
 
     provided_dependencies = set(auto_provided.values()).union(annotated.values())
-    if strict_validation and not (isinstance(auto_provide, bool)
-                                  or auto_provide.issubset(provided_dependencies)):
+    if strict_validation \
+            and isinstance(auto_provide, set) \
+            and not auto_provide.issubset(provided_dependencies):
         raise ValueError(f"Some auto_provide dependencies ({auto_provide}) are not "
                          f"present in the function. Found: {provided_dependencies}\n"
                          f"Either ensure that auto_provide matches the function type "

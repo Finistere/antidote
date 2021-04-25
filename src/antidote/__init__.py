@@ -4,7 +4,7 @@ from .core import (Arg, From, FromArg, Get, Provide, Scope, Wiring, inject, wire
 from .factory import Factory, factory
 from .implementation import implementation
 from .lazy import LazyCall, LazyMethodCall
-from .service import Service, service
+from .service import Service, service, ABCService
 from .utils import is_compiled
 
 
@@ -17,4 +17,4 @@ except ImportError:  # pragma: no cover
 __all__ = ['__version__', 'world', 'Get', 'From', 'FromArg', 'Provide',
            'const', 'Constants', 'inject', 'Arg', 'wire', 'Wiring', 'factory',
            'Factory', 'implementation', 'LazyCall', 'LazyMethodCall',
-           'service', 'Service', 'is_compiled']
+           'service', 'Service', 'ABCService', 'is_compiled']

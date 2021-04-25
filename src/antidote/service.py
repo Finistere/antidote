@@ -3,7 +3,7 @@ from typing import Callable, FrozenSet, Iterable, Optional, TypeVar, Union, cast
 from ._compatibility.typing import final
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
-from ._service import ServiceMeta
+from ._service import ServiceMeta, ABCServiceMeta
 from ._utils import validated_parameters
 from .core import Scope, Wiring, WithWiringMixin
 from .core.exceptions import DuplicateDependencyError
@@ -15,6 +15,13 @@ C = TypeVar('C', bound=type)
 @API.public
 class Service(metaclass=ServiceMeta, abstract=True):
     """
+    .. note::
+
+        If you encounter conflicts with :py:class:`.Service` metaclass, consider using
+        the class decorator :py:func:`.service` instead. You may also use
+        :py:class:`.ABCService` if you only need to be compatible with the
+        :py:class:`abc.ABC` class.
+
     Defines subclasses as services:
 
     .. doctest:: service_class
@@ -85,6 +92,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
         True
 
     """
+    __slots__ = ()
 
     @final
     class Conf(FinalImmutable, WithWiringMixin):
@@ -154,6 +162,29 @@ class Service(metaclass=ServiceMeta, abstract=True):
     """
 
 
+@API.public
+class ABCService(Service, metaclass=ABCServiceMeta, abstract=True):
+    """
+    This class only purpose is to facilitate the use of a abstract parent class, relying
+    on :py:class:`abc.ABC`, with :py:class:`.Service`.
+
+    .. doctest:: abc_service_class
+
+        >>> from abc import ABC, abstractmethod
+        >>> from antidote import ABCService, world
+        >>> class AbstractClass(ABC):
+        ...     @abstractmethod
+        ...     def hello(self) -> str:
+        ...         pass
+        >>> class MyService(AbstractClass, ABCService):
+        ...     def hello(self) -> str:
+        ...         return "world"
+        >>> world.get[MyService]().hello()
+        'world'
+    """
+    __slots__ = ()
+
+
 @overload
 def service(klass: C,  # noqa: E704  # pragma: no cover
             *,
@@ -185,6 +216,9 @@ def service(klass: C = None,
         >>> @service
         ... class CannotInheritService:
         ...     pass
+
+    It won't wire the class, for this you'll need to explicitly use :py:func:`.inject` or
+    :py:func:`.wire`.
 
     .. note::
 

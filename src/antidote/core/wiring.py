@@ -4,7 +4,7 @@ from typing import (Callable, FrozenSet, Hashable, Iterable, Optional, TypeVar,
                     Union,
                     overload)
 
-from .injection import DEPENDENCIES_TYPE, validate_injection
+from .injection import DEPENDENCIES_TYPE, validate_injection, AUTO_PROVIDE_TYPE
 from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import Copy, FinalImmutable
@@ -54,14 +54,14 @@ class Wiring(FinalImmutable):
     methods: Union[Methods, FrozenSet[str]]
     """Method names that must be injected."""
     dependencies: DEPENDENCIES_TYPE
-    auto_provide: Union[bool, FrozenSet[str]]
+    auto_provide: Union[bool, FrozenSet[type], Callable[[type], bool]]
     raise_on_double_injection: bool
 
     def __init__(self,
                  *,
                  methods: Union[Methods, Iterable[str]] = Methods.ALL,
                  dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: Union[bool, Iterable[Hashable]] = False,
+                 auto_provide: AUTO_PROVIDE_TYPE = False,
                  raise_on_double_injection: bool = False) -> None:
         """
         Args:
@@ -75,7 +75,8 @@ class Wiring(FinalImmutable):
                             f"not {type(raise_on_double_injection)}")
 
         if isinstance(auto_provide, str) \
-                or not isinstance(auto_provide, (c_abc.Iterable, bool)):
+                or not (isinstance(auto_provide, (c_abc.Iterable, bool))
+                        or callable(auto_provide)):
             raise TypeError(f"auto_provide must be an iterable of method names, "
                             f"not {type(auto_provide)}.")
         if isinstance(auto_provide, c_abc.Iterable):
@@ -102,8 +103,8 @@ class Wiring(FinalImmutable):
     def copy(self,
              *,
              methods: Union[Methods, Iterable[str], Copy] = Copy.IDENTICAL,
-             dependencies: Union[Optional[DEPENDENCIES_TYPE], Copy] = Copy.IDENTICAL,
-             auto_provide: Union[bool, Iterable[Hashable], Copy] = Copy.IDENTICAL,
+             dependencies: Union[DEPENDENCIES_TYPE, Copy] = Copy.IDENTICAL,
+             auto_provide: Union[AUTO_PROVIDE_TYPE, Copy] = Copy.IDENTICAL,
              raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL
              ) -> 'Wiring':
         """
@@ -135,7 +136,7 @@ def wire(__klass: C,  # noqa: E704  # pragma: no cover
          *,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         auto_provide: Union[bool, Iterable[Hashable]] = False,
+         auto_provide: AUTO_PROVIDE_TYPE = False,
          raise_on_double_injection: bool = False
          ) -> C: ...
 
@@ -144,7 +145,7 @@ def wire(__klass: C,  # noqa: E704  # pragma: no cover
 def wire(*,  # noqa: E704  # pragma: no cover
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         auto_provide: Union[bool, Iterable[Hashable]] = False,
+         auto_provide: AUTO_PROVIDE_TYPE = False,
          raise_on_double_injection: bool = False
          ) -> Callable[[C], C]: ...
 
@@ -154,16 +155,19 @@ def wire(__klass: C = None,
          *,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         auto_provide: Union[bool, Iterable[Hashable]] = False,
+         auto_provide: AUTO_PROVIDE_TYPE = False,
          raise_on_double_injection: bool = False
          ) -> Union[C, Callable[[C], C]]:
     """
     Wire a class by injecting specified methods. This avoids repetition if similar
-    dependencies need to be injected in different methods.
+    dependencies need to be injected in different methods. Methods will only be wrapped
+    if and only if Antidote may inject a dependency in it, like :py:func:`.inject`.
 
     Args:
+        raise_on_double_injection: Whether an error should be raised if method is already
+            injected. Defaults to :py:obj:`False`.
         __klass: Class to wire.
-        methods: Names of methods that must be injected.
+        methods: Names of methods that must be injected. Defaults to all method
         dependencies: Propagated for every method to :py:func:`~.injection.inject`.
         auto_provide: Propagated for every method to :py:func:`~.injection.inject`.
 
@@ -188,7 +192,7 @@ def wire(__klass: C = None,
 W = TypeVar('W', bound='WithWiringMixin')
 
 
-@API.private
+@API.private  # Inheriting this class yourself is not part of the public API
 class WithWiringMixin:
     __slots__ = ()
 
@@ -197,13 +201,25 @@ class WithWiringMixin:
     def copy(self: W, *, wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL) -> W:
         raise NotImplementedError()  # pragma: no cover
 
+    @API.public
     def with_wiring(self: W,
                     *,
                     methods: Union[Methods, Iterable[str], Copy] = Copy.IDENTICAL,
                     dependencies: Union[DEPENDENCIES_TYPE, Copy] = Copy.IDENTICAL,
-                    auto_provide: Union[bool, Iterable[Hashable], Copy] = Copy.IDENTICAL,
+                    auto_provide: Union[AUTO_PROVIDE_TYPE, Copy] = Copy.IDENTICAL,
                     raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL,
                     ) -> W:
+        """
+        Accepts the same arguments as :py:class:`.Wiring`. Its only purpose is to provide
+        a easier way to change the wiring:
+
+        .. code-block:: python
+
+            conf.with_wiring(dependencies={})
+            # instead of
+            conf.copy(wiring=conf.wiring.copy(dependencies={}))
+
+        """
         if self.wiring is None:
             return self.copy(wiring=Wiring().copy(
                 methods=methods,

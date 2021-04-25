@@ -63,6 +63,9 @@ Service
 
     .. automethod:: parameterized
 
+.. autoclass:: antidote.service.ABCService
+    :members:
+
 
 Factory
 -------
@@ -114,7 +117,9 @@ Inject
 Annotations
 ^^^^^^^^^^^
 .. automodule:: antidote.core.annotations
-    :members: Provide, Get, From, FromArg
+    :members: Get, From, FromArg
+
+    .. autodata:: Provide
 
 Wiring
 ^^^^^^

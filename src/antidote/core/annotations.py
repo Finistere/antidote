@@ -18,6 +18,7 @@ T = TypeVar('T')
 @API.private
 class AntidoteAnnotation:
     """Base class for all Antidote annotation."""
+    __slots__ = ()
 
 
 # API.private
