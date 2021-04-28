@@ -201,6 +201,21 @@ hints. It can also be parametrized or configured differently.
     load_data()  # yeah !
 
 
+If you don't want to inherit from :code:`Service` you can use the class decorator
+:code:`service` instead. But it has less features than the class, among others it will not
+do any auto-wiring.
+
+.. code-block:: python
+
+    from antidote import service, inject
+
+    @service(singleton=False)
+    class QueryBuilder:
+        @inject
+        def __init__(self, db: Provide[Database]):
+            self._db = db
+
+
 Constants
 ---------
 
