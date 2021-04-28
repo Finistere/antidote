@@ -8,6 +8,16 @@ Status
 Pretty much v1.0-beta.
 
 
+0.14.2 (2021-04-28)
+===================
+
+
+Features
+--------
+
+- Added :code:`wiring` argument to :py:func:`.service` and auto-wiring like :py:class:`.Service`.
+
+
 0.14.1 (2021-04-25)
 ===================
 

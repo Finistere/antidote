@@ -190,6 +190,7 @@ def service(klass: C,  # noqa: E704  # pragma: no cover
             *,
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
+            wiring: Optional[Wiring] = Wiring()
             ) -> C: ...
 
 
@@ -197,28 +198,39 @@ def service(klass: C,  # noqa: E704  # pragma: no cover
 def service(*,  # noqa: E704  # pragma: no cover
             singleton: bool = None,
             scope: Optional[Scope] = Scope.sentinel(),
+            wiring: Optional[Wiring] = Wiring()
             ) -> Callable[[C], C]: ...
 
 
-@API.experimental
+@API.public
 def service(klass: C = None,
             *,
             singleton: bool = None,
-            scope: Optional[Scope] = Scope.sentinel()
+            scope: Optional[Scope] = Scope.sentinel(),
+            wiring: Optional[Wiring] = Wiring()
             ) -> Union[C, Callable[[C], C]]:
     """
     Defines the decorated class as a service. To be used when you cannot inherit
     :py:class:`.Service`
 
-    .. doctest:: register
+    .. doctest:: service_decorator
 
         >>> from antidote import service
         >>> @service
         ... class CannotInheritService:
         ...     pass
 
-    It won't wire the class, for this you'll need to explicitly use :py:func:`.inject` or
-    :py:func:`.wire`.
+    Like :py:class:`.Service` it'll automatically wire the class.
+
+    .. doctest:: service_decorator
+
+        >>> from antidote import Provide, world
+        >>> @service
+        ... class Test:
+        ...     def __init__(self, cis: Provide[CannotInheritService]):
+        ...         self.cis = cis
+        >>> world.get[Test]().cis
+        <CannotInheritService object at ...>
 
     .. note::
 
@@ -236,12 +248,17 @@ def service(klass: C = None,
             The scope defines if and how long the service will be cached. See
             :py:class:`~.core.container.Scope`. Defaults to
             :py:meth:`~.core.container.Scope.singleton`.
+        wiring: :py:class:`.Wiring` to be used on the class. By defaults will apply
+            a simple :py:func:`.inject` on all methods, so only annotated type hints are
+            taken into account. Can be deactivated by specifying :py:obj:`None`.
 
     Returns:
         The decorated class, unmodified, if specified or the class decorator.
 
     """
     scope = validated_scope(scope, singleton, default=Scope.singleton())
+    if wiring is not None and not isinstance(wiring, Wiring):
+        raise TypeError(f"wiring must be a Wiring or None, not a {type(wiring)!r}")
 
     def reg(cls: C) -> C:
         from ._service import _configure_service
@@ -249,6 +266,9 @@ def service(klass: C = None,
         if issubclass(cls, Service):
             raise DuplicateDependencyError(f"{cls} is already defined as a dependency "
                                            f"by inheriting {Service}")
+
+        if wiring is not None:
+            wiring.wire(cls)
 
         _configure_service(cls, conf=Service.Conf(wiring=None, scope=scope))
 

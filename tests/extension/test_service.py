@@ -154,6 +154,7 @@ def test_invalid_class(cls):
         (dict(tags=['test']), pytest.raises(TypeError, match=".*tags.*")),
         (dict(singleton=object()), pytest.raises(TypeError, match=".*singleton.*")),
         (dict(scope=object()), pytest.raises(TypeError, match=".*scope.*")),
+        (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
     ]
 )
 def test_invalid_service_args(kwargs, expectation):

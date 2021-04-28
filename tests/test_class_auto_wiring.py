@@ -1,9 +1,9 @@
 import itertools
-from typing import Any, Callable, Optional, Tuple, Type
+from typing import Any, Callable, Optional, Tuple, Type, Union
 
 import pytest
 
-from antidote import Constants, Factory, Provide, Service, world
+from antidote import Constants, Factory, Provide, Service, world, service
 from antidote._compatibility.typing import Protocol
 from antidote.core import Wiring
 
@@ -58,15 +58,30 @@ class DummyProtocol(Protocol):
         pass
 
 
-default_wiring = object()
+DEFAULT_WIRING = object()
 
 
-def builder(cls: type, wiring_kind: str, subclass: bool = False):
+def builder(cls_or_decorator: Union[type, Callable[..., Any]],
+            wiring_kind: str = 'Wiring',
+            subclass: bool = False):
     meta_kwargs = dict(abstract=True) if subclass else dict()
+    if isinstance(cls_or_decorator, type):
+        cls = cls_or_decorator
+
+        def decorator(wiring=None):
+            return lambda x: x
+    else:
+        cls = object
+        decorator = cls_or_decorator
 
     def build(wiring: Wiring = None):
+        decorate = (decorator(wiring=wiring)
+                    if wiring is not DEFAULT_WIRING else
+                    decorator())
+
+        @decorate
         class Dummy(cls, **meta_kwargs):
-            if wiring is not default_wiring:
+            if wiring is not DEFAULT_WIRING and cls is not object:
                 if wiring is not None:
                     if wiring_kind == 'Wiring':
                         __antidote__ = cls.Conf(wiring=wiring)
@@ -111,15 +126,18 @@ def builder(cls: type, wiring_kind: str, subclass: bool = False):
 
 
 @pytest.fixture(params=[
-    pytest.param((c, w), id=f"{c.__name__} - w")
-    for (c, w) in itertools.product([Factory,
-                                     Service,
-                                     Constants],
-                                    ['with_wiring', 'Wiring'])
+    pytest.param((builder, service), id="@service"),
+    *[
+        pytest.param((builder, c, w), id=f"{c.__name__} - {w}")
+        for (c, w) in itertools.product([Factory,
+                                         Service,
+                                         Constants],
+                                        ['with_wiring', 'Wiring'])
+    ]
 ])
 def class_builder(request):
-    (cls, wiring_kind) = request.param
-    return builder(cls, wiring_kind)
+    f, *args = request.param
+    return f(*args)
 
 
 @pytest.fixture(params=[
@@ -138,7 +156,7 @@ F = Callable[[Optional[Wiring]], Type[DummyProtocol]]
 
 
 def test_default(class_builder: F):
-    dummy = class_builder(default_wiring)()
+    dummy = class_builder(DEFAULT_WIRING)()
     assert dummy.a is world.get(A)
     assert dummy.b is world.get(B)
 

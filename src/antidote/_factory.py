@@ -125,15 +125,13 @@ def _configure_factory(cls: FactoryMeta,
         raise TypeError(f"The return type hint is expected to be a class, "
                         f"not {type(output)}.")
 
-    if conf.wiring is not None:
-        conf.wiring.wire(cls)
-
+    cls = service(cls, singleton=True, wiring=conf.wiring)
     validate_method_parameters(cls.__call__, conf.parameters)
 
     factory_dependency = factory_provider.register(
         output=output,
         scope=conf.scope,
-        factory_dependency=service(cls, singleton=True)
+        factory_dependency=cls
     )
 
     return factory_dependency

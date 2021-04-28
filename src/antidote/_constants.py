@@ -105,17 +105,14 @@ def _configure_constants(cls: ConstantsMeta) -> None:
         raise TypeError(f"Constants configuration (__antidote__) is expected to be a "
                         f"{Constants.Conf}, not a {type(conf)}")
 
-    if conf.wiring is not None:
-        conf.wiring.wire(cls)
-
-    dependency: Hashable = service(cls, singleton=True)
+    cls = service(cls, singleton=True, wiring=conf.wiring)
     for name, v in list(cls.__dict__.items()):
         if isinstance(v, LazyConstToDo):
             setattr(cls,
                     name,
                     LazyConstDescriptor(
                         name=name,
-                        dependency=dependency,
+                        dependency=cls,
                         method_name=Constants.provide_const.__name__,
                         arg=v.arg,
                         default=v.default,
