@@ -115,7 +115,7 @@ def freeze() -> None:
     current_container().freeze()
 
 
-@API.experimental
+@API.public
 def debug(dependency: Hashable, *, depth: int = -1) -> str:
     """
     To help you debug issues you may encounter with your injections, this will provide
@@ -142,6 +142,11 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
 
     .. note::
 
+        The output is not part of the public API. Any variation in it will not be
+        considered as a breaking change. So only rely on it to actively debug issues.
+
+    .. warning::
+
         With :py:func:`.implementation`, it'll execute the function to know which
         dependency to follow.
 
@@ -157,6 +162,7 @@ def debug(dependency: Hashable, *, depth: int = -1) -> str:
     return tree_debug_info(current_container(), dependency, depth)
 
 
+@API.public
 def new(*, name: str) -> Scope:
     """
     Creates a new scope. See :py:class:`~.core.container.Scope` for more information on
@@ -185,6 +191,7 @@ def new(*, name: str) -> Scope:
     return container.create_scope(name)
 
 
+@API.public
 def reset(scope: Scope) -> None:
     """
     All dependencies values of the specified scope will be discarded, so invalidating the

@@ -194,12 +194,11 @@ class LazyConst(FinalImmutable, Lazy):
     def debug_info(self) -> DependencyDebug:
         descriptor = cast(LazyConstDescriptor, self.descriptor)
         cls = cast(type, descriptor.dependency)
-        return DependencyDebug(f"Const: {debug_repr(cls)}.{descriptor.name}",
+        return DependencyDebug(f"{debug_repr(cls)}.{descriptor.name}",
                                scope=Scope.singleton(),
-                               dependencies=[descriptor.dependency],
                                # TODO: Would be great if the first argument of the method
                                #       didn't show as unknown as it's always provided.
-                               wired=[getattr(cls, descriptor.method_name)])
+                               wired=[getattr(cls, descriptor.method_name), cls])
 
     def provide(self, container: Container) -> DependencyValue:
         # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910

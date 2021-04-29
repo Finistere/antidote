@@ -219,21 +219,3 @@ def test_readme():
     ######################
 
     world.debug(main)
-    # will output:
-    """
-    main
-    └── Permanent implementation: MovieDB @ current_movie_db
-        └──<∅> IMDBMovieDB
-            └── ImdbAPI @ imdb_factory
-                └── imdb_factory
-                    ├── Const: Config.IMDB_API_KEY
-                    │   └── Config
-                    ├── Const: Config.IMDB_PORT
-                    │   └── Config
-                    └── Const: Config.IMDB_HOST
-                        └── Config
-
-    Singletons have no scope markers.
-    <∅> = no scope (new instance each time)
-    <name> = custom scope
-    """

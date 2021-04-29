@@ -17,15 +17,21 @@ Let's start with a quick example:
 
 .. testcode:: tutorial_overview
 
-    from antidote import inject, world, Provide, Service
+    from antidote import inject, world, Provide, Service, service
 
     class MyService(Service):
         pass
 
+    # or
+
+    @service
+    class MyService:
+        pass
+
     @inject
-    def f(service: Provide[MyService]):
+    def f(my_service: Provide[MyService]):
         # doing stuff
-        return service
+        return my_service
 
 .. doctest:: tutorial_overview
 
@@ -115,8 +121,8 @@ otherwise:
     .. testcode:: tutorial_overview
 
         @inject
-        def good_function(service: Provide[MyService]):
-            return service
+        def good_function(my_service: Provide[MyService]):
+            return my_service
 
         def bad_function():
             """
@@ -124,8 +130,8 @@ otherwise:
             manage dependencies, not more. This makes bad_function() *a lot harder* to
             test !
             """
-            service = world.get[MyService]()
-            return service
+            my_service = world.get[MyService]()
+            return my_service
 
     Furthermore :code:`good_function` is actually faster ! This even more true when using
     the compiled version of Antidote (with Cython), making :code:`good_function` 10x faster.
@@ -249,6 +255,23 @@ By default :py:class:`.Service`\ s are singletons, they are only instantiated on
     >>> world.get[Database]() is world.get[Database]()
     True
 
+If you cannot inherit from :py:class:`.Service`, you can use the class decorator
+:py:func:`.service`:
+
+.. doctest:: tutorial_services_alternative
+
+    >>> from antidote import service, world
+    >>> @service
+    ... class Database:
+    ...     pass
+    >>> world.get[Database]()
+    <Database ...>
+
+.. note::
+
+    You should only use it to register your own classes. If you want to register external
+    classes in Antidote, you should rely on a factory instead presented later.
+
 As services will depend on each other, all methods are wired with :py:func:`.inject`
 by default, including :code:`__init__()`. Meaning that you can use annotated type
 hints anywhere and they will be taken into account as shown hereafter:
@@ -353,27 +376,6 @@ like this:
     @inject([MetricAccumulator.of('count')])
     def f(count_metric: MetricAccumulator):
         pass
-
-.. note::
-
-    If you cannot inherit from :py:class:`.Service`, you can use the class decorator
-    py:func:`.service`:
-
-    .. doctest:: tutorial_services_alternative
-
-        >>> from antidote import service, world
-        >>> @service
-        ... class Database:
-        ...     pass
-        >>> world.get[Database]()
-        <Database ...>
-
-    However Antidote will only declare as it as a dependency, nothing more. If you want
-    some method wiring, check out :py:func:`.wire`.
-
-    You SHOULD ONLY use it to register your own classes. If you want to register external
-    classes in Antidote, you should rely on a factory instead presented later.
-
 
 
 4. Wiring

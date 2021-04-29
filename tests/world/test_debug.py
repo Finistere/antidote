@@ -381,8 +381,7 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-                    Const: {prefix}.Conf.TEST
-                    └── {prefix}.Conf
+                    {prefix}.Conf.TEST
                     """
             ))
 
@@ -401,10 +400,9 @@ def test_constants_debug():
             DebugTestCase(
                 value=Conf.TEST,
                 expected=f"""
-            Const: {prefix}.Conf.TEST
-            ├── {prefix}.Conf.provide_const
-            │   └── {prefix}.MyService
-            └── {prefix}.Conf
+                    {prefix}.Conf.TEST
+                    └── {prefix}.Conf.provide_const
+                        └── {prefix}.MyService
                     """
             ))
 

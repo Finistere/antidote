@@ -2,10 +2,11 @@
 Changelog
 *********
 
-Status
-======
 
-Pretty much v1.0-beta.
+1.0.0 (2021-04-29)
+==================
+
+No changes. From now on breaking changes will be avoided as much as possible.
 
 
 0.14.2 (2021-04-28)

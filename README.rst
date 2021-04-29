@@ -438,17 +438,14 @@ have a quick summary of what is actually going on:
     world.debug(function_with_complex_dependencies)
     # would output something like this:
     """
-    main
+    function_with_complex_dependencies
     └── Permanent implementation: MovieDB @ current_movie_db
         └──<∅> IMDBMovieDB
             └── ImdbAPI @ imdb_factory
                 └── imdb_factory
-                    ├── Const: Config.IMDB_API_KEY
-                    │   └── Config
-                    ├── Const: Config.IMDB_PORT
-                    │   └── Config
-                    └── Const: Config.IMDB_HOST
-                        └── Config
+                    ├── Config.IMDB_API_KEY
+                    ├── Config.IMDB_PORT
+                    └── Config.IMDB_HOST
 
     Singletons have no scope markers.
     <∅> = no scope (new instance each time)
