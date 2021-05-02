@@ -115,9 +115,15 @@ Injection
 
 .. code-block:: python
 
-    from antidote import Service, inject, Provide
+    from antidote import Service, inject, Provide, service
 
     class Database(Service):
+        pass
+
+    # or
+
+    @service
+    class Database:
         pass
 
     @inject
