@@ -12,16 +12,6 @@ def public(x: T) -> T:
     return x
 
 
-def experimental(x: T) -> T:
-    """
-    Similar to public, they're part of the public API. However it's not really stable.
-    Hence there's a good chance they may be changed or removed in the next release. If
-    you're relying on a experimental feature consider opening an issue with your use case
-    to advocate its migration to public !
-    """
-    return x
-
-
 def private(x: T) -> T:
     """
     Only for internal use. They're are NOT part of the public API, and as such may

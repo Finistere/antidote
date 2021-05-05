@@ -35,7 +35,6 @@ Antidote provides the following features:
     - `Documented <https://antidote.readthedocs.io/en/latest>`_, everything has tested examples.
     - No need for any custom setup, just use your injected function as usual. You just don't have to specify
       injected arguments anymore. Allowing you to gradually migrate an existing project.
-    - Documented, with a lot of tested examples.
 - Flexibility
     - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
     - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
@@ -51,11 +50,11 @@ Antidote provides the following features:
     - Everything is as explicit as possible, :code:`@inject` does not inject anything implicitly.
     - Type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
     - Thread-safe, cycle detection.
-    - Immutable whenever possible. Overrides are not possible outside of tests.
+    - Immutable whenever possible.
 - Testability
     - :code:`@inject` lets you override any injections by passing explicitly the arguments.
-    - Fully isolate each test with :code:`world.test.clone`. They will work on the separate objects.
-    - Override any dependency locally in a test.
+    - Fully isolate each test with :code:`world.test.clone`. They will work on separate objects.
+    - Override globally any dependency locally in a test.
     - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
 - Performance\*
     - Fastest :code:`@inject` with heavily tuned Cython.
@@ -93,7 +92,7 @@ Here are some links:
 
 - `Why dependency injection ? <https://antidote.readthedocs.io/en/latest/faq.html#why-dependency-injection>`_
 - `Why use a dependency injection framework ? <https://antidote.readthedocs.io/en/latest/faq.html#why-use-a-dependency-injection-framework>`_
-- `Why choose Antidote ? <https://antidote.readthedocs.io/en/latest/faq.html#why-choose-antidote>`_
+- `Why choose Antidote ? <https://antidote.readthedocs.io/en/latest/faq.html#why-choose-antidote>`_ (comparing to other libraries, among which is `dependency_injector <https://python-dependency-injector.ets-labs.org/index.html>`_)
 - `Getting Started <https://antidote.readthedocs.io/en/latest/tutorial.html#getting-started>`_
 - `Changelog <https://antidote.readthedocs.io/en/latest/changelog.html>`_
 
