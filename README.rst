@@ -252,7 +252,8 @@ the environment:
     class Config(Constants):
         DB_HOST = const[str]()  # used as a type annotation
         DB_PORT = const[int]()  # and also to cast the value retrieved from `provide_const`
-        DB_USER = const[str](default='postgres')  # defaults are supported
+        # defaults are supported, used on LookupError
+        DB_USER = const[str](default='postgres')
 
         def provide_const(self, name: str, arg: object):
             return os.environ[name]
