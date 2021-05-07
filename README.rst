@@ -422,7 +422,7 @@ that context:
         x = object()
         # Override the Database
         world.test.override.singleton(Database, x)
-        f()  # will have `x` injected for the Databas
+        f()  # will have `x` injected for the Database
 
         @world.test.override.factory(Database)
         def override_database():
