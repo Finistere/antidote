@@ -3,6 +3,17 @@ Changelog
 *********
 
 
+1.0.1 (2021-04-29)
+==================
+
+
+Change
+------
+
+- Update `fastrlock` dependency to `>=0.7,<0.9` to support Python 3.10 for the compiled
+  version.
+
+
 1.0.0 (2021-04-29)
 ==================
 

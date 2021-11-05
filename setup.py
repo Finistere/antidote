@@ -15,7 +15,7 @@ install_requires = [
 
 # Ideally this would be done with a installation flag...
 if os.environ.get("ANTIDOTE_COMPILED") == "true":
-    install_requires.append('fastrlock>=0.5,<0.6')
+    install_requires.append('fastrlock>=0.7,<0.9')
 
     from Cython.Build import cythonize
     from Cython.Compiler import Options
@@ -93,6 +93,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],

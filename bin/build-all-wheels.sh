@@ -9,11 +9,11 @@ rm -f "$PROJECT_DIR"/wheelhouse/* || true
 for PLATFORM in manylinux2014_i686 manylinux2010_x86_64 manylinux2014_x86_64; do
     echo -e "\e[32mStarting $PLATFORM\e[0m"
     DOCKER_IMAGE="quay.io/pypa/$PLATFORM"
-    podman pull "$DOCKER_IMAGE"
-    podman run --rm -it \
+    docker pull "$DOCKER_IMAGE"
+    docker run --rm -it \
+        --user "$(id -u):$(id -g)"\
         -e PLATFORM="$PLATFORM" \
         -v "$PROJECT_DIR:/antidote" \
-        -v "$HOME/.cache:/root/.cache" \
         "$DOCKER_IMAGE" \
         $(if [[ "$DOCKER_IMAGE" == "*_i686" ]]; then echo "linux32"; fi) \
         /antidote/bin/docker-build-wheels.sh

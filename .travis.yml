@@ -26,6 +26,10 @@ matrix:
       env: TOXENV=py39
     - python: "3.9"
       env: TOXENV=py39-compiled
+    - python: "3.10"
+      env: TOXENV=py310
+    - python: "3.10"
+      env: TOXENV=py310-compiled
 
     # Meta
     - python: "3.9"
