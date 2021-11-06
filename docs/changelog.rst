@@ -3,21 +3,24 @@ Changelog
 *********
 
 
-1.0.1 (2021-04-29)
+
+1.0.1 (2021-11-06)
 ==================
 
 
 Change
 ------
 
-- Update `fastrlock` dependency to `>=0.7,<0.9` to support Python 3.10 for the compiled
+- Update :code:`fastrlock` dependency to :code:`>=0.7,<0.9` to support Python 3.10 for the compiled
   version.
+
 
 
 1.0.0 (2021-04-29)
 ==================
 
 No changes. From now on breaking changes will be avoided as much as possible.
+
 
 
 0.14.2 (2021-04-28)
@@ -30,6 +33,7 @@ Features
 - Added :code:`wiring` argument to :py:func:`.service` and auto-wiring like :py:class:`.Service`.
 
 
+
 0.14.1 (2021-04-25)
 ===================
 
@@ -39,6 +43,7 @@ Features
 
 - Added :py:class:`.ABCService` for services to be easier to work with ABC abstract classes.
 - Added support for a function in :code:`auto_provide`
+
 
 
 0.14.0 (2021-03-30)
@@ -96,6 +101,7 @@ Feature / Breaking Change
 0.11.0 (2021-02-05)
 ===================
 
+
 Features
 --------
 
@@ -122,6 +128,7 @@ Breaking changes
 - Removed :code:`world.singletons`. There was no way to track back where a singleton
   was defined.
 - Reworked :py:class:`.Wiring` to be simpler, not super class wiring
+
 
 
 0.10.0 (2020-12-24)

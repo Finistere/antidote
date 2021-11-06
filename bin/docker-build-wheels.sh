@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-cd "$(dirname "$(readlink -f "$0")")"
+cd "$(dirname "$(dirname "$(readlink -f "$0")")")"  # roughly equivalent to `cd /antidote`
 GPATH="$PATH"
 
 VENV_DIR="/tmp/venv"
