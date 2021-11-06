@@ -11,8 +11,8 @@ Antidote
 .. image:: https://img.shields.io/pypi/pyversions/antidote.svg
   :target: https://pypi.python.org/pypi/antidote
 
-.. image:: https://travis-ci.org/Finistere/antidote.svg?branch=master
-  :target: https://travis-ci.org/Finistere/antidote
+.. image:: https://app.travis-ci.com/Finistere/antidote.svg?branch=master
+  :target: https://app.travis-ci.com/Finistere/antidote
 
 .. image:: https://codecov.io/gh/Finistere/antidote/branch/master/graph/badge.svg
   :target: https://codecov.io/gh/Finistere/antidote
