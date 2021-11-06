@@ -1,9 +1,4 @@
 .cache
-.coverage
-.coverage.*
-.idea
-.envrc
-shell.nix
 .python-version
 .tox
 .eggs
@@ -12,7 +7,7 @@ shell.nix
 *.so
 *.cpp
 *.ipynb
-cov_html/
+
 .mypy_cache/
 .pytest_cache/
 /build/
@@ -20,9 +15,11 @@ cov_html/
 /dist/
 /docs/_build/
 /.ipynb_checkpoints/
-**.hypothesis/
 cython_debug/
 _build/
+
+# PyCharm
+.idea
 
 # Annotated Cython
 /src/**/*.html
@@ -36,3 +33,13 @@ src/antidote/_internal/scm_version.py
 # Keep benchmark notebook
 !benchmark.ipynb
 !comparison.ipynb
+
+# Coverage
+htmlcov/
+coverage.xml
+.coverage
+.coverage.*
+
+# NixOS
+.envrc
+shell.nix

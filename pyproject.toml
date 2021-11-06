@@ -30,9 +30,6 @@ markers = ["compiled_only"]
 [tool.coverage.run]
 branch = true
 
-[tool.coverage.html]
-directory = "cov_html"
-
 [tool.coverage.paths]
 source = [
     "src/",
