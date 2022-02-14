@@ -1,9 +1,13 @@
-from typing import Callable, FrozenSet, Iterable, Optional, TypeVar, Union, cast, overload
+from __future__ import annotations
 
-from ._compatibility.typing import final
+import warnings
+from typing import Any, Callable, cast, FrozenSet, Iterable, Optional, overload, TypeVar, Union
+
+from typing_extensions import final
+
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
-from ._service import ServiceMeta, ABCServiceMeta
+from ._service import ABCServiceMeta, ServiceMeta
 from ._utils import validated_parameters
 from .core import Scope, Wiring, WithWiringMixin
 from .core.exceptions import DuplicateDependencyError
@@ -12,9 +16,12 @@ from .utils import validated_scope
 C = TypeVar('C', bound=type)
 
 
-@API.public
+@API.deprecated
 class Service(metaclass=ServiceMeta, abstract=True):
     """
+    .. deprecated:: 1.1
+        Use :py:func:`~.service.service` instead.
+
     .. note::
 
         If you encounter conflicts with :py:class:`.Service` metaclass, consider using
@@ -94,9 +101,12 @@ class Service(metaclass=ServiceMeta, abstract=True):
     """
     __slots__ = ()
 
+    @API.deprecated
     @final
     class Conf(FinalImmutable, WithWiringMixin):
         """
+        .. deprecated:: 1.1
+
         Immutable service configuration. To change parameters on a existing instance, use
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
@@ -108,14 +118,16 @@ class Service(metaclass=ServiceMeta, abstract=True):
 
         @property
         def singleton(self) -> bool:
+            warnings.warn("Service class is deprecated, use @service decorator instead.",
+                          DeprecationWarning)
             return self.scope is Scope.singleton()
 
         def __init__(self,
                      *,
                      wiring: Optional[Wiring] = Wiring(),
-                     singleton: bool = None,
+                     singleton: Optional[bool] = None,
                      scope: Optional[Scope] = Scope.sentinel(),
-                     parameters: Iterable[str] = None):
+                     parameters: Optional[Iterable[str]] = None):
             """
             Args:
                 wiring: Wiring to be applied on the service. By default only
@@ -130,6 +142,8 @@ class Service(metaclass=ServiceMeta, abstract=True):
                     :py:class:`~.core.container.Scope`. Defaults to
                     :py:meth:`~.core.container.Scope.singleton`.
             """
+            warnings.warn("Service class is deprecated, use @service decorator instead.",
+                          DeprecationWarning)
             if not (wiring is None or isinstance(wiring, Wiring)):
                 raise TypeError(f"wiring must be a Wiring or None, not {type(wiring)}")
 
@@ -142,14 +156,18 @@ class Service(metaclass=ServiceMeta, abstract=True):
         def copy(self,
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
-                 singleton: Union[bool, Copy] = Copy.IDENTICAL,
+                 singleton: Union[Optional[bool], Copy] = Copy.IDENTICAL,
                  scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
                  parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
-                 ) -> 'Service.Conf':
+                 ) -> Service.Conf:
             """
+            .. deprecated:: 1.1
+
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
             """
+            warnings.warn("Service class is deprecated, use @service decorator instead.",
+                          DeprecationWarning)
             if not (singleton is Copy.IDENTICAL or scope is Copy.IDENTICAL):
                 raise TypeError("Use either singleton or scope argument, not both.")
             if isinstance(singleton, bool):
@@ -158,13 +176,27 @@ class Service(metaclass=ServiceMeta, abstract=True):
 
     __antidote__: Conf = Conf()
     """
+    .. deprecated:: 1.1
+
     Configuration of the service. Defaults to wire :py:meth:`.__init__`.
     """
 
+    def __init__(self) -> None:
+        warnings.warn("Service class is deprecated, use @service decorator instead.",
+                      DeprecationWarning)
 
-@API.public
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        warnings.warn("Service class is deprecated, use @service decorator instead.",
+                      DeprecationWarning)
+        super().__init_subclass__(**kwargs)
+
+
+@API.deprecated
 class ABCService(Service, metaclass=ABCServiceMeta, abstract=True):
     """
+    .. deprecated:: 1.1
+        Use :py:func:`~.service.service` instead.
+
     This class only purpose is to facilitate the use of a abstract parent class, relying
     on :py:class:`abc.ABC`, with :py:class:`.Service`.
 
@@ -186,57 +218,57 @@ class ABCService(Service, metaclass=ABCServiceMeta, abstract=True):
 
 
 @overload
-def service(klass: C,  # noqa: E704  # pragma: no cover
+def service(klass: C,
             *,
-            singleton: bool = None,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
             wiring: Optional[Wiring] = Wiring()
-            ) -> C: ...
+            ) -> C:
+    ...  # pragma: no cover
 
 
 @overload
-def service(*,  # noqa: E704  # pragma: no cover
-            singleton: bool = None,
+def service(*,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
             wiring: Optional[Wiring] = Wiring()
-            ) -> Callable[[C], C]: ...
+            ) -> Callable[[C], C]:
+    ...  # pragma: no cover
 
 
 @API.public
-def service(klass: C = None,
+def service(klass: Optional[C] = None,
             *,
-            singleton: bool = None,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
             wiring: Optional[Wiring] = Wiring()
             ) -> Union[C, Callable[[C], C]]:
     """
-    Defines the decorated class as a service. To be used when you cannot inherit
-    :py:class:`.Service`
+    Defines the decorated class as a service.
 
     .. doctest:: service_decorator
 
         >>> from antidote import service
         >>> @service
-        ... class CannotInheritService:
+        ... class MyService:
         ...     pass
 
     Like :py:class:`.Service` it'll automatically wire the class.
 
     .. doctest:: service_decorator
 
-        >>> from antidote import Provide, world
+        >>> from antidote import world, inject
         >>> @service
-        ... class Test:
-        ...     def __init__(self, cis: Provide[CannotInheritService]):
+        ... class SecondService:
+        ...     def __init__(self, cis: MyService = inject.me()):
         ...         self.cis = cis
-        >>> world.get[Test]().cis
-        <CannotInheritService object at ...>
+        >>> world.get[SecondService]().cis
+        <MyService object at ...>
 
     .. note::
 
         If your wish to declare to register an external class to Antidote, prefer using
-        a factory with either :py:class:`~.factory.Factory` or
-        :py:func:`~.factory.factory`.
+        a factory with :py:func:`~.factory.factory`.
 
     Args:
         klass: Class to register as a dependency. It will be instantiated  only when

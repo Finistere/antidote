@@ -1,9 +1,18 @@
-from typing import Callable, Hashable, Optional, TypeVar
+from __future__ import annotations
 
-from .injection import Arg
-from .._compatibility.typing import Annotated, Protocol
+import inspect
+import warnings
+from typing import Any, Callable, Hashable, Optional, overload, Type, TYPE_CHECKING, TypeVar, Union
+
+from typing_extensions import Annotated, get_type_hints, Protocol
+
+from .marker import Marker
+from .typing import CallableClass, Source
 from .._internal import API
 from .._internal.utils import FinalImmutable
+
+if TYPE_CHECKING:
+    from .injection import Arg
 
 
 @API.private
@@ -25,28 +34,33 @@ class AntidoteAnnotation:
 INJECT_SENTINEL = AntidoteAnnotation()
 
 # API.public
-Provide = Annotated[T, INJECT_SENTINEL]
-Provide.__doc__ = """
+Inject = Annotated[T, INJECT_SENTINEL]
+Inject.__doc__ = """
 Annotation specifying that the type hint itself is the dependency:
 
 .. doctest:: core_annotation_provide
 
-    >>> from antidote import Service, world, inject, Provide
+    >>> from antidote import world, inject, Inject, service
     >>> from typing import Annotated
     ... # from typing_extensions import Annotated # Python < 3.9
-    >>> class Database(Service):
+    >>> @service
+    ... class Database:
     ...     pass
     >>> @inject
-    ... def load_db(db: Provide[Database]):
+    ... def load_db(db: Inject[Database]):
     ...     return db
     >>> load_db()
     <Database ...>
 
 """
 
+# API.deprecated
+Provide = Annotated[T, INJECT_SENTINEL]
+Provide.__doc__ = Inject.__doc__
+
 
 @API.public
-class Get(FinalImmutable, AntidoteAnnotation):
+class Get(FinalImmutable, AntidoteAnnotation, Marker):
     """
     Annotation specifying explicitly which dependency to inject.
 
@@ -64,10 +78,62 @@ class Get(FinalImmutable, AntidoteAnnotation):
 
     """
     __slots__ = ('dependency',)
-    dependency: Hashable
+    dependency: object
 
-    def __init__(self, __dependency: Hashable) -> None:
-        super().__init__(dependency=__dependency)
+    @overload
+    def __init__(self, __dependency: object) -> None:
+        ...  # pragma: no cover
+
+    @overload
+    def __init__(self,
+                 __dependency: Type[T],
+                 *,
+                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
+                 ) -> None:
+        ...  # pragma: no cover
+
+    def __init__(self,
+                 __dependency: Any,
+                 *,
+                 source: Optional[Union[
+                     Source[Any],
+                     Callable[..., Any],
+                     Type[CallableClass[Any]]
+                 ]] = None
+                 ) -> None:
+        from .._providers.factory import FactoryDependency
+
+        if isinstance(__dependency, Get):
+            __dependency = __dependency.dependency
+
+        if isinstance(source, Source):
+            __dependency = source.__antidote_dependency__(__dependency)
+        elif source is not None:
+            if isinstance(source, type) and inspect.isclass(source):
+                output = get_type_hints(source.__call__).get('return')
+            elif callable(source):
+                output = get_type_hints(source).get('return')
+            else:
+                raise TypeError(f"{source} is neither a factory function/class nor a source,"
+                                f" but a {type(source)}")
+
+            if not (isinstance(output, type) and inspect.isclass(output)):
+                raise TypeError(f"{source} is not a valid factory, it must return a class")
+
+            if not (isinstance(__dependency, type) and inspect.isclass(__dependency)):
+                raise TypeError(f"dependency must be a class for a factory, "
+                                f"not a {type(__dependency)}")
+
+            if not issubclass(output, __dependency):
+                raise TypeError(f"Expected dependency {__dependency} does not match output"
+                                f" of the factory {source}")
+
+            __dependency = FactoryDependency(
+                factory=source,
+                output=__dependency
+            )
+
+        super().__init__(__dependency)
 
 
 @API.public
@@ -97,13 +163,24 @@ class From(FinalImmutable, AntidoteAnnotation):
     __slots__ = ('source',)
     source: SupportsRMatmul
 
-    def __init__(self, __source: SupportsRMatmul) -> None:
+    def __init__(self,
+                 __source: Union[
+                     SupportsRMatmul,
+                     Source[Any],
+                     Callable[..., Any],
+                     Type[CallableClass[Any]]]
+                 ) -> None:
         super().__init__(source=__source)
 
 
-@API.public
+@API.deprecated
 class FromArg(FinalImmutable, AntidoteAnnotation):
     """
+    .. deprecated:: 1.1
+        Specifying a callable to :py:func:`.inject` is deprecated, so is this annotation.
+        If you rely on this behavior, you'll need to wrap @inject and do the annotation parsing
+        yourself.
+
     Annotation specifying which dependency should be provided based on the argument. The
     function should accept a single argument of type :py:class:`~..injection.Arg` and
     return either a dependency or :py:obj:`None`.
@@ -128,11 +205,12 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
         5432
     """
     __slots__ = ('function',)
-    function: 'Callable[[Arg], Optional[Hashable]]'
+    function: Callable[[Arg], Optional[Hashable]]
 
     def __init__(self,
-                 __function: 'Callable[[Arg], Optional[Hashable]]'
+                 __function: Callable[[Arg], Optional[Hashable]]
                  ) -> None:
+        warnings.warn("Deprecated, @inject won't support this behavior anymore", DeprecationWarning)
         if callable(__function):
             super().__init__(function=__function)
         else:

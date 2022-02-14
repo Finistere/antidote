@@ -1,17 +1,17 @@
-import collections.abc as c_abc
-from typing import (Any, FrozenSet, Iterable, Optional, Sequence, Union)
+from __future__ import annotations
 
-from ._compatibility.typing import final
+import collections.abc as c_abc
+from typing import (Any, FrozenSet, Iterable, Optional, Sequence, Union, ClassVar)
+
+from typing_extensions import final
+
 from ._constants import ConstantsMeta, MakeConst
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from .core.wiring import Wiring, WithWiringMixin
 
+# API.public
 const = MakeConst()
-const.__doc__ = """
-Used to create a constant in :py:class:`.Constants`. If a type is provided, the constant
-value will be type checked at runtime.
-"""
 
 
 @API.public
@@ -102,7 +102,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
     @final
     class Conf(FinalImmutable, WithWiringMixin):
         """
-        Immutable constants configuration. To change parameters on a existing instance,
+        Immutable Constants configuration. To change parameters on a existing instance,
         use either method :py:meth:`.copy` or
         :py:meth:`~.core.wiring.WithWiringMixin.with_wiring`.
         """
@@ -147,16 +147,16 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                  *,
                  wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
                  auto_cast: Union[Union[Sequence[type], bool], Copy] = Copy.IDENTICAL
-                 ) -> 'Constants.Conf':
+                 ) -> Constants.Conf:
             """
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
             """
             return Copy.immutable(self, wiring=wiring, auto_cast=auto_cast)
 
-    __antidote__: Conf = Conf()
+    __antidote__: ClassVar[Conf] = Conf()
 
-    def provide_const(self, name: str, arg: Any) -> object:
+    def provide_const(self, *, name: str, arg: Optional[Any]) -> object:
         """
         Used to retrieve the value of the constant defined with :py:func:`.const`.
         If a :py:exc:`LookUpError` is raised, the :code:`default` value defined

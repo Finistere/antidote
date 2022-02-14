@@ -1,11 +1,12 @@
-from .annotations import From, FromArg, Get, Provide
+from .annotations import From, FromArg, Get, Inject, Provide
 from .container import Container, DependencyValue, Scope
 from .injection import Arg, DEPENDENCIES_TYPE, inject
-from .provider import Provider, StatelessProvider, does_not_freeze
+from .provider import does_not_freeze, Provider, StatelessProvider
+from .typing import Source, Dependency
 from .utils import DependencyDebug
-from .wiring import Wiring, WithWiringMixin, wire
+from .wiring import wire, Wiring, WithWiringMixin
 
-__all__ = ['Provide', 'Get', 'From', 'FromArg',
+__all__ = ['Provide', 'Inject', 'Get', 'From', 'FromArg',
            'Container', 'DependencyValue', 'Scope', 'inject', 'Arg',
            'DEPENDENCIES_TYPE', 'does_not_freeze', 'Provider', 'StatelessProvider',
-           'DependencyDebug', 'wire', 'Wiring', 'WithWiringMixin']
+           'DependencyDebug', 'wire', 'Wiring', 'WithWiringMixin', 'Source', 'Dependency']

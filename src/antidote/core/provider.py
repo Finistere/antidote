@@ -1,17 +1,21 @@
-from contextlib import contextmanager
-from typing import Callable, Generic, Hashable, Iterator, Optional, TypeVar, cast, Any
+from __future__ import annotations
 
-from ._provider import ProviderMeta, _FREEZE_ATTR_NAME
+from contextlib import contextmanager
+from typing import Any, Callable, cast, Generic, Hashable, Iterator, Optional, TypeVar  # noqa: F401
+
+from typing_extensions import final, TypeAlias
+
+from ._provider import FREEZE_ATTR_NAME, ProviderMeta
 from .container import Container, DependencyValue, RawProvider
 from .exceptions import DebugNotAvailableError
 from .utils import DependencyDebug
-from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import debug_repr
 
 T = TypeVar('T', bound=Hashable)
 M = TypeVar('M', bound=Callable[..., object])
-P = TypeVar('P', bound='Provider[Any]')
+AnyProvider: TypeAlias = 'Provider[Any]'
+P = TypeVar('P', bound=AnyProvider)
 
 
 @API.public
@@ -22,7 +26,7 @@ def does_not_freeze(method: M) -> M:
 
     Beware that is must be the last decorator if you use multiple ones.
     """
-    setattr(method, _FREEZE_ATTR_NAME, False)
+    setattr(method, FREEZE_ATTR_NAME, False)
     return method
 
 
@@ -107,7 +111,7 @@ class Provider(RawProvider, Generic[T],
     """
     __antidote__ = None  # reserved
 
-    def clone(self: P, keep_singletons_cache: bool) -> 'P':
+    def clone(self: P, keep_singletons_cache: bool) -> P:
         """
         If you have no internal state, consider implementing
         :py:class:`~.StatelessProvider` instead.
@@ -236,7 +240,7 @@ class Provider(RawProvider, Generic[T],
 
     @does_not_freeze
     @final
-    def _assert_not_duplicate(self, dependency: Hashable) -> None:
+    def _assert_not_duplicate(self, dependency: object) -> None:
         """
         To be used whenever registering new dependencies to check that a dependency has
         not been declared before.
@@ -287,5 +291,5 @@ class StatelessProvider(Provider[T], abstract=True):
     """
 
     @final
-    def clone(self, keep_singletons_cache: bool) -> 'StatelessProvider[T]':
+    def clone(self, keep_singletons_cache: bool) -> StatelessProvider[T]:
         return type(self)()

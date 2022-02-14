@@ -5,8 +5,7 @@ from typing import Callable, Hashable, Optional
 cimport cython
 from cpython.ref cimport PyObject
 
-from antidote.core.container cimport (DependencyResult, FastProvider, RawContainer,
-                                     header_flag_cacheable)
+from antidote.core.container cimport (DependencyResult, FastProvider, header_flag_cacheable, RawContainer)
 from .._internal.utils import debug_repr
 from ..core import DependencyDebug, Scope
 from ..core.exceptions import DependencyNotFoundError
@@ -14,10 +13,10 @@ from ..core.exceptions import DependencyNotFoundError
 # @formatter:on
 
 cdef extern from "Python.h":
-    PyObject*Py_None
+    PyObject *Py_None
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
-    PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
-    PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
+    PyObject *PyDict_GetItem(PyObject *p, PyObject *key)
+    PyObject *PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
     int PySet_Contains(PyObject *anyset, PyObject *key) except -1
     void Py_DECREF(PyObject *o)
 
@@ -64,14 +63,14 @@ cdef class IndirectProvider(FastProvider):
                                dependencies=[target])
 
     cdef fast_provide(self,
-                      PyObject*dependency,
-                      PyObject*container,
-                      DependencyResult*result):
+                      PyObject *dependency,
+                      PyObject *container,
+                      DependencyResult *result):
         cdef:
-            PyObject*ptr
-            PyObject*target
+            PyObject *ptr
+            PyObject *target
 
-        ptr = PyDict_GetItem(<PyObject*> self.__implementations, dependency)
+        ptr = PyDict_GetItem(<PyObject *> self.__implementations, dependency)
         if ptr is NULL:
             return
         elif ptr is not Py_None:
@@ -81,7 +80,7 @@ cdef class IndirectProvider(FastProvider):
                 raise DependencyNotFoundError(<object> ptr)
         else:
             target = PyObject_CallObject(
-                <PyObject*> (<ImplementationDependency> dependency).implementation,
+                <PyObject *> (<ImplementationDependency> dependency).implementation,
                 NULL
             )
             (<RawContainer> container).fast_get(target, result)
@@ -92,7 +91,7 @@ cdef class IndirectProvider(FastProvider):
 
             if (<ImplementationDependency> dependency).permanent:
                 result.header |= header_flag_cacheable()
-                PyDict_SetItem(<PyObject*> self.__implementations,
+                PyDict_SetItem(<PyObject *> self.__implementations,
                                dependency,
                                target)
             else:
@@ -105,7 +104,7 @@ cdef class IndirectProvider(FastProvider):
                                 implementation: Callable[[], Hashable],
                                 *,
                                 permanent: bool
-                                ) -> 'ImplementationDependency':
+                                ) -> ImplementationDependency:
         assert callable(implementation) \
                and inspect.isclass(interface) \
                and isinstance(permanent, bool)

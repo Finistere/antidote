@@ -1,35 +1,44 @@
+# pyright: reportUnnecessaryIsInstance=false
 import functools
 import inspect
-from typing import Callable, TypeVar, cast
+import warnings
+from typing import Callable, cast, Type, TypeVar
 
-from ._compatibility.typing import Protocol
+from typing_extensions import ParamSpec, Protocol
+
 from ._implementation import ImplementationWrapper, validate_provided_class
 from ._internal import API
 from ._internal.wrapper import is_wrapper
 from ._providers import IndirectProvider
-from .core import Provide, inject
+from .core import inject
 from .core.exceptions import DoubleInjectionError
 
-F = TypeVar('F', bound=Callable[[], object])
+P = ParamSpec('P')
+T = TypeVar('T')
 
 
 @API.private
-class ImplementationProtocol(Protocol[F]):
+class ImplementationProtocol(Protocol[P, T]):
     """
     :meta private:
     """
 
-    def __rmatmul__(self, klass: type) -> object:
-        pass  # pragma: no cover
+    def __rmatmul__(self, klass: type) -> object:  # pragma: no cover
+        warnings.warn("Use the new `world.get(<dependency>, source=<implementation>)` syntax.")
+        return  # type: ignore
 
-    __call__: F
+    def __antidote_dependency__(self, target: Type[T]) -> object:
+        ...  # pragma: no cover
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
+        ...  # pragma: no cover
 
 
 @API.public
 def implementation(interface: type,
                    *,
                    permanent: bool = True
-                   ) -> Callable[[F], ImplementationProtocol[F]]:
+                   ) -> Callable[[Callable[P, T]], ImplementationProtocol[P, T]]:
     """
     Defines which dependency should be retrieved when :code:`interface` is requested.
     Suppose we have to support two different databases and the configuration defines
@@ -119,11 +128,9 @@ def implementation(interface: type,
         raise TypeError(f"interface must be a class, not {type(interface)}")
 
     @inject
-    def register(func: F,
-                 indirect_provider: Provide[IndirectProvider] = None
-                 ) -> ImplementationProtocol[F]:
-        assert indirect_provider is not None
-
+    def register(func: Callable[P, T],
+                 indirect_provider: IndirectProvider = inject.me()
+                 ) -> ImplementationProtocol[P, T]:
         if not (inspect.isfunction(func)
                 or (is_wrapper(func)
                     and inspect.isfunction(func.__wrapped__))):  # type: ignore
@@ -142,6 +149,6 @@ def implementation(interface: type,
 
         dependency = indirect_provider.register_implementation(interface, impl,
                                                                permanent=permanent)
-        return cast(ImplementationProtocol[F], ImplementationWrapper(func, dependency))
+        return ImplementationWrapper[P, T](func, dependency)
 
-    return register
+    return cast(Callable[[Callable[P, T]], ImplementationProtocol[P, T]], register)

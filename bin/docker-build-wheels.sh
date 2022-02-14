@@ -70,7 +70,7 @@ test-wheel() {
 export ANTIDOTE_COMPILED=true
 
 # Compile wheels
-for PYTHON_VERSION in 36 37 38 39 310; do
+for PYTHON_VERSION in 37 38 39 310; do
   export PYTHON_VERSION
   PATH="$(pybin "$PYTHON_VERSION"):$GPATH"
   TMP_WHEELHOUSE="/tmp/$PLATFORM/$PYTHON_VERSION"
@@ -80,7 +80,7 @@ for PYTHON_VERSION in 36 37 38 39 310; do
   step "Cleaning workspace"
   clean
 
-  with-venv "create-binary-distribution"
+  with-venv create-binary-distribution
 
   big-step "Auditing wheel"
   for whl in "$TMP_WHEELHOUSE/raw"/*.whl; do

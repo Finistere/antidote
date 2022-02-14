@@ -3,6 +3,141 @@ Changelog
 *********
 
 
+For any given version :code:`N`, all releases :code:`N.X.X` guarantee:
+
+- API stability: Python code that used to work will continue work.
+- Namespace stability for :code:`antidote`, :code:`antidote.core` and :code:`antidote.exceptions`.
+  All other namespaces have no guarantees.
+- *best effort* for typing stability. Meaning that code relying on Antidote that used to pass MyPy
+  or any other static type checker should continue working, but it's not guaranteed.
+
+Most, if not all, the API is annotated with decorators such as :code:`@API.public` specifying whether
+the given functionality can be relied upon.
+
+
+
+1.1.0 (2022-03-??)
+==================
+
+
+Breaking static typing change
+-----------------------------
+
+- A function decorated with :py:func:`~.factory.factory` will not have the :code:`@` operator
+  anymore from a static typing perspective. It's unfortunately not possible with the addition of
+  the class support for the decorator.
+
+
+Deprecation
+-----------
+
+- :py:class:`.Service` and :py:class:`.ABCService` are deprecated in favor of :py:func:`.service`.
+  instead which has the same behavior as :py:func:`.service`.
+- Passing a function to the argument :code:`dependencies` of :py:func:`.inject` is deprecated.
+  If you want to customize how Antidote injects dependencies, just wrap :py:func:`.inject` instead.
+- :py:func:`.inject`'s :code:`auto_provide` argument is deprecated. If you rely on this behavior,
+  wrap :py:func:`.inject`.
+- :code:`world.lazy` is deprecated. It never brought a lot of value, one can easily write it oneself.
+- :code:`dependency @ factory` and :code:`dependency @ implementation` are replaced by the more explicit
+  notation:
+
+  .. code-block:: python
+
+    world.get(dependency, source=factory)
+
+    @inject(dependencies={'db': Get(dependency, source=factory)})
+    def (db):
+        ...
+
+- Annotation :code:`Provide` has been renamed :code:`Inject`.
+- :code:`world.get` will not support extracting annotated dependencies anymore.
+- :code:`world.get` will require the dependency in the future when a type is specified. It supported
+  was added using the type as the dependency itself to have a shorter syntax for :code:`@service`/:code:`@service`.
+  However, as :code:`world.get` provides now better type information it shouldn't be needed anymore.
+
+  .. code-block:: python
+
+    from antidote import world, service
+
+    @service
+    class Dummy:
+        pass
+
+    # this will expose the correct type:
+    world.get(Dummy)
+
+    # so this is deprecated
+    world.get[Dummy]()
+
+    # you can still specify the type explicitly
+    world.get[Dummy](Dummy)
+
+
+Change
+------
+
+- Both :code:`world.get` and :code:`const` have better type checking behavior, doing it only when
+  the specified type is an actual instance of :code:`type`. For protocols, type check will only
+  be done with those decorated with :code:`@typing.runtime_checkable`.
+- Dropped Python 3.6 support.
+
+
+Features
+--------
+
+- Add :code:`ignore_type_hints` to :py:func:`.inject` to support cases when type hints cannot be
+  evaluated, typically in circular imports.
+- Adding Markers for :py:func:`.inject` which replace default arguments:
+
+  .. code-block:: python
+
+    from antidote import const, Constants, factory, inject, service
+
+
+    class Config(Constants):
+        HOST = const[str]("host")
+
+
+    @service
+    class Dummy:
+        value: str
+
+
+    @factory
+    def dummy_factory() -> Dummy:
+        return Dummy()
+
+
+    # inject type hint
+    @inject
+    def f(dummy: Dummy = inject.me()) -> Dummy:
+        return dummy
+
+
+    # inject type hint with factory
+    @inject
+    def f2(dummy: Dummy = inject.me(source=dummy_factory)) -> Dummy:
+        return dummy
+
+
+    # inject constants
+    @inject
+    def f3(host: str = Config.HOST) -> str:
+        return host
+
+
+    # inject a dependency explicitly
+    @inject
+    def f4(x=inject.get(Dummy)) -> Dummy:
+        return x
+
+
+    # inject a dependency with a factory explicitly
+    @inject
+    def f5(x=inject.get(Dummy, source=dummy_factory)) -> Dummy:
+        return x
+
+
 
 1.0.1 (2021-11-06)
 ==================

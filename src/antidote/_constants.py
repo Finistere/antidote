@@ -1,40 +1,24 @@
-from typing import (Any, Dict, Generic, Hashable, Optional, TYPE_CHECKING, Tuple, Type,
-                    TypeVar, Union, cast, overload)
+from __future__ import annotations
 
-from ._compatibility.typing import final, Protocol
+from typing import (Any, cast, Dict, Generic, Hashable, Optional, Tuple, Type,
+                    TYPE_CHECKING, TypeVar, Union)
+
+from typing_extensions import final
+
 from ._internal import API
-from ._internal.utils import AbstractMeta, Default, FinalImmutable, FinalMeta, debug_repr
-from ._internal.utils.immutable import Immutable, ImmutableGenericMeta
+from ._internal.utils import AbstractMeta, debug_repr, Default, enforce_type_if_possible, \
+    FinalImmutable, FinalMeta
+from ._internal.utils.immutable import Immutable
 from ._providers.lazy import Lazy
 from .core import Container, DependencyDebug, DependencyValue, Scope
-
-T = TypeVar('T')
+from .core.marker import Marker
+from .core.typing import Dependency
 
 if TYPE_CHECKING:
     from .constants import Constants
 
-
-# TODO: Once Python 3.6 support drops, fix this.
-# We're lying to Mypy here. That's not how the actual descriptor, even though it's
-# somewhat close. But inheriting Generic implies not being final anymore in Python 3.6,
-# until PEP 560, and internally there's no need for Generic.
-class Const(Generic[T]):
-    __slots__ = ()
-
-    @overload
-    def __get__(self,  # noqa: E704
-                instance: 'Constants',
-                owner: 'Type[Constants]') -> T: ...  # pragma: no cover
-
-    @overload
-    def __get__(self,  # noqa: E704
-                instance: None,
-                owner: 'Type[Constants]') -> 'Const[T]': ...  # pragma: no cover
-
-    def __get__(self,
-                instance: 'Optional[Constants]',
-                owner: 'Type[Constants]') -> object:  # pragma: no cover
-        pass
+T = TypeVar('T')
+Tco = TypeVar('Tco', covariant=True)
 
 
 @API.private
@@ -43,30 +27,28 @@ class MakeConst(metaclass=FinalMeta):
     def __call__(self,
                  __arg: Optional[object] = None,
                  *,
-                 default: Any = Default.sentinel) -> Const[object]:
-        # Not true yet, but will be changed by ConstantsMeta
-        return cast(Const[object], LazyConstToDo(__arg, None, default))
+                 default: object = Default.sentinel) -> LazyConstDescriptor[object]:
+        # Not true yet, but will be changed by ConstantsMeta / @constants
+        return cast(LazyConstDescriptor[object], LazyConstToDo(__arg, None, default))
 
-    def __getitem__(self, tpe: Type[T]) -> 'MakeTypedConst[T]':
+    def __getitem__(self, tpe: Type[T]) -> MakeTypedConst[T]:
         return MakeTypedConst(tpe)
 
 
 @API.private
 @final
-class MakeTypedConst(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
+class MakeTypedConst(Immutable, Generic[T]):
     __slots__ = ('__type',)
     __type: Type[T]
 
     def __call__(self,
                  __arg: Optional[object] = None,
                  *,
-                 default: Union[T, Default] = Default.sentinel) -> Const[T]:
-        if not isinstance(default, (self.__type, Default)):
-            raise TypeError(f"default is not an instance of {self.__type}, "
-                            f"but {type(default)}")
-
-        # Not true yet, but will be changed by ConstantsMeta
-        return cast(Const[T], LazyConstToDo(__arg, self.__type, default))
+                 default: Union[T, Default] = Default.sentinel) -> LazyConstDescriptor[T]:
+        if default is not Default.sentinel:
+            enforce_type_if_possible(default, self.__type)
+        # Not true yet, but will be changed by ConstantsMeta / @constants
+        return cast(LazyConstDescriptor[T], LazyConstToDo(__arg, self.__type, default))
 
 
 @API.private
@@ -77,15 +59,18 @@ class LazyConstToDo(FinalImmutable):
     type_: Optional[type]
     default: object
 
+    def __get__(self, instance: object, owner: object) -> None:
+        raise RuntimeError("const() can only be used in a subclass of Constants.")
+
 
 @API.private
 class ConstantsMeta(AbstractMeta):
-    def __new__(mcs: 'Type[ConstantsMeta]',
+    def __new__(mcs: Type[ConstantsMeta],
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
                 **kwargs: object
-                ) -> 'ConstantsMeta':
+                ) -> ConstantsMeta:
         cls = cast(
             ConstantsMeta,
             super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
@@ -96,40 +81,42 @@ class ConstantsMeta(AbstractMeta):
 
 
 @API.private
-def _configure_constants(cls: ConstantsMeta) -> None:
+def _configure_constants(cls: type, conf: object = None) -> None:
     from .constants import Constants
     from .service import service
 
-    conf = getattr(cls, '__antidote__', None)
+    conf = conf or getattr(cls, '__antidote__', None)
     if not isinstance(conf, Constants.Conf):
         raise TypeError(f"Constants configuration (__antidote__) is expected to be a "
                         f"{Constants.Conf}, not a {type(conf)}")
 
     cls = service(cls, singleton=True, wiring=conf.wiring)
     for name, v in list(cls.__dict__.items()):
-        if isinstance(v, LazyConstToDo):
-            setattr(cls,
-                    name,
-                    LazyConstDescriptor(
-                        name=name,
-                        dependency=cls,
-                        method_name=Constants.provide_const.__name__,
-                        arg=v.arg,
-                        default=v.default,
-                        type_=v.type_ or object,
-                        auto_cast=v.type_ is not None and v.type_ in conf.auto_cast))
+        if not isinstance(v, LazyConstToDo):
+            continue
+
+        descriptor: LazyConstDescriptor[Any] = LazyConstDescriptor(
+            name=name,
+            dependency=cls,
+            method_name=Constants.provide_const.__name__,
+            arg=v.arg,
+            default=v.default,
+            type_=v.type_ or object,
+            auto_cast=v.type_ is not None and v.type_ in conf.auto_cast
+        )
+        setattr(cls, name, descriptor)
 
 
 @API.private
 @final
-class LazyConstDescriptor(FinalImmutable):
+class LazyConstDescriptor(Generic[Tco], FinalImmutable):
     __slots__ = ('name', 'dependency', 'method_name', 'arg', 'default', 'type_',
                  'auto_cast', '_cache')
     name: str
     dependency: Hashable
     method_name: str
     arg: object
-    default: object
+    default: Tco
     type_: type
     auto_cast: bool
     _cache: str
@@ -140,11 +127,10 @@ class LazyConstDescriptor(FinalImmutable):
                  dependency: Hashable,
                  method_name: str,
                  arg: object,
-                 default: object,
+                 default: Tco,
                  type_: type,
                  auto_cast: bool
                  ):
-        assert isinstance(default, (Default, type_))
         super().__init__(
             name=name,
             dependency=dependency,
@@ -156,14 +142,19 @@ class LazyConstDescriptor(FinalImmutable):
             _cache=f"__antidote_dependency_{hex(id(self))}"
         )
 
-    def __get__(self, instance: object, owner: type) -> object:
+    def __get__(self,
+                instance: Optional[Constants],
+                owner: Type[Constants]
+                ) -> Tco:  # Not true for class instance, but helps with typing errors.
         if instance is None:
             try:
-                return getattr(owner, self._cache)
+                return cast(Tco, getattr(owner, self._cache))
             except AttributeError:
                 dependency = LazyConst(self)
                 setattr(owner, self._cache, dependency)
-                return dependency
+
+                # Lying to Mypy, but it should help to detect errors when used as a Marker.
+                return cast(Tco, dependency)
         try:
             value = getattr(instance, self.method_name)(name=self.name,
                                                         arg=self.arg)
@@ -175,24 +166,21 @@ class LazyConstDescriptor(FinalImmutable):
         if self.auto_cast:
             value = self.type_(value)
 
-        if not isinstance(value, self.type_):
-            raise TypeError(f"Constant {self.name} is not an instance of {self.type_}, "
-                            f"but {type(value)}")
-
-        return value
+        enforce_type_if_possible(value, self.type_)
+        return cast(Tco, value)
 
 
 @API.private
 @final
-class LazyConst(FinalImmutable, Lazy):
+class LazyConst(FinalImmutable, Lazy, Dependency[T], Marker):
     __slots__ = ('descriptor',)
-    descriptor: LazyConstDescriptor
+    descriptor: object
 
-    def __init__(self, descriptor: LazyConstDescriptor) -> None:
+    def __init__(self, descriptor: LazyConstDescriptor[T]) -> None:
         super().__init__(descriptor=descriptor)
 
-    def debug_info(self) -> DependencyDebug:
-        descriptor = cast(LazyConstDescriptor, self.descriptor)
+    def __antidote_debug_info__(self) -> DependencyDebug:
+        descriptor = cast(LazyConstDescriptor[T], self.descriptor)
         cls = cast(type, descriptor.dependency)
         return DependencyDebug(f"{debug_repr(cls)}.{descriptor.name}",
                                scope=Scope.singleton(),
@@ -200,13 +188,10 @@ class LazyConst(FinalImmutable, Lazy):
                                #       didn't show as unknown as it's always provided.
                                wired=[getattr(cls, descriptor.method_name), cls])
 
-    def provide(self, container: Container) -> DependencyValue:
+    def __antidote_provide__(self, container: Container) -> DependencyValue:
         # TODO: Waiting for a fix: https://github.com/python/mypy/issues/6910
-        descriptor = cast(LazyConstDescriptor, self.descriptor)
+        descriptor = cast(LazyConstDescriptor[T], self.descriptor)
         return DependencyValue(
-            descriptor.__get__(
-                container.get(descriptor.dependency),
-                None  # type: ignore
-            ),
+            getattr(container.get(descriptor.dependency), descriptor.name),
             scope=Scope.singleton()
         )

@@ -111,8 +111,19 @@ Injection
 
 Inject
 ^^^^^^
+
 .. automodule:: antidote.core.injection
-    :members: inject, Arg
+    :members: Arg
+
+    .. py:function:: inject
+
+        Singleton instance of :py:class:`~.core.injection.Inject`
+
+.. autoclass:: antidote.core.injection.Inject
+
+    .. automethod:: __call__
+    .. automethod:: me
+    .. automethod:: get
 
 Annotations
 ^^^^^^^^^^^

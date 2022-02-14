@@ -1,7 +1,8 @@
 from typing import Hashable, Optional, Sequence
 
+from typing_extensions import final
+
 from .container import Scope
-from .._compatibility.typing import final
 from .._internal import API
 from .._internal.utils import FinalImmutable
 

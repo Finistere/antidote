@@ -1,14 +1,15 @@
 from typing import Callable, Optional, TypeVar, Union
 
 import pytest
+from typing_extensions import Annotated
 
 from antidote import From, FromArg, Get, Provide
-from antidote._compatibility.typing import Annotated
 from antidote._internal.argspec import Arguments
 from antidote.core._annotations import (AntidoteAnnotation,
                                         extract_annotated_arg_dependency,
                                         extract_annotated_dependency,
                                         extract_auto_provided_arg_dependency)
+from antidote.core.marker import Marker
 
 T = TypeVar('T')
 
@@ -17,10 +18,10 @@ class Dummy:
     pass
 
 
-class Maker:
+class DummyLegacySource:
     def __rmatmul__(self, other):
         assert other is Dummy
-        return Maker
+        return DummyLegacySource
 
 
 def test_invalid_from_arg():
@@ -41,7 +42,7 @@ def test_invalid_from_arg():
         (Optional[Union[str, Dummy]], None),
         (Callable[..., Dummy], None),
         (Provide[Dummy], Dummy),
-        (Annotated[Dummy, From(Maker())], Maker),
+        (Annotated[Dummy, From(DummyLegacySource())], DummyLegacySource),
         (Annotated[Dummy, FromArg(lambda arg: arg.name * 2)], 'xx'),
         (Annotated[Dummy, Get('something')], 'something'),  # noqa: F821
     ]
@@ -73,7 +74,7 @@ def test_extract_explicit_arg_dependency(type_hint, expected):
         (Optional[Union[str, Dummy]], None),
         (Callable[..., Dummy], None),
         (Provide[Dummy], None),
-        (Annotated[Dummy, From(Maker())], None),
+        (Annotated[Dummy, From(DummyLegacySource())], None),
         (Annotated[Dummy, FromArg(lambda arg: arg.name * 2)], None),
         (Annotated[Dummy, Get('something')], None),  # noqa: F821
     ]
@@ -101,7 +102,7 @@ def test_extract_auto_provided_arg_dependency(type_hint, expected):
         (str, str),
         (T, T),
         (Union[str, Dummy], Union[str, Dummy]),
-        (Annotated[Dummy, From(Maker())], Maker),
+        (Annotated[Dummy, From(DummyLegacySource())], DummyLegacySource),
         (Annotated[Dummy, Get('something')], 'something')  # noqa: F821
     ]
 ])
@@ -135,6 +136,17 @@ def test_unknown_antidote_annotations():
 
     with pytest.raises(TypeError):
         extract_annotated_dependency(type_hint)
+
+
+def test_antidote_annotation_with_marker():
+    type_hint = Annotated[Dummy, Get('dummy')]
+
+    def f(x: type_hint = Marker()):
+        pass
+
+    arguments = Arguments.from_callable(f)
+    with pytest.raises(TypeError, match="(?i).*Marker.*with.*annotation.*"):
+        extract_annotated_arg_dependency(arguments[0])
 
 
 @pytest.mark.parametrize('type_hint', [

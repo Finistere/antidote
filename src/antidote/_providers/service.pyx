@@ -5,18 +5,17 @@ from typing import Dict, Hashable
 cimport cython
 from cpython.ref cimport PyObject
 
-from antidote.core.container cimport (DependencyResult, FastProvider, Header, HeaderObject,
-                                      Scope, header_flag_cacheable)
+from antidote.core.container cimport (DependencyResult, FastProvider, header_flag_cacheable, HeaderObject, Scope)
 from .._internal.utils import debug_repr
 # @formatter:on
 from ..core import DependencyDebug
 
 cdef extern from "Python.h":
-    PyObject*Py_True
+    PyObject *Py_True
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
-    PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
-    PyObject*PyObject_Call(PyObject *callable, PyObject *args, PyObject *kwargs) except NULL
-    PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
+    PyObject *PyDict_GetItem(PyObject *p, PyObject *key)
+    PyObject *PyObject_Call(PyObject *callable, PyObject *args, PyObject *kwargs) except NULL
+    PyObject *PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
 
 cdef:
     tuple empty_tuple = tuple()
@@ -83,32 +82,31 @@ cdef class ServiceProvider(FastProvider):
                                wired=[klass])
 
     cdef fast_provide(self,
-                      PyObject*dependency,
-                      PyObject*container,
-                      DependencyResult*result):
+                      PyObject *dependency,
+                      PyObject *container,
+                      DependencyResult *result):
         cdef:
-            PyObject*service
-            PyObject*ptr
+            PyObject *service
+            PyObject *ptr
             tuple args
             object factory
             int scope_or_singleton
 
-        if PyObject_IsInstance(dependency, <PyObject*> Parameterized):
-            ptr = PyDict_GetItem(<PyObject*> self.__services,
-                                 <PyObject*> (<Parameterized> dependency).wrapped)
+        if PyObject_IsInstance(dependency, <PyObject *> Parameterized):
+            ptr = PyDict_GetItem(<PyObject *> self.__services,
+                                 <PyObject *> (<Parameterized> dependency).wrapped)
             if ptr:
                 result.header = (<HeaderObject> ptr).header
                 result.value = PyObject_Call(
-                    <PyObject*> (<Parameterized> dependency).wrapped,
-                    <PyObject*> empty_tuple,
-                    <PyObject*> (<Parameterized> dependency).parameters
+                    <PyObject *> (<Parameterized> dependency).wrapped,
+                    <PyObject *> empty_tuple,
+                    <PyObject *> (<Parameterized> dependency).parameters
                 )
         else:
-            ptr = PyDict_GetItem(<PyObject*> self.__services, dependency)
+            ptr = PyDict_GetItem(<PyObject *> self.__services, dependency)
             if ptr:
                 result.header = (<HeaderObject> ptr).header | header_flag_cacheable()
                 result.value = PyObject_CallObject(dependency, NULL)
-
 
     def register(self, klass: type, *, Scope scope):
         assert inspect.isclass(klass) \
@@ -116,4 +114,3 @@ cdef class ServiceProvider(FastProvider):
         with self._bound_container_ensure_not_frozen():
             self._bound_container_raise_if_exists(klass)
             self.__services[klass] = HeaderObject.from_scope(scope)
-

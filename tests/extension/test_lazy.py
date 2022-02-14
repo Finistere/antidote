@@ -12,7 +12,7 @@ def empty_world():
         yield
 
 
-def test_lazy_singleton():
+def test_lazy_call_singleton():
     def func():
         return object()
 

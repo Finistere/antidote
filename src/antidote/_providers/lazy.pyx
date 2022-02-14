@@ -4,11 +4,10 @@ from typing import Hashable
 cimport cython
 from cpython.object cimport PyObject
 
-from antidote.core.container cimport (Container, DependencyValue, DependencyResult,
-                                     FastProvider)
+from antidote.core.container cimport (Container, DependencyResult, DependencyValue, FastProvider)
 from .._internal.utils import debug_repr
-from ..core.exceptions import DebugNotAvailableError
 from ..core import DependencyDebug
+from ..core.exceptions import DebugNotAvailableError
 
 # @formatter:on
 
@@ -17,18 +16,18 @@ cdef extern from "Python.h":
 
 
 cdef class Lazy:
-    def debug_info(self) -> DependencyDebug:
+    def __antidote_debug_info__(self) -> DependencyDebug:
         raise DebugNotAvailableError()  # pragma: no cover
+
+    cpdef __antidote_provide__(self, container: Container):
+        raise NotImplementedError()  # pragma: no cover
 
     cdef fast_provide(self, PyObject*container, DependencyResult*result):
         cdef:
             DependencyValue dependency_instance
-        dependency_instance = self.provide(<Container> container)
+        dependency_instance = self.__antidote_provide__(<Container> container)
         if dependency_instance is not None:
             dependency_instance.to_result(result)
-
-    cpdef provide(self, container: Container):
-        raise NotImplementedError()  # pragma: no cover
 
 @cython.final
 cdef class LazyProvider(FastProvider):
@@ -41,7 +40,7 @@ cdef class LazyProvider(FastProvider):
     def maybe_debug(self, dependency: Hashable):
         if isinstance(dependency, Lazy):
             try:
-                return dependency.debug_info()
+                return dependency.__antidote_debug_info__()
             except DebugNotAvailableError:
                 import warnings
                 warnings.warn(f"Debug information for {debug_repr(dependency)} "

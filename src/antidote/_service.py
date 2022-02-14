@@ -1,25 +1,27 @@
-import inspect
+from __future__ import annotations
+
+import warnings
 from abc import ABCMeta
-from typing import Dict, Tuple, Type, cast
+from typing import cast, Dict, Tuple, Type
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
 from ._providers import ServiceProvider
 from ._providers.service import Parameterized
 from ._utils import validate_method_parameters
-from .core import Provide, inject
+from .core import inject
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 
 
 @API.private
 class ServiceMeta(AbstractMeta):
-    def __new__(mcs: 'Type[ServiceMeta]',
+    def __new__(mcs: Type[ServiceMeta],
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
                 **kwargs: object
-                ) -> 'ServiceMeta':
+                ) -> ServiceMeta:
         cls = cast(
             ServiceMeta,
             super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
@@ -28,9 +30,14 @@ class ServiceMeta(AbstractMeta):
             _configure_service(cls)
         return cls
 
-    @API.public
+    @API.deprecated
     def parameterized(cls, **kwargs: object) -> object:
         """
+        .. deprecated:: 1.1
+            :code:`parameterized()` is a complex behavior with poor type-safety. Use-cases that
+            really benefit from this behavior are few and would be better implemeneted explicitly
+            in your own code.
+
         Creates a new dependency based on the service with the given arguments. The new
         dependency will have the same scope as the original one.
 
@@ -62,6 +69,9 @@ class ServiceMeta(AbstractMeta):
         Returns:
             Dependency to be retrieved from Antidote. You cannot use it directly.
         """
+        warnings.warn("Deprecated, parameterized() is too complex and not type-safe",
+                      DeprecationWarning)
+
         from .service import Service
         # Guaranteed through _configure_service()
         conf = cast(Service.Conf, getattr(cls, '__antidote__'))
@@ -70,7 +80,7 @@ class ServiceMeta(AbstractMeta):
                                f"specify them explicitly in the configuration with: "
                                f"Service.Conf(parameters=...))")
 
-        if set(kwargs.keys()) != conf.parameters:
+        if set(kwargs.keys()) != set(conf.parameters or []):
             raise ValueError(f"Given parameters do not match expected ones. "
                              f"Got: ({','.join(map(repr, kwargs.keys()))}) "
                              f"Expected: ({','.join(map(repr, conf.parameters))})")
@@ -86,10 +96,9 @@ class ABCServiceMeta(ServiceMeta, ABCMeta):
 @API.private
 @inject
 def _configure_service(cls: type,
-                       service_provider: Provide[ServiceProvider] = None,
+                       service_provider: ServiceProvider = inject.me(),
                        conf: object = None) -> None:
     from .service import Service
-    assert service_provider is not None
 
     conf = conf or getattr(cls, '__antidote__', None)
     if not isinstance(conf, Service.Conf):

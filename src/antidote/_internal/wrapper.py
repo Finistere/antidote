@@ -1,11 +1,11 @@
 import functools
 import inspect
-from typing import Awaitable, Callable, Dict, Hashable, Sequence, cast
+from typing import Awaitable, Callable, cast, Dict, Hashable, Sequence
 
 from . import API
 from .state import current_container
 from .utils import FinalImmutable
-from ..core.container import Container
+from ..core.container import _DEFAULT_SENTINEL, Container
 from ..core.exceptions import DependencyNotFoundError
 
 compiled = False
@@ -17,10 +17,25 @@ class Injection(FinalImmutable):
     Maps an argument name to its dependency and if the injection is required,
     which is equivalent to no default argument.
     """
-    __slots__ = ('arg_name', 'required', 'dependency')
+    __slots__ = ('arg_name', 'required', 'dependency', 'default_value')
     arg_name: str
     required: bool
     dependency: Hashable
+    default_value: object
+
+    def __init__(self,
+                 *,
+                 arg_name: str,
+                 required: bool,
+                 optional: bool,
+                 dependency: Hashable
+                 ) -> None:
+        super().__init__(
+            arg_name=arg_name,
+            required=required,
+            dependency=dependency,
+            default_value=None if optional else _DEFAULT_SENTINEL
+        )
 
 
 @API.private
@@ -198,7 +213,8 @@ def _inject_kwargs(container: Container,
     for injection in blueprint.injections[offset:]:
         if injection.dependency is not None and injection.arg_name not in kwargs:
             try:
-                arg = container.get(injection.dependency)
+                arg = container.get(injection.dependency,
+                                    injection.default_value)
                 if not dirty_kwargs:
                     kwargs = kwargs.copy()
                     dirty_kwargs = True

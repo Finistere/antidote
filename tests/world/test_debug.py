@@ -1,8 +1,9 @@
 import textwrap
 
-from antidote import (Constants, Factory, From, LazyCall, LazyMethodCall, Provide,
-                      Service, const, implementation, inject, world)
-from antidote._compatibility.typing import Annotated
+from typing_extensions import Annotated
+
+from antidote import (const, Constants, Factory, From, implementation, inject, LazyCall,
+                      LazyMethodCall, Provide, Service, world)
 from antidote._internal.utils import short_id
 
 

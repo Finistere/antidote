@@ -1,10 +1,11 @@
 from contextlib import contextmanager
-from typing import (Any, Callable, Dict, Hashable, Iterator, Optional, TypeVar, Union,
-                    get_type_hints, overload)
+from typing import (Any, Callable, cast, Dict, get_type_hints, Hashable, Iterator, Optional,
+                    overload,
+                    TypeVar, Union)
 
 from ..._internal import API, state
 from ..._providers.world_test import WorldTestProvider
-from ...core import Provide, inject
+from ...core import inject
 from ...core.container import DependencyValue, RawContainer, RawProvider, Scope
 from ...core.exceptions import DependencyNotFoundError
 from ...utils import validated_scope
@@ -101,7 +102,7 @@ def new() -> Iterator[None]:
         ... world.get[int]("test")
         Traceback (most recent call last):
         ...
-        DependencyNotFoundError: 'test'
+        DependencyNotFoundError: test
 
     """
 
@@ -125,21 +126,20 @@ __sentinel = object()
 
 
 @overload
-def singleton(dependency: Hashable,  # noqa: E704  # pragma: no cover
-              value: object
-              ) -> None: ...
+def singleton(dependency: Hashable, value: object) -> None:
+    ...  # pragma: no cover
 
 
 @overload
-def singleton(dependency: Dict[Hashable, object]  # noqa: E704  # pragma: no cover
-              ) -> None: ...
+def singleton(dependency: Dict[Hashable, object]) -> None:
+    ...  # pragma: no cover
 
 
 @API.public
 @inject
-def singleton(dependency: Union[Dict[Hashable, object], Hashable],
+def singleton(dependency: Union[Dict[object, object], object],
               value: object = __sentinel,
-              test_provider: Provide[WorldTestProvider] = None) -> None:
+              test_provider: Optional[WorldTestProvider] = inject.me()) -> None:
     """
     Declare one or multiple singleton dependencies with its associated value.
 
@@ -148,10 +148,13 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
         >>> from antidote import world
         >>> with world.test.new():  # or empty()
         ...     world.test.singleton("test", 1)
+        ...     # or
+        ...     world.test.singleton({"dummy": 1})
         ...     world.get[int]("test")
         1
 
     Args:
+        test_provider:
         dependency: Singleton to declare, must be hashable. If a dict is provided, it'll
             be treated as a dictionary of singletons to add.
         value: Associated value for the dependency.
@@ -162,7 +165,7 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
                            "created with world.test.new() or world.test.empty()")
     if value is __sentinel:
         if isinstance(dependency, dict):
-            test_provider.add_singletons(dependency)
+            test_provider.add_singletons(cast(Dict[object, object], dependency))
         else:
             raise TypeError("If only a single argument is provided, "
                             "it must be a dictionary of singletons.")
@@ -178,7 +181,7 @@ F = TypeVar('F', bound=Callable[..., Any])
 @API.public
 def factory(dependency: Hashable = None,
             *,
-            singleton: bool = None,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel()
             ) -> Callable[[F], F]:
     """
@@ -217,7 +220,7 @@ def factory(dependency: Hashable = None,
     scope = validated_scope(scope, singleton, default=Scope.singleton())
 
     @inject
-    def decorate(f: F, test_provider: Provide[WorldTestProvider] = None) -> F:
+    def decorate(f: F, test_provider: Optional[WorldTestProvider] = inject.me()) -> F:
         if test_provider is None:
             raise RuntimeError("Test singletons can only be added inside a test world "
                                "created with world.test.new()")

@@ -24,7 +24,7 @@ def current_overridable_container() -> OverridableRawContainer:
     return __container
 
 
-# Used only for tests
+# Used only for internal tests
 def reset() -> None:
     global __container
     __container = None
@@ -32,11 +32,10 @@ def reset() -> None:
 
 def init() -> None:
     global __container
-    if __container is None:
-        with __container_lock:
-            if __container is None:
-                from antidote._internal.world import new_container
-                __container = new_container()
+    with __container_lock:
+        if __container is None:
+            from .._internal.world import new_container
+            __container = new_container()
 
 
 @contextmanager

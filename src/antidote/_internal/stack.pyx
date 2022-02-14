@@ -23,8 +23,8 @@ cdef class DependencyStack:
         cdef:
             size_t capacity = 32
 
-        self._trace = <PyObject**> PyMem_Malloc(capacity * sizeof(PyObject*))
-        self._hashes = <Py_hash_t*> PyMem_Malloc(capacity * sizeof(Py_hash_t))
+        self._trace = <PyObject**> PyMem_Malloc(capacity * sizeof(PyObject *))
+        self._hashes = <Py_hash_t *> PyMem_Malloc(capacity * sizeof(Py_hash_t))
         self._depth = 0
         self._capacity = capacity
 
@@ -34,8 +34,8 @@ cdef class DependencyStack:
 
     @contextmanager
     def instantiating(self, dependency: Hashable):
-        if 0 != self.push(<PyObject*> dependency):
-            raise self.reset_with_error(<PyObject*> dependency)
+        if 0 != self.push(<PyObject *> dependency):
+            raise self.reset_with_error(<PyObject *> dependency)
         try:
             yield
         finally:
@@ -48,17 +48,17 @@ cdef class DependencyStack:
     def to_list(self):
         cdef:
             list l = []
-            PyObject*t
+            PyObject *t
 
         for t in self._trace[:self._depth]:
             l.append(<object> t)
 
         return l
 
-    cdef Exception reset_with_error(self, PyObject*dependency):
+    cdef Exception reset_with_error(self, PyObject *dependency):
         cdef:
             list l = []
-            PyObject*t
+            PyObject *t
 
         for t in self._trace[:self._depth]:
             l.append(<object> t)
@@ -67,7 +67,7 @@ cdef class DependencyStack:
         from ..core.exceptions import DependencyCycleError
         return DependencyCycleError(l)
 
-    cdef bint push(self, PyObject*dependency):
+    cdef bint push(self, PyObject *dependency):
         """
         Args:
             dependency: supposed to be hashable as the core tries to 
@@ -80,11 +80,11 @@ cdef class DependencyStack:
         cdef:
             size_t depth = self._depth
             PyObject** traces = self._trace
-            Py_hash_t*hashes = self._hashes
-            Py_hash_t*h
+            Py_hash_t *hashes = self._hashes
+            Py_hash_t *h
             Py_hash_t dependency_hash = PyObject_Hash(dependency)
             int i = 0
-            PyObject*t
+            PyObject *t
 
         for h in hashes[:depth]:
             if h[0] == dependency_hash:
@@ -96,7 +96,7 @@ cdef class DependencyStack:
         if depth == self._capacity:
             self._capacity *= 2
             PyMem_Realloc(hashes, self._capacity * sizeof(Py_hash_t))
-            PyMem_Realloc(traces, self._capacity * sizeof(PyObject*))
+            PyMem_Realloc(traces, self._capacity * sizeof(PyObject *))
         hashes[depth] = dependency_hash
         traces[depth] = dependency
 

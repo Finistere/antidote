@@ -1,9 +1,10 @@
 import weakref
 from typing import Callable, Optional
 
-from ._compatibility.typing import final
+from typing_extensions import final
+
 from ._internal import API
-from ._internal.utils import FinalImmutable, debug_repr, short_id
+from ._internal.utils import debug_repr, FinalImmutable, short_id
 from ._lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
                     LazyMethodCallWithArgsKwargs)
 from ._providers import Lazy
@@ -44,7 +45,7 @@ class LazyCall(FinalImmutable, Lazy):
     def __init__(self,
                  func: Callable[..., object],
                  *,
-                 singleton: bool = None,
+                 singleton: Optional[bool] = None,
                  scope: Optional[Scope] = Scope.sentinel()) -> None:
         """
         Args:
@@ -64,7 +65,7 @@ class LazyCall(FinalImmutable, Lazy):
                                                singleton,
                                                default=Scope.singleton()))
 
-    def __call__(self, *args: object, **kwargs: object) -> 'LazyCallWithArgsKwargs':
+    def __call__(self, *args: object, **kwargs: object) -> LazyCallWithArgsKwargs[object]:
         """
         All argument are passed on to the lazily called function.
         """
@@ -78,17 +79,17 @@ class LazyCall(FinalImmutable, Lazy):
         return s
 
     @API.private
-    def debug_info(self) -> DependencyDebug:
+    def __antidote_debug_info__(self) -> DependencyDebug:
         return DependencyDebug(self.__antidote_debug_repr__(),
                                scope=self._scope,
                                wired=[self.func])
 
     @API.private
-    def provide(self, container: Container) -> DependencyValue:
+    def __antidote_provide__(self, container: Container) -> DependencyValue:
         return DependencyValue(self.func(), scope=self._scope)
 
 
-@API.public
+@API.deprecated
 @final
 class LazyMethodCall(FinalImmutable):
     """
@@ -134,7 +135,7 @@ class LazyMethodCall(FinalImmutable):
     def __init__(self,
                  method: Callable[..., object],
                  *,
-                 singleton: bool = None,
+                 singleton: Optional[bool] = None,
                  scope: Scope = Scope.sentinel()) -> None:
         """
         Args:
@@ -155,7 +156,7 @@ class LazyMethodCall(FinalImmutable):
             f"__antidote_dependency_{hex(id(self))}"
         )
 
-    def __call__(self, *args: object, **kwargs: object) -> 'LazyMethodCallWithArgsKwargs':
+    def __call__(self, *args: object, **kwargs: object) -> LazyMethodCallWithArgsKwargs:
         """
         All argument are passed on to the lazily called method.
         """

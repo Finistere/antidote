@@ -1,6 +1,6 @@
 import pytest
 
-from antidote import Factory, Provide, Service, factory, implementation, inject, world
+from antidote import Factory, factory, implementation, inject, Provide, service, Service, world
 from antidote._implementation import validate_provided_class
 from antidote._providers import (FactoryProvider, IndirectProvider,
                                  ServiceProvider)
@@ -362,3 +362,24 @@ def test_double_injection():
 
     assert world.get(Interface @ choose_a) is world.get(A)
     assert injected is world.get(B)
+
+
+def test_source_notation():
+    @service
+    class A(Interface):
+        pass
+
+    @implementation(Interface)
+    def choose():
+        return A
+
+    assert world.get(Interface, source=choose) is world.get(A)
+
+    @inject
+    def f(a: Interface = inject.me(source=choose)) -> Interface:
+        return a
+
+    assert f() is world.get(A)
+
+    with pytest.raises(ValueError, match="Unsupported interface.*"):
+        world.get(A, source=choose)

@@ -1,5 +1,7 @@
 import inspect
-from typing import Callable, Dict, TypeVar, Union, cast
+from typing import Any, Callable, cast, Dict, TypeVar, Union  # noqa: F401
+
+from typing_extensions import TypeAlias
 
 from .exceptions import DoubleInjectionError
 from .injection import inject
@@ -8,7 +10,7 @@ from .._internal import API
 from .._internal.wrapper import is_wrapper
 
 C = TypeVar('C', bound=type)
-AnyF = Union[Callable[..., object], staticmethod, classmethod]
+AnyF: TypeAlias = 'Union[Callable[..., object], staticmethod[Any], classmethod[Any]]'
 
 
 @API.private
@@ -54,4 +56,4 @@ def wire_class(cls: C, wiring: Wiring) -> C:
             if injected_method is not method:  # If something has changed
                 setattr(cls, name, injected_method)
 
-    return cls
+    return cast(C, cls)

@@ -1,30 +1,36 @@
+from __future__ import annotations
+
 import functools
 import inspect
-from typing import Callable, Dict, Hashable, Tuple, Type, cast
+import warnings
+from typing import Callable, cast, Dict, Hashable, Tuple, Type, TypeVar
 
-from ._compatibility.typing import get_type_hints
+from typing_extensions import get_type_hints, ParamSpec
+
 from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
 from ._providers import FactoryProvider
 from ._providers.factory import FactoryDependency
 from ._providers.service import Parameterized
 from ._utils import validate_method_parameters
-from .core import Provide, inject
+from .core import inject
 from .service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'
+P = ParamSpec('P')
+T = TypeVar('T')
 
 
 @API.private
 class FactoryMeta(AbstractMeta):
     __factory_dependency: FactoryDependency
 
-    def __new__(mcs: 'Type[FactoryMeta]',
+    def __new__(mcs: Type[FactoryMeta],
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
                 **kwargs: object
-                ) -> 'FactoryMeta':
+                ) -> FactoryMeta:
         abstract = kwargs.get('abstract')
 
         if '__call__' not in namespace and not abstract:
@@ -39,16 +45,22 @@ class FactoryMeta(AbstractMeta):
 
         return cls
 
-    @API.public
+    @API.deprecated
     def __rmatmul__(cls, left_operand: Hashable) -> object:
+        warnings.warn("Prefer the Get(dependency, source=factory) notation.", DeprecationWarning)
         if left_operand is not cls.__factory_dependency.output:
             output = cls.__factory_dependency.output
             raise ValueError(f"Unsupported output {left_operand}, expected {output}")
         return cls.__factory_dependency
 
-    @API.public
-    def parameterized(cls, **kwargs: object) -> 'PreBuild':
+    @API.deprecated
+    def parameterized(cls, **kwargs: object) -> PreBuild:
         """
+        .. deprecated:: 1.1
+            :code:`parameterized()` is a complex behavior with poor type-safety. Use-cases that
+            really benefit from this behavior are few and would be better implemeneted explicitly
+            in your own code.
+
         Creates a new dependency based on the factory with the given arguments. The new
         dependency will have the same scope as the original one.
 
@@ -86,6 +98,9 @@ class FactoryMeta(AbstractMeta):
         Returns:
             Dependency to be retrieved from Antidote.
         """
+        warnings.warn("Deprecated, parameterized() is too complex and not type-safe",
+                      DeprecationWarning)
+
         from .factory import Factory
         assert cls.__factory_dependency is not None
 
@@ -96,7 +111,7 @@ class FactoryMeta(AbstractMeta):
                                f"specify them explicitly in the configuration with: "
                                f"Factory.Conf(parameters=...))")
 
-        if set(kwargs.keys()) != conf.parameters:
+        if set(kwargs.keys()) != set(conf.parameters or []):
             raise ValueError(f"Given parameters do not match expected ones. "
                              f"Got: ({','.join(map(repr, kwargs.keys()))}) "
                              f"Expected: ({','.join(map(repr, conf.parameters))})")
@@ -107,10 +122,9 @@ class FactoryMeta(AbstractMeta):
 @API.private
 @inject
 def _configure_factory(cls: FactoryMeta,
-                       factory_provider: Provide[FactoryProvider] = None
+                       factory_provider: FactoryProvider = inject.me()
                        ) -> FactoryDependency:
     from .factory import Factory
-    assert factory_provider is not None
 
     conf = getattr(cls, '__antidote__', None)
     if not isinstance(conf, Factory.Conf):
@@ -139,22 +153,29 @@ def _configure_factory(cls: FactoryMeta,
 
 @API.private
 class FactoryWrapper:
-    def __init__(self, wrapped: Callable[..., object],
-                 factory_dependency: FactoryDependency) -> None:
+    def __init__(self,
+                 *,
+                 wrapped: Callable[..., object],
+                 output: object) -> None:
         self.__wrapped__ = wrapped
-        self.__factory_dependency = factory_dependency
+        self.__output = output
         functools.wraps(wrapped, updated=())(self)
 
     def __call__(self, *args: object, **kwargs: object) -> object:
         return self.__wrapped__(*args, **kwargs)
 
-    def __rmatmul__(self, left_operand: Hashable) -> object:
-        if left_operand is not self.__factory_dependency.output:
-            raise ValueError(f"Unsupported output {left_operand}")
-        return self.__factory_dependency
+    def __rmatmul__(self, klass: type) -> object:
+        warnings.warn("Prefer the Get(dependency, source=factory) notation.",
+                      DeprecationWarning)
+        if klass is not self.__output:
+            raise ValueError(f"Unsupported output {klass}")
+        return FactoryDependency(factory=self, output=self.__output)
 
     def __getattr__(self, item: str) -> object:
         return getattr(self.__wrapped__, item)
+
+    def __repr__(self) -> str:
+        return f"FactoryWrapper({self.__wrapped__!r})"
 
 
 @API.private

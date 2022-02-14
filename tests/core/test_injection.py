@@ -2,9 +2,9 @@ import itertools
 from typing import Optional, Sequence, Union
 
 import pytest
+from typing_extensions import Annotated
 
 from antidote import From, FromArg, Get, world
-from antidote._compatibility.typing import Annotated
 from antidote.core.annotations import Provide
 from antidote.core.injection import inject, validate_injection
 from antidote.exceptions import DependencyNotFoundError, DoubleInjectionError
@@ -605,6 +605,9 @@ def injected_method_with(request, injector):
         pytest.param(pytest.raises(TypeError),
                      dict(dependencies={1: 'x'}),
                      id="dependencies:invalid-key-type"),
+        pytest.param(pytest.raises(TypeError, match=".*ignore_type_hints.*"),
+                     dict(ignore_type_hints=object()),
+                     id="ignore_type_hints:unsupported-type"),
         pytest.param(pytest.raises(TypeError, match=".*auto_provide.*"),
                      dict(auto_provide=object()),
                      id="auto_provide:unsupported-type"),
@@ -923,3 +926,29 @@ def test_dependencies_shortcut():
             @inject(dict(x=MyService), dependencies=dict())
             def h3(x):
                 return x
+
+
+def test_ignore_type_hints():
+    with world.test.new():
+        world.test.singleton(MyService, MyService())
+
+        with pytest.raises(NameError, match=".*name 'A' is not defined.*"):
+            @inject
+            def f(a: 'A', my_service: MyService = inject.get(MyService)):
+                return my_service
+
+        @inject(ignore_type_hints=True)
+        def g(a: 'A', my_service: MyService = inject.get(MyService)):
+            return my_service
+
+        class A:
+            pass
+
+        assert g(A()) is world.get[MyService]()
+
+
+def test_no_injection_error_when_ignoring_type_hints():
+    with pytest.raises(RuntimeError, match="(?i)No dependencies found.*"):
+        @inject(ignore_type_hints=True)
+        def f():
+            pass

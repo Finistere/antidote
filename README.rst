@@ -21,7 +21,7 @@ Antidote
   :target: http://antidote.readthedocs.io/en/latest/?badge=latest
 
 
-Antidotes is a dependency injection micro-framework for Python 3.6+. It is built on the
+Antidotes is a dependency injection micro-framework for Python 3.7+. It is built on the
 idea of ensuring best **maintainability** of your code while being as **easy to use** as possible.
 It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere
 and **fast full isolation of your tests**.
@@ -114,22 +114,17 @@ Injection
 
 .. code-block:: python
 
-    from antidote import Service, inject, Provide, service
-
-    class Database(Service):
-        pass
-
-    # or
+    from antidote import inject, service
 
     @service
     class Database:
         pass
 
     @inject
-    def f(db: Provide[Database]):
-        pass
+    def f(db: Database = inject.me()):
+        return db
 
-    f()  # works !
+    assert isinstance(f(), Database)  # works !
 
 Simple, right ? And you can still use it like a normal function, typically when testing it:
 
@@ -137,17 +132,19 @@ Simple, right ? And you can still use it like a normal function, typically when 
 
     f(Database())
 
-:code:`@inject` supports a lot of different ways to express which dependency should be
-used, the most important ones are:
+:py:func:`.inject` here used the marker :code:`inject.me()` with the help of the type hint to determine
+the dependency. But it also supports the following ways to express the dependency wiring:
 
 - annotated type hints:
     .. code-block:: python
 
+        from antidote import Inject
+
         @inject
-        def f(db: Provide[Database]):
+        def f(db: Inject[Database]):
             pass
 
-- list:
+- list (matching argument position):
     .. code-block:: python
 
         @inject([Database])
@@ -161,13 +158,21 @@ used, the most important ones are:
         def f(db):
             pass
 
-- auto_provide
+- optional dependencies:
     .. code-block:: python
 
-        # All class type hints are treated as dependencies
-        @inject(auto_provide=True)
-        def f(db: Database):
+        from typing import Optional
+
+        class Dummy:
             pass
+
+        # When the type_hint is optional and a marker like `inject.me()` is used, None will be
+        # provided if the dependency does not exists.
+        @inject
+        def f(dummy: Optional[Dummy] = inject.me()):
+            return dummy
+
+        assert f() is None
 
 You can also retrieve the dependency by hand with :code:`world.get`:
 
@@ -177,8 +182,7 @@ You can also retrieve the dependency by hand with :code:`world.get`:
 
     # Retrieve dependencies by hand, in tests typically
     world.get(Database)
-    world.get[Database](Database)  # with type hint
-    world.get[Database]()  # omit dependency if it's the type hint itself
+    world.get[Database](Database)  # with type hint, enforced when possible
 
 
 Service
@@ -186,28 +190,7 @@ Service
 
 Services are classes for which Antidote provides an instance. It can be a singleton or not.
 Scopes are also supported. Every method is injected by default, relying on annotated type
-hints. It can also be parametrized or configured differently.
-
-.. code-block:: python
-
-    from antidote import Service, Provide, inject
-
-    class QueryBuilder(Service):
-        __antidote__ = Service.Conf(singleton=False)  # new instance each time
-
-        # methods injected by default
-        def __init__(self, db: Provide[Database]):
-            self._db = db
-
-    @inject({'builder': QueryBuilder})
-    def load_data(builder):
-        pass
-
-    load_data()  # yeah !
-
-
-If you don't want to inherit from :code:`Service` you can use the class decorator
-:code:`service` instead.
+hints and markers such as :code:`inject.me()`:
 
 .. code-block:: python
 
@@ -216,15 +199,20 @@ If you don't want to inherit from :code:`Service` you can use the class decorato
     @service(singleton=False)
     class QueryBuilder:
         # methods are also injected by default
-        def __init__(self, db: Provide[Database]):
+        def __init__(self, db: Database = inject.me()):
             self._db = db
+
+    @inject
+    def load_data(builder: QueryBuilder = inject.me()):
+        pass
+
+    load_data()  # yeah !
 
 
 Constants
 ---------
 
-Constants are, by definition, constants that Antidote provides lazily. It's primary use
-case is configuration:
+Constants can be provided lazily by Antidote:
 
 .. code-block:: python
 
@@ -233,110 +221,74 @@ case is configuration:
     class Config(Constants):
         DB_HOST = const('localhost')
 
-    @inject([Config.DB_HOST])
-    def ping_db(db_host: str):
+    @inject
+    def ping_db(db_host: str = Config.DB_HOST):
         pass
 
     ping_db()  # nice !
 
-Now this looks a bit overkill, but it allows you to refactor it easily or load complex
-configuration lazily. Here is a similar example, but loading the configuration from
-the environment:
+This feature really shines when your constants aren't hard-coded:
 
 .. code-block:: python
 
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-    from antidote import inject, Constants, const, Get
+    from typing import Optional
+    from antidote import inject, Constants, const
 
     class Config(Constants):
-        DB_HOST = const[str]()  # used as a type annotation
-        DB_PORT = const[int]()  # and also to cast the value retrieved from `provide_const`
-        # defaults are supported, used on LookupError
-        DB_USER = const[str](default='postgres')
+        # Like world.get, a type hint can be provided and is enforced.
+        DB_HOST = const[str]()
+        DB_PORT = const[int]()
+        DB_USER = const[str](default='postgres')  # default is used on LookupError
 
-        def provide_const(self, name: str, arg: object):
+        # name of the constant and the arg given to const() if any.
+        def provide_const(self, name: str, arg: Optional[object]):
             return os.environ[name]
 
     import os
     os.environ['DB_HOST'] = 'localhost'
     os.environ['DB_PORT'] = '5432'
 
-    @inject()
-    def check_connection(db_host: Annotated[str, Get(Config.DB_HOST)],
-                         db_port: Annotated[int, Get(Config.DB_PORT)]):
+    @inject
+    def check_connection(db_host: str = Config.DB_HOST,
+                         db_port: int = Config.DB_PORT,
+                         db_user: str = Config.DB_USER):
         pass
 
     check_connection()  # perfect !
 
-Note that we could have replaced the previous :code:`Config` without any changes in the
-clients.
+Note that on the injection site, nothing changed!
 
 
 Factory
 -------
 
-Factories are used by Antidote to generate a dependency. It can either be a class or a function.
-The resulting dependency can be a singleton or not. Scopes are also supported. If a class is used
-it'll be wired (injection of methods) in the same way as :code:`Service`:
+Factories are used by Antidote to generate a dependency, typically a class from an external code:
 
 .. code-block:: python
 
-    from antidote import factory, inject, Provide
+    from antidote import factory, inject
 
     class User:
         pass
 
-    @factory(singleton=False)  # annotated type hints can be used or you can @inject manually
-    def current_user(db: Provide[Database]) -> User:  # return type annotation is used
+    @factory(singleton=False)  # function is injected by default
+    def current_user(db: Database = inject.me()) -> User:
         return User()
 
-    # Note that here you *know* exactly where it's coming from.
-    @inject({'user': User @ current_user})
-    def is_admin(user: User):
+    # Consistency between the type hint and the factory result type hint is enforced.
+    @inject
+    def is_admin(user: User = inject.me(source=current_user)):
         pass
 
-Easy to understand where the dependency is actually coming from ! Like :code:`Service`,
-you can also retrieve it by hand:
+While it's a bit verbose, you always know how the dependency is created. Obviously you can retrieve
+it from world:
 
 .. code-block:: python
 
     from antidote import world
 
-    world.get(User @ current_user)
-    world.get[User](User @ current_user)  # with type hint
-    world.get[User] @ current_user  # same, but shorter
+    world.get(User, source=current_user)
 
-Now with a request scope and a factory class:
-
-.. code-block:: python
-
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-    from antidote import Factory, inject, Provide, world, From
-
-    REQUEST_SCOPE = world.scopes.new(name='request')
-
-    class CurrentUser(Factory):
-        __antidote__ = Factory.Conf(scope=REQUEST_SCOPE)
-
-        # injecting it in __call__() would have also worked
-        def __init__(self, db: Provide[Database]):
-            self._db = db
-
-        def __call__(self) -> User:
-            return User()
-
-    @inject
-    def is_admin(user: Annotated[User, From(CurrentUser)]):
-        pass
-
-    is_admin()
-
-    # Reset all dependencies in the specified scope.
-    world.scopes.reset(REQUEST_SCOPE)
-
-Here also, knowing where and how a scope is used is straightforward with an IDE.
 
 
 Interface/Implementation
@@ -348,12 +300,13 @@ will retrieve the current implementation each time:
 
 .. code-block:: python
 
-    from antidote import Service, implementation, inject, factory
+    from antidote import implementation, inject, factory, Get
 
     class Cache:
         pass
 
-    class MemoryCache(Cache, Service):
+    @service
+    class MemoryCache(Cache):
         pass
 
     class Redis:
@@ -364,29 +317,28 @@ will retrieve the current implementation each time:
         return Redis()
 
     @implementation(Cache)
-    def cache_impl():
+    def global_cache():
+        # Returning the dependency that must be retrieved
         import os
 
         if os.environ.get('USE_REDIS_CACHE'):
-            return Redis @ redis_cache
+            return Get(Redis, source=redis_cache)
 
-        # Returning the dependency that must be retrieved
         return MemoryCache
 
 The cache can then be retrieved with the same syntax as a factory:
 
 .. code-block:: python
 
-    from typing import Annotated
-    # from typing_extensions import Annotated # Python < 3.9
-    from antidote import world, inject, From
+    from antidote import world, inject
 
     @inject
-    def heavy_compute(cache: Annotated[Cache, From(cache_impl)]):
+    def heavy_compute(cache: Cache = inject.me(source=global_cache)):
         pass
 
 
-    world.get[Cache] @ cache_impl
+    heavy_compute()
+    world.get(Cache, source=global_cache)
 
 Like factories, it's easy to know where the dependency is coming from !
 
@@ -398,13 +350,14 @@ Testing and Debugging
 
 .. code-block:: python
 
-    from antidote import Service, inject, Provide
+    from antidote import service, inject
 
-    class Database(Service):
+    @service
+    class Database:
         pass
 
     @inject
-    def f(db: Provide[Database]):
+    def f(db: Database = inject.me()):
         pass
 
     f()

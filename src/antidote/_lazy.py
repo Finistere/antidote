@@ -1,25 +1,30 @@
-import weakref
-from typing import Callable, Dict, Optional, TYPE_CHECKING, Tuple, Union, cast
+from __future__ import annotations
 
-from ._compatibility.typing import final
+import weakref
+from typing import Callable, cast, Dict, Optional, Tuple, TYPE_CHECKING, TypeVar, Union
+
+from typing_extensions import final
+
 from ._internal import API
-from ._internal.utils import FinalImmutable, debug_repr, short_id
+from ._internal.utils import debug_repr, FinalImmutable, short_id
 from ._providers import Lazy
-from .core import Container, DependencyDebug, DependencyValue, Scope
+from .core import Container, Dependency, DependencyDebug, DependencyValue, Scope
 from .service import Service
 
 if TYPE_CHECKING:
     from .lazy import LazyMethodCall
 
+T = TypeVar('T')
+
 
 @API.private
 @final
-class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
+class LazyCallWithArgsKwargs(FinalImmutable, Lazy, Dependency[T]):
     """
     :meta private:
     """
     __slots__ = ('func', '_scope', '_args', '_kwargs')
-    func: Callable[..., object]
+    func: Callable[..., T]
     _scope: Optional[Scope]
     _args: Tuple[object, ...]
     _kwargs: Dict[str, object]
@@ -30,12 +35,12 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy):
             s += f"  #{short_id(self)}"
         return s
 
-    def debug_info(self) -> DependencyDebug:
+    def __antidote_debug_info__(self) -> DependencyDebug:
         return DependencyDebug(self.__antidote_debug_repr__(),
                                scope=self._scope,
                                wired=[self.func])
 
-    def provide(self, container: Container) -> DependencyValue:
+    def __antidote_provide__(self, container: Container) -> DependencyValue:
         return DependencyValue(self.func(*self._args, **self._kwargs),
                                scope=self._scope)
 
@@ -89,10 +94,10 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
     :meta private:
     """
     __slots__ = ('__descriptor', '__owner_ref')
-    __descriptor: 'Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]'
-    __owner_ref: 'weakref.ReferenceType[type]'
+    __descriptor: Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]
+    __owner_ref: weakref.ReferenceType[type]
 
-    def debug_info(self) -> DependencyDebug:
+    def __antidote_debug_info__(self) -> DependencyDebug:
         owner = self.__owner_ref()
         assert owner is not None
         descriptor = cast('LazyMethodCall', self.__descriptor)
@@ -101,7 +106,7 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
                                wired=[getattr(owner, descriptor._method_name)],
                                dependencies=[owner])
 
-    def provide(self, container: Container) -> DependencyValue:
+    def __antidote_provide__(self, container: Container) -> DependencyValue:
         owner = self.__owner_ref()
         assert owner is not None
         descriptor = cast('LazyMethodCall', self.__descriptor)

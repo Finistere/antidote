@@ -10,7 +10,7 @@ with open(str(here / 'README.rst'), 'r') as f:
 
 ext_modules = []
 install_requires = [
-    'typing_extensions; python_version < "3.9.0"'
+    'typing_extensions'
 ]
 
 # Ideally this would be done with a installation flag...
@@ -79,7 +79,7 @@ setup(
     package_data={"antidote": ["py.typed"]},
     include_dirs=["src"],
     ext_modules=ext_modules,
-    python_requires='>=3.6,<4',
+    python_requires='>=3.7,<4',
     install_requires=install_requires,
     license='MIT',
     classifiers=[
@@ -89,7 +89,6 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',

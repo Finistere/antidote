@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import inspect
 from typing import Callable, Dict, Hashable, Optional
 
 from .._internal import API
-from .._internal.utils import FinalImmutable, debug_repr
+from .._internal.utils import debug_repr, FinalImmutable
 from ..core import Container, DependencyDebug, DependencyValue, Provider, Scope
 
 
@@ -16,7 +18,7 @@ class IndirectProvider(Provider[Hashable]):
         return f"{type(self).__name__}(" \
                f"implementations={list(self.__implementations.keys())})"
 
-    def clone(self, keep_singletons_cache: bool) -> 'IndirectProvider':
+    def clone(self, keep_singletons_cache: bool) -> IndirectProvider:
         p = IndirectProvider()
         p.__implementations = self.__implementations.copy()
         return p
@@ -70,7 +72,7 @@ class IndirectProvider(Provider[Hashable]):
                                 implementation: Callable[[], Hashable],
                                 *,
                                 permanent: bool
-                                ) -> 'ImplementationDependency':
+                                ) -> ImplementationDependency:
         assert callable(implementation) \
                and inspect.isclass(interface) \
                and isinstance(permanent, bool)
@@ -89,7 +91,7 @@ class ImplementationDependency(FinalImmutable):
     __hash: int
 
     def __init__(self,
-                 interface: Hashable,
+                 interface: object,
                  implementation: Callable[[], Hashable],
                  permanent: bool):
         super().__init__(interface,

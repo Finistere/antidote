@@ -1,25 +1,56 @@
+from __future__ import annotations
+
 import collections.abc as c_abc
 import inspect
-from typing import (Any, Callable, Dict, Hashable, Iterable, List, Mapping, TYPE_CHECKING,
-                    Union, cast, Set)
+from typing import (Any, Callable, cast, Dict, Iterable, List, Mapping, Set,  # noqa: F401
+                    TYPE_CHECKING, Union)
+
+from typing_extensions import TypeAlias
 
 from .exceptions import DoubleInjectionError
+from .marker import Marker
 from .._internal import API
 from .._internal.argspec import Arguments
-from .._internal.wrapper import (Injection, InjectionBlueprint, build_wrapper,
-                                 get_wrapped, is_wrapper)
+from .._internal.utils import FinalImmutable
+from .._internal.wrapper import (build_wrapper, get_wrapped, Injection,
+                                 InjectionBlueprint, is_wrapper)
 
 if TYPE_CHECKING:
     from .injection import DEPENDENCIES_TYPE, AUTO_PROVIDE_TYPE
 
-AnyF = Union[Callable[..., Any], staticmethod, classmethod]
+AnyF: TypeAlias = 'Union[Callable[..., Any], staticmethod[Any], classmethod[Any]]'
+
+
+@API.private
+class ArgDependency(FinalImmutable):
+    __slots__ = ('dependency', 'optional')
+    dependency: object
+    optional: bool
+
+    @classmethod
+    def of(cls, x: object) -> ArgDependency:
+        from .annotations import Get
+
+        if isinstance(x, ArgDependency):
+            return x
+        if isinstance(x, Get):
+            x = x.dependency
+
+        return ArgDependency(x)
+
+    def __init__(self, dependency: object, optional: bool = False) -> None:
+        super().__init__(dependency, optional)
 
 
 @API.private
 def raw_inject(f: AnyF,
-               dependencies: 'DEPENDENCIES_TYPE',
-               auto_provide: 'AUTO_PROVIDE_TYPE',
-               strict_validation: bool) -> AnyF:
+               dependencies: DEPENDENCIES_TYPE,
+               auto_provide: AUTO_PROVIDE_TYPE,
+               strict_validation: bool,
+               ignore_type_hints: bool) -> AnyF:
+    if not isinstance(ignore_type_hints, bool):
+        raise TypeError(f"ignore_type_hints must be a boolean, not {type(ignore_type_hints)}")
+
     if not isinstance(strict_validation, bool):
         raise TypeError(f"strict_validation must be a boolean, "
                         f"not {type(strict_validation)}")
@@ -38,7 +69,7 @@ def raw_inject(f: AnyF,
                         f"nor a (class/static) method")
 
     blueprint = _build_injection_blueprint(
-        arguments=Arguments.from_callable(f),
+        arguments=Arguments.from_callable(f, ignore_type_hints=ignore_type_hints),
         dependencies=dependencies,
         auto_provide=auto_provide,
         strict_validation=strict_validation
@@ -46,6 +77,8 @@ def raw_inject(f: AnyF,
     # If nothing can be injected, just return the existing function without
     # any overhead.
     if blueprint.is_empty():
+        if ignore_type_hints:
+            raise RuntimeError("No dependencies found while ignoring type hints!")
         return f
 
     wrapped_real_f = build_wrapper(blueprint=blueprint, wrapped=real_f)
@@ -58,8 +91,8 @@ def raw_inject(f: AnyF,
 
 @API.private
 def _build_injection_blueprint(arguments: Arguments,
-                               dependencies: 'DEPENDENCIES_TYPE',
-                               auto_provide: 'AUTO_PROVIDE_TYPE',
+                               dependencies: DEPENDENCIES_TYPE,
+                               auto_provide: AUTO_PROVIDE_TYPE,
                                strict_validation: bool
                                ) -> InjectionBlueprint:
     """
@@ -74,26 +107,28 @@ def _build_injection_blueprint(arguments: Arguments,
                                                      strict_validation)
     auto_provided = _build_auto_provide(arguments, auto_provide, annotated,
                                         strict_validation)
-
-    resolved_dependencies: List[object] = [
-        annotated.get(arg.name,
-                      explicit_dependencies.get(arg.name,
-                                                auto_provided.get(arg.name)))
+    resolved_dependencies: List[ArgDependency] = [
+        ArgDependency.of(
+            annotated.get(arg.name,
+                          explicit_dependencies.get(arg.name,
+                                                    auto_provided.get(arg.name)))
+        )
         for arg in arguments
     ]
 
     return InjectionBlueprint(tuple(
         Injection(arg_name=arg.name,
-                  required=not arg.has_default,
-                  dependency=dependency)
-        for arg, dependency in zip(arguments, resolved_dependencies)
+                  required=isinstance(arg.default, Marker) or not arg.has_default,
+                  dependency=arg_dependency.dependency,
+                  optional=arg_dependency.optional)
+        for arg, arg_dependency in zip(arguments, resolved_dependencies)
     ))
 
 
 @API.private
-def _build_from_annotations(arguments: Arguments) -> Dict[str, Hashable]:
+def _build_from_annotations(arguments: Arguments) -> Dict[str, object]:
     from ._annotations import extract_annotated_arg_dependency
-    arg_to_dependency = {}
+    arg_to_dependency: Dict[str, object] = {}
     for arg in arguments:
         dependency = extract_annotated_arg_dependency(arg)
         if dependency is not None:
@@ -104,12 +139,12 @@ def _build_from_annotations(arguments: Arguments) -> Dict[str, Hashable]:
 
 @API.private
 def _build_from_dependencies(arguments: Arguments,
-                             dependencies: 'DEPENDENCIES_TYPE',
+                             dependencies: DEPENDENCIES_TYPE,
                              strict_validation: bool
-                             ) -> Dict[str, Hashable]:
+                             ) -> Dict[str, object]:
     from .injection import Arg
     if dependencies is None:
-        arg_to_dependency: Mapping[str, Hashable] = {}
+        arg_to_dependency: Mapping[str, object] = {}
     elif callable(dependencies):
         arg_to_dependency = {arg.name: dependencies(Arg(arg.name,
                                                         arg.type_hint,
@@ -140,32 +175,39 @@ def _build_from_dependencies(arguments: Arguments,
 
 @API.private
 def _build_auto_provide(arguments: Arguments,
-                        auto_provide: 'AUTO_PROVIDE_TYPE',
-                        annotated: Dict[str, Hashable],
+                        auto_provide: AUTO_PROVIDE_TYPE,
+                        annotated: Dict[str, object],
                         strict_validation: bool
-                        ) -> Dict[str, Hashable]:
+                        ) -> Dict[str, object]:
     from ._annotations import extract_auto_provided_arg_dependency
 
+    auto_provide_set: Set[type] = set()
     if isinstance(auto_provide, bool):
+        auto_provide_bool = auto_provide
+
         def is_auto_provided(__cls: type) -> bool:
-            return cast(bool, auto_provide)
+            return auto_provide_bool
     elif isinstance(auto_provide, c_abc.Iterable):
-        # convert to Tuple in case we cannot iterate more than once.
-        auto_provide = set(auto_provide)
-        for cls in auto_provide:
+        # convert to set in case we cannot iterate more than once.
+        auto_provide_set = set(auto_provide)
+        for cls in auto_provide_set:
             if not (isinstance(cls, type) and inspect.isclass(cls)):
                 raise TypeError(f"auto_provide must be a boolean or an iterable of "
                                 f"classes, but contains {cls!r} which is not a class.")
 
         def is_auto_provided(__cls: type) -> bool:
-            return __cls in cast(Set[type], auto_provide)
+            return __cls in auto_provide_set
     elif callable(auto_provide):
-        is_auto_provided = auto_provide
+        # Looks stupid but both pyright & mypy are happy with it.
+        auto_provide_callable = auto_provide
+
+        def is_auto_provided(__cls: type) -> bool:
+            return auto_provide_callable(__cls)
     else:
         raise TypeError(f"auto_provide must be a boolean, an iterable of classes, "
                         f"or a function not {type(auto_provide)}.")
 
-    auto_provided: Dict[str, Union[type, Hashable]] = {}
+    auto_provided: Dict[str, object] = {}
     for arg in arguments.without_self:
         dependency = extract_auto_provided_arg_dependency(arg)
         if dependency is not None and is_auto_provided(dependency):
@@ -173,8 +215,7 @@ def _build_auto_provide(arguments: Arguments,
 
     provided_dependencies = set(auto_provided.values()).union(annotated.values())
     if strict_validation \
-            and isinstance(auto_provide, set) \
-            and not auto_provide.issubset(provided_dependencies):
+            and not auto_provide_set.issubset(provided_dependencies):
         raise ValueError(f"Some auto_provide dependencies ({auto_provide}) are not "
                          f"present in the function. Found: {provided_dependencies}\n"
                          f"Either ensure that auto_provide matches the function type "

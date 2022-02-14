@@ -60,14 +60,15 @@ and where it should be injected:
 
 .. testcode:: why_dependency_injection
 
-    from antidote import Service, inject, Provide
+    from antidote import service, inject
 
-    class Database(Service):
+    @service
+    class Database:
         def query(self, sql: str) -> Any:
             pass
 
     @inject
-    def get_total_count(db: Provide[Database]) -> int:
+    def get_total_count(db: Database = inject.me()) -> int:
         return db.query("SELECT COUNT(*) FROM my_table")
 
     get_total_count()
@@ -135,23 +136,24 @@ to do all that wiring properly. Here is the same example with Antidote:
 
 .. testcode:: why_dependency_injection
 
-
-    from antidote import Service, inject, Provide, Constants, const
+    from antidote import service, inject, Constants, const
 
     class Config(Constants):
         DB_HOST = const('localhost')
         DB_PORT = const(5432)
 
-    class Database(Service):
-        @inject([Config.DB_HOST, Config.DB_PORT])
-        def __init__(self, host: str, port: int):
+    @service
+    class Database:
+        def __init__(self,
+                     host: str = Config.DB_HOST,
+                     port: int = Config.DB_PORT):
             pass
 
         def query(self, sql: str) -> Any:
             pass
 
     @inject
-    def get_total_count(db: Provide[Database]) -> int:
+    def get_total_count(db: Database = inject.me()) -> int:
         return db.query("SELECT COUNT(*) FROM my_table")
 
     get_total_count()
@@ -265,9 +267,10 @@ Let's see how the same example looks with Antidote:
 
     # my_service.py
     # Antidote
-    from antidote import Service
+    from antidote import service
 
-    class MyService(Service):
+    @service
+    class MyService:
         pass
 
 .. testcode:: why_antidote
@@ -278,7 +281,7 @@ Let's see how the same example looks with Antidote:
     # from my_service import MyService
 
     @inject
-    def main(my_service: Provide[MyService]):
+    def main(my_service: MyService = inject.me()):
         pass
 
 

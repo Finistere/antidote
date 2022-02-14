@@ -1,6 +1,6 @@
 import inspect
 from collections import abc as c_abc
-from typing import (FrozenSet, Iterable, Optional, Callable, Any)
+from typing import (Any, Callable, FrozenSet, Iterable, Optional)
 
 from ._internal import API
 from ._internal.wrapper import get_wrapper_injections
@@ -11,7 +11,7 @@ def validated_parameters(parameters: Optional[Iterable[str]]) -> Optional[Frozen
     if parameters is None:
         return None
 
-    if not isinstance(parameters, str) and isinstance(parameters, c_abc.Iterable):
+    if isinstance(parameters, c_abc.Iterable) and not isinstance(parameters, str):
         parameters = frozenset(parameters)
         if not parameters:
             return None

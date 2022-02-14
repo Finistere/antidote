@@ -1,23 +1,32 @@
 """
 Utilities used by world, mostly for syntactic sugar.
 """
-from typing import (Generic, Hashable, TYPE_CHECKING, Type, TypeVar, Union,
-                    overload)
+from __future__ import annotations
+
+import warnings
+from typing import (Any, Callable, cast, Generic, Hashable, Optional, overload, Type,
+                    TYPE_CHECKING,
+                    TypeVar,
+                    Union)
+
+from typing_extensions import final, Protocol
 
 from . import API
 from .state import current_container
-from .utils import Default
-from .utils.immutable import Immutable, ImmutableGenericMeta
-from .utils.meta import FinalMeta
-from .._compatibility.typing import Protocol, final
+from .utils import Default, enforce_type_if_possible
+from .utils.immutable import FinalImmutable, Immutable
+from .utils.meta import Singleton
 from ..core._annotations import extract_annotated_dependency
+from ..core.annotations import Get
 from ..core.container import RawContainer
 from ..core.exceptions import DependencyNotFoundError
-
-T = TypeVar('T')
+from ..core.typing import CallableClass, Dependency, Source
 
 if TYPE_CHECKING:
-    from .._constants import Const
+    pass
+
+T = TypeVar('T')
+R = TypeVar('R')
 
 
 @API.private
@@ -28,7 +37,7 @@ class SupportsRMatmul(Protocol):
 
 @API.private
 @final
-class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
+class LazyDependency(Immutable, Generic[T]):
     """
     Recommended usage is to usage :py:func:`..world.lazy`:
 
@@ -62,7 +71,7 @@ class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
             dependency value retrieved from :py:mod:`~..world`.
         """
         from antidote import world
-        value = world.get(self.unwrapped)
+        value = world.get(cast(Any, self.unwrapped))
 
         if not isinstance(value, self._type):
             raise TypeError(f"Dependency is not an instance of {self._type}, "
@@ -71,94 +80,158 @@ class LazyDependency(Immutable, Generic[T], metaclass=ImmutableGenericMeta):
         return value
 
 
-@API.private
+@API.private  # use world.get, not the class directly
 @final
-class WorldGet(metaclass=FinalMeta):
+class WorldGet(Singleton):
     @overload
-    def __call__(self,  # noqa: E704
-                 __dependency: 'Const[T]',
+    def __call__(self,
+                 __dependency: Dependency[T],
                  *,
                  default: Union[T, Default] = Default.sentinel
                  ) -> T:
         ...  # pragma: no cover
 
     @overload
-    def __call__(self,  # noqa: E704
-                 __dependency: Hashable,
+    def __call__(self,
+                 __dependency: Type[T],
                  *,
-                 default: object = Default.sentinel
-                 ) -> object:
+                 default: Union[T, Default] = Default.sentinel
+                 ) -> T:
         ...  # pragma: no cover
 
+    @overload
     def __call__(self,
-                 __dependency: Hashable,
+                 __dependency: Type[T],
                  *,
-                 default: object = Default.sentinel
-                 ) -> object:
-        dependency = extract_annotated_dependency(__dependency)
+                 default: Union[T, Default] = Default.sentinel,
+                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
+                 ) -> T:
+        ...  # pragma: no cover
+
+    @API.public
+    def __call__(self,
+                 __dependency: Any,
+                 *,
+                 default: Any = Default.sentinel,
+                 source: Optional[Union[
+                     Source[Any],
+                     Callable[..., Any],
+                     Type[CallableClass[Any]]
+                 ]] = None
+                 ) -> Any:
         try:
-            return current_container().get(dependency)
+            __dependency = cast(Any, extract_annotated_dependency(__dependency))
+            if source is not None:
+                __dependency = Get(__dependency, source=source).dependency
+            return current_container().get(__dependency)
         except DependencyNotFoundError:
             if default is not Default.sentinel:
                 return default
             raise
 
-    def __getitem__(self, tpe: Type[T]) -> 'TypedWorldGet[T]':
+    @API.public
+    def __getitem__(self, tpe: Type[T]) -> TypedWorldGet[T]:
         return TypedWorldGet(tpe)
 
 
-@API.private
+@API.private  # use world.get, not the class directly
 @final
-class TypedWorldGet(Generic[T], Immutable, metaclass=ImmutableGenericMeta):
+class TypedWorldGet(Generic[T], FinalImmutable):
     __slots__ = ('__type',)
     __type: Type[T]
 
+    @overload
     def __call__(self,
-                 __dependency: Hashable = None,
+                 __dependency: Any,
                  *,
-                 default: Union[T, Default] = Default.sentinel) -> T:
-        if not isinstance(default, (self.__type, Default)):
-            raise TypeError(f"default is not an instance of {self.__type}, "
-                            f"but {type(default)}")
+                 default: Union[T, Default] = Default.sentinel
+                 ) -> T:
+        ...  # pragma: no cover
 
+    @overload
+    def __call__(self,
+                 *,
+                 default: Union[T, Default] = Default.sentinel,
+                 ) -> T:
+        ...  # pragma: no cover
+
+    @overload
+    def __call__(self,
+                 __dependency: Type[R],
+                 *,
+                 default: Union[T, Default] = Default.sentinel,
+                 source: Union[Source[R], Callable[..., R], Type[CallableClass[R]]]
+                 ) -> T:
+        ...  # pragma: no cover
+
+    @overload
+    def __call__(self,
+                 *,
+                 default: Union[T, Default] = Default.sentinel,
+                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
+                 ) -> T:
+        ...  # pragma: no cover
+
+    @API.public
+    def __call__(self,
+                 __dependency: Any = None,
+                 *,
+                 default: Union[T, Default] = Default.sentinel,
+                 source: Optional[Union[
+                     Source[Any],
+                     Callable[..., Any],
+                     Type[CallableClass[Any]]
+                 ]] = None
+                 ) -> T:
+
+        if default is not Default.sentinel \
+                and isinstance(self.__type, type) \
+                and not isinstance(default, self.__type):
+            raise TypeError(f"Default value {default} is not an instance of {self.__type}, "
+                            f"but a {type(default)}")
         if __dependency is None:
-            dependency: object = self.__type
+            __dependency = extract_annotated_dependency(self.__type)
         else:
-            dependency = extract_annotated_dependency(__dependency)
+            __dependency = extract_annotated_dependency(__dependency)
+        if source is not None:
+            __dependency = Get(cast(Any, __dependency), source=source).dependency
         try:
-            value = current_container().get(dependency)
+            value = cast(T, current_container().get(__dependency))
         except DependencyNotFoundError:
             if default is not Default.sentinel:
                 return default
             raise
 
-        if not isinstance(value, self.__type):
-            raise TypeError(f"Dependency is not an instance of {self.__type}, "
-                            f"but {type(value)}")
-
+        enforce_type_if_possible(value, self.__type)
         return value
 
+    @API.public
     def __matmul__(self, other: SupportsRMatmul) -> T:
+        warnings.warn("Prefer the Get(dependency, source=X) notation.",
+                      DeprecationWarning)
         return self.__call__(self.__type @ other)
 
 
 @API.private
 @final
-class WorldLazy(metaclass=FinalMeta):
+class WorldLazy(Singleton):
     def __call__(self, __dependency: Hashable) -> LazyDependency[object]:
+        warnings.warn("Deprecated behavior, wrap world.get() yourself", DeprecationWarning)
         return LazyDependency(__dependency, object)
 
-    def __getitem__(self, tpe: Type[T]) -> 'TypedWorldLazy[T]':
+    def __getitem__(self, tpe: Type[T]) -> TypedWorldLazy[T]:
+        warnings.warn("Deprecated behavior, wrap world.get() yourself", DeprecationWarning)
         return TypedWorldLazy(tpe)
 
 
 @API.private
 @final
-class TypedWorldLazy(Generic[T], Immutable, metaclass=ImmutableGenericMeta):
+class TypedWorldLazy(Generic[T], Immutable):
     __slots__ = ('__type',)
     __type: Type[T]
 
     def __call__(self, __dependency: Hashable = None) -> LazyDependency[T]:
+        warnings.warn("Deprecated behavior, wrap world.get() yourself", DeprecationWarning)
         return LazyDependency[T](self.__type if __dependency is None else __dependency,
                                  self.__type)
 

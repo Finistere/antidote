@@ -1,6 +1,7 @@
-from typing import (Any, Callable, Dict, Hashable, Optional, TypeVar, Union, overload)
+from typing import (Any, Callable, Dict, Hashable, Optional, overload, TypeVar, Union)
 
-from ..._compatibility.typing import get_type_hints
+from typing_extensions import get_type_hints
+
 from ..._internal import API, state
 from ...core.container import (DependencyValue, Scope)
 from ...utils import validated_scope
@@ -9,14 +10,13 @@ __sentinel = object()
 
 
 @overload
-def singleton(dependency: Hashable,  # noqa: E704  # pragma: no cover
-              value: object
-              ) -> None: ...
+def singleton(dependency: Hashable, value: object) -> None:
+    ...  # pragma: no cover
 
 
 @overload
-def singleton(dependency: Dict[Hashable, object]  # noqa: E704  # pragma: no cover
-              ) -> None: ...
+def singleton(dependency: Dict[Hashable, object]) -> None:
+    ...  # pragma: no cover
 
 
 @API.public
@@ -63,7 +63,7 @@ F = TypeVar('F', bound=Callable[..., Any])
 @API.public
 def factory(dependency: Hashable = None,
             *,
-            singleton: bool = None,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel()
             ) -> Callable[[F], F]:
     """

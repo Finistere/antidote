@@ -1,7 +1,7 @@
 import pytest
 
 from antidote._internal.utils.immutable import FinalImmutableMeta
-from antidote._internal.utils.meta import AbstractMeta, FinalMeta
+from antidote._internal.utils.meta import AbstractMeta, FinalMeta, Singleton
 
 
 def test_abstract_meta():
@@ -34,3 +34,14 @@ def test_final_meta(meta):
     with pytest.raises(TypeError):
         class SubDummy(Dummy):
             __slots__ = ()
+
+
+def test_singleton():
+    class Dummy(Singleton):
+        pass
+
+    assert Dummy() is Dummy()
+
+    with pytest.raises(TypeError):
+        class SubDummy(Dummy):
+            pass

@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from antidote import Provide, inject, world
+from antidote import inject, Provide, world
 from antidote.core.exceptions import DoubleInjectionError
 from antidote.core.wiring import Wiring, WithWiringMixin
 

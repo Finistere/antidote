@@ -1,25 +1,26 @@
+from __future__ import annotations
+
 import functools
 import inspect
-from typing import Callable, Dict, Set, Tuple, Type, TypeVar, cast
+from typing import Callable, cast, Dict, Set, Tuple, Type, TypeVar
 
 from .container import RawProvider
 from .exceptions import FrozenWorldError
-from .._compatibility.typing import GenericMeta
 from .._internal import API
 
-_FREEZE_ATTR_NAME = "__antidote__freeze_sensitive"
+FREEZE_ATTR_NAME = "__antidote__freeze_sensitive"
 
 
 # TODO: Inheriting GenericMeta for Python 3.6. To be removed ASAP.
 @API.private
-class ProviderMeta(GenericMeta):
-    def __new__(mcs: 'Type[ProviderMeta]',
+class ProviderMeta(type):
+    def __new__(mcs: Type[ProviderMeta],
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
                 abstract: bool = False,
                 **kwargs: object
-                ) -> 'ProviderMeta':
+                ) -> ProviderMeta:
         # Every method which does not the have the does_not_freeze decorator
         # is considered
         raw_methods = {"clone", "provide", "exists", "maybe_provide", "debug",
@@ -29,13 +30,10 @@ class ProviderMeta(GenericMeta):
         for attr in (attrs - raw_methods):
             method = namespace[attr]
             if inspect.isfunction(method) and callable(method):
-                if getattr(method, _FREEZE_ATTR_NAME, True):
+                if getattr(method, FREEZE_ATTR_NAME, True):
                     namespace[attr] = _make_wrapper(attr, method)
 
-        cls = cast(
-            ProviderMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
-        )
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         assert getattr(cls, "__antidote__") is None
 
         return cls

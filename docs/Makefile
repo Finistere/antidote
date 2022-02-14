@@ -4,7 +4,7 @@
 # You can set these variables from the command line.
 SPHINXOPTS    = -W -a -E
 SPHINXBUILD   = python -msphinx
-SPHINXPROJ    = DependencyManager
+SPHINXPROJ    = Antidote
 SOURCEDIR     = .
 BUILDDIR      = _build
 

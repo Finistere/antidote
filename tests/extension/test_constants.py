@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import pytest
 
-from antidote import Constants, Wiring, const, world
+from antidote import const, Constants, inject, Wiring, world
 from antidote._providers import LazyProvider, ServiceProvider
 from antidote.core.exceptions import DependencyInstantiationError
 from antidote.exceptions import DependencyNotFoundError
@@ -32,6 +34,19 @@ def test_simple():
     conf = Config()
     assert conf.A == 'aa'
     assert conf.B == 'bb'
+
+
+def test_marker():
+    a = object()
+
+    class Config(Constants):
+        A = const(a)
+
+    @inject
+    def f(x: object = Config.A) -> object:
+        return x
+
+    assert f() is world.get(Config.A)
 
 
 def test_default():
@@ -91,8 +106,8 @@ def test_auto_cast():
     assert LimitedAutoCast().A == 109
     assert LimitedAutoCast().B == 3.14
 
-    with pytest.raises(TypeError, match=".*C.*"):
-        LimitedAutoCast().C
+    with pytest.raises(TypeError, match=".*str.*"):
+        _ = LimitedAutoCast().C
 
     assert world.get(LimitedAutoCast.A) == 109
     assert world.get(LimitedAutoCast.B) == 3.14
@@ -108,14 +123,14 @@ def test_auto_cast():
         B = const[float]('3.14')
         C = const[str](199)
 
-    with pytest.raises(TypeError, match=".*A.*"):
-        NoAutoCast().A
+    with pytest.raises(TypeError, match=".*int.*"):
+        _ = NoAutoCast().A
 
-    with pytest.raises(TypeError, match=".*B.*"):
-        NoAutoCast().B
+    with pytest.raises(TypeError, match=".*float.*"):
+        _ = NoAutoCast().B
 
-    with pytest.raises(TypeError, match=".*C.*"):
-        NoAutoCast().C
+    with pytest.raises(TypeError, match=".*str.*"):
+        _ = NoAutoCast().C
 
     #######
 
@@ -128,7 +143,7 @@ def test_auto_cast():
         A = const[MetaDummy]('x')
 
     with pytest.raises(RuntimeError):
-        ImpossibleCast().A
+        _ = ImpossibleCast().A
 
     with pytest.raises(DependencyInstantiationError):
         world.get(ImpossibleCast.A)
@@ -144,11 +159,11 @@ def test_type_safety():
         INVALID = const[int]('109')
         INVALID_CAST = const[MetaDummy]('x')
 
-    with pytest.raises(TypeError, match=".*INVALID.*"):
-        Config().INVALID
+    with pytest.raises(TypeError, match=".*int.*"):
+        _ = Config().INVALID
 
-    with pytest.raises(TypeError, match=".*INVALID_CAST.*"):
-        Config().INVALID_CAST
+    with pytest.raises(TypeError, match=".*MetaDummy.*"):
+        _ = Config().INVALID_CAST
 
     with pytest.raises(DependencyInstantiationError):
         world.get(Config.INVALID)
@@ -181,7 +196,7 @@ def test_default_get():
         world.get(Config.NOTHING)
 
     with pytest.raises(ValueError, match=".*NOTHING.*"):
-        Config().NOTHING
+        _ = Config().NOTHING
 
     assert world.get(Config.B) == 'B'
     assert Config().B == "B"
@@ -199,6 +214,17 @@ def test_no_const():
 
     conf = Config()
     assert conf.A == 'a'
+
+
+def test_no_constants_class():
+    class Config:
+        A = const()
+
+    with pytest.raises(RuntimeError, match=".*Constants.*"):
+        _ = Config.A
+
+    with pytest.raises(RuntimeError, match=".*Constants.*"):
+        _ = Config().A
 
 
 def test_no_get_method():

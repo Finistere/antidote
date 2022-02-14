@@ -1,3 +1,4 @@
+import inspect
 import itertools
 from inspect import getattr_static
 
@@ -42,17 +43,24 @@ def lazy(dummy: 'Dummy'):
     pass
 
 
+def arg(__name: str, *, type_hint: object = None, has_default: bool = False) -> Argument:
+    return Argument(name=__name,
+                    default=object() if has_default else inspect.Parameter.empty,
+                    type_hint=type_hint,
+                    type_hint_with_extras=type_hint)
+
+
 @pytest.mark.parametrize(
     'func,expected',
     [
         pytest.param(
             f,
             Arguments(
-                arguments=tuple([
-                    Argument('a', False, str),
-                    Argument('b', False, None),
-                    Argument('c', True, int),
-                ]),
+                arguments=[
+                    arg('a', type_hint=str),
+                    arg('b'),
+                    arg('c', has_default=True, type_hint=int),
+                ],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -62,9 +70,9 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             g,
             Arguments(
-                arguments=tuple([
-                    Argument('a', False, list),
-                ]),
+                arguments=[
+                    arg('a', type_hint=list),
+                ],
                 has_var_positional=True,
                 has_var_keyword=False,
                 has_self=False
@@ -74,9 +82,9 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             h,
             Arguments(
-                arguments=tuple([
-                    Argument('b', True, None),
-                ]),
+                arguments=[
+                    arg('b', has_default=True),
+                ],
                 has_var_positional=False,
                 has_var_keyword=True,
                 has_self=False
@@ -86,7 +94,7 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             k,
             Arguments(
-                arguments=tuple([]),
+                arguments=[],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -96,9 +104,9 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             lazy,
             Arguments(
-                arguments=tuple([
-                    Argument('dummy', False, Dummy),
-                ]),
+                arguments=[
+                    arg('dummy', type_hint=Dummy),
+                ],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -108,11 +116,11 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             Dummy.f,
             Arguments(
-                arguments=tuple([
-                    Argument('self', False, None),
-                    Argument('a', False, str),
-                    Argument('b', True, None),
-                ]),
+                arguments=[
+                    arg('self'),
+                    arg('a', type_hint=str),
+                    arg('b', has_default=True),
+                ],
                 has_var_positional=True,
                 has_var_keyword=True,
                 has_self=True
@@ -122,9 +130,9 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             Dummy.g,
             Arguments(
-                arguments=tuple([
-                    Argument('a', False, None),
-                ]),
+                arguments=[
+                    arg('a'),
+                ],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -134,10 +142,10 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             getattr_static(Dummy, 'g'),
             Arguments(
-                arguments=tuple([
-                    Argument('cls', False, None),
-                    Argument('a', False, None),
-                ]),
+                arguments=[
+                    arg('cls'),
+                    arg('a'),
+                ],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=True
@@ -147,7 +155,7 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             Dummy.h,
             Arguments(
-                arguments=tuple([]),
+                arguments=[],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -157,10 +165,10 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             dummy.f,
             Arguments(
-                arguments=tuple([
-                    Argument('a', False, str),
-                    Argument('b', True, None),
-                ]),
+                arguments=[
+                    arg('a', type_hint=str),
+                    arg('b', has_default=True),
+                ],
                 has_var_positional=True,
                 has_var_keyword=True,
                 has_self=False
@@ -170,9 +178,9 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             dummy.g,
             Arguments(
-                arguments=tuple([
-                    Argument('a', False, None),
-                ]),
+                arguments=[
+                    arg('a'),
+                ],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -182,7 +190,7 @@ def lazy(dummy: 'Dummy'):
         pytest.param(
             dummy.h,
             Arguments(
-                arguments=tuple([]),
+                arguments=[],
                 has_var_positional=False,
                 has_var_keyword=False,
                 has_self=False
@@ -228,11 +236,11 @@ def test_from_methods(descriptor):
         assert expected_arg.type_hint == result_arg.type_hint
 
 
-args = tuple([
-    Argument('x', False, int),
-    Argument('y', True, str),
-    Argument('z', False, float),
-])
+args = [
+    arg('x', type_hint=int),
+    arg('y', has_default=True, type_hint=str),
+    arg('z', type_hint=float),
+]
 
 
 def test_getitem():
@@ -259,7 +267,7 @@ def test_without_self():
             has_var_positional=has_var_positional,
             has_self=True
         )
-        assert tuple(arguments.without_self) == args[1:]
+        assert tuple(arguments.without_self) == tuple(args[1:])
         assert arguments.without_self.has_var_keyword == arguments.has_var_keyword
         assert arguments.without_self.has_var_positional == arguments.has_var_positional
 
@@ -282,7 +290,7 @@ def test_magic_methods_arguments():
     assert 'x' in arguments
     assert 'unknown' not in arguments
     assert 3 == len(arguments)
-    assert args == tuple(arguments)
+    assert tuple(args) == tuple(arguments)
     assert "x:int" in repr(arguments)
     assert "y:str =" in repr(arguments)
     assert "z:float" in repr(arguments)
@@ -316,7 +324,9 @@ def test_invalid_callable():
 
 
 def test_repr_argument():
-    arg = Argument(name='x', has_default=True, type_hint=int,
-                   type_hint_with_extras='found me!')
-    assert 'x:int =' in repr(arg)
-    assert arg.type_hint_with_extras in repr(arg)
+    argument = Argument(name='x',
+                        default=object(),
+                        type_hint=int,
+                        type_hint_with_extras='found me!')
+    assert 'x:int =' in repr(argument)
+    assert argument.type_hint_with_extras in repr(argument)

@@ -3,58 +3,6 @@ How to
 ******
 
 
-
-Be compatible with Mypy
-=======================
-
-
-Antidote passes the strict Mypy check and exposes its type information (PEP 561).
-Unfortunately static typing for decorators is limited to simple cases, hence Antidote :code:`@inject` will just
-return the same signature from Mypys point of view. The best way, currently that I know of, is to
-define arguments as optional as shown below:
-
-.. testcode:: how_to_mypy
-
-    from antidote import inject, Service, Provide
-
-    class MyService(Service):
-        pass
-
-    @inject
-    def f(my_service: Provide[MyService] = None) -> MyService:
-        # We never expect it to be None, but it Mypy will now
-        # understand that my_service may not be provided.
-        assert my_service is not None
-        return my_service
-
-
-    s: MyService = f()
-
-    # You can also overload the function, if you want a more accurate type definition:
-    from typing import overload
-
-    @overload
-    def g(my_service: MyService) -> MyService: ...
-
-    @overload
-    def g() -> MyService: ...
-
-    @inject
-    def g(my_service: Provide[MyService] = None) -> MyService:
-        assert my_service is not None
-        return my_service
-
-
-    s2: MyService = g()
-
-
-Note that any of this is only necessary if you're calling _explicitly_ the function, if only
-instantiate :code:`MyService` through Antidote for example, you won't need this for its
-:code:`__init__()` function typically. You could also use a :code:`Protocol` to define
-a different signature, but it's more complex.
-
-
-
 Use annotated type hints
 ========================
 
@@ -62,17 +10,18 @@ Use annotated type hints
 Antidote supports a variety of annotated type hints which can be used to specify any
 existing dependency:
 
-- A :py:class:`.Service` can be retrieved with :py:obj:`.Provide`
+- A :py:class:`.Service` can be retrieved with :py:obj:`.Inject`
 
     .. testcode:: how_to_annotated_type_hints
 
-        from antidote import Service, inject, Provide
+        from antidote import service, inject, Inject
 
-        class Database(Service):
+        @service
+        class Database:
             pass
 
         @inject
-        def f(db: Provide[Database]) -> Database:
+        def f(db: Inject[Database]) -> Database:
             return db
 
     .. doctest:: how_to_annotated_type_hints
@@ -80,12 +29,12 @@ existing dependency:
         >>> f()
         <Database ...>
 
-- A :py:class:`.Factory`, :py:func:`~.factory.factory` and :py:func:`.implementation` can be
-  retrieved with :py:class:`.From`:
+- A :py:func:`~.factory.factory` and :py:func:`.implementation` can be
+  retrieved with :py:class:`.From` or :py:class:`.Get`:
 
     .. testcode:: how_to_annotated_type_hints
 
-        from antidote import factory, inject, From
+        from antidote import factory, inject, From, Get
         from typing import Annotated
         # from typing_extensions import Annotated # Python < 3.9
 
@@ -100,9 +49,15 @@ existing dependency:
         def f(db: Annotated[Database, From(current_db)]) -> Database:
             return db
 
+        @inject
+        def g(db: Annotated[Database, Get(Database, source=current_db)]) -> Database:
+            return db
+
     .. doctest:: how_to_annotated_type_hints
 
         >>> f()
+        <Database ...>
+        >>> g()
         <Database ...>
 
 - A constant from :py:class:`.Constants` can be retrieved with :py:class:`.Get`. Actually
@@ -154,13 +109,14 @@ arguments:
 
 .. testcode:: how_to_test
 
-    from antidote import Service, inject, Provide
+    from antidote import inject, service
 
-    class Database(Service):
+    @service
+    class Database:
         pass
 
     @inject
-    def f(db: Provide[Database]) -> Database:
+    def f(db: Database = inject.me()) -> Database:
         return db
 
 .. doctest:: how_to_test
@@ -248,13 +204,14 @@ tree with :py:func:`.world.debug`:
 
 .. testcode:: how_to_debug
 
-    from antidote import world, Service, inject, Provide
+    from antidote import world, service, inject
 
-    class MyService(Service):
+    @service
+    class MyService:
         pass
 
     @inject
-    def f(s: Provide[MyService]):
+    def f(s: MyService = inject.me()):
         pass
 
     print(world.debug(f))

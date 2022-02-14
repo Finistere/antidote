@@ -17,7 +17,7 @@ class Dummy(Lazy):
         self.value = value
         self.scope = Scope.singleton() if singleton else None
 
-    def provide(self, container: Container) -> DependencyValue:
+    def __antidote_provide__(self, container: Container) -> DependencyValue:
         return DependencyValue(container.get(self.value), scope=self.scope)
 
 

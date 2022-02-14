@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import collections.abc as c_abc
 import enum
-from typing import (Callable, FrozenSet, Hashable, Iterable, Optional, TypeVar,
-                    Union,
-                    overload)
+import warnings
+from typing import (Callable, FrozenSet, Iterable, Optional, overload, TypeVar, Union)
 
-from .injection import DEPENDENCIES_TYPE, validate_injection, AUTO_PROVIDE_TYPE
-from .._compatibility.typing import final
+from typing_extensions import final
+
+from .injection import AUTO_PROVIDE_TYPE, DEPENDENCIES_TYPE, validate_injection
 from .._internal import API
 from .._internal.utils import Copy, FinalImmutable
 
@@ -54,26 +56,35 @@ class Wiring(FinalImmutable):
     methods: Union[Methods, FrozenSet[str]]
     """Method names that must be injected."""
     dependencies: DEPENDENCIES_TYPE
-    auto_provide: Union[bool, FrozenSet[type], Callable[[type], bool]]
+    auto_provide: API.Deprecated[Union[bool, FrozenSet[type], Callable[[type], bool]]]
     raise_on_double_injection: bool
 
     def __init__(self,
                  *,
                  methods: Union[Methods, Iterable[str]] = Methods.ALL,
                  dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: AUTO_PROVIDE_TYPE = False,
+                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  raise_on_double_injection: bool = False) -> None:
         """
         Args:
             methods: Names of methods to be injected. If any of them is already injected,
                 an error will be raised. Consider using :code:`attempt_methods` otherwise.
             dependencies: Propagated for every method to :py:func:`~.injection.inject`
-            auto_provide: Propagated for every method to :py:func:`~.injection.inject`
+            auto_provide:
+                .. deprecated:: 1.1
+
+                Propagated for every method to :py:func:`~.injection.inject`
+
         """
         if not isinstance(raise_on_double_injection, bool):
             raise TypeError(f"raise_on_double_injection must be a boolean, "
                             f"not {type(raise_on_double_injection)}")
 
+        if auto_provide is not None:
+            warnings.warn("Using auto_provide is deprecated.", DeprecationWarning)
+
+        if auto_provide is None:
+            auto_provide = False
         if isinstance(auto_provide, str) \
                 or not (isinstance(auto_provide, (c_abc.Iterable, bool))
                         or callable(auto_provide)):
@@ -104,9 +115,9 @@ class Wiring(FinalImmutable):
              *,
              methods: Union[Methods, Iterable[str], Copy] = Copy.IDENTICAL,
              dependencies: Union[DEPENDENCIES_TYPE, Copy] = Copy.IDENTICAL,
-             auto_provide: Union[AUTO_PROVIDE_TYPE, Copy] = Copy.IDENTICAL,
+             auto_provide: API.Deprecated[Union[AUTO_PROVIDE_TYPE, Copy]] = Copy.IDENTICAL,
              raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL
-             ) -> 'Wiring':
+             ) -> Wiring:
         """
         Copies current wiring and overrides only specified arguments.
         Accepts the same arguments as :py:meth:`.__init__`
@@ -132,30 +143,32 @@ class Wiring(FinalImmutable):
 
 
 @overload
-def wire(__klass: C,  # noqa: E704  # pragma: no cover
+def wire(__klass: C,
          *,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         auto_provide: AUTO_PROVIDE_TYPE = False,
+         auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
          raise_on_double_injection: bool = False
-         ) -> C: ...
+         ) -> C:
+    ...  # pragma: no cover
 
 
 @overload
-def wire(*,  # noqa: E704  # pragma: no cover
+def wire(*,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         auto_provide: AUTO_PROVIDE_TYPE = False,
+         auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
          raise_on_double_injection: bool = False
-         ) -> Callable[[C], C]: ...
+         ) -> Callable[[C], C]:
+    ...  # pragma: no cover
 
 
 @API.public
-def wire(__klass: C = None,
+def wire(__klass: Optional[C] = None,
          *,
          methods: Union[Methods, Iterable[str]] = Methods.ALL,
          dependencies: DEPENDENCIES_TYPE = None,
-         auto_provide: AUTO_PROVIDE_TYPE = False,
+         auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
          raise_on_double_injection: bool = False
          ) -> Union[C, Callable[[C], C]]:
     """
@@ -169,7 +182,9 @@ def wire(__klass: C = None,
         __klass: Class to wire.
         methods: Names of methods that must be injected. Defaults to all method
         dependencies: Propagated for every method to :py:func:`~.injection.inject`.
-        auto_provide: Propagated for every method to :py:func:`~.injection.inject`.
+        auto_provide:
+            Propagated for every method to :py:func:`~.injection.inject`.
+            .. deprecated:: 1.1
 
     Returns:
         Wired class or a class decorator.
@@ -206,7 +221,7 @@ class WithWiringMixin:
                     *,
                     methods: Union[Methods, Iterable[str], Copy] = Copy.IDENTICAL,
                     dependencies: Union[DEPENDENCIES_TYPE, Copy] = Copy.IDENTICAL,
-                    auto_provide: Union[AUTO_PROVIDE_TYPE, Copy] = Copy.IDENTICAL,
+                    auto_provide: API.Deprecated[Union[AUTO_PROVIDE_TYPE, Copy]] = Copy.IDENTICAL,
                     raise_on_double_injection: Union[bool, Copy] = Copy.IDENTICAL,
                     ) -> W:
         """

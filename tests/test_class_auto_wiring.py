@@ -2,9 +2,9 @@ import itertools
 from typing import Any, Callable, Optional, Tuple, Type, Union
 
 import pytest
+from typing_extensions import Protocol
 
-from antidote import Constants, Factory, Provide, Service, world, service
-from antidote._compatibility.typing import Protocol
+from antidote import Constants, Factory, Provide, Service, service, world
 from antidote.core import Wiring
 
 

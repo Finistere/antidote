@@ -20,7 +20,6 @@ cdef RawContainer fast_get_container():
 def current_container() -> RawContainer:
     return fast_get_container()
 
-
 def current_overridable_container():
     from ..core.container import OverridableRawContainer
     c = fast_get_container()

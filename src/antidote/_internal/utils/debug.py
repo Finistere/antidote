@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import base64
 import inspect
 import textwrap
 from collections import deque
-from typing import (Deque, Hashable, List, Optional, Sequence, Set, TYPE_CHECKING, Tuple)
+from typing import (Deque, Hashable, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING)
 
 from .immutable import Immutable
 from .. import API
@@ -102,16 +104,16 @@ def tree_debug_info(container: 'RawContainer',
     class DebugTreeNode(Immutable):
         __slots__ = ('info', 'scope', 'children', 'depth')
         info: str
-        scope: 'Optional[Scope]'
-        children: 'List[DebugTreeNode]'
+        scope: Optional[Scope]
+        children: List[DebugTreeNode]
         depth: int
 
         def __init__(self,
                      info: str,
                      *,
                      depth: int = 0,
-                     scope: 'Optional[Scope]' = Scope.sentinel(),
-                     children: 'List[DebugTreeNode]' = None) -> None:
+                     scope: Optional[Scope] = Scope.sentinel(),
+                     children: Optional[List[DebugTreeNode]] = None) -> None:
             super().__init__(textwrap.dedent(info),
                              scope,
                              children or [],
@@ -120,8 +122,8 @@ def tree_debug_info(container: 'RawContainer',
         def child(self,
                   info: str,
                   *,
-                  scope: 'Optional[Scope]' = Scope.sentinel()
-                  ) -> 'DebugTreeNode':
+                  scope: Optional[Scope] = Scope.sentinel()
+                  ) -> DebugTreeNode:
             self.children.append(DebugTreeNode(
                 info,
                 depth=self.depth + 1,

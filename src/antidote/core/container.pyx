@@ -7,9 +7,9 @@ from weakref import ref
 
 # @formatter:off
 cimport cython
-from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 from cpython.mem cimport PyMem_Free, PyMem_Malloc
 from cpython.ref cimport PyObject
+from fastrlock.rlock cimport create_fastrlock, lock_fastrlock, unlock_fastrlock
 
 from antidote._internal.stack cimport DependencyStack
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
@@ -18,11 +18,11 @@ from .exceptions import (DependencyCycleError, DependencyInstantiationError,
 # @formatter:on
 
 cdef extern from "Python.h":
-    PyObject*PyList_GET_ITEM(PyObject *list, Py_ssize_t i)
+    PyObject *PyList_GET_ITEM(PyObject *list, Py_ssize_t i)
     Py_ssize_t PyList_Size(PyObject *list)
     Py_ssize_t PyTuple_GET_SIZE(PyObject *p)
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
-    PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
+    PyObject *PyDict_GetItem(PyObject *p, PyObject *key)
     void Py_INCREF(PyObject *o)
     void Py_DECREF(PyObject *o)
 
@@ -136,7 +136,7 @@ cdef class DependencyValue:
 
     cdef to_result(self, DependencyResult *result):
         result.header = HeaderObject.from_scope(self.scope).header
-        result.value = <PyObject*> self.unwrapped
+        result.value = <PyObject *> self.unwrapped
         Py_INCREF(result.value)
 
     @staticmethod
@@ -149,12 +149,14 @@ cdef class DependencyValue:
                                        value,
                                        scope=scope)
 
+_DEFAULT_SENTINEL = object()
+
 ############
 # PROVIDER #
 ############
 
 cdef class Container:
-    def get(self, dependency: Hashable):
+    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL):
         raise NotImplementedError()  # pragma: no cover
 
     def provide(self, dependency: Hashable):
@@ -184,13 +186,13 @@ cdef class RawProvider:
 
     def maybe_provide(self,
                       dependency: Hashable,
-                      container: Container) -> DependencyValue:
+                      container: Container) -> Optional[DependencyValue]:
         raise NotImplementedError()
 
     cdef fast_provide(self,
-                      PyObject*dependency,
-                      PyObject*container,
-                      DependencyResult*result):
+                      PyObject *dependency,
+                      PyObject *container,
+                      DependencyResult *result):
         cdef:
             DependencyValue dependency_instance
         dependency_instance = self.maybe_provide(<object> dependency,
@@ -239,19 +241,19 @@ cdef class RawProvider:
 cdef class FastProvider(RawProvider):
     def maybe_provide(self,
                       dependency: Hashable,
-                      container: Container) -> DependencyValue:
+                      container: Container) -> Optional[DependencyValue]:
         cdef:
             DependencyResult result
         result.value = NULL
-        self.fast_provide(<PyObject*> dependency, <PyObject*> container, &result)
+        self.fast_provide(<PyObject *> dependency, <PyObject *> container, &result)
         if result.value:
             return DependencyValue.from_result(self._bound_container(), &result)
         return None
 
     cdef fast_provide(self,
-                      PyObject*dependency,
-                      PyObject*container,
-                      DependencyResult*result):
+                      PyObject *dependency,
+                      PyObject *container,
+                      DependencyResult *result):
         raise NotImplementedError()
 
 #############
@@ -303,7 +305,7 @@ cdef class RawContainer(Container):
         return self.__scopes.copy()
 
     @property
-    def providers(self):
+    def providers(self) -> List[RawProvider]:
         return self.__providers.copy()
 
     @contextmanager
@@ -337,9 +339,9 @@ cdef class RawContainer(Container):
             provider = provider_cls()
             provider._container_ref = ref(self)
             self.__providers.append(provider)
-            (<DependencyCache> self.__cache).set(<PyObject*> provider_cls,
+            (<DependencyCache> self.__cache).set(<PyObject *> provider_cls,
                                                  HEADER_FLAG_SINGLETON,
-                                                 <PyObject*> provider)
+                                                 <PyObject *> provider)
             self.__singletons_clock += 1
 
     def add_singletons(self, dependencies: Mapping):
@@ -347,9 +349,9 @@ cdef class RawContainer(Container):
             for k, v in dependencies.items():
                 self.raise_if_exists(k)
             for k, v in dependencies.items():
-                (<DependencyCache> self.__cache).set(<PyObject*> k,
+                (<DependencyCache> self.__cache).set(<PyObject *> k,
                                                      HEADER_FLAG_SINGLETON,
-                                                     <PyObject*> v)
+                                                     <PyObject *> v)
             self.__singletons.update(dependencies)
             self.__singletons_clock += 1
 
@@ -394,7 +396,7 @@ cdef class RawContainer(Container):
     def clone(self,
               *,
               keep_singletons: bool = False,
-              keep_scopes: bool = False) -> 'RawContainer':
+              keep_scopes: bool = False) -> RawContainer:
         cdef:
             RawContainer clone
             RawProvider p, p_clone
@@ -404,7 +406,6 @@ cdef class RawContainer(Container):
             clone.__frozen = True
             if keep_singletons:
                 clone.__singletons = self.__singletons.copy()
-
 
             clone.__scopes = self.__scopes
             clone.__scope_dependencies = [
@@ -444,21 +445,23 @@ cdef class RawContainer(Container):
         cdef:
             DependencyResult result
 
-        self.fast_get(<PyObject*> dependency, &result)
+        self.fast_get(<PyObject *> dependency, &result)
         if result.value:
             return DependencyValue.from_result(self, &result)
         raise DependencyNotFoundError(dependency)
 
-    def get(self, dependency: Hashable):
+    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL):
         cdef:
             DependencyResult result
             object obj
 
-        self.fast_get(<PyObject*> dependency, &result)
+        self.fast_get(<PyObject *> dependency, &result)
         if result.value:
             obj = <object> result.value
             Py_DECREF(result.value)
             return obj
+        if default is not _DEFAULT_SENTINEL:
+            return default
         raise DependencyNotFoundError(dependency)
 
     # No ownership from here on. You MUST keep a valid reference to dependency.
@@ -481,7 +484,7 @@ cdef class RawContainer(Container):
                 self.__safe_cache_provide(dependency, result, value)
         else:
             clock = self.__singletons_clock
-            ptr = PyDict_GetItem(<PyObject*> self.__singletons, dependency)
+            ptr = PyDict_GetItem(<PyObject *> self.__singletons, dependency)
             if ptr:
                 result.header = HEADER_FLAG_SINGLETON
                 result.value = ptr
@@ -497,8 +500,8 @@ cdef class RawContainer(Container):
             ScopeId scope_id
             PyObject *value
             object lock = self._instantiation_lock
-            PyObject *stack = <PyObject*> self._dependency_stack
-            PyObject *scope_dependencies = <PyObject*> self.__scope_dependencies
+            PyObject *stack = <PyObject *> self._dependency_stack
+            PyObject *scope_dependencies = <PyObject *> self.__scope_dependencies
 
         lock_fastrlock(lock, -1, True)
 
@@ -521,11 +524,11 @@ cdef class RawContainer(Container):
             raise error
 
         try:
-            (<RawProvider> cached.ptr).fast_provide(dependency, <PyObject*> self, result)
+            (<RawProvider> cached.ptr).fast_provide(dependency, <PyObject *> self, result)
             assert result.value, "Once cached, a dependency must always be providable"
             cached.header = result.header
             if result.header & HEADER_FLAG_SINGLETON:
-                PyDict_SetItem(<PyObject*> self.__singletons, dependency, result.value)
+                PyDict_SetItem(<PyObject *> self.__singletons, dependency, result.value)
                 self.__singletons_clock += 1
                 Py_DECREF(cached.ptr)
                 cached.ptr = result.value
@@ -557,8 +560,8 @@ cdef class RawContainer(Container):
             ScopeId scope_id
             Exception error
             object lock = self._instantiation_lock
-            PyObject *singletons = <PyObject*> self.__singletons
-            PyObject *stack = <PyObject*> self._dependency_stack
+            PyObject *singletons = <PyObject *> self.__singletons
+            PyObject *stack = <PyObject *> self._dependency_stack
             PyObject *providers
             PyObject *scope_dependencies
             size_t i
@@ -576,7 +579,7 @@ cdef class RawContainer(Container):
                 Py_INCREF(result.value)
                 return
 
-        scope_dependencies = <PyObject*> self.__scope_dependencies
+        scope_dependencies = <PyObject *> self.__scope_dependencies
         for i in range(<size_t> PyList_Size(scope_dependencies)):
             value = PyDict_GetItem(PyList_GET_ITEM(scope_dependencies, i), dependency)
             if value:
@@ -592,12 +595,12 @@ cdef class RawContainer(Container):
             raise error
 
         try:
-            providers = <PyObject*> self.__providers
+            providers = <PyObject *> self.__providers
             for i in range(<size_t> PyList_Size(providers)):
                 provider = PyList_GET_ITEM(providers, i)
                 (<RawProvider> provider).fast_provide(
                     dependency,
-                    <PyObject*> self,
+                    <PyObject *> self,
                     result
                 )
                 if result.value:
@@ -651,12 +654,12 @@ cdef struct Entry:
     PyObject *key
     CacheValue value
 
-cdef Entry*create_table(size_t size):
+cdef Entry *create_table(size_t size):
     cdef:
-        Entry*table
-        Entry*entry
+        Entry *table
+        Entry *entry
 
-    table = <Entry*> PyMem_Malloc(size * sizeof(Entry))
+    table = <Entry *> PyMem_Malloc(size * sizeof(Entry))
     if not table:
         raise MemoryError()
 
@@ -692,26 +695,26 @@ cdef class DependencyCache:
         return self.used
 
     def __setitem__(self, key, value):
-        self.set(<PyObject*> key, 0, <PyObject*> value)
+        self.set(<PyObject *> key, 0, <PyObject *> value)
 
     def __getitem__(self, key):
         cdef:
-            CacheValue*value = self.get(<PyObject*> key)
+            CacheValue *value = self.get(<PyObject *> key)
         if value is NULL:
             raise KeyError(key)
         return <object> value.ptr
 
-    cdef CacheValue*get(self, PyObject *key):
+    cdef CacheValue *get(self, PyObject *key):
         """ The Container may update the CacheValue """
         cdef:
-            Entry*entry = self._find(key)
+            Entry *entry = self._find(key)
         if entry.key:
             return &entry.value
         return NULL
 
     cdef set(self, PyObject *key, Header header, PyObject *value):
         cdef:
-            Entry*entry = self._find(key)
+            Entry *entry = self._find(key)
         if entry.key is NULL:
             self.used += 1
             Py_INCREF(key)
@@ -730,7 +733,7 @@ cdef class DependencyCache:
 
     cdef _resize(self):
         cdef:
-            Entry*old_table = self.table
+            Entry *old_table = self.table
             size_t old_mask = self.mask
             size_t size = 8
             size_t minsize = 2 * self.used
@@ -746,8 +749,8 @@ cdef class DependencyCache:
         self.used = 0
 
         cdef:
-            Entry*old_entry
-            Entry*entry
+            Entry *old_entry
+            Entry *entry
             size_t i
         for old_entry in old_table[:old_mask + 1]:
             if old_entry.key:
@@ -757,11 +760,11 @@ cdef class DependencyCache:
 
         PyMem_Free(old_table)
 
-    cdef Entry*_find(self, PyObject *key):
+    cdef Entry *_find(self, PyObject *key):
         cdef:
             size_t mask = self.mask
-            Entry*table = self.table
-            Entry*cursor
+            Entry *table = self.table
+            Entry *cursor
             size_t i, perturb
             size_t h = (<size_t> key)
 
@@ -802,11 +805,10 @@ cdef class OverridableRawContainer(RawContainer):
         self.__factory_overrides = dict()  # type: Dict[Any, Tuple[Callable[[], Any], Optional[Scope]]]
         self.__provider_overrides = deque()  # type: Deque[Callable[[Any], Optional[DependencyValue]]]
 
-
     def clone(self,
               *,
               keep_singletons: bool = False,
-              keep_scopes: bool = False) -> 'OverridableRawContainer':
+              keep_scopes: bool = False) -> OverridableRawContainer:
         cdef:
             OverridableRawContainer clone
 
@@ -857,7 +859,7 @@ cdef class OverridableRawContainer(RawContainer):
     def clone(self,
               *,
               keep_singletons: bool,
-              keep_scopes: bool) -> 'OverridableRawContainer':
+              keep_scopes: bool) -> OverridableRawContainer:
         cdef:
             OverridableRawContainer container
 
@@ -951,7 +953,7 @@ cdef class OverridableRawContainer(RawContainer):
 
                 except Exception as error:
                     new_error = handle_error(dependency,
-                                             <PyObject*> self._dependency_stack,
+                                             <PyObject *> self._dependency_stack,
                                              error)
                     if new_error is not error:
                         raise new_error from error

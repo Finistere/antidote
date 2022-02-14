@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import inspect
-from typing import Callable, Dict, Hashable, Optional
+from dataclasses import dataclass
+from typing import Callable, Dict, Hashable, List, Optional
 
 from .service import Parameterized
 from .._internal import API
-from .._internal.utils import FinalImmutable, SlotRecord, debug_repr
+from .._internal.utils import debug_repr, FinalImmutable
 from ..core import (Container, DependencyDebug, DependencyValue, Provider,
                     Scope)
 
@@ -17,7 +20,7 @@ class FactoryProvider(Provider[Hashable]):
     def __repr__(self) -> str:
         return f"{type(self).__name__}(factories={list(self.__factories.keys())})"
 
-    def clone(self, keep_singletons_cache: bool) -> 'FactoryProvider':
+    def clone(self, keep_singletons_cache: bool) -> FactoryProvider:
         p = FactoryProvider()
         if keep_singletons_cache:
             factories = {
@@ -54,9 +57,9 @@ class FactoryProvider(Provider[Hashable]):
         except KeyError:
             return None
 
-        dependencies = []
-        wired = []
-        if factory.dependency is not None:
+        dependencies: List[object] = []
+        wired: List[Callable[..., object]] = []
+        if factory.function is None:
             dependencies.append(factory.dependency)
             if isinstance(factory.dependency, type) \
                     and inspect.isclass(factory.dependency):
@@ -85,10 +88,11 @@ class FactoryProvider(Provider[Hashable]):
         if factory.function is None:
             f = container.provide(factory.dependency)
             assert f.is_singleton(), "factory dependency is expected to be a singleton"
+            assert callable(f.unwrapped)
             factory.function = f.unwrapped
 
         if isinstance(dependency, Parameterized):
-            instance = factory.function(**dependency.parameters)
+            instance: object = factory.function(**dependency.parameters)
         else:
             instance = factory.function()
 
@@ -98,23 +102,28 @@ class FactoryProvider(Provider[Hashable]):
                  output: type,
                  *,
                  scope: Optional[Scope],
-                 factory: Callable[..., object] = None,
-                 factory_dependency: Hashable = None
-                 ) -> 'FactoryDependency':
+                 factory: Optional[Callable[..., object]] = None,
+                 factory_dependency: Optional[object] = None
+                 ) -> FactoryDependency:
         assert inspect.isclass(output) \
                and (factory is None or factory_dependency is None) \
                and (factory is None or callable(factory)) \
                and (isinstance(scope, Scope) or scope is None)
 
-        dependency = FactoryDependency(output, factory or factory_dependency)
+        dependency = FactoryDependency(
+            output=output,
+            factory=factory or factory_dependency
+        )
         self._assert_not_duplicate(dependency)
 
         if factory_dependency:
-            self.__factories[dependency] = Factory(scope,
+            self.__factories[dependency] = Factory(scope=scope,
+                                                   function=None,
                                                    dependency=factory_dependency)
         else:
-            self.__factories[dependency] = Factory(scope,
-                                                   function=factory)
+            self.__factories[dependency] = Factory(scope=scope,
+                                                   function=factory,
+                                                   dependency=None)
 
         return dependency
 
@@ -122,11 +131,11 @@ class FactoryProvider(Provider[Hashable]):
 @API.private
 class FactoryDependency(FinalImmutable):
     __slots__ = ('output', 'factory', '__hash')
-    output: Hashable
+    output: object
     factory: object
     __hash: int
 
-    def __init__(self, output: Hashable, factory: object):
+    def __init__(self, *, output: object, factory: object):
         super().__init__(output, factory, hash((output, factory)))
 
     def __repr__(self) -> str:
@@ -152,20 +161,17 @@ class FactoryDependency(FinalImmutable):
 
 
 @API.private
-class Factory(SlotRecord):
+@dataclass
+class Factory:
     __slots__ = ('scope', 'function', 'dependency')
     scope: Optional[Scope]
-    function: Callable[..., object]
-    dependency: Hashable
+    dependency: Optional[Hashable]
+    function: Optional[Callable[..., object]]
 
-    def __init__(self,
-                 scope: Optional[Scope],
-                 function: Callable[..., object] = None,
-                 dependency: Hashable = None):
-        assert function is not None or dependency is not None
-        super().__init__(scope, function, dependency)
+    def __post_init__(self) -> None:
+        assert self.function is not None or self.dependency is not None
 
-    def copy(self, keep_function: bool = True) -> 'Factory':
-        return Factory(self.scope,
-                       self.function if keep_function else None,
-                       self.dependency)
+    def copy(self, keep_function: bool = True) -> Factory:
+        return Factory(scope=self.scope,
+                       function=self.function if keep_function else None,
+                       dependency=self.dependency)

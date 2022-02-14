@@ -1,4 +1,4 @@
-from typing import Hashable, Iterable, List
+from typing import Hashable, Iterable, List, Optional
 
 from .._internal import API
 
@@ -35,7 +35,7 @@ class DependencyInstantiationError(AntidoteError):
     The dependency could not be instantiated.
     """
 
-    def __init__(self, dependency: Hashable, stack: List[Hashable] = None) -> None:
+    def __init__(self, dependency: Hashable, stack: Optional[List[Hashable]] = None) -> None:
         from .._internal.utils import debug_repr
         msg = f"Could not instantiate {debug_repr(dependency)}"
         stack = (stack or [])
@@ -88,7 +88,7 @@ def _stack_repr(stack: Iterable[object]) -> str:
     from .._internal.utils import debug_repr
     import textwrap
 
-    text = []
+    text: List[str] = []
     for depth, dependency in enumerate(stack):
         indent = '    ' * (depth - 1) if depth > 1 else ''
         first_line, *rest = debug_repr(dependency).split("\n", 1)

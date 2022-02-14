@@ -6,9 +6,7 @@ cimport cython
 from cpython.ref cimport PyObject
 
 from antidote._providers.service cimport Parameterized
-from antidote.core.container cimport (DependencyResult, FastProvider, Header,
-                                      HeaderObject, header_is_singleton, Scope,
-                                      RawContainer, header_flag_cacheable)
+from antidote.core.container cimport (DependencyResult, FastProvider, Header, header_flag_cacheable, header_is_singleton, HeaderObject, RawContainer, Scope)
 from .._internal.utils import debug_repr
 from ..core import DependencyDebug
 from ..core.exceptions import DependencyNotFoundError
@@ -19,10 +17,10 @@ ctypedef Py_ssize_t Py_hash_t
 cdef extern from "Python.h":
     int PyObject_IsInstance(PyObject *inst, PyObject *cls) except -1
     int PyDict_SetItem(PyObject *p, PyObject *key, PyObject *val) except -1
-    PyObject*PyDict_GetItem(PyObject *p, PyObject *key)
-    PyObject*PyObject_Call(PyObject *callable, PyObject *args,
-                           PyObject *kwargs) except NULL
-    PyObject*PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
+    PyObject *PyDict_GetItem(PyObject *p, PyObject *key)
+    PyObject *PyObject_Call(PyObject *callable, PyObject *args,
+                            PyObject *kwargs) except NULL
+    PyObject *PyObject_CallObject(PyObject *callable, PyObject *args) except NULL
     void Py_DECREF(PyObject *o)
 
 cdef:
@@ -57,7 +55,8 @@ cdef class FactoryProvider(FastProvider):
         cdef:
             Factory factory
 
-        dependency_factory = dependency.wrapped if isinstance(dependency, Parameterized) else dependency
+        dependency_factory = dependency.wrapped if isinstance(dependency,
+                                                              Parameterized) else dependency
         if not isinstance(dependency_factory, FactoryDependency):
             return None
 
@@ -84,26 +83,26 @@ cdef class FactoryProvider(FastProvider):
             dependencies=dependencies)
 
     cdef fast_provide(self,
-                      PyObject*dependency,
-                      PyObject*container,
-                      DependencyResult*result):
+                      PyObject *dependency,
+                      PyObject *container,
+                      DependencyResult *result):
         cdef:
-            PyObject*factory
-            bint is_parameterized = PyObject_IsInstance(dependency, <PyObject*> Parameterized)
-            PyObject*dependency_factory = (<PyObject*> (<Parameterized> dependency).wrapped
-                                           if is_parameterized else
-                                           dependency)
+            PyObject *factory
+            bint is_parameterized = PyObject_IsInstance(dependency, <PyObject *> Parameterized)
+            PyObject *dependency_factory = (<PyObject *> (<Parameterized> dependency).wrapped
+                                            if is_parameterized else
+                                            dependency)
 
-        if not PyObject_IsInstance(dependency_factory, <PyObject*> FactoryDependency):
+        if not PyObject_IsInstance(dependency_factory, <PyObject *> FactoryDependency):
             return
 
-        factory = PyDict_GetItem(<PyObject*> self.__factories, dependency_factory)
+        factory = PyDict_GetItem(<PyObject *> self.__factories, dependency_factory)
         if factory is NULL:
             return
 
         if (<Factory> factory).function is None:
             (<RawContainer> container).fast_get(
-                <PyObject*> (<Factory> factory).dependency,
+                <PyObject *> (<Factory> factory).dependency,
                 result)
             if result.value is NULL:
                 raise DependencyNotFoundError((<Factory> factory).dependency)
@@ -115,14 +114,14 @@ cdef class FactoryProvider(FastProvider):
         if is_parameterized:
             result.header = (<Factory> factory).header
             result.value = PyObject_Call(
-                <PyObject*> (<Factory> factory).function,
-                <PyObject*> empty_tuple,
-                <PyObject*> (<Parameterized> dependency).parameters
+                <PyObject *> (<Factory> factory).function,
+                <PyObject *> empty_tuple,
+                <PyObject *> (<Parameterized> dependency).parameters
             )
         else:
             result.header = (<Factory> factory).header | header_flag_cacheable()
             result.value = PyObject_CallObject(
-                <PyObject*> (<Factory> factory).function,
+                <PyObject *> (<Factory> factory).function,
                 NULL
             )
 
@@ -145,7 +144,7 @@ cdef class FactoryProvider(FastProvider):
             self._bound_container_raise_if_exists(dependency)
 
             f = Factory.__new__(Factory)
-            f.origin = <PyObject*> self
+            f.origin = <PyObject *> self
             f.header = HeaderObject.from_scope(scope).header
             if factory_dependency:
                 f.dependency = factory_dependency
@@ -164,40 +163,40 @@ cdef class ClonedFactoryProvider(FactoryProvider):
         return FactoryProvider
 
     cdef fast_provide(self,
-                      PyObject*dependency,
-                      PyObject*container,
-                      DependencyResult*result):
+                      PyObject *dependency,
+                      PyObject *container,
+                      DependencyResult *result):
         cdef:
             Factory f
-            PyObject* factory
-            bint is_parameterized = PyObject_IsInstance(dependency, <PyObject*> Parameterized)
-            PyObject*dependency_factory = (<PyObject*> (<Parameterized> dependency).wrapped
-                                           if is_parameterized else
-                                           dependency)
+            PyObject * factory
+            bint is_parameterized = PyObject_IsInstance(dependency, <PyObject *> Parameterized)
+            PyObject *dependency_factory = (<PyObject *> (<Parameterized> dependency).wrapped
+                                            if is_parameterized else
+                                            dependency)
 
-        if not PyObject_IsInstance(dependency_factory, <PyObject*> FactoryDependency):
+        if not PyObject_IsInstance(dependency_factory, <PyObject *> FactoryDependency):
             return
 
-        factory = PyDict_GetItem(<PyObject*> self.__factories, dependency_factory)
+        factory = PyDict_GetItem(<PyObject *> self.__factories, dependency_factory)
         if factory is NULL:
             return
 
-        if (<Factory> factory).origin != <PyObject*> self \
+        if (<Factory> factory).origin != <PyObject *> self \
                 and (<Factory> factory).dependency is not None:
             f = Factory.__new__(Factory)
-            f.origin = <PyObject*> self
+            f.origin = <PyObject *> self
             f.header = (<Factory> factory).header
             f.dependency = (<Factory> factory).dependency
             if self.__keep_singletons_cache:
                 f.function = (<Factory> factory).function
             else:
                 f.function = None
-            PyDict_SetItem(<PyObject*> self.__factories, dependency_factory, <PyObject*> f)
-            factory = <PyObject*> f
+            PyDict_SetItem(<PyObject *> self.__factories, dependency_factory, <PyObject *> f)
+            factory = <PyObject *> f
 
         if (<Factory> factory).function is None:
             (<RawContainer> container).fast_get(
-                <PyObject*> (<Factory> factory).dependency,
+                <PyObject *> (<Factory> factory).dependency,
                 result)
             if result.value is NULL:
                 raise DependencyNotFoundError((<Factory> factory).dependency)
@@ -209,17 +208,16 @@ cdef class ClonedFactoryProvider(FactoryProvider):
         if is_parameterized:
             result.header = (<Factory> factory).header
             result.value = PyObject_Call(
-                <PyObject*> (<Factory> factory).function,
-                <PyObject*> empty_tuple,
-                <PyObject*> (<Parameterized> dependency).parameters
+                <PyObject *> (<Factory> factory).function,
+                <PyObject *> empty_tuple,
+                <PyObject *> (<Parameterized> dependency).parameters
             )
         else:
             result.header = (<Factory> factory).header | header_flag_cacheable()
             result.value = PyObject_CallObject(
-                <PyObject*> (<Factory> factory).function,
+                <PyObject *> (<Factory> factory).function,
                 NULL
             )
-
 
 @cython.final
 cdef class FactoryDependency:
@@ -264,7 +262,7 @@ cdef class FactoryDependency:
 cdef class Factory:
     cdef:
         Header header
-        void* origin
+        void * origin
         object function
         object dependency
 

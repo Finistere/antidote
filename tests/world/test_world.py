@@ -1,9 +1,9 @@
 from typing import Callable
 
 import pytest
+from typing_extensions import Annotated
 
-from antidote import From, FromArg, Get, Service, factory, world
-from antidote._compatibility.typing import Annotated
+from antidote import factory, From, FromArg, Get, Service, world
 from antidote._internal.world import LazyDependency
 from antidote._providers import FactoryProvider, ServiceProvider
 from antidote.exceptions import DependencyNotFoundError, FrozenWorldError
@@ -57,7 +57,7 @@ def test_get_type_safety():
         pass
 
     assert world.get(B, default=x) is x
-    with pytest.raises(TypeError, match=".*default.*"):
+    with pytest.raises(TypeError, match="(?i).*default.*"):
         world.get[B](default=x)
 
 
@@ -68,7 +68,10 @@ def test_get_factory():
     def build_a() -> A:
         return A()
 
-    assert world.get[A] @ build_a is world.get(A @ build_a)
+    assert isinstance(world.get(A, source=build_a), A)
+    assert world.get[A](source=build_a) is world.get(A, source=build_a)
+    assert world.get[A] @ build_a is world.get(A, source=build_a)
+    assert world.get(A @ build_a) is world.get(A, source=build_a)
 
 
 @pytest.mark.parametrize('getter', [

@@ -1,7 +1,7 @@
 import pytest
 
 from antidote import world
-from antidote._internal.world import new_container, LazyDependency
+from antidote._internal.world import LazyDependency, new_container
 from antidote.core import Container
 
 

@@ -1,24 +1,40 @@
+from __future__ import annotations
+
 import inspect
-from typing import (Any, Callable, Dict, Iterator, List, Sequence, Set, Union)
+from typing import Any, Callable, cast, Dict, Iterator, List, Sequence, Set, Union
+
+from typing_extensions import get_args, get_origin, get_type_hints
 
 from .utils import FinalImmutable
-from .._compatibility.typing import get_type_hints
 
 
 class Argument(FinalImmutable):
-    __slots__ = ('name', 'has_default', 'type_hint', 'type_hint_with_extras')
+    __slots__ = ('name', 'default', 'type_hint', 'type_hint_with_extras')
     name: str
-    has_default: bool
+    default: object
     type_hint: Any
     type_hint_with_extras: Any
 
+    @property
+    def has_default(self) -> bool:
+        return self.default is not inspect.Parameter.empty
+
+    @property
+    def is_optional(self) -> bool:
+        if get_origin(self.type_hint) is Union:
+            args = cast(Any, get_args(self.type_hint))
+            return len(args) == 2 and (isinstance(None, args[1]) or isinstance(None, args[0]))
+        return False
+
     def __repr__(self) -> str:
+        if self.type_hint is self.type_hint_with_extras:
+            return f"Argument({self})"
         return f"Argument({self}, extras={self.type_hint_with_extras})"
 
     def __str__(self) -> str:
         type_hint = getattr(self.type_hint, "__name__", repr(self.type_hint))
         common = f'{self.name}:{type_hint}'
-        return common + " = ?" if self.has_default else common
+        return common + f" = {self.default}" if self.has_default else common
 
 
 class Arguments:
@@ -27,29 +43,40 @@ class Arguments:
     has_var_positional: bool
     has_var_keyword: bool
     has_self: bool
-    without_self: 'Arguments'
+    without_self: Arguments
     __name_to_argument: Dict[str, Argument]
 
     @classmethod
-    def from_callable(cls, f: Union[Callable[..., object], staticmethod, classmethod]
-                      ) -> 'Arguments':
-        if not (callable(f) or isinstance(f, (staticmethod, classmethod))):
+    def from_callable(cls,
+                      func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]],
+                      *,
+                      ignore_type_hints: bool = False
+                      ) -> Arguments:
+        if not (callable(func) or isinstance(func, (staticmethod, classmethod))):
             raise TypeError(f"func must be a callable or a static/class-method. "
-                            f"Not a {type(f)}")
+                            f"Not a {type(func)}")
         return cls._build(
-            f.__func__ if isinstance(f, (staticmethod, classmethod)) else f,
-            is_unbound_method(f)  # doing it before un-wrapping.
+            func.__func__ if isinstance(func, (staticmethod, classmethod)) else func,
+            is_unbound_method(func),  # doing it before un-wrapping.
+            ignore_type_hints
         )
 
     @classmethod
-    def _build(cls, func: Callable[..., object], unbound_method: bool) -> 'Arguments':
+    def _build(cls,
+               func: Callable[..., object],
+               unbound_method: bool,
+               ignore_type_hints: bool) -> Arguments:
         arguments: List[Argument] = []
         has_var_positional = False
         has_var_keyword = False
 
         # typing is used, as lazy evaluation is not done properly with Signature.
-        type_hints = get_type_hints(func)
-        extra_type_hints = get_type_hints(func, include_extras=True)
+        if ignore_type_hints:
+            type_hints = {}
+            extra_type_hints = {}
+        else:
+            type_hints = get_type_hints(func)
+            extra_type_hints = get_type_hints(func, include_extras=True)
 
         for name, parameter in inspect.signature(func).parameters.items():
             if parameter.kind is parameter.VAR_POSITIONAL:
@@ -59,7 +86,7 @@ class Arguments:
             else:
                 arguments.append(Argument(
                     name=name,
-                    has_default=parameter.default is not parameter.empty,
+                    default=parameter.default,
                     type_hint=type_hints.get(name),
                     type_hint_with_extras=extra_type_hints.get(name)
                 ))
@@ -118,7 +145,7 @@ class Arguments:
         return iter(self.arguments)
 
 
-def is_unbound_method(func: Union[Callable[..., object], staticmethod, classmethod]
+def is_unbound_method(func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]]
                       ) -> bool:
     """
     Methods and nested function will have a different __qualname__ than

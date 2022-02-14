@@ -1,15 +1,16 @@
 import inspect
-from typing import Hashable, Type, TypeVar
+import warnings
+from typing import Any, cast, Hashable, Type, TypeVar
 
 from .._internal import API
 from .._internal.state import current_container, init
 from .._internal.world import WorldGet, WorldLazy
 from ..core.container import RawProvider, Scope
 
-# Create the global container
 init()
 
 __sentinel = object()
+T = TypeVar('T')
 
 # API.public
 get = WorldGet()
@@ -19,8 +20,9 @@ will cast to match it. It follows the same philosophy as mypy and will NOT enfor
 
 .. doctest:: world_get
 
-    >>> from antidote import world, Service
-    >>> class Dummy(Service):
+    >>> from antidote import world, service
+    >>> @service
+    ... class Dummy:
     ...     pass
     >>> world.get(Dummy)
     <Dummy ...>
@@ -34,9 +36,22 @@ will cast to match it. It follows the same philosophy as mypy and will NOT enfor
 
 """
 
-# API.public
-lazy = WorldLazy()
+
+def __apply_lazy(_: object) -> WorldLazy:
+    return WorldLazy()
+
+
+@API.deprecated
+@__apply_lazy
+def lazy() -> Any:
+    warnings.warn("Deprecated behavior, wrap world.get() yourself",
+                  DeprecationWarning)  # pragma: no cover
+
+
 lazy.__doc__ = """
+.. deprecated:: 1.1
+    If you need lazy behavior, wrap world.get() yourself. This feature barely brings anything.
+
 Used to retrieves lazily a dependency. A type hint can be provided and the retrieved
 instance will be cast to match it. It follows the same philosophy as mypy and will NOT
 enforce it.
@@ -90,7 +105,7 @@ def provider(p: P) -> P:
     if any(p == type(existing_provider) for existing_provider in container.providers):
         raise ValueError(f"Provider {p} already exists")
     container.add_provider(p)
-    return p
+    return cast(P, p)
 
 
 @API.public

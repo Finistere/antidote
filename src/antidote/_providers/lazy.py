@@ -1,6 +1,7 @@
 from typing import Hashable
 
-from .._compatibility.typing import final
+from typing_extensions import final
+
 from .._internal import API
 from ..core import Container, DependencyDebug, DependencyValue, StatelessProvider
 from ..core.exceptions import DebugNotAvailableError
@@ -8,10 +9,10 @@ from ..core.exceptions import DebugNotAvailableError
 
 @API.private
 class Lazy:
-    def debug_info(self) -> DependencyDebug:
+    def __antidote_debug_info__(self) -> DependencyDebug:
         raise DebugNotAvailableError()
 
-    def provide(self, container: Container) -> DependencyValue:
+    def __antidote_provide__(self, container: Container) -> DependencyValue:
         raise NotImplementedError()  # pragma: no cover
 
 
@@ -22,8 +23,8 @@ class LazyProvider(StatelessProvider[Lazy]):
         return isinstance(dependency, Lazy)
 
     def debug(self, dependency: Lazy) -> DependencyDebug:
-        return dependency.debug_info()
+        return dependency.__antidote_debug_info__()
 
     def provide(self, dependency: Lazy, container: Container
                 ) -> DependencyValue:
-        return dependency.provide(container)
+        return dependency.__antidote_provide__(container)

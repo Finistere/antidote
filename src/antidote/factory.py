@@ -1,36 +1,30 @@
-import inspect
-from typing import (Callable, FrozenSet, Iterable, Optional, TypeVar, Union, cast,
-                    overload)
+from __future__ import annotations
 
-from ._compatibility.typing import Protocol, final, get_type_hints
+import inspect
+from typing import (Callable, cast, FrozenSet, Iterable, Optional, overload, TypeVar,
+                    Union)
+
+from typing_extensions import final, get_type_hints
+
 from ._factory import FactoryMeta, FactoryWrapper
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
-from ._internal.wrapper import is_wrapper
 from ._providers import FactoryProvider
 from ._utils import validated_parameters
-from .core import Provide, Scope, Wiring, WithWiringMixin, inject
+from .core import inject, Scope, Wiring, WithWiringMixin
 from .core.exceptions import DoubleInjectionError
+from .core.injection import InjectedCallable
 from .utils import validated_scope
 
-F = TypeVar('F', bound=Callable[..., object])
+T = TypeVar('T')
 
 
-@API.private
-class FactoryProtocol(Protocol[F]):
-    """
-    :meta private:
-    """
-
-    def __rmatmul__(self, klass: type) -> object:
-        pass  # pragma: no cover
-
-    __call__: F
-
-
-@API.public
+@API.deprecated
 class Factory(metaclass=FactoryMeta, abstract=True):
     """
+    .. deprecated:: 1.1
+        Use :py:func:`~.factory.factory` instead.
+
     Defines sublcass as a factory to Antidote. The provided dependency is defined through
     the type annotation of :py:meth:`.__call__`:
 
@@ -137,6 +131,8 @@ class Factory(metaclass=FactoryMeta, abstract=True):
     @final
     class Conf(FinalImmutable, WithWiringMixin):
         """
+        .. deprecated:: 1.1
+
         Immutable factory configuration. To change parameters on a existing instance, use
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
@@ -153,9 +149,9 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         def __init__(self,
                      *,
                      wiring: Optional[Wiring] = Wiring(),
-                     singleton: bool = None,
+                     singleton: Optional[bool] = None,
                      scope: Optional[Scope] = Scope.sentinel(),
-                     parameters: Iterable[str] = None):
+                     parameters: Optional[Iterable[str]] = None):
             """
 
             Args:
@@ -186,8 +182,10 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                  singleton: Union[bool, Copy] = Copy.IDENTICAL,
                  scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
                  parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
-                 ) -> 'Factory.Conf':
+                 ) -> Factory.Conf:
             """
+            .. deprecated:: 1.1
+
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
             """
@@ -208,26 +206,31 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
 
 @overload
-def factory(f: F,  # noqa: E704  # pragma: no cover
+def factory(f: T,
             *,
-            singleton: bool = None,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            ) -> FactoryProtocol[F]: ...
+            wiring: Optional[Wiring] = Wiring()
+            ) -> T:
+    ...  # pragma: no cover
 
 
 @overload
-def factory(*,  # noqa: E704  # pragma: no cover
-            singleton: bool = None,
+def factory(*,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            ) -> Callable[[F], FactoryProtocol[F]]: ...
+            wiring: Optional[Wiring] = Wiring()
+            ) -> Callable[[T], T]:
+    ...  # pragma: no cover
 
 
 @API.public
-def factory(f: F = None,
+def factory(f: Optional[T] = None,
             *,
-            singleton: bool = None,
+            singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            ) -> Union[FactoryProtocol[F], Callable[[F], FactoryProtocol[F]]]:
+            wiring: Optional[Wiring] = Wiring()
+            ) -> Union[Callable[[T], T], T]:
     """
     Registers a factory which provides as single dependency, defined through the return
     type annotation.
@@ -241,106 +244,109 @@ def factory(f: F = None,
         ... def load_db() -> Database:
         ...     return Database()
 
-    To retrieve the dependency from Antidote you need to use a specific syntax
-    :code:`dependency @ factory` as presented in the following examples. The goal of it is
-    twofold:
-
-    - Ensure that the factory is loaded whenever you require the dependency.
-    - Better maintainability as you know *where* the dependency comes from.
+    Now to retrieve the dependency:
 
     .. doctest:: factory
 
-        >>> from antidote import world, inject
-        >>> world.get(Database @ load_db)  # treated as `object` by Mypy
-        <Database ...>
-        >>> # With Mypy casting
-        ... world.get[Database](Database @ load_db)
-        <Database ...>
-        >>> # Concise Mypy casting
-        ... world.get[Database] @ load_db
-        <Database ...>
-        >>> @inject([Database @ load_db])
-        ... def f(db: Database):
-        ...     pass
+        >>> from antidote import inject, world
+        >>> @inject
+        ... def f(db: Database = inject.me(source=load_db)) -> Database:
+        ...     return db
+        >>> f() is world.get(Database, source=load_db)
+        True
 
-    Or with annotated type hints:
+    :py:func:`.inject` supports two other alternatives:
 
     .. doctest:: factory
 
         >>> from typing import Annotated
-        ... # from typing_extensions import Annotated # Python < 3.9
-        >>> from antidote import From
+        >>> from antidote import From, Get
         >>> @inject
-        ... def f(db: Annotated[Database, From(load_db)]):
-        ...     pass
+        ... def f(db: Annotated[Database, From(load_db)]) -> Database:
+        ...     return db
+        >>> @inject({'db': Get(Database, source=load_db)})
+        ... def f(db: Database) -> Database:
+        ...     return db
 
-    The factory returns a singleton by default and is automatically injected, so
-    you can use annotated type hints with it:
+    It's also possible to have a stateful factory using a class. The class will be instantiated
+    only once.
 
     .. doctest:: factory
 
-        >>> # Singleton by default
-        ... world.get[Database] @ load_db is world.get[Database] @ load_db
-        True
-        >>> class Session:
-        ...     pass
-        >>> @factory(singleton=False)
-        ... def session_gen(db: Annotated[Database, From(load_db)]) -> Session:
-        ...     return Session()
-        >>> world.get[Session] @ session_gen is world.get[Session] @ session_gen
-        False
+        >>> @factory
+        ... class DatabaseFactory:
+        ...     def __call__(self) -> Database:
+        ...         return Database()
 
-    .. note::
-
-        If you need a stateful factory or want to implement a complex one prefer using
-        :py:class:`.Factory` instead.
 
     Args:
-        f: Callable which builds the dependency.
-        singleton: Whether the returned dependency  is a singleton or not. If yes,
+        f: Factory function or class which builds the dependency.
+        singleton: Whether the returned dependency is a singleton or not. If so,
             the factory will be called at most once and the result re-used. Mutually
             exclusive with :code:`scope`. Defaults to :py:obj:`True`.
         scope: Scope of the returned dependency. Mutually exclusive with
             :code:`singleton`. The scope defines if and how long the returned dependency
             will be cached. See :py:class:`~.core.container.Scope`. Defaults to
             :py:meth:`~.core.container.Scope.singleton`.
-        tags: Iterable of :py:class:`~.._providers.tag.Tag` applied to the provided
-            dependency.
+        wiring: :py:class:`.Wiring` to be used on the class. By defaults will apply
+            a simple :py:func:`.inject` on all methods, so only annotated type hints are
+            taken into account. Can be deactivated by specifying :py:obj:`None`. If the
+            factory is a function, it'll only be injected if not :py:obj:`None`.
 
     Returns:
-        The factory or the function decorator.
+        The factory or the decorator.
 
     """
     scope = validated_scope(scope, singleton, default=Scope.singleton())
+    if wiring is not None and not isinstance(wiring, Wiring):
+        raise TypeError(f"wiring must be a Wiring or None, not a {type(wiring)!r}")
 
     @inject
-    def register_factory(func: F,
-                         factory_provider: Provide[FactoryProvider] = None
-                         ) -> FactoryProtocol[F]:
-        assert factory_provider is not None
+    def register_factory(func: T,
+                         factory_provider: FactoryProvider = inject.me()
+                         ) -> T:
+        from .service import service
 
-        if not (inspect.isfunction(func)
-                or (is_wrapper(func)
-                    and inspect.isfunction(func.__wrapped__))):  # type: ignore
-            raise TypeError(f"{func} is not a function")
+        if callable(func) and (inspect.isfunction(func) or isinstance(func, InjectedCallable)):
+            output: object = get_type_hints(func).get('return')  # type: ignore
 
-        output = get_type_hints(func).get('return')
-        if output is None:
-            raise ValueError("A return type hint is necessary. "
-                             "It is used a the dependency.")
-        if not inspect.isclass(output):
-            raise TypeError(f"The return type hint is expected to be a class, "
-                            f"not {type(output)}.")
+            if output is None:
+                raise ValueError("A return type hint is necessary. "
+                                 "It is used a the dependency.")
+            if not (isinstance(output, type) and inspect.isclass(output)):
+                raise TypeError(f"The return type hint is expected to be a class, "
+                                f"not {type(output)}.")
 
-        try:
-            func = inject(func)
-        except DoubleInjectionError:
-            pass
+            if wiring is not None:
+                try:
+                    func = inject(func, dependencies=wiring.dependencies)  # type: ignore
+                except DoubleInjectionError:
+                    pass
 
-        dependency = factory_provider.register(factory=func,
-                                               scope=scope,
-                                               output=output)
+            # TODO: Remove legacy wrapper for the 'dependency @ factory' notation
+            func = cast(T, FactoryWrapper(wrapped=cast(Callable[..., object], func), output=output))
+            factory_provider.register(factory=cast(Callable[..., object], func),
+                                      scope=scope,
+                                      output=output)
+        elif isinstance(func, type) and inspect.isclass(func):
+            output = get_type_hints(func.__call__).get('return')
+            if output is None:
+                raise ValueError("A return type hint is necessary. "
+                                 "It is used a the dependency.")
+            if not (isinstance(output, type) and inspect.isclass(output)):
+                raise TypeError(f"The return type hint is expected to be a class, "
+                                f"not {type(output)}.")
 
-        return cast(FactoryProtocol[F], FactoryWrapper(func, dependency))
+            func = service(func, singleton=True, wiring=wiring)  # type: ignore
+
+            factory_provider.register(
+                output=output,
+                scope=scope,
+                factory_dependency=func
+            )
+        else:
+            raise TypeError(f"Factory must be either a class or a function, not a {type(func)}")
+
+        return func
 
     return f and register_factory(f) or register_factory

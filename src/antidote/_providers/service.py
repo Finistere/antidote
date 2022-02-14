@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import inspect
-from typing import Dict, Hashable, Optional, Tuple, cast
+from typing import cast, Dict, Hashable, Optional
 
 from .._internal import API
-from .._internal.utils import FinalImmutable, debug_repr
+from .._internal.utils import debug_repr, FinalImmutable
 from ..core import Container, DependencyDebug, DependencyValue, Provider, Scope
 
 
@@ -46,7 +48,7 @@ class Parameterized(FinalImmutable):
 class ServiceProvider(Provider[Hashable]):
     def __init__(self) -> None:
         super().__init__()
-        self.__services: Dict[Hashable, Optional[Scope]] = dict()
+        self.__services: Dict[object, Optional[Scope]] = dict()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
@@ -56,18 +58,18 @@ class ServiceProvider(Provider[Hashable]):
             return dependency.wrapped in self.__services
         return dependency in self.__services
 
-    def clone(self, keep_singletons_cache: bool) -> 'ServiceProvider':
+    def clone(self, keep_singletons_cache: bool) -> ServiceProvider:
         p = ServiceProvider()
         p.__services = self.__services.copy()
         return p
 
-    def maybe_debug(self, build: Hashable) -> Optional[DependencyDebug]:
-        klass = build.wrapped if isinstance(build, Parameterized) else build
+    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+        klass = dependency.wrapped if isinstance(dependency, Parameterized) else dependency
         try:
             scope = self.__services[klass]
         except KeyError:
             return None
-        return DependencyDebug(debug_repr(build),
+        return DependencyDebug(debug_repr(dependency),
                                scope=scope,
                                wired=[klass])
 

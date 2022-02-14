@@ -1,33 +1,26 @@
-from typing import Dict, Tuple, Type, cast
+# pyright: reportUnknownMemberType=false
+from __future__ import annotations
+
+from typing import cast, Dict, Tuple, Type
 
 from .slots import SlotsRepr
 from .. import API
-from ..._compatibility.typing import GenericMeta
 
 
 @API.private
 class ImmutableMeta(type):
-    def __new__(mcs: 'Type[ImmutableMeta]',
+    def __new__(mcs: Type[ImmutableMeta],
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
                 **kwargs: object
-                ) -> 'ImmutableMeta':
+                ) -> ImmutableMeta:
         if '__slots__' not in namespace:
             raise TypeError("Attributes must be defined in slots")
 
         # TODO: Type ignore necessary when type checking with Python 3.6
         #       To be removed ASAP.
-        return cast(
-            ImmutableMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
-        )
-
-
-# TODO: remove after Python 3.6 support drops.
-@API.private
-class ImmutableGenericMeta(ImmutableMeta, GenericMeta):
-    pass
+        return super().__new__(mcs, name, bases, namespace, **kwargs)
 
 
 @API.private
@@ -60,11 +53,11 @@ class Immutable(SlotsRepr, metaclass=ImmutableMeta):
 
 @API.private
 class FinalImmutableMeta(ImmutableMeta):
-    def __new__(mcs: 'Type[FinalImmutableMeta]',
+    def __new__(mcs: Type[FinalImmutableMeta],
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object]
-                ) -> 'FinalImmutableMeta':
+                ) -> FinalImmutableMeta:
 
         for b in bases:
             if isinstance(b, FinalImmutableMeta) and b.__module__ != __name__:

@@ -1,3 +1,11 @@
 .section {
-    text-align:justify;
+    text-align: justify;
+}
+
+.deprecated {
+    font-style: italic;
+}
+
+.deprecated .versionmodified {
+    color: orangered;
 }

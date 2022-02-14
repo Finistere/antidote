@@ -1,13 +1,14 @@
 import enum
-from typing import Set, TypeVar
+import typing
+
+from typing_extensions import Protocol
 
 from .debug import debug_repr, short_id
 from .immutable import FinalImmutable, Immutable
 from .meta import AbstractMeta, FinalMeta
-from .slots import SlotRecord
 from .. import API
 
-Im = TypeVar('Im', bound=Immutable)
+Im = typing.TypeVar('Im', bound=Immutable)
 
 
 @API.private
@@ -28,4 +29,37 @@ class Copy(enum.Enum):
 
 
 __all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
-           'FinalMeta', 'SlotRecord', 'API', 'Default', 'Copy']
+           'FinalMeta', 'API', 'Default', 'Copy']
+
+# 3.8+
+if hasattr(typing, 'runtime_checkable'):
+
+    @API.private
+    def enforce_type_if_possible(obj: object, tpe: object) -> None:
+        if not isinstance(tpe, type):
+            return
+
+        # inspired by how `typing.runtime_checkable` checks for a protocol
+        if issubclass(tpe, typing.Generic) and getattr(tpe, "_is_protocol", False):  # type: ignore
+            if getattr(tpe, "_is_runtime_protocol", False) and not isinstance(obj, tpe):
+                raise TypeError(f"Dependency value {obj} is not an instance of {tpe}, "
+                                f"but a {type(obj)}")
+        elif not isinstance(obj, tpe):
+            raise TypeError(f"Dependency value {obj} is not an instance of {tpe}, "
+                            f"but a {type(obj)}")
+else:
+    ProtocolMeta = type(Protocol)
+
+    @API.private
+    def enforce_type_if_possible(obj: object, tpe: object) -> None:
+        if not isinstance(tpe, type):
+            return
+
+        # inspired by how `typing_extensions.runtime_checkable` checks for a protocol
+        if isinstance(tpe, ProtocolMeta) and getattr(tpe, "_is_protocol", False):
+            if getattr(tpe, "_is_runtime_protocol", False) and not isinstance(obj, tpe):
+                raise TypeError(f"Dependency value {obj} is not an instance of {tpe}, "
+                                f"but a {type(obj)}")
+        elif not isinstance(obj, tpe):
+            raise TypeError(f"Value {obj!r} is not an instance of {tpe!r}, "
+                            f"but a {type(obj)!r}")
