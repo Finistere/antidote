@@ -8,7 +8,7 @@ For any given version :code:`N`, all releases :code:`N.X.X` guarantee:
 - API stability: Python code that used to work will continue work.
 - Namespace stability for :code:`antidote`, :code:`antidote.core` and :code:`antidote.exceptions`.
   All other namespaces have no guarantees.
-- *best effort* for typing stability. Meaning that code relying on Antidote that used to pass MyPy
+- *best effort* for static type hints stability. Meaning that code relying on Antidote that used to pass MyPy
   or any other static type checker should continue working, but it's not guaranteed.
 
 Most, if not all, the API is annotated with decorators such as :code:`@API.public` specifying whether
@@ -32,7 +32,6 @@ Deprecation
 -----------
 
 - :py:class:`.Service` and :py:class:`.ABCService` are deprecated in favor of :py:func:`.service`.
-  instead which has the same behavior as :py:func:`.service`.
 - Passing a function to the argument :code:`dependencies` of :py:func:`.inject` is deprecated.
   If you want to customize how Antidote injects dependencies, just wrap :py:func:`.inject` instead.
 - :py:func:`.inject`'s :code:`auto_provide` argument is deprecated. If you rely on this behavior,
@@ -51,9 +50,8 @@ Deprecation
 
 - Annotation :code:`Provide` has been renamed :code:`Inject`.
 - :code:`world.get` will not support extracting annotated dependencies anymore.
-- :code:`world.get` will require the dependency in the future when a type is specified. It supported
-  was added using the type as the dependency itself to have a shorter syntax for :code:`@service`/:code:`@service`.
-  However, as :code:`world.get` provides now better type information it shouldn't be needed anymore.
+- Omitting the dependency when a type is specified in :code:`world.get` is deprecated. :code:`world.get`
+  provides now better type information.
 
   .. code-block:: python
 
@@ -87,7 +85,7 @@ Features
 
 - Add :code:`ignore_type_hints` to :py:func:`.inject` to support cases when type hints cannot be
   evaluated, typically in circular imports.
-- Adding Markers for :py:func:`.inject` which replace default arguments:
+- Adding Markers for :py:func:`.inject` used as default arguments to declare injections:
 
   .. code-block:: python
 
