@@ -132,7 +132,7 @@ Simple, right ? And you can still use it like a normal function, typically when 
 
     f(Database())
 
-:py:func:`.inject` here used the marker :code:`inject.me()` with the help of the type hint to determine
+:code:`.inject` here used the marker :code:`inject.me()` with the help of the type hint to determine
 the dependency. But it also supports the following ways to express the dependency wiring:
 
 - annotated type hints:
