@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import collections.abc as c_abc
 import inspect
+from dataclasses import dataclass
 from typing import (Any, Callable, cast, Dict, Iterable, List, Mapping, Set,  # noqa: F401
                     TYPE_CHECKING, Union)
 
-from typing_extensions import TypeAlias
+from typing_extensions import final, TypeAlias
 
 from .exceptions import DoubleInjectionError
 from .marker import Marker
 from .._internal import API
 from .._internal.argspec import Arguments
-from .._internal.utils import FinalImmutable
+from .._internal.utils import Default
 from .._internal.wrapper import (build_wrapper, get_wrapped, Injection,
                                  InjectionBlueprint, is_wrapper)
 
@@ -22,28 +23,32 @@ AnyF: TypeAlias = 'Union[Callable[..., Any], staticmethod[Any], classmethod[Any]
 
 
 @API.private
-class ArgDependency(FinalImmutable):
-    __slots__ = ('dependency', 'optional')
+@final
+@dataclass(frozen=True, init=False)
+class ArgDependency:
+    __slots__ = ('dependency', 'default')
     dependency: object
-    optional: bool
+    default: object
 
     @classmethod
     def of(cls, x: object) -> ArgDependency:
         from .annotations import Get
-
         if isinstance(x, ArgDependency):
             return x
         if isinstance(x, Get):
-            x = x.dependency
+            return ArgDependency(dependency=x.dependency,
+                                 default=x.default)
 
         return ArgDependency(x)
 
-    def __init__(self, dependency: object, optional: bool = False) -> None:
-        super().__init__(dependency, optional)
+    def __init__(self, dependency: object, *, default: object = Default.sentinel) -> None:
+        object.__setattr__(self, 'dependency', dependency)
+        object.__setattr__(self, 'default', default)
 
 
 @API.private
 def raw_inject(f: AnyF,
+               *,
                dependencies: DEPENDENCIES_TYPE,
                auto_provide: AUTO_PROVIDE_TYPE,
                strict_validation: bool,
@@ -120,7 +125,7 @@ def _build_injection_blueprint(arguments: Arguments,
         Injection(arg_name=arg.name,
                   required=isinstance(arg.default, Marker) or not arg.has_default,
                   dependency=arg_dependency.dependency,
-                  optional=arg_dependency.optional)
+                  default=arg_dependency.default)
         for arg, arg_dependency in zip(arguments, resolved_dependencies)
     ))
 
@@ -191,7 +196,7 @@ def _build_auto_provide(arguments: Arguments,
         # convert to set in case we cannot iterate more than once.
         auto_provide_set = set(auto_provide)
         for cls in auto_provide_set:
-            if not (isinstance(cls, type) and inspect.isclass(cls)):
+            if not isinstance(cls, type):
                 raise TypeError(f"auto_provide must be a boolean or an iterable of "
                                 f"classes, but contains {cls!r} which is not a class.")
 

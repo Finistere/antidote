@@ -29,5 +29,5 @@ class CallableClass(Protocol[Tco]):
 
 
 @API.private
-class Dependency(Generic[T]):
+class Dependency(Generic[Tco]):
     pass

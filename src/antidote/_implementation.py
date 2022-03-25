@@ -1,5 +1,4 @@
 import functools
-import inspect
 import warnings
 from typing import Callable, Generic, Hashable, Type, TypeVar
 
@@ -58,7 +57,7 @@ def validate_provided_class(dependency: Hashable, *, expected: type) -> None:
     if isinstance(cls, ImplementationDependency):
         cls = cls.interface
 
-    if not (isinstance(cls, type) and inspect.isclass(cls)):
+    if not isinstance(cls, type):
         raise TypeError(f"{dependency} does not provide any class")
 
     if not issubclass(cls, expected):

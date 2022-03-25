@@ -87,7 +87,7 @@ def test_no_default_implementation():
     with pytest.raises(NotImplementedError):
         Dummy().clone(False)
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(RuntimeError):
         Dummy().provide(object(), object())
 
     with pytest.raises(NotImplementedError):

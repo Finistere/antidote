@@ -16,6 +16,76 @@ the given functionality can be relied upon.
 
 
 
+1.2.0 (2022-04-X)
+==================
+
+
+Bug fix
+-------
+
+- Fix injection error when using the :code:`Klass | None` notation instead of :code:`Optional[Klass]`
+  in Python 3.10.
+
+
+Features
+--------
+
+- :code:`frozen` keyword argument to :py:func:`.world.test.clone` which allows one to control
+  whether the cloned world is already frozen or not.
+- Both :code:`inject.get` and :code:`world.get` now strictly follow the same API.
+- :py:func:`.interface` and py:class:`implements` which provide a cleaner way to separate
+  implementations from the public interface. Qualifiers are also supported out of the box. They
+  can be added with :code:`qualified_by` keyword and requested with either :code:`qualified_by` or
+  :code:`qualified_by_one_of`.
+
+    .. code-block:: python
+
+        from antidote import implements, inject, interface, world, QualifiedBy
+
+        V1 = object()
+        V2 = object()
+
+
+        @interface
+        class Service:
+            pass
+
+
+        @implements(Service).when(qualified_by=V1)
+        class ServiceImpl(Service):
+            pass
+
+
+        @implements(Service).when(QualifiedBy(V2))
+        class ServiceImplV2(Service):
+            pass
+
+
+        world.get[Service].single(qualified_by=V1)
+        world.get[Service].all()
+
+
+        @inject
+        def f(service: Service = inject.me(QualifiedBy(V2))) -> Service:
+            return service
+
+
+        @inject
+        def f(services: list[Service] = inject.me(qualified_by=[V1, V2])) -> list[Service]:
+            return services
+
+
+
+Experimental
+------------
+
+- :py:class:`.Predicate` API is experimental allows you to define your custom logic
+  for selecting the right implementation for a given interface. Qualifiers are implemented with
+  the :py:class:`.QualifiedBy` predicate which is part of the public API.
+
+
+
+
 1.1.1 (2022-03-25)
 ==================
 

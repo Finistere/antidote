@@ -4,29 +4,17 @@ Utilities used by world, mostly for syntactic sugar.
 from __future__ import annotations
 
 import warnings
-from typing import (Any, Callable, cast, Generic, Hashable, Optional, overload, Type,
-                    TYPE_CHECKING,
-                    TypeVar,
-                    Union)
+from typing import (Any, cast, Generic, Hashable, Type,
+                    TypeVar)
 
 from typing_extensions import final, Protocol
 
 from . import API
-from .state import current_container
-from .utils import Default, enforce_type_if_possible
-from .utils.immutable import FinalImmutable, Immutable
+from .utils.immutable import Immutable
 from .utils.meta import Singleton
-from ..core._annotations import extract_annotated_dependency
-from ..core.annotations import Get
 from ..core.container import RawContainer
-from ..core.exceptions import DependencyNotFoundError
-from ..core.typing import CallableClass, Dependency, Source
-
-if TYPE_CHECKING:
-    pass
 
 T = TypeVar('T')
-R = TypeVar('R')
 
 
 @API.private
@@ -80,138 +68,7 @@ class LazyDependency(Immutable, Generic[T]):
         return value
 
 
-@API.private  # use world.get, not the class directly
-@final
-class WorldGet(Singleton):
-    @overload
-    def __call__(self,
-                 __dependency: Dependency[T],
-                 *,
-                 default: Union[T, Default] = Default.sentinel
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @overload
-    def __call__(self,
-                 __dependency: Type[T],
-                 *,
-                 default: Union[T, Default] = Default.sentinel
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @overload
-    def __call__(self,
-                 __dependency: Type[T],
-                 *,
-                 default: Union[T, Default] = Default.sentinel,
-                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @API.public
-    def __call__(self,
-                 __dependency: Any,
-                 *,
-                 default: Any = Default.sentinel,
-                 source: Optional[Union[
-                     Source[Any],
-                     Callable[..., Any],
-                     Type[CallableClass[Any]]
-                 ]] = None
-                 ) -> Any:
-        try:
-            __dependency = cast(Any, extract_annotated_dependency(__dependency))
-            if source is not None:
-                __dependency = Get(__dependency, source=source).dependency
-            return current_container().get(__dependency)
-        except DependencyNotFoundError:
-            if default is not Default.sentinel:
-                return default
-            raise
-
-    @API.public
-    def __getitem__(self, tpe: Type[T]) -> TypedWorldGet[T]:
-        return TypedWorldGet(tpe)
-
-
-@API.private  # use world.get, not the class directly
-@final
-class TypedWorldGet(Generic[T], FinalImmutable):
-    __slots__ = ('__type',)
-    __type: Type[T]
-
-    @overload
-    def __call__(self,
-                 __dependency: Any,
-                 *,
-                 default: Union[T, Default] = Default.sentinel
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @overload
-    def __call__(self,
-                 *,
-                 default: Union[T, Default] = Default.sentinel,
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @overload
-    def __call__(self,
-                 __dependency: Type[R],
-                 *,
-                 default: Union[T, Default] = Default.sentinel,
-                 source: Union[Source[R], Callable[..., R], Type[CallableClass[R]]]
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @overload
-    def __call__(self,
-                 *,
-                 default: Union[T, Default] = Default.sentinel,
-                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
-                 ) -> T:
-        ...  # pragma: no cover
-
-    @API.public
-    def __call__(self,
-                 __dependency: Any = None,
-                 *,
-                 default: Union[T, Default] = Default.sentinel,
-                 source: Optional[Union[
-                     Source[Any],
-                     Callable[..., Any],
-                     Type[CallableClass[Any]]
-                 ]] = None
-                 ) -> T:
-
-        if default is not Default.sentinel \
-                and isinstance(self.__type, type) \
-                and not isinstance(default, self.__type):
-            raise TypeError(f"Default value {default} is not an instance of {self.__type}, "
-                            f"but a {type(default)}")
-        if __dependency is None:
-            __dependency = extract_annotated_dependency(self.__type)
-        else:
-            __dependency = extract_annotated_dependency(__dependency)
-        if source is not None:
-            __dependency = Get(cast(Any, __dependency), source=source).dependency
-        try:
-            value = cast(T, current_container().get(__dependency))
-        except DependencyNotFoundError:
-            if default is not Default.sentinel:
-                return default
-            raise
-
-        enforce_type_if_possible(value, self.__type)
-        return value
-
-    @API.public
-    def __matmul__(self, other: SupportsRMatmul) -> T:
-        warnings.warn("Prefer the Get(dependency, source=X) notation.",
-                      DeprecationWarning)
-        return self.__call__(self.__type @ other)
-
-
+@API.deprecated
 @API.private
 @final
 class WorldLazy(Singleton):
@@ -224,6 +81,7 @@ class WorldLazy(Singleton):
         return TypedWorldLazy(tpe)
 
 
+@API.deprecated
 @API.private
 @final
 class TypedWorldLazy(Generic[T], Immutable):
@@ -245,11 +103,13 @@ def new_container() -> RawContainer:
 
     from .._providers import (LazyProvider, ServiceProvider,
                               IndirectProvider, FactoryProvider)
+    from ..lib.interface._provider import InterfaceProvider
 
     container = RawContainer()
     container.add_provider(FactoryProvider)
     container.add_provider(LazyProvider)
     container.add_provider(IndirectProvider)
     container.add_provider(ServiceProvider)
+    container.add_provider(InterfaceProvider)
 
     return container

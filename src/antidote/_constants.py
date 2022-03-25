@@ -69,11 +69,11 @@ class ConstantsMeta(AbstractMeta):
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
-                **kwargs: object
+                **kwargs: Any
                 ) -> ConstantsMeta:
         cls = cast(
             ConstantsMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+            super().__new__(mcs, name, bases, namespace, **kwargs)
         )
         if not kwargs.get('abstract'):
             _configure_constants(cls)
@@ -117,7 +117,7 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
     method_name: str
     arg: object
     default: Tco
-    type_: type
+    type_: Type[Tco]
     auto_cast: bool
     _cache: str
 
@@ -128,7 +128,7 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
                  method_name: str,
                  arg: object,
                  default: Tco,
-                 type_: type,
+                 type_: Type[Tco],
                  auto_cast: bool
                  ):
         super().__init__(
@@ -166,8 +166,8 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
         if self.auto_cast:
             value = self.type_(value)
 
-        enforce_type_if_possible(value, self.type_)
-        return cast(Tco, value)
+        assert enforce_type_if_possible(value, self.type_)
+        return value
 
 
 @API.private

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import inspect
 import warnings
+from dataclasses import dataclass
 from typing import Any, Callable, Hashable, Optional, overload, Type, TYPE_CHECKING, TypeVar, Union
 
-from typing_extensions import Annotated, get_type_hints, Protocol
+from typing_extensions import Annotated, final, Protocol
 
 from .marker import Marker
 from .typing import CallableClass, Source
 from .._internal import API
-from .._internal.utils import FinalImmutable
+from .._internal.utils import Default, FinalImmutable
 
 if TYPE_CHECKING:
     from .injection import Arg
@@ -60,7 +60,9 @@ Provide.__doc__ = Inject.__doc__
 
 
 @API.public
-class Get(FinalImmutable, AntidoteAnnotation, Marker):
+@final
+@dataclass(frozen=True, init=False)
+class Get(AntidoteAnnotation, Marker):
     """
     Annotation specifying explicitly which dependency to inject.
 
@@ -77,18 +79,24 @@ class Get(FinalImmutable, AntidoteAnnotation, Marker):
         True
 
     """
-    __slots__ = ('dependency',)
+    __slots__ = ('dependency', 'default')
     dependency: object
+    default: object
 
     @overload
-    def __init__(self, __dependency: object) -> None:
+    def __init__(self,
+                 __dependency: object,
+                 *,
+                 default: object = Default.sentinel
+                 ) -> None:
         ...  # pragma: no cover
 
     @overload
     def __init__(self,
                  __dependency: Type[T],
                  *,
-                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
+                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]],
+                 default: object = Default.sentinel
                  ) -> None:
         ...  # pragma: no cover
 
@@ -99,41 +107,36 @@ class Get(FinalImmutable, AntidoteAnnotation, Marker):
                      Source[Any],
                      Callable[..., Any],
                      Type[CallableClass[Any]]
-                 ]] = None
+                 ]] = None,
+                 default: object = Default.sentinel
                  ) -> None:
-        from .._providers.factory import FactoryDependency
-
         if isinstance(__dependency, Get):
             __dependency = __dependency.dependency
 
         if isinstance(source, Source):
             __dependency = source.__antidote_dependency__(__dependency)
         elif source is not None:
-            if isinstance(source, type) and inspect.isclass(source):
-                output = get_type_hints(source.__call__).get('return')
-            elif callable(source):
-                output = get_type_hints(source).get('return')
+            from .. import world
+            from .._providers import FactoryProvider
+
+            if isinstance(source, type) or callable(source):
+                factory_dependency = world.get(FactoryProvider).get_dependency_of(source)
             else:
                 raise TypeError(f"{source} is neither a factory function/class nor a source,"
                                 f" but a {type(source)}")
 
-            if not (isinstance(output, type) and inspect.isclass(output)):
-                raise TypeError(f"{source} is not a valid factory, it must return a class")
-
-            if not (isinstance(__dependency, type) and inspect.isclass(__dependency)):
+            if not isinstance(__dependency, type):
                 raise TypeError(f"dependency must be a class for a factory, "
                                 f"not a {type(__dependency)}")
 
-            if not issubclass(output, __dependency):
+            if not issubclass(factory_dependency.output, __dependency):
                 raise TypeError(f"Expected dependency {__dependency} does not match output"
                                 f" of the factory {source}")
 
-            __dependency = FactoryDependency(
-                factory=source,
-                output=__dependency
-            )
+            __dependency = factory_dependency
 
-        super().__init__(__dependency)
+        object.__setattr__(self, "dependency", __dependency)
+        object.__setattr__(self, "default", default)
 
 
 @API.public

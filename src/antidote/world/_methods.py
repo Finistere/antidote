@@ -1,11 +1,12 @@
 import inspect
 import warnings
-from typing import Any, cast, Hashable, Type, TypeVar
+from typing import Any, cast, Type, TypeVar
 
 from .._internal import API
 from .._internal.state import current_container, init
-from .._internal.world import WorldGet, WorldLazy
+from .._internal.world import WorldLazy
 from ..core.container import RawProvider, Scope
+from ..core.getter import DependencyGetter
 
 init()
 
@@ -13,28 +14,9 @@ __sentinel = object()
 T = TypeVar('T')
 
 # API.public
-get = WorldGet()
-get.__doc__ = """
-Used to retrieve a dependency from Antidote. A type hint can be provided and the result
-will cast to match it. It follows the same philosophy as mypy and will NOT enforce it.
-
-.. doctest:: world_get
-
-    >>> from antidote import world, service
-    >>> @service
-    ... class Dummy:
-    ...     pass
-    >>> world.get(Dummy)
-    <Dummy ...>
-    >>> # But Mypy will only an object, not a `Dummy` instance. For this Mypy needs help:
-    >>> world.get[Dummy](Dummy)  # Treated by Mypy as a Dummy
-    <Dummy ...>
-    >>> # To avoid repetition, if a type hint is provided but no argument, it
-    ... # will retrieve the type hint itself.
-    ... world.get[Dummy]()
-    <Dummy ...>
-
-"""
+get: DependencyGetter = DependencyGetter.enforced(
+    lambda dependency, default: current_container().get(dependency, default)
+)
 
 
 def __apply_lazy(_: object) -> WorldLazy:
@@ -131,7 +113,7 @@ def freeze() -> None:
 
 
 @API.public
-def debug(dependency: Hashable, *, depth: int = -1) -> str:
+def debug(dependency: object, *, depth: int = -1) -> str:
     """
     To help you debug issues you may encounter with your injections, this will provide
     a tree representing all the dependencies that will be retrieved by Antidote when

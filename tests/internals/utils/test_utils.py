@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import pytest
 from typing_extensions import Annotated, Protocol, runtime_checkable
 
-from antidote._internal.utils import enforce_type_if_possible
+from antidote._internal.utils import enforce_subclass_if_possible, enforce_type_if_possible
 
 
 @contextmanager
@@ -11,7 +11,7 @@ def does_not_raise():
     yield
 
 
-does_raise = pytest.raises(TypeError, match="(?i).*Value.*")
+does_raise = pytest.raises(TypeError, match="(?i).*(isinstance|subclass|implement).*")
 
 
 class DummyProtocol(Protocol):
@@ -56,3 +56,19 @@ class SubDummy(ValidDummy):
 def test_enforce_type(expectation, obj, tpe):
     with expectation:
         enforce_type_if_possible(obj, tpe)
+
+
+@pytest.mark.parametrize('expectation, sub, tpe', [
+    (does_not_raise(), ValidDummy, DummyProtocol),
+    (does_not_raise(), ValidDummy, DummyRuntimeProtocol),
+    (does_not_raise(), InvalidDummy, DummyProtocol),
+    (does_raise, InvalidDummy, DummyRuntimeProtocol),
+    (does_raise, InvalidDummy, ValidDummy),
+    (does_not_raise(), SubDummy, ValidDummy),
+    (does_not_raise(), 1, 1),
+    (does_not_raise(), 1, int),
+    (does_not_raise(), int, 1)
+])
+def test_enforce_subtype(expectation, sub, tpe):
+    with expectation:
+        enforce_subclass_if_possible(sub, tpe)

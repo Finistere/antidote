@@ -105,7 +105,7 @@ def test_readme_simple() -> None:
         # defaults are supported, used on LookupError
         DB_USER = const[str](default='postgres')
 
-        def provide_const(self, name: str, arg: Optional[object]) -> object:
+        def provide_const(self, *, name: str, arg: Optional[object]) -> object:
             return os.environ[name]
 
     import os
@@ -264,7 +264,7 @@ def test_readme() -> None:
                 }
             }
 
-        def provide_const(self, name: str, arg: Optional[str]) -> object:
+        def provide_const(self, *, name: str, arg: Optional[str]) -> object:
             assert arg is not None
             root, key = arg.split('.')
             return self._raw_conf[root][key]

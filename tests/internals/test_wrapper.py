@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from antidote import world
+from antidote._internal.utils import Default
 from antidote._internal.wrapper import build_wrapper, Injection, InjectionBlueprint
 from antidote.exceptions import DependencyNotFoundError
 
@@ -47,7 +48,7 @@ def wrap(__func=None, **kwargs: Arg):
                     arg_name=arg_name,
                     required=isinstance(dependency, Required),
                     dependency=dependency.dependency,
-                    optional=False
+                    default=Default.sentinel
                 )
                 for arg_name, dependency in kwargs.items()
             ])),

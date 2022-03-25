@@ -1,11 +1,11 @@
 import functools
 import inspect
-from typing import Awaitable, Callable, cast, Dict, Hashable, Sequence
+from typing import Any, Awaitable, Callable, cast, Dict, Hashable, Sequence
 
 from . import API
 from .state import current_container
 from .utils import FinalImmutable
-from ..core.container import _DEFAULT_SENTINEL, Container
+from ..core.container import Container
 from ..core.exceptions import DependencyNotFoundError
 
 compiled = False
@@ -27,14 +27,14 @@ class Injection(FinalImmutable):
                  *,
                  arg_name: str,
                  required: bool,
-                 optional: bool,
+                 default: object,
                  dependency: Hashable
                  ) -> None:
         super().__init__(
             arg_name=arg_name,
             required=required,
             dependency=dependency,
-            default_value=None if optional else _DEFAULT_SENTINEL
+            default_value=default
         )
 
 
@@ -92,12 +92,12 @@ def get_wrapped(x: object) -> object:
 class InjectedWrapper:
     __wrapped__: object
 
-    def __init__(self, wrapped: object) -> None:
+    def __init__(self, wrapped: Callable[..., object]) -> None:
         self.__wrapped__ = wrapped
         functools.wraps(wrapped, updated=())(self)
 
-    @property
-    def __class__(self):
+    @property  # type: ignore
+    def __class__(self) -> Any:
         return self.__wrapped__.__class__
 
     def __getattr__(self, item: str) -> object:
@@ -139,7 +139,7 @@ class SyncInjectedWrapper(InjectedWrapper):
     def __get__(self, instance: object, owner: type) -> object:
         return SyncInjectedBoundWrapper(
             self.__blueprint,
-            self.__wrapped__.__get__(instance, owner),  # type: ignore
+            self.__wrapped__.__get__(instance, owner),
             instance is not None
         )
 
@@ -190,7 +190,7 @@ class AsyncInjectedWrapper(InjectedWrapper):
     def __get__(self, instance: object, owner: type) -> object:
         return AsyncInjectedBoundWrapper(
             self.__blueprint,
-            self.__wrapped__.__get__(instance, owner),  # type: ignore
+            self.__wrapped__.__get__(instance, owner),
             instance is not None
         )
 

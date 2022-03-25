@@ -111,40 +111,18 @@ def test_invalid_factory():
     with pytest.raises(TypeError, match=".*factory.*"):
         Get(Dummy, source=object())
 
-    with pytest.raises(TypeError, match=".*factory.*"):
+    with pytest.raises(ValueError, match="(?i).*factory.*declared.*"):
         Get(Dummy, source=Dummy)
 
 
-def test_invalid_factory_return_type_hint():
+def test_invalid_factory_output():
     class Dummy:
         pass
 
-    def f():
-        pass
-
-    with pytest.raises(TypeError, match=".*factory.*"):
-        Get(Dummy, source=f)
-
-    def g() -> object:
-        pass
-
-    with pytest.raises(TypeError, match=".*factory.*"):
-        Get(Dummy, source=g)
-
     class F:
-        def __call__(self):
-            pass
+        pass
 
-    with pytest.raises(TypeError, match=".*valid.*factory.*return.*class"):
-        Get(Dummy, source=F)
-
-    class G:
-        def __call__(self) -> object:
-            pass
-
-    with pytest.raises(TypeError, match=".*valid.*factory.*return.*class"):
-        Get(Dummy, source=G)
-
+    @factory
     def dummy_factory() -> Dummy:
         return Dummy()
 

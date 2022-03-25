@@ -7,7 +7,6 @@ from .exceptions import DoubleInjectionError
 from .injection import inject
 from .wiring import Methods, Wiring
 from .._internal import API
-from .._internal.wrapper import is_wrapper
 
 C = TypeVar('C', bound=type)
 AnyF: TypeAlias = 'Union[Callable[..., object], staticmethod[Any], classmethod[Any]]'
@@ -15,7 +14,7 @@ AnyF: TypeAlias = 'Union[Callable[..., object], staticmethod[Any], classmethod[A
 
 @API.private
 def wire_class(cls: C, wiring: Wiring) -> C:
-    if not (isinstance(cls, type) and inspect.isclass(cls)):
+    if not isinstance(cls, type):
         raise TypeError(f"Expecting a class, got a {type(cls)}")
 
     methods: Dict[str, AnyF] = dict()
@@ -25,7 +24,6 @@ def wire_class(cls: C, wiring: Wiring) -> C:
             if (name in {'__call__', '__init__'}
                     or not (name.startswith("__") and name.endswith("__"))):
                 if (inspect.isfunction(member)
-                        or is_wrapper(member)  # we may need to raise DoubleInjectionError
                         or isinstance(member, (staticmethod, classmethod))):
                     methods[name] = cast(AnyF, member)
     else:

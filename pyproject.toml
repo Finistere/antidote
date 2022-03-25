@@ -50,9 +50,19 @@ exclude_lines = [
 [tool.pyright]
 include = [
     "src",
+    "tests/lib/interface/**",
 ]
-ignore = [
-    "tests/**"
+exclude = [
+    "tests/core/**",
+    "tests/internals/**",
+    "tests/mypy_typing/**",
+    "tests/providers/**",
+    "tests/world/**",
+    "tests/lib/test_constants.py",
+    "tests/lib/test_lazy.py",
+    "tests/lib/test_factory.py",
+    "tests/lib/test_implementation.py",
+    "tests/lib/test_service.py",
 ]
 pythonVersion = "3.7"
 pythonPlatform = "All"
@@ -67,3 +77,4 @@ reportSelfClsParameterName = false
 reportImportCycles = false
 # We're using our own internal APIs which we're trying to hide as much as possible
 reportPrivateUsage = false
+reportUnnecessaryTypeIgnoreComment = "warning"

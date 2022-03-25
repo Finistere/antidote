@@ -15,7 +15,8 @@ from ...utils import validated_scope
 @contextmanager
 def clone(*,
           keep_singletons: bool = False,
-          keep_scopes: bool = False
+          keep_scopes: bool = False,
+          frozen: bool = True
           ) -> Iterator[None]:
     """
     Clone the current container, namely scopes and providers. Existing singletons and
@@ -74,7 +75,8 @@ def clone(*,
 
     def build(c: RawContainer) -> RawContainer:
         return c.clone(keep_singletons=keep_singletons,
-                       keep_scopes=keep_scopes)
+                       keep_scopes=keep_scopes,
+                       frozen=frozen)
 
     with state.override(build):
         yield
