@@ -16,6 +16,19 @@ the given functionality can be relied upon.
 
 
 
+1.1.1 (2022-03-25)
+==================
+
+
+Bug fix
+-------
+
+- Injected functions/methods with :py:func:`.inject` did not behave correctly with
+  :code:`inspect.isfunction`, :code:`inspect.ismethod`, :code:`inspect.iscoroutinefunction`
+  and :code:`inspect.iscoroutine`.
+
+
+
 1.1.0 (2022-03-19)
 ==================
 
