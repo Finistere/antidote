@@ -92,6 +92,17 @@ def get_wrapped(x: object) -> object:
 class InjectedWrapper:
     __wrapped__: object
 
+    def __init__(self, wrapped: object) -> None:
+        self.__wrapped__ = wrapped
+        functools.wraps(wrapped, updated=())(self)
+
+    @property
+    def __class__(self):
+        return self.__wrapped__.__class__
+
+    def __getattr__(self, item: str) -> object:
+        return getattr(self.__wrapped__, item)
+
 
 @API.private
 class SyncInjectedWrapper(InjectedWrapper):
@@ -100,6 +111,7 @@ class SyncInjectedWrapper(InjectedWrapper):
     arguments. An InjectionBlueprint is used to store the mapping of the
     arguments to their dependency if any and if the injection is required.
     """
+    __wrapped__: Callable[..., object]
 
     def __init__(self,
                  blueprint: InjectionBlueprint,
@@ -112,9 +124,8 @@ class SyncInjectedWrapper(InjectedWrapper):
             skip_self:  whether the first argument must be skipped. Used internally
         """
         self.__blueprint = blueprint
-        self.__wrapped__: Callable[..., object] = wrapped
         self.__injection_offset = 1 if skip_self else 0
-        functools.wraps(wrapped, updated=())(self)
+        super().__init__(wrapped)
 
     def __call__(self, *args: object, **kwargs: object) -> object:
         kwargs = _inject_kwargs(
@@ -131,9 +142,6 @@ class SyncInjectedWrapper(InjectedWrapper):
             self.__wrapped__.__get__(instance, owner),  # type: ignore
             instance is not None
         )
-
-    def __getattr__(self, item: str) -> object:
-        return getattr(self.__wrapped__, item)
 
 
 @API.private
@@ -154,6 +162,7 @@ class AsyncInjectedWrapper(InjectedWrapper):
     arguments. An InjectionBlueprint is used to store the mapping of the
     arguments to their dependency if any and if the injection is required.
     """
+    __wrapped__: Callable[..., Awaitable[object]]
 
     def __init__(self,
                  blueprint: InjectionBlueprint,
@@ -166,9 +175,8 @@ class AsyncInjectedWrapper(InjectedWrapper):
             skip_self:  whether the first argument must be skipped. Used internally
         """
         self.__blueprint = blueprint
-        self.__wrapped__: Callable[..., Awaitable[object]] = wrapped
         self.__injection_offset = 1 if skip_self else 0
-        functools.wraps(wrapped, updated=())(self)
+        super().__init__(wrapped)
 
     async def __call__(self, *args: object, **kwargs: object) -> object:
         kwargs = _inject_kwargs(
@@ -185,9 +193,6 @@ class AsyncInjectedWrapper(InjectedWrapper):
             self.__wrapped__.__get__(instance, owner),  # type: ignore
             instance is not None
         )
-
-    def __getattr__(self, item: str) -> object:
-        return getattr(self.__wrapped__, item)
 
 
 @API.private

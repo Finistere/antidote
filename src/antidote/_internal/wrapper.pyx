@@ -113,6 +113,10 @@ cdef class InjectedWrapper:
                 for inj in self.__blueprint.injections
                 if inj.dependency is not None}
 
+    @property
+    def __class__(self):
+        return self.__wrapped__.__class__
+
     def __getattr__(self, name):
         return getattr(self.__wrapped__, name)
 
