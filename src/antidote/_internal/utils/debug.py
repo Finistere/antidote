@@ -4,7 +4,8 @@ import base64
 import inspect
 import textwrap
 from collections import deque
-from typing import (Deque, Hashable, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING)
+from dataclasses import dataclass, field
+from typing import (Deque, Hashable, List, Optional, Set, Tuple, TYPE_CHECKING)
 
 from .immutable import Immutable
 from .. import API
@@ -35,7 +36,7 @@ def debug_repr(__obj: object) -> str:
         return str(__obj.__antidote_debug_repr__())  # type: ignore
     except Exception:
         pass
-    if (isinstance(__obj, type) and inspect.isclass(__obj)) \
+    if isinstance(__obj, type) \
             or inspect.isfunction(__obj) \
             or is_wrapper(__obj):
         if isinstance(__obj.__module__, str) \
@@ -48,7 +49,7 @@ def debug_repr(__obj: object) -> str:
 
 
 @API.private
-def get_injections(__func: object) -> Sequence[object]:
+def get_injections(__func: object) -> List[object]:
     from ..wrapper import get_wrapper_injections
     try:
         return list(get_wrapper_injections(__func).values())  # type: ignore
@@ -57,21 +58,22 @@ def get_injections(__func: object) -> Sequence[object]:
 
 
 @API.private
-class Task(Immutable):
-    __slots__ = ()
+class Task:
+    pass
 
 
 @API.private
+@dataclass
 class DependencyTask(Task):
-    __slots__ = ('dependency',)
     dependency: Hashable
+    prefix: str = field(default='')
 
 
 @API.private
+@dataclass
 class InjectionTask(Task):
-    __slots__ = ('name', 'injections')
     name: str
-    injections: List[Hashable]
+    injections: List[object]
 
 
 @API.private
@@ -99,6 +101,7 @@ def tree_debug_info(container: 'RawContainer',
     from ...core.wiring import WithWiringMixin
     from ...core.exceptions import DependencyNotFoundError
     from ...core import Scope
+    from ...core.utils import DebugInfoPrefix
 
     @API.private
     class DebugTreeNode(Immutable):
@@ -145,7 +148,7 @@ def tree_debug_info(container: 'RawContainer',
                             dependency: Hashable) -> None:
         from ...core.wiring import Methods
 
-        if isinstance(dependency, type) and inspect.isclass(dependency):
+        if isinstance(dependency, type):
             cls = dependency
             conf = getattr(cls, '__antidote__', None)
             if conf is not None \
@@ -172,7 +175,7 @@ def tree_debug_info(container: 'RawContainer',
                 tasks.append((parent, parent_dependencies, DependencyTask(d)))
 
     while tasks:
-        parent, parent_dependencies, task = tasks.pop()
+        parent, parent_dependencies, task = tasks.popleft()
         if isinstance(task, DependencyTask):
             dependency = task.dependency
             try:
@@ -186,22 +189,23 @@ def tree_debug_info(container: 'RawContainer',
                 continue
 
             if dependency in parent_dependencies:
-                parent.child(f"/!\\ Cyclic dependency: {debug.info}")
+                parent.child(f"/!\\ Cyclic dependency: {task.prefix}{debug.info}")
                 continue
 
-            child = parent.child(debug.info, scope=debug.scope)
+            child = parent.child(f"{task.prefix}{debug.info}", scope=debug.scope)
             child_dependencies = parent_dependencies | {dependency}
-
-            if dependency is origin:
-                root = child  # previous root is redundant
-                add_root_injections(child, child_dependencies, dependency)
 
             if child.depth < max_depth:
                 for d in debug.dependencies:
-                    tasks.append((child, child_dependencies,
-                                  DependencyTask(d)))
+                    if isinstance(d, DebugInfoPrefix):
+                        tasks.append((child, child_dependencies,
+                                      DependencyTask(prefix=d.prefix,
+                                                     dependency=d.dependency)))
+                    else:
+                        tasks.append((child, child_dependencies,
+                                      DependencyTask(prefix='', dependency=d)))
                 for w in debug.wired:
-                    if isinstance(w, type) and inspect.isclass(w):
+                    if isinstance(w, type):
                         for d in get_injections(getattr(w, '__init__')):
                             tasks.append((child, child_dependencies,
                                           DependencyTask(d)))
@@ -210,6 +214,11 @@ def tree_debug_info(container: 'RawContainer',
                             name=debug_repr(w),
                             injections=get_injections(w),
                         )))
+
+                if dependency is origin:
+                    root = child  # previous root is redundant
+                    add_root_injections(child, child_dependencies, dependency)
+
         elif isinstance(task, InjectionTask) and task.injections:
             child = parent.child(task.name)
             for d in task.injections:

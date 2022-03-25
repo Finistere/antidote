@@ -127,7 +127,7 @@ class Provider(RawProvider, Generic[T],
         """
         raise NotImplementedError()
 
-    def exists(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: object) -> bool:
         """
         Check whether dependency exists in the current provider. It is recommended to be
         relatively fast as this function will often be called for all _providers. Among
@@ -168,8 +168,8 @@ class Provider(RawProvider, Generic[T],
             :py:class:`~.core.container.DependencyValue`. If the dependency is a
             singleton, you MUST specify it with :code:`singleton=True`.
         """
-        raise NotImplementedError("Either implement provide()"
-                                  "or override maybe_provide()")
+        raise RuntimeError("Either implement provide()"
+                           "or override maybe_provide()")
 
     def debug(self, dependency: T) -> DependencyDebug:
         """
@@ -189,7 +189,7 @@ class Provider(RawProvider, Generic[T],
         raise DebugNotAvailableError("Either implement debug() or override maybe_debug()")
 
     def maybe_provide(self,
-                      dependency: Hashable,
+                      dependency: object,
                       container: Container
                       ) -> Optional[DependencyValue]:
         """
@@ -213,7 +213,7 @@ class Provider(RawProvider, Generic[T],
             return self.provide(cast(T, dependency), container)
         return None
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: object) -> Optional[DependencyDebug]:
         """
         **Expert feature**
 

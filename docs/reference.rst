@@ -14,7 +14,24 @@ world
 .. automodule:: antidote.world
     :members:
 
-    .. autodata:: get
+    .. py:data:: get
+        :type: antidote.core.getter.Getter
+
+        Used to retrieve a dependency from Antidote. A type hint can also be provided. The resulting
+        dependency will be type checked if possible. Typically :py:class:`~typing.Protocol` without
+        :py:func:`~typing.runtime_checkable` will not be enforced.
+
+        .. doctest:: world_get
+
+            >>> from antidote import world, service
+            >>> @service
+            ... class Dummy:
+            ...     pass
+            >>> world.get(Dummy)
+            <Dummy ...>
+            >>> # You can also provide a type hint which will be enforced if possible
+            >>> world.get[object](Dummy)  # Treated by Mypy as an object
+            <Dummy ...>
 
     .. autodata:: lazy
 
@@ -47,8 +64,8 @@ Utilities
     :members: is_compiled, validated_scope, validate_injection
 
 
-Dependencies
-============
+Lib
+===
 
 
 Service
@@ -94,6 +111,23 @@ Lazy
     :members:
 
 
+Interface
+---------
+
+.. automodule:: antidote.lib.interface.interface
+    :members:
+
+.. automodule:: antidote.lib.interface.qualifier
+    :members:
+
+
+Predicate (experimental)
+------------------------
+
+.. automodule:: antidote.lib.interface.predicate
+    :members:
+
+
 Implementation
 --------------
 
@@ -124,6 +158,13 @@ Inject
     .. automethod:: __call__
     .. automethod:: me
     .. automethod:: get
+
+.. autoclass:: antidote.core.getter.DependencyGetter
+    :members: __call__, __getitem__
+
+.. autoclass:: antidote.core.getter.TypedDependencyGetter
+    :members: single, all, __call__
+
 
 Annotations
 ^^^^^^^^^^^

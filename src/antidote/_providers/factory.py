@@ -7,7 +7,7 @@ from typing import Callable, Dict, Hashable, List, Optional
 from .service import Parameterized
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
-from ..core import (Container, DependencyDebug, DependencyValue, Provider,
+from ..core import (Container, DependencyDebug, DependencyValue, does_not_freeze, Provider,
                     Scope)
 
 
@@ -15,6 +15,7 @@ from ..core import (Container, DependencyDebug, DependencyValue, Provider,
 class FactoryProvider(Provider[Hashable]):
     def __init__(self) -> None:
         super().__init__()
+        self.__factory_to_dependency: dict[object, FactoryDependency] = dict()
         self.__factories: Dict[FactoryDependency, Factory] = dict()
 
     def __repr__(self) -> str:
@@ -23,7 +24,7 @@ class FactoryProvider(Provider[Hashable]):
     def clone(self, keep_singletons_cache: bool) -> FactoryProvider:
         p = FactoryProvider()
         if keep_singletons_cache:
-            factories = {
+            factories: dict[FactoryDependency, Factory] = {
                 k: (f.copy() if f.dependency is not None else f)
                 for k, f in self.__factories.items()
             }
@@ -33,6 +34,10 @@ class FactoryProvider(Provider[Hashable]):
                 for k, f in self.__factories.items()
             }
         p.__factories = factories
+        p.__factory_to_dependency = {
+            factory_dependency.factory: factory_dependency
+            for factory_dependency in factories.keys()
+        }
         return p
 
     def exists(self, dependency: Hashable) -> bool:
@@ -98,6 +103,13 @@ class FactoryProvider(Provider[Hashable]):
 
         return DependencyValue(instance, scope=factory.scope)
 
+    @does_not_freeze
+    def get_dependency_of(self, factory: object) -> FactoryDependency:
+        try:
+            return self.__factory_to_dependency[factory]
+        except KeyError:
+            raise ValueError(f"Factory {factory!r} has never been declared.")
+
     def register(self,
                  output: type,
                  *,
@@ -124,18 +136,18 @@ class FactoryProvider(Provider[Hashable]):
             self.__factories[dependency] = Factory(scope=scope,
                                                    function=factory,
                                                    dependency=None)
-
+        self.__factory_to_dependency[dependency.factory] = dependency
         return dependency
 
 
 @API.private
 class FactoryDependency(FinalImmutable):
     __slots__ = ('output', 'factory', '__hash')
-    output: object
+    output: type
     factory: object
     __hash: int
 
-    def __init__(self, *, output: object, factory: object):
+    def __init__(self, *, output: type, factory: object):
         super().__init__(output, factory, hash((output, factory)))
 
     def __repr__(self) -> str:

@@ -8,60 +8,172 @@ what can be done.
 
 
 
-Use interfaces
-==============
+Interface & Implementations
+===========================
 
+An interface defines a contract which should be respected by the implementation. It can be declared
+with :py:func:`.interface` and implementations with :py:class:`.implements`:
 
-Antidote supports the distinction interface/implementation out of the box with the
-function decorator :py:func:`~.implementation`. The result of the function will be the
-retrieved dependency for the specified interface. Typically this means a class registered
-as a service or one that can be provided by a factory.
+.. testcode:: recipes_interface
 
-.. testcode:: recipes_interface_implementation
+    from antidote import interface, implements
 
-    from antidote import implementation, service, inject, Constants, const
+    @interface
+    class Command:
+        def run(self) -> int:
+            ...
 
-    class Database:
-        pass
+    @implements(Command)
+    class CommandImpl(Command):
+        def run(self) -> int:
+            return 0
 
-    @service
-    class PostgresDB(Database):
-        pass
+:code:`Command` can also be a :py:class:`~typing.Protocol`. If it's :py:func:`~typing.runtime_checkable`,
+it'll be enforced at runtime. The implementation can then be retrieved as if :code:`Command` was a
+regular service:
 
-    @service
-    class MySQLDB(Database):
-        pass
+.. doctest:: recipes_interface
 
-    class Conf(Constants):
-        DB_CONN_STR = const[str]('postgres:...')
-
-    # permanent is True by default. If you want to choose on each call which implementation
-    # should be used, set it to False.
-    @implementation(Database, permanent=True)
-    def local_db(db_conn_str: str = Conf.DB_CONN_STR) -> object:
-        db, *rest = db_conn_str.split(':')
-        if db == 'postgres':
-            # Complex dependencies are supported
-            return PostgresDB
-        elif db == 'mysql':
-            # But you can also simply return the class
-            return MySQLDB
-        else:
-            raise RuntimeError(f"{db} is not a supported database")
-
-
-Similar to a :py:func:`~.factory.factory` you must specify the source of the dependency:
-
-.. doctest:: recipes_interface_implementation
-
+    >>> from antidote import inject, world
     >>> @inject
-    ... def f(db: Database = inject.me(source=local_db)):
-    ...     return db
-    >>> f()
-    <PostgresDB ...>
+    ... def cmd(command: Command = inject.me()) -> Command:
+    ...     return command
+    >>> cmd()
+    <CommandImpl object at ...>
+    >>> world.get(Command)
+    <CommandImpl object at ...>
+
+
+Qualifiers
+----------
+
+When working with multiple implementations for an interface qualifiers offer an easy way to
+distinguish them:
+
+
+.. testcode:: recipes_interface_qualifiers
+
+    from enum import auto, Enum
+    from typing import Protocol
+
+    from antidote import implements, interface
+
+
+    class Event(Enum):
+        START = auto()
+        INITIALIZATION = auto()
+        RELOAD = auto()
+        SHUTDOWN = auto()
+
+
+    @interface
+    class Hook(Protocol):
+        def run(self, event: Event) -> None:
+            ...
+
+
+    @implements(Hook).when(qualified_by=Event.START)
+    class StartUpHook:
+        def run(self, event: Event) -> None:
+            pass
+
+
+    @implements(Hook).when(qualified_by=[Event.INITIALIZATION,
+                                         Event.RELOAD])
+    class OnAnyUpdateHook:
+        def run(self, event: Event) -> None:
+            pass
+
+
+    @implements(Hook).when(qualified_by=list(Event))
+    class LogAnyEventHook:
+        def run(self, event: Event) -> None:
+            pass
+
+.. note::
+
+    For Python <3.9 you can use the following trick or create your own :code:`implements_when()`
+    wrapper.
+
+    .. testsetup:: recipes_interface_qualifiers_python_compat
+
+        from typing import Protocol
+        from antidote import implements, interface
+
+        class Event:
+            START = object()
+
+        @interface
+        class Hook(Protocol):
+            def run(self, event: Event) -> None:
+                ...
+
+    .. testcode:: recipes_interface_qualifiers_python_compat
+
+        from typing import TypeVar
+
+        T = TypeVar('T')
+
+        def _(x: T) -> T:
+            return x
+
+        @_(implements(Hook).when(qualified_by=Event.START))
+        class StartUpHook:
+            def run(self, event: Event) -> None:
+                pass
+
+
+Now Antidote will raise an error if one tries to use :code:`LifeCycleHook` like a service:
+
+.. doctest:: recipes_interface_qualifiers
+
     >>> from antidote import world
-    >>> world.get(Database, source=local_db)
-    <PostgresDB ...>
+    >>> world.get(Hook)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in ?
+    DependencyInstantiationError: ...
+
+To retrieve a single implementation you can use:
+
+.. doctest:: recipes_interface_qualifiers
+
+    >>> from antidote import inject
+    >>> world.get[Hook].single(qualified_by=Event.SHUTDOWN)
+    <LogAnyEventHook object at ...>
+    >>> @inject
+    ... def single_hook(hook: Hook = inject.me(qualified_by=Event.SHUTDOWN)
+    ...                 ) -> Hook:
+    ...     return hook
+    >>> single_hook()
+    <LogAnyEventHook object at ...>
+    >>> @inject
+    ... def single_hook2(hook = inject.get[Hook].single(qualified_by=Event.SHUTDOWN)
+    ...                  ) -> Hook:
+    ...     return hook
+    >>> single_hook2()
+    <LogAnyEventHook object at ...>
+
+And to retrieve multiple of them:
+
+.. doctest:: recipes_interface_qualifiers
+
+    >>> world.get[Hook].all(qualified_by=Event.START)
+    [<LogAnyEventHook object at ...>, <StartUpHook object at ...>]
+    >>> @inject
+    ... def all_hooks(hook: list[Hook] = inject.me(qualified_by=Event.START)
+    ...               ) -> list[Hook]:
+    ...     return hook
+    >>> all_hooks()
+    [<LogAnyEventHook object at ...>, <StartUpHook object at ...>]
+    >>> @inject
+    ... def all_hooks2(hook = inject.get[Hook].all(qualified_by=Event.START)
+    ...                ) -> list[Hook]:
+    ...     return hook
+    >>> all_hooks2()
+    [<LogAnyEventHook object at ...>, <StartUpHook object at ...>]
+
+It's also possible to define more complex constraints, see :py:meth:`~.core.getter.TypedDependencyGetter.single` for example
+and :py:class:`.QualifiedBy`.
 
 
 
@@ -400,11 +512,17 @@ In a Flask app for example you would then just reset the scope after each reques
 
 .. code-block:: python
 
-    from flask import Flask
+    from flask import Flask, Request
+    from antidote import factory
 
     app = Flask(__name__)
 
     @app.after_request
     def reset_request_scope():
         world.scopes.reset(REQUEST_SCOPE)
+
+    @factory(scope=REQUEST_SCOPE)
+    def current_request() -> Request:
+        from flask import request
+        return request
 

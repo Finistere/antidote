@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 import builtins
-import inspect
 from typing import Any, cast, Optional, Tuple
 
 from typing_extensions import Annotated, get_args, get_origin
 
-from ._injection import ArgDependency
-from .annotations import (AntidoteAnnotation, From, FromArg, Get, INJECT_SENTINEL)
-from .injection import Arg
-from .marker import InjectMeMarker, Marker
+from .annotations import AntidoteAnnotation, From, FromArg, Get, INJECT_SENTINEL
+from .marker import InjectClassMarker, InjectFromSourceMarker, InjectImplMarker, Marker
 from .._internal import API
 from .._internal.argspec import Argument
+from .._internal.utils import Default
 
 
 @API.private
+@API.deprecated
 def extract_annotated_dependency(type_hint: object) -> object:
     origin = get_origin(type_hint)
 
@@ -73,6 +72,7 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
             elif isinstance(annotation, From):
                 return args[0] @ annotation.source
             elif isinstance(annotation, FromArg):
+                from .injection import Arg
                 arg = Arg(argument.name,
                           argument.type_hint,
                           argument.type_hint_with_extras)
@@ -82,30 +82,55 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
 
     if isinstance(argument.default, Marker):
         from .._constants import LazyConst
+        from ._injection import ArgDependency
 
+        type_hint, origin, args = _extract_type_hint(argument, extras=False)
         marker = argument.default
         dependency: object
         if isinstance(marker, Get):
-            dependency = marker.dependency
+            return ArgDependency(marker.dependency, default=marker.default)
         elif isinstance(marker, LazyConst):
-            dependency = cast(object, marker)
-        elif isinstance(marker, InjectMeMarker):
-            if not is_valid_class_type_hint(type_hint):
-                raise TypeError(
-                    f"Cannot use marker @inject.me with non class type hint: {type_hint}")
-            if marker.source is not None:
+            return ArgDependency(cast(object, marker))
+        elif isinstance(marker, (InjectClassMarker, InjectImplMarker, InjectFromSourceMarker)):
+            if isinstance(marker, InjectFromSourceMarker):
+                if not is_valid_class_type_hint(type_hint):
+                    raise TypeError(f"@inject.me could not determine class from: {type_hint!r}")
                 dependency = Get(type_hint, source=marker.source).dependency
             else:
-                dependency = type_hint
+                from ..lib.interface import ImplementationsOf
+                from collections.abc import Sequence, Iterable
+
+                if origin in {Sequence, Iterable, list}:
+                    klass = args[0]
+                    method = 'all'
+                else:
+                    klass = type_hint
+                    method = 'single'
+
+                # Support generic interfaces
+                klass = get_origin(klass) or klass
+                if not is_valid_class_type_hint(klass):
+                    raise TypeError(f"@inject.me could not determine class from: {klass!r}")
+                if isinstance(marker, InjectImplMarker):
+                    dependency = getattr(ImplementationsOf[type](klass), method)(
+                        *marker.constraints_args,
+                        **marker.constraints_kwargs
+                    )
+                elif method == 'single':
+                    dependency = klass
+                else:
+                    dependency = getattr(ImplementationsOf[type](klass), method)()
+
+            return ArgDependency(dependency,
+                                 default=None if argument.is_optional else Default.sentinel)
         else:
             raise TypeError("Custom Marker are NOT supported.")
-
-        return ArgDependency(dependency, optional=argument.is_optional)
 
     return None
 
 
 @API.private
+@API.deprecated
 def extract_auto_provided_arg_dependency(argument: Argument) -> Optional[type]:
     type_hint, origin, args = _extract_type_hint(argument)
     dependency = type_hint
@@ -127,12 +152,14 @@ def extract_auto_provided_arg_dependency(argument: Argument) -> Optional[type]:
 def is_valid_class_type_hint(type_hint: object) -> bool:
     return (getattr(type_hint, '__module__', '') != 'typing'
             and type_hint not in _BUILTINS_TYPES
-            and (isinstance(type_hint, type) and inspect.isclass(type_hint)))
+            and isinstance(type_hint, type))
 
 
 @API.private
-def _extract_type_hint(argument: Argument) -> Tuple[Any, object, Tuple[object, ...]]:
-    type_hint = argument.type_hint_with_extras
+def _extract_type_hint(argument: Argument,
+                       extras: bool = True
+                       ) -> Tuple[Any, Any, Tuple[Any, ...]]:
+    type_hint = argument.type_hint_with_extras if extras else argument.type_hint
     origin = get_origin(type_hint)
     args = get_args(type_hint)
 

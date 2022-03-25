@@ -14,7 +14,7 @@ from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          FrozenWorldError)
 from .._internal import API
 from .._internal.stack import DependencyStack
-from .._internal.utils import FinalImmutable
+from .._internal.utils import Default, FinalImmutable
 
 if TYPE_CHECKING:
     from .utils import DependencyDebug
@@ -151,10 +151,6 @@ class DependencyValue(FinalImmutable):
         return self.scope is _SCOPE_SINGLETON
 
 
-# API.private
-_DEFAULT_SENTINEL = object()
-
-
 @API.public
 class Container:
     """
@@ -163,7 +159,7 @@ class Container:
     dependencies.
     """
 
-    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL) -> object:
+    def get(self, dependency: Hashable, default: object = Default.sentinel) -> object:
         """
         Retrieves given dependency or raises a
         :py:exc:`~..exceptions.DependencyNotFoundError`.
@@ -343,10 +339,11 @@ class RawContainer(Container):
     def clone(self,
               *,
               keep_singletons: bool = False,
-              keep_scopes: bool = False) -> OverridableRawContainer:
+              keep_scopes: bool = False,
+              frozen: bool = True) -> OverridableRawContainer:
         with self.locked():
             clone = OverridableRawContainer()
-            clone.__frozen = True
+            clone.__frozen = frozen
             if keep_singletons:
                 clone.__singletons = self.__singletons.copy()
 
@@ -385,7 +382,7 @@ class RawContainer(Container):
             pass
         return self._safe_provide(dependency)
 
-    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL) -> object:
+    def get(self, dependency: Hashable, default: object = Default.sentinel) -> object:
         try:
             return self.__singletons[dependency]
         except KeyError:
@@ -393,7 +390,7 @@ class RawContainer(Container):
         try:
             return self._safe_provide(dependency).unwrapped
         except DependencyNotFoundError:
-            if default is not _DEFAULT_SENTINEL:
+            if default is not Default.sentinel:
                 return default
             raise
 
@@ -457,10 +454,12 @@ class OverridableRawContainer(RawContainer):
     def clone(self,
               *,
               keep_singletons: bool = False,
-              keep_scopes: bool = False) -> OverridableRawContainer:
+              keep_scopes: bool = False,
+              frozen: bool = True) -> OverridableRawContainer:
         with self.locked():
             clone = super().clone(keep_singletons=keep_singletons,
-                                  keep_scopes=keep_scopes)
+                                  keep_scopes=keep_scopes,
+                                  frozen=frozen)
             if keep_singletons:
                 clone.__singletons_override = self.__singletons_override
             clone.__scopes_override = {
@@ -530,11 +529,11 @@ class OverridableRawContainer(RawContainer):
     def provide(self, dependency: Hashable) -> DependencyValue:
         return self._safe_provide(dependency)
 
-    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL) -> object:
+    def get(self, dependency: Hashable, default: object = Default.sentinel) -> object:
         try:
             return self._safe_provide(dependency).unwrapped
         except DependencyNotFoundError:
-            if default is not _DEFAULT_SENTINEL:
+            if default is not Default.sentinel:
                 return default
             raise
 

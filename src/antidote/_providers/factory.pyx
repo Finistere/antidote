@@ -30,9 +30,16 @@ cdef:
 cdef class FactoryProvider(FastProvider):
     cdef:
         dict __factories
+        dict __factory_to_dependency
 
     def __cinit__(self, dict factories = None):
         self.__factories = factories or dict()  # type: Dict[FactoryDependency, Factory]
+        self.__factory_to_dependency = dict()  # type: dict[object, FactoryDependency]
+        if factories:
+            self.__factory_to_dependency = {
+                factory_dependency.factory: factory_dependency
+                for factory_dependency in factories.keys()
+            }
 
     def __repr__(self):
         return f"{type(self).__name__}(factories={self.__factories})"
@@ -50,6 +57,12 @@ cdef class FactoryProvider(FastProvider):
             dependency = dependency.wrapped
         return (isinstance(dependency, FactoryDependency)
                 and dependency in self.__factories)
+
+    def get_dependency_of(self, factory: object) -> FactoryDependency:
+        try:
+            return self.__factory_to_dependency[factory]
+        except KeyError:
+            raise ValueError(f"Factory {factory!r} has never been declared.")
 
     def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
         cdef:
@@ -153,6 +166,7 @@ cdef class FactoryProvider(FastProvider):
                 f.dependency = None
                 f.function = factory
             self.__factories[dependency] = f
+            self.__factory_to_dependency[dependency.factory] = dependency
             return dependency
 
 cdef class ClonedFactoryProvider(FactoryProvider):

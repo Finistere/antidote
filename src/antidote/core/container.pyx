@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from typing import (Any, Callable, Deque, Dict, Hashable, List, Mapping, Optional,
                     Tuple, Type)
 from weakref import ref
+from .._internal.utils import Default
 
 # @formatter:off
 cimport cython
@@ -149,14 +150,13 @@ cdef class DependencyValue:
                                        value,
                                        scope=scope)
 
-_DEFAULT_SENTINEL = object()
 
 ############
 # PROVIDER #
 ############
 
 cdef class Container:
-    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL):
+    def get(self, dependency: Hashable, default: object = Default.sentinel):
         raise NotImplementedError()  # pragma: no cover
 
     def provide(self, dependency: Hashable):
@@ -396,14 +396,15 @@ cdef class RawContainer(Container):
     def clone(self,
               *,
               keep_singletons: bool = False,
-              keep_scopes: bool = False) -> RawContainer:
+              keep_scopes: bool = False,
+              frozen: bool = True) -> RawContainer:
         cdef:
             RawContainer clone
             RawProvider p, p_clone
 
         with self.locked():
             clone = OverridableRawContainer()
-            clone.__frozen = True
+            clone.__frozen = frozen
             if keep_singletons:
                 clone.__singletons = self.__singletons.copy()
 
@@ -450,7 +451,7 @@ cdef class RawContainer(Container):
             return DependencyValue.from_result(self, &result)
         raise DependencyNotFoundError(dependency)
 
-    def get(self, dependency: Hashable, default: object = _DEFAULT_SENTINEL):
+    def get(self, dependency: Hashable, default: object = Default.sentinel):
         cdef:
             DependencyResult result
             object obj
@@ -460,7 +461,7 @@ cdef class RawContainer(Container):
             obj = <object> result.value
             Py_DECREF(result.value)
             return obj
-        if default is not _DEFAULT_SENTINEL:
+        if default is not Default.sentinel:
             return default
         raise DependencyNotFoundError(dependency)
 
@@ -808,13 +809,15 @@ cdef class OverridableRawContainer(RawContainer):
     def clone(self,
               *,
               keep_singletons: bool = False,
-              keep_scopes: bool = False) -> OverridableRawContainer:
+              keep_scopes: bool = False,
+              frozen: bool = True) -> OverridableRawContainer:
         cdef:
             OverridableRawContainer clone
 
         with self.locked():
             clone = super().clone(keep_singletons=keep_singletons,
-                                  keep_scopes=keep_scopes)
+                                  keep_scopes=keep_scopes,
+                                  frozen=frozen)
             if keep_singletons:
                 clone.__singletons_override = self.__singletons_override
             clone.__scopes_override = {
@@ -855,27 +858,6 @@ cdef class OverridableRawContainer(RawContainer):
     def reset_scope(self, scope: Scope) -> None:
         super().reset_scope(scope)
         self.__scopes_override[scope] = dict()
-
-    def clone(self,
-              *,
-              keep_singletons: bool,
-              keep_scopes: bool) -> OverridableRawContainer:
-        cdef:
-            OverridableRawContainer container
-
-        with self.__override_lock:
-            container = super().clone(keep_singletons=keep_singletons,
-                                      keep_scopes=keep_scopes)
-            if keep_singletons:
-                container.__singletons_override = self.__singletons_override.copy()
-            container.__scopes_override = {
-                scope: dependencies.copy() if keep_scopes else dict()
-                for scope, dependencies in self.__scopes_override.items()
-            }
-            container.__factory_overrides = self.__factory_overrides.copy()
-            container.__provider_overrides = self.__provider_overrides.copy()
-
-        return container
 
     def debug(self, dependency: Hashable):
         from .._internal.utils.debug import debug_repr

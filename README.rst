@@ -48,7 +48,7 @@ Antidote provides the following features:
     - Dependencies can be frozen, which blocks any new declarations.
     - No double injection.
     - Everything is as explicit as possible, :code:`@inject` does not inject anything implicitly.
-    - Type checks when a type is explicitly defined with :code:`world.get`, :code:`world.lazy` and constants.
+    - Type checks when a type is explicitly defined with :code:`world.get` and constants.
     - Thread-safe, cycle detection.
     - Immutable whenever possible.
 - Testability
@@ -294,53 +294,81 @@ it from world:
 Interface/Implementation
 ------------------------
 
-The distinction between an interface and its implementation lets you choose between multiple
-implementations, which one to use. This choice can be permanent or not. For the latter, Antidote
-will retrieve the current implementation each time:
+Antidote also works with interfaces which can have one or multiple implementations
 
 .. code-block:: python
 
-    from antidote import implementation, inject, factory, Get
+    from typing import Protocol, TypeVar
 
-    class Cache:
-        pass
+    from antidote import implements, inject, interface, world
 
-    @service
-    class MemoryCache(Cache):
-        pass
 
-    class Redis:
-        """ class from an external library """
+    class Event:
+        ...
 
-    @factory
-    def redis_cache() -> Redis:
-        return Redis()
 
-    @implementation(Cache)
-    def global_cache():
-        # Returning the dependency that must be retrieved
-        import os
+    class InitializationEvent(Event):
+        ...
 
-        if os.environ.get('USE_REDIS_CACHE'):
-            return Get(Redis, source=redis_cache)
 
-        return MemoryCache
+    E = TypeVar('E', bound=Event, contravariant=True)
 
-The cache can then be retrieved with the same syntax as a factory:
 
-.. code-block:: python
+    @interface  # can be applied on protocols and "standard" classes
+    class EventSubscriber(Protocol[E]):
+        def process(self, event: E) -> None:
+            ...
 
-    from antidote import world, inject
+
+    # Ensures OnInitialization is really a EventSubscriber if possible
+    @implements(EventSubscriber).when(qualified_by=InitializationEvent)
+    class OnInitialization:
+        def process(self, event: InitializationEvent) -> None:
+            ...
+
 
     @inject
-    def heavy_compute(cache: Cache = inject.me(source=global_cache)):
-        pass
+    def process_initialization(event: InitializationEvent,
+                               # injects all subscribers qualified by InitializationEvent
+                               subscribers: list[EventSubscriber[InitializationEvent]] \
+                                       = inject.me(qualified_by=InitializationEvent)
+                               ) -> None:
+        for subscriber in subscribers:
+            subscriber.process(event)
 
 
-    heavy_compute()
-    world.get(Cache, source=global_cache)
+    event = InitializationEvent()
+    process_initialization(event)
+    process_initialization(
+        event,
+        # Explicitly retrieving the subscribers
+        subscribers=world.get[EventSubscriber].all(qualified_by=InitializationEvent)
+    )
 
-Like factories, it's easy to know where the dependency is coming from !
+
+Implementations can be can be retrieved in multiple ways:
+
+.. code-block:: python
+
+    # When you want to retrieve a single implementation matching your constraints
+    @inject
+    def f(subscriber: EventSubscriber[InitializationEvent] \
+                  = inject.me(qualified_by=InitializationEvent)
+          ) -> EventSubscriber[InitializationEvent]:
+        return subscriber
+
+
+    assert world.get[EventSubscriber].single(qualified_by=InitializationEvent) is f()
+
+    # When there's only one implementation
+    @inject
+    def f2(subscriber: EventSubscriber[InitializationEvent] = inject.me()
+          ) -> EventSubscriber[InitializationEvent]:
+        return subscriber
+
+
+    assert world.get(EventSubscriber) is f2()
+
 
 
 Testing and Debugging

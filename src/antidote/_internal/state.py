@@ -1,6 +1,8 @@
 """
 Antidote has a global container which is managed in this module.
 """
+from __future__ import annotations
+
 import threading
 from contextlib import contextmanager
 from typing import Callable, Iterator, Optional

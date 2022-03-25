@@ -212,7 +212,7 @@ The only exception is the :py:meth:`.Inject.me` marker which will provide :py:ob
 
 
 3. Services
-==============
+===========
 
 
 A service is class that can be provided by Antidote, it's declared with :py:func:`.service`.

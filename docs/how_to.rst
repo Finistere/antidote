@@ -81,10 +81,6 @@ existing dependency:
         >>> f()
         'localhost'
 
-There is also :py:class:`.FromArg` which allows you to use information on the argument
-itself to decide what should be injected. The same can be done without annotated type hints
-with the arguments :code:`dependencies` of :py:func:`.inject`.
-
 .. note::
 
     As annotated type hints can quickly become a bit tedious, using type aliases can help:

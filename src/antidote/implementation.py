@@ -1,4 +1,3 @@
-# pyright: reportUnnecessaryIsInstance=false
 import functools
 import inspect
 import warnings
@@ -8,7 +7,6 @@ from typing_extensions import ParamSpec, Protocol
 
 from ._implementation import ImplementationWrapper, validate_provided_class
 from ._internal import API
-from ._internal.wrapper import is_wrapper
 from ._providers import IndirectProvider
 from .core import inject
 from .core.exceptions import DoubleInjectionError
@@ -25,7 +23,7 @@ class ImplementationProtocol(Protocol[P, T]):
 
     def __rmatmul__(self, klass: type) -> object:  # pragma: no cover
         warnings.warn("Use the new `world.get(<dependency>, source=<implementation>)` syntax.")
-        return  # type: ignore
+        ...
 
     def __antidote_dependency__(self, target: Type[T]) -> object:
         ...  # pragma: no cover
@@ -40,6 +38,10 @@ def implementation(interface: type,
                    permanent: bool = True
                    ) -> Callable[[Callable[P, T]], ImplementationProtocol[P, T]]:
     """
+    .. deprecated:: 1.2
+        Use :py:func:`.interface` instead. While you cannot use @factory with it anymore,
+        it's a lot more flexible for service discovery.
+
     Defines which dependency should be retrieved when :code:`interface` is requested.
     Suppose we have to support two different databases and the configuration defines
     which one should be chosen:
@@ -131,9 +133,7 @@ def implementation(interface: type,
     def register(func: Callable[P, T],
                  indirect_provider: IndirectProvider = inject.me()
                  ) -> ImplementationProtocol[P, T]:
-        if not (inspect.isfunction(func)
-                or (is_wrapper(func)
-                    and inspect.isfunction(func.__wrapped__))):  # type: ignore
+        if not inspect.isfunction(func):
             raise TypeError(f"{func} is not a function")
 
         try:
@@ -143,12 +143,12 @@ def implementation(interface: type,
 
         @functools.wraps(func)
         def impl() -> object:
-            dep = func()
+            dep = func()  # type: ignore
             validate_provided_class(dep, expected=interface)
             return dep
 
         dependency = indirect_provider.register_implementation(interface, impl,
                                                                permanent=permanent)
-        return ImplementationWrapper[P, T](func, dependency)
+        return ImplementationWrapper[P, T](func, dependency)  # type: ignore
 
     return cast(Callable[[Callable[P, T]], ImplementationProtocol[P, T]], register)

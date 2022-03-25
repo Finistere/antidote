@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 import collections.abc as c_abc
-import inspect
 import warnings
-from typing import (Any, Callable, Generic, Hashable, Iterable, Mapping, Optional,
+from typing import (Any, Callable, Hashable, Iterable, Mapping, Optional,
                     overload,
                     Sequence, Type, TYPE_CHECKING, TypeVar, Union)
 
 from typing_extensions import final, TypeAlias
 
 from .annotations import Get
-from .marker import InjectMeMarker
+from .getter import DependencyGetter
+from .marker import InjectClassMarker, InjectFromSourceMarker, InjectImplMarker
 from .._internal import API
 from .._internal.utils import FinalImmutable
 from .._internal.utils.meta import Singleton
 
 if TYPE_CHECKING:
     from .typing import CallableClass, Source
+    from ..lib.interface import PredicateConstraint
 
 F = TypeVar('F', bound=Callable[..., Any])
 T = TypeVar('T')
@@ -66,19 +67,6 @@ AUTO_PROVIDE_TYPE: TypeAlias = Optional[Union[
 ]]
 
 
-class InjectedCallableMeta(type):
-    def __instancecheck__(self, instance: object) -> bool:
-        from .._internal.wrapper import is_wrapper
-        return is_wrapper(instance)
-
-
-class InjectedCallable(Generic[F], metaclass=InjectedCallableMeta):
-    __wrapped__: F
-
-    def __call__(self, *args: object, **kwargs: object) -> object:
-        ...  # pragma: no cover
-
-
 @API.private  # Use the singleton instance `inject`, not the class directly.
 class Inject(Singleton):
     """
@@ -86,14 +74,35 @@ class Inject(Singleton):
     subclassed.
     """
 
-    @API.public
+    get: DependencyGetter = DependencyGetter.raw(
+        lambda dependency, default: Get(dependency, default=default)
+    )
+
+    @overload
+    def me(self) -> Any:
+        ...  # pragma: no cover
+
+    @overload
     def me(self,
            *,
-           source: Optional[Union[
-               Source[Any],
-               Callable[..., Any],
-               Type[CallableClass[Any]]
-           ]] = None
+           source: Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]
+           ) -> Any:
+        ...  # pragma: no cover
+
+    @overload
+    def me(self,
+           *constraints: PredicateConstraint[Any],
+           qualified_by: Optional[object | list[object]] = None,
+           qualified_by_one_of: Optional[list[object]] = None
+           ) -> Any:
+        ...  # pragma: no cover
+
+    @API.public
+    def me(self,
+           *constraints: PredicateConstraint[Any],
+           qualified_by: Optional[object | list[object]] = None,
+           qualified_by_one_of: Optional[list[object]] = None,
+           source: Optional[Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]] = None
            ) -> Any:
         """
         Injection Marker specifying that the current type hint should be used as dependency.
@@ -142,48 +151,52 @@ class Inject(Singleton):
             >>> f() is None
             True
 
-        """
-        return InjectMeMarker(source=source)
+        :py:func:`.interface` are also supported:
 
-    @overload
-    def get(self, __dependency: object) -> Any:
-        ...  # pragma: no cover
+        .. doctest:: core_inject_me_interface
 
-    @overload
-    def get(self,
-            __dependency: Type[T],
-            *,
-            source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
-            ) -> Any:
-        ...  # pragma: no cover
-
-    @API.public
-    def get(self,
-            __dependency: Any,
-            *,
-            source: Optional[Union[
-                Source[Any],
-                Callable[..., Any],
-                Type[CallableClass[Any]]
-            ]] = None
-            ) -> Any:
-        """
-        Injection Marker specifying explicitly which dependency to retrieve.
-
-        .. doctest:: core_inject_get
-
-            >>> from antidote import inject, service
-            >>> @service
-            ... class MyService:
+            >>> from antidote import inject, interface, implements
+            >>> @interface
+            ... class Alert:
+            ...     pass
+            >>> @implements(Alert)
+            ... class DefaultAlert(Alert):
             ...     pass
             >>> @inject
-            ... def f(s = inject.get(MyService)):
-            ...     return s
-            >>> f()
-            <MyService object at ...>
+            ... def get_single(alert: Alert = inject.me()) -> Alert:
+            ...     return alert
+            >>> get_single()
+            <DefaultAlert object at ...>
+            >>> @inject
+            ... def get_all(alerts: list[Alert] = inject.me()) -> list[Alert]:
+            ...     return alerts
+            >>> get_all()
+            [<DefaultAlert object at ...>]
 
+        Args:
+            source: Source to use for the dependency. Mutually exclusive with all other arguments.
+            *constraints: :py:class:`.PredicateConstraint` to evaluate for each implementation.
+            qualified_by: All specified qualifiers must qualify the implementation.
+            qualified_by_one_of: At least one of the specified qualifiers must qualify the
+                implementation.
         """
-        return Get(__dependency, source=source) if source is not None else Get(__dependency)
+        impl_args_kwargs = constraints or any(kw is not None for kw in
+                                              (qualified_by,
+                                               qualified_by_one_of))
+        if source is not None:
+            if impl_args_kwargs:
+                raise TypeError("Additional arguments are not supported "
+                                "when specifying the source.")
+            return InjectFromSourceMarker(source=source)
+        elif impl_args_kwargs:
+            return InjectImplMarker(
+                constraints_args=constraints,
+                constraints_kwargs=dict(
+                    qualified_by=qualified_by,
+                    qualified_by_one_of=qualified_by_one_of
+                ))
+        else:
+            return InjectClassMarker()
 
     @overload
     def __call__(self,
@@ -421,6 +434,6 @@ def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
     # If we can iterate over it safely
     if isinstance(auto_provide, (list, set, tuple, frozenset)):
         for cls in auto_provide:
-            if not (isinstance(cls, type) and inspect.isclass(cls)):
+            if not isinstance(cls, type):
                 raise TypeError(f"auto_provide must be a boolean or an iterable of "
                                 f"classes, but contains {cls!r} which is not a class.")

@@ -5,6 +5,7 @@ Cython version of the wrapper, doing the same thing but faster.
 import inspect
 
 cimport cython
+from antidote.core.container import Default
 from cpython.object cimport PyObject_Call, PyObject_CallMethodObjArgs
 from cpython.ref cimport PyObject
 
@@ -31,21 +32,25 @@ compiled = True
 cdef class Injection:
     cdef:
         str arg_name
-        bint optional
         bint required
+        PyObject* default
         object dependency
 
     def __repr__(self):
         return f"Injection(arg_name={self.arg_name!r}, " \
                f"required={self.required!r}, " \
-               f"dependency={self.dependency!r}," \
-               f" optional={self.optional!r})"
+               f"dependency={self.dependency!r}, " \
+               f"default={<object>self.default!r})"
 
-    def __init__(self, str arg_name, bint required, object dependency, bint optional):
+    def __init__(self, *, str arg_name, bint required, object dependency, object default):
         self.arg_name = arg_name
         self.required = required
         self.dependency = dependency
-        self.optional = optional
+        if default is Default.sentinel:
+            self.default = NULL
+        else:
+            self.default = <PyObject*> default
+            Py_INCREF(self.default)
 
 cdef class InjectionBlueprint:
     cdef:
@@ -215,7 +220,7 @@ cdef PyObject * build_kwargs(PyObject *args,
                                        arg_name,
                                        result.value)
                         Py_DECREF(result.value)
-                    elif (<Injection> injection).optional:
+                    elif (<Injection> injection).default:
                         if kwargs == original_kwargs:
                             kwargs = PyDict_Copy(original_kwargs)
                         PyDict_SetItem(<PyObject *> kwargs,
@@ -238,12 +243,12 @@ cdef PyObject * build_kwargs(PyObject *args,
                         result.value
                     )
                     Py_DECREF(result.value)
-                elif (<Injection> injection).optional:
+                elif (<Injection> injection).default != NULL:
                     if kwargs == original_kwargs:
                         kwargs = PyDict_New()
                     PyDict_SetItem(<PyObject *> kwargs,
                                    <PyObject *> (<Injection> injection).arg_name,
-                                   <PyObject *> None)
+                                   (<Injection> injection).default)
                 elif (<Injection> injection).required:
                     raise DependencyNotFoundError((<Injection> injection).dependency)
 

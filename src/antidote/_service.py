@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from abc import ABCMeta
-from typing import cast, Dict, Tuple, Type
+from typing import Any, cast, Dict, Tuple, Type
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
@@ -20,11 +20,11 @@ class ServiceMeta(AbstractMeta):
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
-                **kwargs: object
+                **kwargs: Any
                 ) -> ServiceMeta:
         cls = cast(
             ServiceMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+            super().__new__(mcs, name, bases, namespace, **kwargs)
         )
         if not kwargs.get('abstract'):
             _configure_service(cls)
@@ -110,6 +110,6 @@ def _configure_service(cls: type,
     if wiring is not None:
         wiring.wire(cls)
 
-    validate_method_parameters(cls.__init__, conf.parameters)  # type: ignore
+    validate_method_parameters(cls.__init__, conf.parameters)
 
     service_provider.register(cls, scope=conf.scope)

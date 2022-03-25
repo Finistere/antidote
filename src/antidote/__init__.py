@@ -4,6 +4,7 @@ from .core import Arg, From, FromArg, Get, inject, Inject, Provide, Scope, wire,
 from .factory import Factory, factory
 from .implementation import implementation
 from .lazy import LazyCall, LazyMethodCall
+from .lib.interface import ImplementationsOf, implements, interface, QualifiedBy
 from .service import ABCService, Service, service
 from .utils import is_compiled
 
@@ -12,7 +13,33 @@ try:
 except ImportError:  # pragma: no cover
     __version__ = ''
 
-__all__ = ['__version__', 'world', 'Get', 'From', 'FromArg', 'Provide', 'Inject',
-           'const', 'Constants', 'constants', 'inject', 'Arg', 'wire', 'Wiring', 'factory',
-           'Factory', 'implementation', 'LazyCall', 'LazyMethodCall',
-           'service', 'Scope', 'Service', 'ABCService', 'is_compiled']
+__all__ = [
+    'ABCService',
+    'Arg',
+    'Constants',
+    'Factory',
+    'From',
+    'FromArg',
+    'Get',
+    'ImplementationsOf',
+    'Inject',
+    'LazyCall',
+    'LazyMethodCall',
+    'Provide',
+    'QualifiedBy',
+    'Scope',
+    'Service',
+    'Wiring',
+    '__version__',
+    'const',
+    'constants',
+    'factory',
+    'implementation',
+    'implements',
+    'inject',
+    'interface',
+    'is_compiled',
+    'service',
+    'wire',
+    'world'
+]

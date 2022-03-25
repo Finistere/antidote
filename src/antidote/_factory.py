@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import inspect
 import warnings
-from typing import Callable, cast, Dict, Hashable, Tuple, Type, TypeVar
+from typing import Any, Callable, cast, Dict, Hashable, Tuple, Type, TypeVar
 
 from typing_extensions import get_type_hints, ParamSpec
 
@@ -29,7 +29,7 @@ class FactoryMeta(AbstractMeta):
                 name: str,
                 bases: Tuple[type, ...],
                 namespace: Dict[str, object],
-                **kwargs: object
+                **kwargs: Any
                 ) -> FactoryMeta:
         abstract = kwargs.get('abstract')
 
@@ -38,7 +38,7 @@ class FactoryMeta(AbstractMeta):
 
         cls = cast(
             FactoryMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)  # type: ignore
+            super().__new__(mcs, name, bases, namespace, **kwargs)
         )
         if not abstract:
             cls.__factory_dependency = _configure_factory(cls)
@@ -156,7 +156,7 @@ class FactoryWrapper:
     def __init__(self,
                  *,
                  wrapped: Callable[..., object],
-                 output: object) -> None:
+                 output: type) -> None:
         self.__wrapped__ = wrapped
         self.__output = output
         functools.wraps(wrapped, updated=())(self)

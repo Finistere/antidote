@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import inspect
+import sys
 from typing import Any, Callable, cast, Dict, Iterator, List, Sequence, Set, Union
 
 from typing_extensions import get_args, get_origin, get_type_hints
 
 from .utils import FinalImmutable
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+else:
+    UnionType = Union
 
 
 class Argument(FinalImmutable):
@@ -21,7 +27,8 @@ class Argument(FinalImmutable):
 
     @property
     def is_optional(self) -> bool:
-        if get_origin(self.type_hint) is Union:
+        origin = get_origin(self.type_hint)
+        if origin is Union or origin is UnionType:
             args = cast(Any, get_args(self.type_hint))
             return len(args) == 2 and (isinstance(None, args[1]) or isinstance(None, args[0]))
         return False
@@ -56,16 +63,18 @@ class Arguments:
             raise TypeError(f"func must be a callable or a static/class-method. "
                             f"Not a {type(func)}")
         return cls._build(
-            func.__func__ if isinstance(func, (staticmethod, classmethod)) else func,
-            is_unbound_method(func),  # doing it before un-wrapping.
-            ignore_type_hints
+            func=func.__func__ if isinstance(func, (staticmethod, classmethod)) else func,
+            unbound_method=is_unbound_method(func),  # doing it before un-wrapping.
+            ignore_type_hints=ignore_type_hints
         )
 
     @classmethod
     def _build(cls,
+               *,
                func: Callable[..., object],
                unbound_method: bool,
-               ignore_type_hints: bool) -> Arguments:
+               ignore_type_hints: bool
+               ) -> Arguments:
         arguments: List[Argument] = []
         has_var_positional = False
         has_var_keyword = False
