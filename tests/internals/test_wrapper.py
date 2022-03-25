@@ -2,8 +2,10 @@
 Test only that the wrapper behaves nicely in all cases.
 Injection itself is tested through inject.
 """
-import inspect
-from typing import Any, List, Tuple
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
@@ -23,42 +25,50 @@ def empty_world():
         yield
 
 
-def easy_wrap(func=None,
-              arg_dependency: List[Tuple[str, bool, Any]] = tuple()):
+class Arg:
+    dependency: object
+
+
+@dataclass
+class Required(Arg):
+    dependency: object = field(default=None)
+
+
+@dataclass
+class Opt(Arg):
+    dependency: object = field(default=None)
+
+
+def wrap(__func=None, **kwargs: Arg):
     def wrapper(func):
         return build_wrapper(
             blueprint=InjectionBlueprint(tuple([
                 Injection(
                     arg_name=arg_name,
-                    required=required,
-                    dependency=dependency,
+                    required=isinstance(dependency, Required),
+                    dependency=dependency.dependency,
                     optional=False
                 )
-                for arg_name, required, dependency in arg_dependency
+                for arg_name, dependency in kwargs.items()
             ])),
             wrapped=func
         )
 
-    return func and wrapper(func) or wrapper
-
-
-arg_self_x = [('self', True, None), ('x', True, 'x')]
-arg_cls_x = [('cls', True, None), ('x', True, 'x')]
-arg_x = [('x', True, 'x')]
+    return __func and wrapper(__func) or wrapper
 
 
 class Dummy:
-    @easy_wrap(arg_dependency=arg_self_x)
+    @wrap(self=Required(None), x=Required('x'))
     def method(self, x):
         return self, x
 
     @classmethod
-    @easy_wrap(arg_dependency=arg_cls_x)
+    @wrap(cls=Required(None), x=Required('x'))
     def class_after(cls, x):
         return cls, x
 
     @staticmethod
-    @easy_wrap(arg_dependency=arg_x)
+    @wrap(x=Required('x'))
     def static_after(x):
         return x
 
@@ -68,10 +78,10 @@ class Dummy2:
         return self, x
 
 
-Dummy2.method = easy_wrap(Dummy2.__dict__['method'], arg_self_x)
+Dummy2.method = wrap(Dummy2.__dict__['method'], self=Required(None), x=Required('x'))
 
 
-@easy_wrap(arg_dependency=arg_x)
+@wrap(x=Required('x'))
 def f(x):
     return x
 
@@ -106,7 +116,7 @@ d2 = Dummy2()
                      id='post:method')
     ]
 )
-def test_wrapper(expected, func):
+def test_wrapper(expected, func: Any):
     if expected == (B, A):
         assert expected == func(B, A)
         assert expected == func(B)
@@ -130,14 +140,14 @@ def test_classmethod_wrapping():
         pass
 
     class A:
-        method = easy_wrap(classmethod(class_method))
+        method = wrap(classmethod(class_method))
 
     assert class_method == A.__dict__['method'].__func__
     assert A == A.method.__self__
 
 
 def test_required_dependency_not_found():
-    @easy_wrap(arg_dependency=[('x', True, 'unknown')])
+    @wrap(x=Required('unknown'))
     def f(x):
         return x
 
@@ -146,7 +156,7 @@ def test_required_dependency_not_found():
 
 
 def test_dependency_not_found():
-    @easy_wrap(arg_dependency=[('x', False, 'unknown')])
+    @wrap(x=Opt('unknown'))
     def f(x):
         return x
 
@@ -159,9 +169,7 @@ def test_multiple_injections():
     yy = object()
     zz = object()
 
-    @easy_wrap(arg_dependency=[('x', True, 'xx'),
-                               ('y', True, 'yy'),
-                               ('z', False, 'zz')])
+    @wrap(x=Required('xx'), y=Required('yy'), z=Opt('zz'))
     def f(x, y, z=zz):
         return x, y, z
 
@@ -176,172 +184,6 @@ def test_multiple_injections():
         f(A, x=A)
 
 
-def g():
-    pass
-
-
-def g_with_annotations(x: int):
-    pass
-
-
-def g_with_defaults(x, y=3):
-    pass
-
-
-def g_with_kw_only(x, *, y):
-    pass
-
-
-class G:
-    def method(self):
-        pass
-
-    def method_with_annotations(self, x: int):
-        pass
-
-    def method_with_defaults(self, x, y=3):
-        pass
-
-    def method_with_kw_only(self, x, *, y):
-        pass
-
-    @staticmethod
-    def cls():
-        pass
-
-    @staticmethod
-    def cls_with_annotations(cls, x: int):
-        pass
-
-    @staticmethod
-    def cls_with_defaults(cls, x, y=3):
-        pass
-
-    @staticmethod
-    def cls_with_kw_only(cls, x, *, y):
-        pass
-
-    @staticmethod
-    def static():
-        pass
-
-    @staticmethod
-    def static_with_annotations(x: int):
-        pass
-
-    @staticmethod
-    def static_with_defaults(x, y=3):
-        pass
-
-    @staticmethod
-    def static_with_kw_only(x, *, y):
-        pass
-
-
-@pytest.mark.parametrize(
-    'original,wrapped',
-    [
-        pytest.param(g,
-                     easy_wrap(g),
-                     id='function'),
-        pytest.param(g_with_annotations,
-                     easy_wrap(g_with_annotations,
-                               arg_dependency=[('x', True, None)]),
-                     id='function:__annotations__'),
-        pytest.param(g_with_defaults,
-                     easy_wrap(g_with_defaults,
-                               arg_dependency=[('x', True, None), ('y', False, None)]),
-                     id='function:__defaults__'),
-        pytest.param(g_with_kw_only,
-                     easy_wrap(g_with_kw_only,
-                               arg_dependency=[('x', True, None), ('y', True, None)]),
-                     id='function:__kwdefaults__'),
-        pytest.param(G.method,
-                     easy_wrap(G.method),
-                     id='method'),
-        pytest.param(G.method_with_annotations,
-                     easy_wrap(G.method_with_annotations,
-                               arg_dependency=[('self', True, None),
-                                               ('x', True, None)]),
-                     id='method:__annotations__'),
-        pytest.param(G.method_with_defaults,
-                     easy_wrap(G.method_with_defaults,
-                               arg_dependency=[('self', True, None),
-                                               ('x', True, None),
-                                               ('y', False, None)]),
-                     id='method:__defaults__'),
-        pytest.param(G.method_with_kw_only,
-                     easy_wrap(G.method_with_kw_only,
-                               arg_dependency=[('self', True, None),
-                                               ('x', True, None),
-                                               ('y', True, None)]),
-                     id='method:__kwdefaults__'),
-        pytest.param(G.cls,
-                     easy_wrap(G.cls),
-                     id='classmethod'),
-        pytest.param(G.cls_with_annotations,
-                     easy_wrap(G.cls_with_annotations,
-                               arg_dependency=[('cls', True, None),
-                                               ('x', True, None)]),
-                     id='classmethod:__annotations__'),
-        pytest.param(G.cls_with_defaults,
-                     easy_wrap(G.cls_with_defaults,
-                               arg_dependency=[('cls', True, None),
-                                               ('x', True, None),
-                                               ('y', False, None)]),
-                     id='classmethod:__defaults__'),
-        pytest.param(G.cls_with_kw_only,
-                     easy_wrap(G.cls_with_kw_only,
-                               arg_dependency=[('cls', True, None),
-                                               ('x', True, None),
-                                               ('y', True, None)]),
-                     id='classmethod:__kwdefaults__'),
-        pytest.param(G.static,
-                     easy_wrap(G.static),
-                     id='static'),
-        pytest.param(G.static_with_annotations,
-                     easy_wrap(G.static_with_annotations,
-                               arg_dependency=[('x', True, None)]),
-                     id='static:__annotations__'),
-        pytest.param(G.static_with_defaults,
-                     easy_wrap(G.static_with_defaults,
-                               arg_dependency=[('x', True, None), ('y', False, None)]),
-                     id='static:__defaults__'),
-        pytest.param(G.static_with_kw_only,
-                     easy_wrap(G.static_with_kw_only,
-                               arg_dependency=[('x', True, None), ('y', True, None)]),
-                     id='static:__kwdefaults__')
-    ]
-)
-def test_wrapped_attributes(original, wrapped):
-    assert original is wrapped.__wrapped__
-    assert original.__module__ == wrapped.__module__
-    assert original.__name__ == wrapped.__name__
-    assert original.__qualname__ == wrapped.__qualname__
-    assert original.__doc__ == wrapped.__doc__
-    assert original.__annotations__ == wrapped.__annotations__
-    assert original.__defaults__ == wrapped.__defaults__
-    assert original.__kwdefaults__ == wrapped.__kwdefaults__
-
-    try:
-        func = original.__func__
-    except AttributeError:
-        with pytest.raises(AttributeError):
-            wrapped.__func__
-    else:
-        assert func is wrapped.__func__
-
-    try:
-        func = original.__self__
-    except AttributeError:
-        with pytest.raises(AttributeError):
-            wrapped.__self__
-    else:
-        assert func is wrapped.__self__
-
-    assert inspect.signature(original) == inspect.signature(wrapped)
-
-
 def f():
     pass
 
@@ -354,7 +196,7 @@ async def async_f():
 def test_custom_attributes(func):
     func.attr = "test"
     func.another_attr = "another_attr"
-    wrapped = easy_wrap(func)
+    wrapped = wrap(func)
     assert "test" == wrapped.attr
 
     wrapped.attr2 = "test2"
@@ -381,7 +223,7 @@ async def test_async_wrapper():
     with world.test.empty():
         world.test.singleton(dict(a=A, b=B, c=C))
 
-        @easy_wrap(arg_dependency=[('x', True, 'a')])
+        @wrap(x=Required('a'))
         async def f(x):
             return x
 
@@ -389,17 +231,17 @@ async def test_async_wrapper():
         assert res == A
 
         class Dummy:
-            @easy_wrap(arg_dependency=[('self', True, None), ('x', True, 'a')])
+            @wrap(self=Required(), x=Required('a'))
             async def method(self, x):
                 return x
 
             @classmethod
-            @easy_wrap(arg_dependency=[('cls', True, None), ('x', True, 'a')])
+            @wrap(cls=Required(), x=Required('a'))
             async def klass(cls, x):
                 return x
 
             @staticmethod
-            @easy_wrap(arg_dependency=[('x', True, 'a')])
+            @wrap(x=Required('a'))
             async def static(x):
                 return x
 
@@ -416,9 +258,7 @@ async def test_async_wrapper():
         res = await Dummy.static()
         assert res == A
 
-        @easy_wrap(arg_dependency=[('x', True, 'a'),
-                                   ('y', True, 'b'),
-                                   ('z', False, 'unknown')])
+        @wrap(x=Required('a'), y=Required('b'), z=Opt('unknown'))
         async def f(x, y, z=None):
             return x, y, z
 
@@ -427,18 +267,14 @@ async def test_async_wrapper():
         assert y == B
         assert z is None
 
-        @easy_wrap(arg_dependency=[('x', True, 'a'),
-                                   ('y', True, 'b'),
-                                   ('z', True, 'unknown')])
+        @wrap(x=Required('a'), y=Required('b'), z=Required('unknown'))
         async def f(x, y, z):
             pass
 
         with pytest.raises(DependencyNotFoundError, match='.*unknown.*'):
             await f()
 
-        @easy_wrap(arg_dependency=[('x', True, 'a'),
-                                   ('y', True, 'b'),
-                                   ('z', True, None)])
+        @wrap(x=Required('a'), y=Required('b'), z=Required())
         async def f(x, y, z):
             pass
 
