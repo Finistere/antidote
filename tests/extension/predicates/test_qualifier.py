@@ -1,0 +1,132 @@
+import itertools
+
+import pytest
+
+from antidote.extension.predicates import QualifiedBy
+
+x = object()
+y = object()
+z = object()
+
+
+def test_qualified_by_must_have_at_least_one_qualifier():
+    with pytest.raises(ValueError, match="(?i).*at least one qualifier.*"):
+        QualifiedBy()
+
+
+@pytest.mark.parametrize('qualifiers', [
+    pytest.param([1], id='int'),
+    pytest.param([1.123], id='float'),
+    pytest.param([complex(1)], id='complex'),
+    pytest.param([True], id='bool'),
+    pytest.param([b''], id='bytes'),
+    pytest.param([bytearray()], id='bytearray'),
+    pytest.param(["hello"], id='str'),
+    pytest.param([[object()]], id='list'),
+    pytest.param([{object(): object()}], id='dict'),
+    pytest.param([{object()}], id='set'),
+    pytest.param([(object(),)], id='tuple'),
+    pytest.param([object(), 2], id='mixed')
+])
+def test_qualifier_validation(qualifiers: list[object]):
+    with pytest.raises(TypeError, match="(?i).*qualifier.*"):
+        QualifiedBy(*qualifiers)
+
+    with pytest.raises(TypeError, match="(?i).*qualifier.*"):
+        QualifiedBy.one_of(*qualifiers)
+
+
+def test_qualified_by_eq_hash():
+    assert QualifiedBy(x) == QualifiedBy(x)
+    assert hash(QualifiedBy(x)) == hash(QualifiedBy(x))
+    assert QualifiedBy(x) != QualifiedBy(y)
+    assert hash(QualifiedBy(x)) != hash(QualifiedBy(y))
+
+
+def test_qualified_by_predicate():
+    assert QualifiedBy(object()).weight() is not None
+    assert QualifiedBy(x) & QualifiedBy(y) == QualifiedBy(x, y)
+
+
+def test_qualified_by_predicate_constraint():
+    assert QualifiedBy(x)(QualifiedBy(x))
+    assert QualifiedBy(x, y)(QualifiedBy(x, y))
+    assert QualifiedBy(x, y)(QualifiedBy(y, x))
+
+    assert not QualifiedBy(x)(QualifiedBy(y))
+    assert not QualifiedBy(x)(QualifiedBy(x, y))
+    assert not QualifiedBy(x, y)(QualifiedBy(x))
+
+    # on missing QualifiedBy
+    assert not QualifiedBy(x)(None)
+
+
+def test_qualified_by_one_of():
+    assert QualifiedBy.one_of(x)(QualifiedBy(x))
+    assert QualifiedBy.one_of(x)(QualifiedBy(x, y))
+
+    assert QualifiedBy.one_of(x, y)(QualifiedBy(x))
+    assert QualifiedBy.one_of(x, y)(QualifiedBy(x, y))
+    assert QualifiedBy.one_of(x, y)(QualifiedBy(y))
+
+    # Ensuring (roughly) we have all cases of ordering with id()
+    for left in itertools.permutations([x, y, z]):
+        for right in [x, y, z]:
+            QualifiedBy.one_of(*left)(QualifiedBy(object(), right, object()))
+
+    assert not QualifiedBy.one_of(x)(QualifiedBy(y))
+
+    # on missing QualifiedBy
+    assert not QualifiedBy.one_of(x)(None)
+
+
+def test_qualified_by_instance_of():
+    class Tag:
+        pass
+
+    a = Tag()
+    b = Tag()
+
+    constraint = QualifiedBy.instance_of(Tag)
+    assert constraint(QualifiedBy(a))
+    assert constraint(QualifiedBy(b))
+    assert constraint(QualifiedBy(x, a))
+
+    assert not constraint(QualifiedBy(x))
+    assert not QualifiedBy.instance_of(int)(QualifiedBy(a))
+
+    # on missing QualifiedBy
+    assert not QualifiedBy.instance_of(Tag)(None)
+
+
+def test_invalid_qualified_by_instance_of():
+    with pytest.raises(TypeError, match="(?i).*class.*"):
+        QualifiedBy.instance_of(object())
+
+
+def test_only_qualifier_id_matters():
+    assert QualifiedBy(x, x) == QualifiedBy(x)
+
+    class Dummy:
+        def __init__(self, name: str):
+            self.name = name
+
+        def __eq__(self, other):
+            return isinstance(other, Dummy)
+
+        def __hash__(self):
+            return hash(Dummy)
+
+        def __repr__(self):
+            return f"Dummy({self.name})"
+
+    a = Dummy('a')
+    b = Dummy('b')
+    assert a == b
+
+    assert QualifiedBy(a) != QualifiedBy(b)
+    assert QualifiedBy(a, b) != QualifiedBy(a)
+    assert QualifiedBy(a, b) != QualifiedBy(b)
+
+    assert not QualifiedBy(b)(QualifiedBy(a))
+    assert not QualifiedBy.one_of(b)(QualifiedBy(a))

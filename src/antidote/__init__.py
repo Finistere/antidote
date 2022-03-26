@@ -6,6 +6,7 @@ from .implementation import implementation
 from .lazy import LazyCall, LazyMethodCall
 from .service import ABCService, Service, service
 from .utils import is_compiled
+from .extension.predicates import interface, implements
 
 try:
     from ._internal.scm_version import version as __version__

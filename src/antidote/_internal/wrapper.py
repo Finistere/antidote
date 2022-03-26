@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Awaitable, Callable, cast, Dict, Hashable, Sequence
+from typing import Any, Awaitable, Callable, cast, Dict, Hashable, Sequence
 
 from . import API
 from .state import current_container
@@ -92,13 +92,17 @@ def get_wrapped(x: object) -> object:
 class InjectedWrapper:
     __wrapped__: object
 
-    def __init__(self, wrapped: object) -> None:
+    def __init__(self, wrapped: Callable[..., object]) -> None:
         self.__wrapped__ = wrapped
         functools.wraps(wrapped, updated=())(self)
 
     @property
-    def __class__(self):
+    def __class__(self) -> Any:
         return self.__wrapped__.__class__
+
+    @__class__.setter
+    def __class__(self, value: Any) -> None:  # noqa: F811
+        self.__wrapped__.__class__ = value
 
     def __getattr__(self, item: str) -> object:
         return getattr(self.__wrapped__, item)
