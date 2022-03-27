@@ -8,6 +8,7 @@ from typing_extensions import Annotated, get_type_hints, Protocol
 
 from .marker import Marker
 from .typing import CallableClass, Source
+from .utils import WrappedDependency
 from .._internal import API
 from .._internal.utils import FinalImmutable
 
@@ -60,7 +61,7 @@ Provide.__doc__ = Inject.__doc__
 
 
 @API.public
-class Get(FinalImmutable, AntidoteAnnotation, Marker):
+class Get(FinalImmutable, AntidoteAnnotation, Marker, WrappedDependency):
     """
     Annotation specifying explicitly which dependency to inject.
 
@@ -103,7 +104,7 @@ class Get(FinalImmutable, AntidoteAnnotation, Marker):
                  ) -> None:
         from .._providers.factory import FactoryDependency
 
-        if isinstance(__dependency, Get):
+        while isinstance(__dependency, WrappedDependency):
             __dependency = __dependency.dependency
 
         if isinstance(source, Source):

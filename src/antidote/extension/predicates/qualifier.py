@@ -7,7 +7,7 @@ from typing import Optional
 from .predicate import AntidotePredicateWeight, AnyPredicateWeight, Predicate, PredicateConstraint
 from ..._internal.utils import FinalImmutable
 
-_FORBIDDEN_QUALIFIERS = (int, float, str, list, dict, set, tuple, bytes, bytearray, bool, complex)
+_BUILTIN_TYPES = (int, float, str, list, dict, set, tuple, bytes, bytearray, bool, complex)
 
 
 class QualifiedBy(FinalImmutable, Predicate, PredicateConstraint['QualifiedBy']):
@@ -27,8 +27,9 @@ class QualifiedBy(FinalImmutable, Predicate, PredicateConstraint['QualifiedBy'])
             raise ValueError("At least one qualifier must be given.")
 
         for qualifier in qualifiers:
-            if qualifier is None or isinstance(qualifier, _FORBIDDEN_QUALIFIERS):
-                raise TypeError("A qualifier cannot ")
+            if qualifier is None or isinstance(qualifier, _BUILTIN_TYPES):
+                raise TypeError(f"Invalid qualifier: {qualifier!r}. "
+                                f"It cannot be None or an instance of a builtin type")
         super().__init__(qualifiers=[
             next(group)
             for k, group in itertools.groupby(sorted(qualifiers, key=id), key=id)
@@ -61,11 +62,11 @@ class QualifiedBy(FinalImmutable, Predicate, PredicateConstraint['QualifiedBy'])
 
 
 class QualifiedByOneOf(FinalImmutable, PredicateConstraint[QualifiedBy]):
-    __slots__ = ('__qualifiers',)
-    __qualifiers: list[object]
+    __slots__ = ('__qualified_by',)
+    __qualified_by: QualifiedBy
 
     def __init__(self, *qualifiers: object):
-        super().__init__(QualifiedBy(*qualifiers).qualifiers)
+        super().__init__(QualifiedBy(*qualifiers))
 
     def __call__(self, predicate: Optional[QualifiedBy]) -> bool:
         if predicate is None:
@@ -73,8 +74,8 @@ class QualifiedByOneOf(FinalImmutable, PredicateConstraint[QualifiedBy]):
 
         li = 0
         ri = 0
-        while li < len(self.__qualifiers) and ri < len(predicate.qualifiers):
-            left = self.__qualifiers[li]
+        while li < len(self.__qualified_by.qualifiers) and ri < len(predicate.qualifiers):
+            left = self.__qualified_by.qualifiers[li]
             right = predicate.qualifiers[ri]
             if left is right:
                 return True
@@ -86,10 +87,10 @@ class QualifiedByOneOf(FinalImmutable, PredicateConstraint[QualifiedBy]):
         return False
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, QualifiedByOneOf) and self.__qualifiers == other.__qualifiers
+        return isinstance(other, QualifiedByOneOf) and self.__qualified_by == other.__qualified_by
 
     def __hash__(self) -> int:
-        return hash(self.__qualifiers)
+        return hash(self.__qualified_by)
 
 
 class QualifiedByInstanceOf(FinalImmutable, PredicateConstraint[QualifiedBy]):

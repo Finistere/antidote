@@ -42,3 +42,9 @@ class DependencyDebug(FinalImmutable):
                and self.scope == other.scope \
                and self.wired == other.wired \
                and self.dependencies == other.dependencies  # noqa: E126
+
+
+@API.private
+class WrappedDependency:
+    __slots__ = ()
+    dependency: object

@@ -40,6 +40,7 @@ class InterfaceProvider(Provider[Union[type, 'Query']]):
                       ) -> Optional[DependencyValue]:
         if not isinstance(dependency, Query):
             dependency = Query(
+                # not always true, but we won't go far if it's a lie.
                 interface=cast(type, dependency),
                 constraints=list(),
                 all=False
@@ -54,7 +55,7 @@ class InterfaceProvider(Provider[Union[type, 'Query']]):
             values: list[object] = []
             for impl in implementations:
                 if impl.match(dependency.constraints):
-                    values.append(container.get(impl))
+                    values.append(container.get(impl.dependency))
             return DependencyValue(values)
         else:
             for impl in implementations:
@@ -66,9 +67,10 @@ class InterfaceProvider(Provider[Union[type, 'Query']]):
                             raise DuplicateDependencyError(
                                 f"Multiple implementations match the interface "
                                 f"{dependency.interface!r} for the constraints "
-                                f"{dependency.constraints}: {impl!r} and {left_impl!r}")
+                                f"{dependency.constraints}: "
+                                f"{impl.dependency!r} and {left_impl.dependency!r}")
 
-                    return DependencyValue(container.get(impl))
+                    return DependencyValue(container.get(impl.dependency))
 
         return None
 

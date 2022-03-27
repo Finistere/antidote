@@ -9,6 +9,7 @@ from typing_extensions import TypeAlias
 
 from .exceptions import DoubleInjectionError
 from .marker import Marker
+from .utils import WrappedDependency
 from .._internal import API
 from .._internal.argspec import Arguments
 from .._internal.utils import FinalImmutable
@@ -29,11 +30,9 @@ class ArgDependency(FinalImmutable):
 
     @classmethod
     def of(cls, x: object) -> ArgDependency:
-        from .annotations import Get
-
         if isinstance(x, ArgDependency):
             return x
-        if isinstance(x, Get):
+        while isinstance(x, WrappedDependency):
             x = x.dependency
 
         return ArgDependency(x)

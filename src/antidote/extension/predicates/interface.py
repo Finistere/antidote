@@ -6,16 +6,22 @@ from typing import Any, Callable, cast, Generic, List, Optional, overload, Type,
 from typing_extensions import final
 
 from ._internal import create_constraints, register_implementation, register_interface
-from ._provider import Query
+from ._provider import InterfaceProvider, Query
 from .predicate import Predicate, PredicateConstraint
 from .qualifier import QualifiedBy
 from ..._internal.utils import FinalImmutable
 from ..._internal.utils.meta import Singleton
 from ...core import Dependency
+from ...core.utils import WrappedDependency
 
 Itf = TypeVar('Itf', bound=type)
 C = TypeVar('C', bound=type)
 T = TypeVar('T')
+
+
+def register_interface_provider():
+    from antidote import world
+    world.provider(InterfaceProvider)
 
 
 @final
@@ -29,7 +35,7 @@ class Interface(Singleton):
         ...  # pragma: no cover
 
     def __call__(self, klass: Optional[C] = None) -> Union[C, Callable[[C], C]]:
-        return klass and register_interface(klass) or cast(Callable[[C], C], register_interface)
+        return klass and register_interface(klass) or register_interface
 
     def __getitem__(self, klass: Type[T]) -> QueryBuilder[T]:
         return QueryBuilder(klass)
@@ -60,14 +66,18 @@ class implements(ImplementsWithPredicates[Itf]):
              ) -> ImplementsWithPredicates[Itf]:
         predicates = list(_predicates)
         if qualified_by is not None:
-            predicates.append(QualifiedBy(qualified_by))
+            predicates.append(QualifiedBy(*qualified_by))
         return ImplementsWithPredicates(self._interface, predicates)
 
 
 @final
-class QueryBuilder(FinalImmutable, Generic[T]):
-    __slots__ = ('klass',)
+class QueryBuilder(FinalImmutable, WrappedDependency, Generic[T]):
+    __slots__ = ('interface',)
     interface: Type[T]
+
+    @property
+    def dependency(self) -> object:
+        return self.interface
 
     def __init__(self, interface: Type[T]) -> None:
         if not (isinstance(interface, type) and inspect.isclass(interface)):

@@ -117,7 +117,7 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
     method_name: str
     arg: object
     default: Tco
-    type_: type
+    type_: Type[Tco]
     auto_cast: bool
     _cache: str
 
@@ -128,7 +128,7 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
                  method_name: str,
                  arg: object,
                  default: Tco,
-                 type_: type,
+                 type_: Type[Tco],
                  auto_cast: bool
                  ):
         super().__init__(
@@ -167,7 +167,7 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
             value = self.type_(value)
 
         enforce_type_if_possible(value, self.type_)
-        return cast(Tco, value)
+        return value
 
 
 @API.private

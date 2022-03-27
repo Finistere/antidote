@@ -1,7 +1,8 @@
 import enum
 import typing
 
-from typing_extensions import Protocol
+from typing import TypeVar, Type
+from typing_extensions import Protocol, TypeGuard
 
 from .debug import debug_repr, short_id
 from .immutable import FinalImmutable, Immutable
@@ -9,7 +10,7 @@ from .meta import AbstractMeta, FinalMeta
 from .. import API
 
 Im = typing.TypeVar('Im', bound=Immutable)
-
+T = TypeVar('T')
 
 @API.private
 class Default(enum.Enum):
@@ -35,7 +36,7 @@ __all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMet
 if hasattr(typing, 'runtime_checkable'):
 
     @API.private
-    def enforce_type_if_possible(obj: object, tpe: object) -> None:
+    def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
         if not isinstance(tpe, type):
             return
 
@@ -51,7 +52,7 @@ else:
     ProtocolMeta = type(Protocol)
 
     @API.private
-    def enforce_type_if_possible(obj: object, tpe: object) -> None:
+    def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
         if not isinstance(tpe, type):
             return
 

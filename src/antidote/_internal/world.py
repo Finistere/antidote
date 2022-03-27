@@ -21,6 +21,8 @@ from ..core.annotations import Get
 from ..core.container import RawContainer
 from ..core.exceptions import DependencyNotFoundError
 from ..core.typing import CallableClass, Dependency, Source
+from ..core.utils import WrappedDependency
+from ..extension.predicates import interface, PredicateConstraint
 
 if TYPE_CHECKING:
     pass
@@ -119,10 +121,12 @@ class WorldGet(Singleton):
                      Type[CallableClass[Any]]
                  ]] = None
                  ) -> Any:
+        while isinstance(__dependency, WrappedDependency):
+            __dependency = __dependency.dependency
+        __dependency = cast(Any, extract_annotated_dependency(__dependency))
+        if source is not None:
+            __dependency = Get(__dependency, source=source).dependency
         try:
-            __dependency = cast(Any, extract_annotated_dependency(__dependency))
-            if source is not None:
-                __dependency = Get(__dependency, source=source).dependency
             return current_container().get(__dependency)
         except DependencyNotFoundError:
             if default is not Default.sentinel:
@@ -189,6 +193,9 @@ class TypedWorldGet(Generic[T], FinalImmutable):
                 and not isinstance(default, self.__type):
             raise TypeError(f"Default value {default} is not an instance of {self.__type}, "
                             f"but a {type(default)}")
+        while isinstance(__dependency, WrappedDependency):
+            __dependency = __dependency.dependency
+
         if __dependency is None:
             __dependency = extract_annotated_dependency(self.__type)
         else:
@@ -196,13 +203,48 @@ class TypedWorldGet(Generic[T], FinalImmutable):
         if source is not None:
             __dependency = Get(cast(Any, __dependency), source=source).dependency
         try:
-            value = cast(T, current_container().get(__dependency))
+            value = current_container().get(__dependency)
         except DependencyNotFoundError:
             if default is not Default.sentinel:
                 return default
             raise
 
         enforce_type_if_possible(value, self.__type)
+        return value
+
+    @API.public
+    def single(self,
+               *constraints: PredicateConstraint[Any],
+               qualified_by: Optional[list[object]] = None,
+               qualified_by_one_of: Optional[list[object]] = None,
+               qualified_by_instance_of: Optional[type] = None
+               ) -> T:
+        return self(interface[self.__type].single(
+            *constraints,
+            qualified_by=qualified_by,
+            qualified_by_one_of=qualified_by_one_of,
+            qualified_by_instance_of=qualified_by_instance_of)
+        )
+
+    @API.public
+    def all(self,
+            *constraints: PredicateConstraint[Any],
+            qualified_by: Optional[list[object]] = None,
+            qualified_by_one_of: Optional[list[object]] = None,
+            qualified_by_instance_of: Optional[type] = None
+            ) -> list[T]:
+        from antidote import world
+        value = world.get(interface[self.__type].all(
+            *constraints,
+            qualified_by=qualified_by,
+            qualified_by_one_of=qualified_by_one_of,
+            qualified_by_instance_of=qualified_by_instance_of)
+        )
+
+        enforce_type_if_possible(value, list)
+        for x in value:
+            enforce_type_if_possible(x, self.__type)
+
         return value
 
     @API.public
