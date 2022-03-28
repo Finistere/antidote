@@ -4,6 +4,7 @@ import base64
 import inspect
 import textwrap
 from collections import deque
+from dataclasses import dataclass, field
 from typing import (Deque, Hashable, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING)
 
 from .immutable import Immutable
@@ -57,19 +58,20 @@ def get_injections(__func: object) -> Sequence[object]:
 
 
 @API.private
-class Task(Immutable):
-    __slots__ = ()
+class Task:
+    pass
 
 
 @API.private
+@dataclass
 class DependencyTask(Task):
-    __slots__ = ('dependency',)
     dependency: Hashable
+    prefix: str = field(default='')
 
 
 @API.private
+@dataclass
 class InjectionTask(Task):
-    __slots__ = ('name', 'injections')
     name: str
     injections: List[Hashable]
 
@@ -99,6 +101,7 @@ def tree_debug_info(container: 'RawContainer',
     from ...core.wiring import WithWiringMixin
     from ...core.exceptions import DependencyNotFoundError
     from ...core import Scope
+    from ...core.utils import DebugInfoPrefix
 
     @API.private
     class DebugTreeNode(Immutable):
@@ -172,7 +175,7 @@ def tree_debug_info(container: 'RawContainer',
                 tasks.append((parent, parent_dependencies, DependencyTask(d)))
 
     while tasks:
-        parent, parent_dependencies, task = tasks.pop()
+        parent, parent_dependencies, task = tasks.popleft()
         if isinstance(task, DependencyTask):
             dependency = task.dependency
             try:
@@ -186,10 +189,10 @@ def tree_debug_info(container: 'RawContainer',
                 continue
 
             if dependency in parent_dependencies:
-                parent.child(f"/!\\ Cyclic dependency: {debug.info}")
+                parent.child(f"/!\\ Cyclic dependency: {task.prefix}{debug.info}")
                 continue
 
-            child = parent.child(debug.info, scope=debug.scope)
+            child = parent.child(f"{task.prefix}{debug.info}", scope=debug.scope)
             child_dependencies = parent_dependencies | {dependency}
 
             if dependency is origin:
@@ -198,8 +201,13 @@ def tree_debug_info(container: 'RawContainer',
 
             if child.depth < max_depth:
                 for d in debug.dependencies:
-                    tasks.append((child, child_dependencies,
-                                  DependencyTask(d)))
+                    if isinstance(d, DebugInfoPrefix):
+                        tasks.append((child, child_dependencies,
+                                      DependencyTask(prefix=d.prefix,
+                                                     dependency=d.dependency)))
+                    else:
+                        tasks.append((child, child_dependencies,
+                                      DependencyTask(prefix='', dependency=d)))
                 for w in debug.wired:
                     if isinstance(w, type) and inspect.isclass(w):
                         for d in get_injections(getattr(w, '__init__')):

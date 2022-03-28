@@ -62,7 +62,7 @@ class implements(ImplementsWithPredicates[Itf]):
 
     def when(self,
              *_predicates: Predicate,
-             qualified_by: list[object]
+             qualified_by: Optional[list[object]] = None
              ) -> ImplementsWithPredicates[Itf]:
         predicates = list(_predicates)
         if qualified_by is not None:

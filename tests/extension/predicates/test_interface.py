@@ -3,9 +3,8 @@ import pytest
 from antidote import implements, interface, world
 from antidote._internal.world import WorldGet
 from antidote._providers import ServiceProvider
-from antidote.core.exceptions import DependencyInstantiationError, DependencyNotFoundError, \
-    DuplicateDependencyError
-from antidote.extension.predicates import register_interface_provider, QualifiedBy
+from antidote.core.exceptions import DependencyInstantiationError, DependencyNotFoundError
+from antidote.extension.predicates import QualifiedBy, register_interface_provider
 
 
 def _(x):
@@ -176,4 +175,3 @@ def test_qualified_implementations(get):
     assert get[Base].all(QualifiedBy.one_of(qD), QualifiedBy.instance_of(SubQualifier)) == [cd]
     assert get[Base].single(QualifiedBy.one_of(qD), QualifiedBy.one_of(sqC)) is cd
     assert get[Base].all(QualifiedBy.one_of(qD), QualifiedBy.one_of(sqC)) == [cd]
-

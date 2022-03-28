@@ -7,6 +7,7 @@ from typing import Any, cast, get_args, get_origin, get_type_hints, Optional, Ty
 from ._provider import ConstraintsAlias, InterfaceProvider
 from .predicate import Predicate, PredicateConstraint
 from .qualifier import QualifiedBy
+from ..._internal.utils import enforce_subclass_if_possible
 from ...core import inject
 from ...core.exceptions import DuplicateDependencyError
 
@@ -95,6 +96,7 @@ def register_implementation(*,
         raise TypeError(f"Expected a class for the interface, got a {type(interface)!r}")
     if not (isinstance(implementation, type) and inspect.isclass(implementation)):
         raise TypeError(f"Expected a class for the implementation, got a {type(implementation)!r}")
+    enforce_subclass_if_possible(implementation, interface)
 
     # Remove duplicates and combine predicates when possible
     distinct_predicates: dict[Type[Predicate], Predicate] = dict()

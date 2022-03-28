@@ -1,7 +1,7 @@
 import enum
 import typing
+from typing import Any, Callable, Type, TypeVar
 
-from typing import TypeVar, Type
 from typing_extensions import Protocol, TypeGuard
 
 from .debug import debug_repr, short_id
@@ -9,8 +9,10 @@ from .immutable import FinalImmutable, Immutable
 from .meta import AbstractMeta, FinalMeta
 from .. import API
 
-Im = typing.TypeVar('Im', bound=Immutable)
+Im = TypeVar('Im', bound=Immutable)
 T = TypeVar('T')
+Tp = TypeVar('Tp', bound=type)
+
 
 @API.private
 class Default(enum.Enum):
@@ -32,35 +34,38 @@ class Copy(enum.Enum):
 __all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
            'FinalMeta', 'API', 'Default', 'Copy']
 
+# inspired by how `typing_extensions.runtime_checkable` checks for a protocol
 # 3.8+
 if hasattr(typing, 'runtime_checkable'):
-
     @API.private
-    def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
-        if not isinstance(tpe, type):
-            return
-
-        # inspired by how `typing.runtime_checkable` checks for a protocol
-        if issubclass(tpe, typing.Generic) and getattr(tpe, "_is_protocol", False):  # type: ignore
-            if getattr(tpe, "_is_runtime_protocol", False) and not isinstance(obj, tpe):
-                raise TypeError(f"Dependency value {obj} is not an instance of {tpe}, "
-                                f"but a {type(obj)}")
-        elif not isinstance(obj, tpe):
-            raise TypeError(f"Dependency value {obj} is not an instance of {tpe}, "
-                            f"but a {type(obj)}")
+    def _is_protocol(obj):
+        return (issubclass(obj, typing.Generic)
+                and getattr(obj, "_is_protocol", False))  # typing: ignore
 else:
     ProtocolMeta = type(Protocol)
 
-    @API.private
-    def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
-        if not isinstance(tpe, type):
-            return
 
-        # inspired by how `typing_extensions.runtime_checkable` checks for a protocol
-        if isinstance(tpe, ProtocolMeta) and getattr(tpe, "_is_protocol", False):
-            if getattr(tpe, "_is_runtime_protocol", False) and not isinstance(obj, tpe):
-                raise TypeError(f"Dependency value {obj} is not an instance of {tpe}, "
-                                f"but a {type(obj)}")
-        elif not isinstance(obj, tpe):
-            raise TypeError(f"Value {obj!r} is not an instance of {tpe!r}, "
-                            f"but a {type(obj)!r}")
+    @API.private
+    def _is_protocol(obj):
+        return isinstance(obj, ProtocolMeta) and getattr(obj, "_is_protocol", False)
+
+
+@API.private
+def _check(obj: Any, tpe: type, check: Callable[[Any, type], bool]) -> None:
+    if _is_protocol(tpe):
+        if getattr(tpe, "_is_runtime_protocol", False) and not check(obj, tpe):
+            raise TypeError(f"{obj} is not an instance of {tpe}, but a {type(obj)}")
+    elif not check(obj, tpe):
+        raise TypeError(f"{obj!r} is not an instance of {tpe!r}, but a {type(obj)!r}")
+
+
+@API.private
+def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
+    return isinstance(tpe, type) and _check(obj, tpe, isinstance)
+
+
+@API.private
+def enforce_subclass_if_possible(child: type, mother: Tp) -> TypeGuard[Tp]:
+    return (isinstance(mother, type)
+            and isinstance(child, type)
+            and _check(child, mother, issubclass))

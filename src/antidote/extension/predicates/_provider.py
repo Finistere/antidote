@@ -5,11 +5,12 @@ from typing import Any, Callable, cast, List, Optional, Tuple, TypeVar, Union
 
 from typing_extensions import final, TypeAlias
 
-from .predicate import AnyPredicateWeight, Predicate
-from ..._internal.utils import FinalImmutable
+from .predicate import AntidotePredicateWeight, AnyPredicateWeight, Predicate
+from ..._internal.utils import debug_repr, FinalImmutable
 from ..._internal.utils.slots import SlotsRepr
 from ...core import Container, DependencyDebug, DependencyValue, Provider
-from ...core.exceptions import DuplicateDependencyError
+from ...core.exceptions import DependencyInstantiationError
+from ...core.utils import DebugInfoPrefix
 
 T = TypeVar('T')
 ConstraintsAlias: TypeAlias = List[Tuple[type, Callable[[Optional[Any]], bool]]]
@@ -64,7 +65,7 @@ class InterfaceProvider(Provider[Union[type, 'Query']]):
                     while left_impl.same_weight_as_left:
                         left_impl = next(implementations)
                         if left_impl.match(dependency.constraints):
-                            raise DuplicateDependencyError(
+                            raise DependencyInstantiationError(
                                 f"Multiple implementations match the interface "
                                 f"{dependency.interface!r} for the constraints "
                                 f"{dependency.constraints}: "
@@ -75,7 +76,42 @@ class InterfaceProvider(Provider[Union[type, 'Query']]):
         return None
 
     def maybe_debug(self, dependency: object) -> Optional[DependencyDebug]:
-        raise RuntimeError()
+        if not isinstance(dependency, Query):
+            dependency = Query(
+                # not always true, but we won't go far if it's a lie.
+                interface=cast(type, dependency),
+                constraints=list(),
+                all=False
+            )
+
+        try:
+            implementations = reversed(self.__implementations[dependency.interface])
+        except KeyError:
+            return None
+
+        values: list[ImplementationNode] = []
+        for impl in implementations:
+            if impl.match(dependency.constraints):
+                values.append(impl)
+
+        if not dependency.all and len(values) > 0:
+            heaviest = values[0]
+            values = [
+                impl
+                for impl in values
+                if not (impl < heaviest)
+            ]
+
+        return DependencyDebug(
+            f"Interface {debug_repr(dependency.interface)}",
+            dependencies=[
+                DebugInfoPrefix(
+                    prefix=f"[{impl.weight}] " if len(values) > 1 else "",
+                    dependency=impl.dependency
+                )
+                for impl in values
+            ]
+        )
 
     def register(self, interface: type) -> None:
         self.__implementations[interface] = list()
@@ -85,15 +121,19 @@ class InterfaceProvider(Provider[Union[type, 'Query']]):
                                 dependency: object,
                                 predicates: list[Predicate]) -> None:
         if len(predicates) > 0:
-            weight = predicates[0].weight()
-            if weight is None:
+            weights = [p.weight() for p in predicates]
+            if any(w is None for w in weights):
                 return
 
-            for p in predicates[1:]:
-                w = p.weight()
-                if w is None:
-                    return
-                weight += w
+            start = 0
+            for i, w in enumerate(weights):
+                if not isinstance(w, AntidotePredicateWeight):
+                    start = i
+                    break
+
+            weight = weights[start]
+            for i in range(1, len(weights)):
+                weight += weights[(start + i) % len(weights)]
         else:
             weight = None
         node = ImplementationNode(
