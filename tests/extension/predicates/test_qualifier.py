@@ -49,35 +49,35 @@ def test_qualified_by_predicate():
 
 
 def test_qualified_by_predicate_constraint():
-    assert QualifiedBy(x)(QualifiedBy(x))
-    assert QualifiedBy(x, y)(QualifiedBy(x, y))
-    assert QualifiedBy(x, y)(QualifiedBy(y, x))
+    assert QualifiedBy(x).evaluate(QualifiedBy(x))
+    assert QualifiedBy(x, y).evaluate(QualifiedBy(x, y))
+    assert QualifiedBy(x, y).evaluate(QualifiedBy(y, x))
 
-    assert not QualifiedBy(x)(QualifiedBy(y))
-    assert not QualifiedBy(x)(QualifiedBy(x, y))
-    assert not QualifiedBy(x, y)(QualifiedBy(x))
+    assert not QualifiedBy(x).evaluate(QualifiedBy(y))
+    assert not QualifiedBy(x).evaluate(QualifiedBy(x, y))
+    assert not QualifiedBy(x, y).evaluate(QualifiedBy(x))
 
     # on missing QualifiedBy
-    assert not QualifiedBy(x)(None)
+    assert not QualifiedBy(x).evaluate(None)
 
 
 def test_qualified_by_one_of():
-    assert QualifiedBy.one_of(x)(QualifiedBy(x))
-    assert QualifiedBy.one_of(x)(QualifiedBy(x, y))
+    assert QualifiedBy.one_of(x).evaluate(QualifiedBy(x))
+    assert QualifiedBy.one_of(x).evaluate(QualifiedBy(x, y))
 
-    assert QualifiedBy.one_of(x, y)(QualifiedBy(x))
-    assert QualifiedBy.one_of(x, y)(QualifiedBy(x, y))
-    assert QualifiedBy.one_of(x, y)(QualifiedBy(y))
+    assert QualifiedBy.one_of(x, y).evaluate(QualifiedBy(x))
+    assert QualifiedBy.one_of(x, y).evaluate(QualifiedBy(x, y))
+    assert QualifiedBy.one_of(x, y).evaluate(QualifiedBy(y))
 
     # Ensuring (roughly) we have all cases of ordering with id()
     for left in itertools.permutations([x, y, z]):
         for right in [x, y, z]:
-            QualifiedBy.one_of(*left)(QualifiedBy(object(), right, object()))
+            QualifiedBy.one_of(*left).evaluate(QualifiedBy(object(), right, object()))
 
-    assert not QualifiedBy.one_of(x)(QualifiedBy(y))
+    assert not QualifiedBy.one_of(x).evaluate(QualifiedBy(y))
 
     # on missing QualifiedBy
-    assert not QualifiedBy.one_of(x)(None)
+    assert not QualifiedBy.one_of(x).evaluate(None)
 
 
 def test_qualified_by_instance_of():
@@ -88,15 +88,15 @@ def test_qualified_by_instance_of():
     b = Tag()
 
     constraint = QualifiedBy.instance_of(Tag)
-    assert constraint(QualifiedBy(a))
-    assert constraint(QualifiedBy(b))
-    assert constraint(QualifiedBy(x, a))
+    assert constraint.evaluate(QualifiedBy(a))
+    assert constraint.evaluate(QualifiedBy(b))
+    assert constraint.evaluate(QualifiedBy(x, a))
 
-    assert not constraint(QualifiedBy(x))
-    assert not QualifiedBy.instance_of(int)(QualifiedBy(a))
+    assert not constraint.evaluate(QualifiedBy(x))
+    assert not QualifiedBy.instance_of(int).evaluate(QualifiedBy(a))
 
     # on missing QualifiedBy
-    assert not QualifiedBy.instance_of(Tag)(None)
+    assert not QualifiedBy.instance_of(Tag).evaluate(None)
 
 
 def test_invalid_qualified_by_instance_of():
@@ -128,5 +128,5 @@ def test_only_qualifier_id_matters():
     assert QualifiedBy(a, b) != QualifiedBy(a)
     assert QualifiedBy(a, b) != QualifiedBy(b)
 
-    assert not QualifiedBy(b)(QualifiedBy(a))
-    assert not QualifiedBy.one_of(b)(QualifiedBy(a))
+    assert not QualifiedBy(b).evaluate(QualifiedBy(a))
+    assert not QualifiedBy.one_of(b).evaluate(QualifiedBy(a))

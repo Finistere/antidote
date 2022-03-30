@@ -47,10 +47,10 @@ def test_create_constraint_invalid_predicate_class():
         create(object())
 
     class MissingPredicateArgument(PredicateConstraint[Any]):
-        def __call__(self, *args, **kwargs):
+        def evaluate(self, *args, **kwargs):
             pass
 
-    with pytest.raises(TypeError, match="(?i).*'predicate' argument.*"):
+    with pytest.raises(TypeError, match="(?i).*predicate.*"):
         create(MissingPredicateArgument())
 
 
@@ -63,7 +63,7 @@ def test_create_constraint_invalid_predicate_class():
 ])
 def test_create_constraint_invalid_type_hint(type_hint):
     class InvalidTypeHint(PredicateConstraint[Any]):
-        def __call__(self, predicate: type_hint):
+        def evaluate(self, predicate: type_hint):
             pass
 
     with pytest.raises(TypeError, match="(?i).*Optional.*Predicate.*"):

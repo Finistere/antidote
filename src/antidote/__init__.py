@@ -16,4 +16,5 @@ except ImportError:  # pragma: no cover
 __all__ = ['__version__', 'world', 'Get', 'From', 'FromArg', 'Provide', 'Inject',
            'const', 'Constants', 'constants', 'inject', 'Arg', 'wire', 'Wiring', 'factory',
            'Factory', 'implementation', 'LazyCall', 'LazyMethodCall',
-           'service', 'Scope', 'Service', 'ABCService', 'is_compiled']
+           'service', 'Scope', 'Service', 'ABCService', 'is_compiled',
+           'interface', 'implements']

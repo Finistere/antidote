@@ -32,26 +32,27 @@ class Copy(enum.Enum):
 
 
 __all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
-           'FinalMeta', 'API', 'Default', 'Copy']
+           'FinalMeta', 'API', 'Default', 'Copy', 'enforce_subclass_if_possible',
+           'enforce_type_if_possible']
 
 # inspired by how `typing_extensions.runtime_checkable` checks for a protocol
 # 3.8+
 if hasattr(typing, 'runtime_checkable'):
     @API.private
-    def _is_protocol(obj):
-        return (issubclass(obj, typing.Generic)
-                and getattr(obj, "_is_protocol", False))  # typing: ignore
+    def _is_protocol(obj: type) -> bool:
+        return (issubclass(obj, typing.cast(type, typing.Generic))
+                and getattr(obj, "_is_protocol", False))
 else:
     ProtocolMeta = type(Protocol)
 
 
     @API.private
-    def _is_protocol(obj):
+    def _is_protocol(obj: type) -> bool:
         return isinstance(obj, ProtocolMeta) and getattr(obj, "_is_protocol", False)
 
 
 @API.private
-def _check(obj: Any, tpe: type, check: Callable[[Any, type], bool]) -> None:
+def _enforce(obj: Any, tpe: type, check: Callable[[Any, type], bool]) -> None:
     if _is_protocol(tpe):
         if getattr(tpe, "_is_runtime_protocol", False) and not check(obj, tpe):
             raise TypeError(f"{obj} is not an instance of {tpe}, but a {type(obj)}")
@@ -61,11 +62,13 @@ def _check(obj: Any, tpe: type, check: Callable[[Any, type], bool]) -> None:
 
 @API.private
 def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
-    return isinstance(tpe, type) and _check(obj, tpe, isinstance)
+    if isinstance(tpe, type):
+        _enforce(obj, tpe, isinstance)
+    return True
 
 
 @API.private
 def enforce_subclass_if_possible(child: type, mother: Tp) -> TypeGuard[Tp]:
-    return (isinstance(mother, type)
-            and isinstance(child, type)
-            and _check(child, mother, issubclass))
+    if isinstance(mother, type) and isinstance(child, type):
+        _enforce(child, mother, issubclass)
+    return True

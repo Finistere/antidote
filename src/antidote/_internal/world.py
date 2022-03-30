@@ -21,7 +21,6 @@ from ..core.annotations import Get
 from ..core.container import RawContainer
 from ..core.exceptions import DependencyNotFoundError
 from ..core.typing import CallableClass, Dependency, Source
-from ..core.utils import WrappedDependency
 from ..extension.predicates import interface, PredicateConstraint
 
 if TYPE_CHECKING:
@@ -121,7 +120,7 @@ class WorldGet(Singleton):
                      Type[CallableClass[Any]]
                  ]] = None
                  ) -> Any:
-        while isinstance(__dependency, WrappedDependency):
+        if isinstance(__dependency, Get):
             __dependency = __dependency.dependency
         __dependency = cast(Any, extract_annotated_dependency(__dependency))
         if source is not None:
@@ -193,7 +192,7 @@ class TypedWorldGet(Generic[T], FinalImmutable):
                 and not isinstance(default, self.__type):
             raise TypeError(f"Default value {default} is not an instance of {self.__type}, "
                             f"but a {type(default)}")
-        while isinstance(__dependency, WrappedDependency):
+        if isinstance(__dependency, Get):
             __dependency = __dependency.dependency
 
         if __dependency is None:
@@ -209,7 +208,7 @@ class TypedWorldGet(Generic[T], FinalImmutable):
                 return default
             raise
 
-        enforce_type_if_possible(value, self.__type)
+        assert enforce_type_if_possible(value, self.__type)
         return value
 
     @API.public
@@ -242,8 +241,9 @@ class TypedWorldGet(Generic[T], FinalImmutable):
         )
 
         enforce_type_if_possible(value, list)
+        x: object
         for x in value:
-            enforce_type_if_possible(x, self.__type)
+            assert enforce_type_if_possible(x, self.__type)
 
         return value
 

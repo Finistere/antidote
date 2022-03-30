@@ -5,7 +5,7 @@ import inspect
 import textwrap
 from collections import deque
 from dataclasses import dataclass, field
-from typing import (Deque, Hashable, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING)
+from typing import (Deque, Hashable, List, Optional, Set, Tuple, TYPE_CHECKING)
 
 from .immutable import Immutable
 from .. import API
@@ -49,7 +49,7 @@ def debug_repr(__obj: object) -> str:
 
 
 @API.private
-def get_injections(__func: object) -> Sequence[object]:
+def get_injections(__func: object) -> List[object]:
     from ..wrapper import get_wrapper_injections
     try:
         return list(get_wrapper_injections(__func).values())  # type: ignore
@@ -73,7 +73,7 @@ class DependencyTask(Task):
 @dataclass
 class InjectionTask(Task):
     name: str
-    injections: List[Hashable]
+    injections: List[object]
 
 
 @API.private

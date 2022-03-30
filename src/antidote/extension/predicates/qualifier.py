@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import inspect
 import itertools
-from typing import Optional
+from typing import Any, cast, Optional, Tuple
 
-from .predicate import AntidotePredicateWeight, AnyPredicateWeight, Predicate, PredicateConstraint
+from .predicate import AntidotePredicateWeight, Predicate, PredicateConstraint
 from ..._internal.utils import FinalImmutable
 
-_BUILTIN_TYPES = (int, float, str, list, dict, set, tuple, bytes, bytearray, bool, complex)
+_BUILTIN_TYPES = cast(Tuple[type, ...], (int, float, str, list, dict, set,
+                                         tuple, bytes, bytearray, bool, complex))
 
 
-class QualifiedBy(FinalImmutable, Predicate, PredicateConstraint['QualifiedBy']):
+class QualifiedBy(FinalImmutable,
+                  Predicate[Any],
+                  PredicateConstraint['QualifiedBy']):
     __slots__ = ('qualifiers',)
     qualifiers: list[object]
 
@@ -32,10 +35,10 @@ class QualifiedBy(FinalImmutable, Predicate, PredicateConstraint['QualifiedBy'])
                                 f"It cannot be None or an instance of a builtin type")
         super().__init__(qualifiers=[
             next(group)
-            for k, group in itertools.groupby(sorted(qualifiers, key=id), key=id)
+            for _, group in itertools.groupby(sorted(qualifiers, key=id), key=id)
         ])
 
-    def __call__(self, predicate: Optional[QualifiedBy]) -> bool:
+    def evaluate(self, predicate: Optional[QualifiedBy]) -> bool:
         if predicate is None:
             return False
 
@@ -51,11 +54,11 @@ class QualifiedBy(FinalImmutable, Predicate, PredicateConstraint['QualifiedBy'])
     def __and__(self, other: QualifiedBy) -> QualifiedBy:
         return QualifiedBy(*self.qualifiers, *other.qualifiers)
 
-    def weight(self) -> AnyPredicateWeight:
+    def weight(self) -> AntidotePredicateWeight:
         return AntidotePredicateWeight(self)
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, QualifiedBy) and self(other)
+        return isinstance(other, QualifiedBy) and self.evaluate(other)
 
     def __hash__(self) -> int:
         return hash(tuple(id(q) for q in self.qualifiers))
@@ -68,7 +71,7 @@ class QualifiedByOneOf(FinalImmutable, PredicateConstraint[QualifiedBy]):
     def __init__(self, *qualifiers: object):
         super().__init__(QualifiedBy(*qualifiers))
 
-    def __call__(self, predicate: Optional[QualifiedBy]) -> bool:
+    def evaluate(self, predicate: Optional[QualifiedBy]) -> bool:
         if predicate is None:
             return False
 
@@ -102,7 +105,7 @@ class QualifiedByInstanceOf(FinalImmutable, PredicateConstraint[QualifiedBy]):
             raise TypeError(f"qualifier_type must be a class, not a {type(klass)}")
         super().__init__(klass)
 
-    def __call__(self, predicate: Optional[QualifiedBy]) -> bool:
+    def evaluate(self, predicate: Optional[QualifiedBy]) -> bool:
         if predicate is None:
             return False
 

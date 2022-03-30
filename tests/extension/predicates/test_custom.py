@@ -58,7 +58,7 @@ class WithPrefix(PredicateConstraint[OnPath]):
     def __init__(self, prefix: str) -> None:
         self.prefix = prefix
 
-    def __call__(self, predicate: Optional[OnPath]) -> bool:
+    def evaluate(self, predicate: Optional[OnPath]) -> bool:
         if predicate is None:
             return False
 
@@ -69,7 +69,7 @@ class Version(Predicate, PredicateConstraint['Version']):
     def __init__(self, major: int):
         self.major = major
 
-    def __call__(self, predicate: Optional[Version]) -> bool:
+    def evaluate(self, predicate: Optional[Version]) -> bool:
         return predicate.major == self.major
 
     def weight(self) -> Weight:
@@ -122,3 +122,26 @@ def test_custom_predicate_weight():
         pass
 
     assert world.get[Route].single(WithPrefix("/example")) is world.get(Example)
+
+
+def test_custom_predicate_condition():
+    class UseMe(Predicate):
+        def __init__(self, condition: bool) -> None:
+            self.condition = condition
+
+        def weight(self) -> Optional[Weight]:
+            return Weight(1) if self.condition else None
+
+    @interface
+    class Base:
+        pass
+
+    @_(implements(Base).when(UseMe(False)))
+    class NotUsed(Base):
+        pass
+
+    @_(implements(Base).when(UseMe(True)))
+    class Used(Base):
+        pass
+
+    assert world.get[Base].single() is world.get(Used)

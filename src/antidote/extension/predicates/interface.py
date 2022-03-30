@@ -7,19 +7,19 @@ from typing_extensions import final
 
 from ._internal import create_constraints, register_implementation, register_interface
 from ._provider import InterfaceProvider, Query
-from .predicate import Predicate, PredicateConstraint
+from .predicate import AnyPredicateWeight, Predicate, PredicateConstraint
 from .qualifier import QualifiedBy
 from ..._internal.utils import FinalImmutable
 from ..._internal.utils.meta import Singleton
-from ...core import Dependency
-from ...core.utils import WrappedDependency
+from ...core import Dependency, inject
 
 Itf = TypeVar('Itf', bound=type)
 C = TypeVar('C', bound=type)
 T = TypeVar('T')
+Weight = TypeVar('Weight', bound=AnyPredicateWeight)
 
 
-def register_interface_provider():
+def register_interface_provider() -> None:
     from antidote import world
     world.provider(InterfaceProvider)
 
@@ -42,9 +42,12 @@ class Interface(Singleton):
 
 
 class ImplementsWithPredicates(Generic[Itf]):
-    def __init__(self, __interface: Itf, predicates: list[Predicate]) -> None:
+    def __init__(self,
+                 __interface: Itf,
+                 predicates: Optional[list[Predicate[Weight]]] = None
+                 ) -> None:
         self._interface = __interface
-        self.__predicates = predicates
+        self.__predicates = predicates or []
 
     def __call__(self, klass: C) -> C:
         register_implementation(
@@ -58,10 +61,10 @@ class ImplementsWithPredicates(Generic[Itf]):
 @final
 class implements(ImplementsWithPredicates[Itf]):
     def __init__(self, __interface: Itf) -> None:
-        super().__init__(__interface, list())
+        super().__init__(__interface)
 
     def when(self,
-             *_predicates: Predicate,
+             *_predicates: Predicate[Weight],
              qualified_by: Optional[list[object]] = None
              ) -> ImplementsWithPredicates[Itf]:
         predicates = list(_predicates)
@@ -71,17 +74,16 @@ class implements(ImplementsWithPredicates[Itf]):
 
 
 @final
-class QueryBuilder(FinalImmutable, WrappedDependency, Generic[T]):
+class QueryBuilder(FinalImmutable, Generic[T]):
     __slots__ = ('interface',)
     interface: Type[T]
 
-    @property
-    def dependency(self) -> object:
-        return self.interface
-
-    def __init__(self, interface: Type[T]) -> None:
+    @inject
+    def __init__(self, interface: Type[T], provider: InterfaceProvider = inject.me()) -> None:
         if not (isinstance(interface, type) and inspect.isclass(interface)):
             raise TypeError(f"Expected a class, got a {type(interface)!r}")
+        if not provider.has_interface(interface):
+            raise ValueError(f"Interface {interface} was not decorated with @interface.")
         super().__init__(interface)
 
     def all(self,

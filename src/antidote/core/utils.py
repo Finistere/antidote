@@ -55,4 +55,7 @@ class DependencyDebug(FinalImmutable):
 @API.private
 class WrappedDependency:
     __slots__ = ()
-    dependency: object
+
+    @property
+    def dependency(self) -> object:
+        ...

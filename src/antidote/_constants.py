@@ -166,7 +166,7 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
         if self.auto_cast:
             value = self.type_(value)
 
-            enforce_type_if_possible(value, self.type_)
+        assert enforce_type_if_possible(value, self.type_)
         return value
 
 

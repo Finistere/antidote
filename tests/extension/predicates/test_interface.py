@@ -1,10 +1,13 @@
-import pytest
+from typing import Any, Optional
 
-from antidote import implements, interface, world
+import pytest
+from typing_extensions import Protocol
+
+from antidote import implements, interface, service, world
 from antidote._internal.world import WorldGet
 from antidote._providers import ServiceProvider
 from antidote.core.exceptions import DependencyInstantiationError, DependencyNotFoundError
-from antidote.extension.predicates import QualifiedBy, register_interface_provider
+from antidote.extension.predicates import Predicate, QualifiedBy, register_interface_provider
 
 
 def _(x):
@@ -74,8 +77,12 @@ def test_single_implementation():
     assert dummy is world.get(Dummy)
 
     # Base is implemented by Dummy
-    assert world.get(Base) is dummy
-    assert world.get(interface[Base]) is dummy
+    with pytest.raises(DependencyNotFoundError):
+        world.get(Base)
+
+    with pytest.raises(DependencyNotFoundError):
+        world.get(interface[Base])
+
     assert world.get(interface[Base].single()) is dummy
     assert world.get[Base].single() is dummy
 
@@ -108,14 +115,14 @@ def test_qualified_implementations(get):
     class CD(Base):
         pass
 
-    with pytest.raises(DependencyInstantiationError):
+    with pytest.raises(DependencyNotFoundError):
         world.get(Base)
 
-    with pytest.raises(DependencyInstantiationError):
-        world.get(interface[Base])
-
-    with pytest.raises(DependencyInstantiationError):
+    with pytest.raises(DependencyNotFoundError):
         world.get[Base]()
+
+    with pytest.raises(DependencyNotFoundError):
+        world.get(interface[Base])
 
     with pytest.raises(DependencyInstantiationError):
         get[Base].single()
@@ -175,3 +182,86 @@ def test_qualified_implementations(get):
     assert get[Base].all(QualifiedBy.one_of(qD), QualifiedBy.instance_of(SubQualifier)) == [cd]
     assert get[Base].single(QualifiedBy.one_of(qD), QualifiedBy.one_of(sqC)) is cd
     assert get[Base].all(QualifiedBy.one_of(qD), QualifiedBy.one_of(sqC)) == [cd]
+
+
+def test_invalid_interface():
+    with pytest.raises(TypeError, match="(?i).*class.*"):
+        interface(object())
+
+    with pytest.raises(TypeError, match="(?i).*class.*"):
+        interface[object()]
+
+    with pytest.raises(ValueError, match="(?i).*decorated.*@interface.*"):
+        interface[Qualifier]
+
+
+def test_invalid_implementation():
+    @interface
+    class Base:
+        pass
+
+    class BaseImpl(Base):
+        pass
+
+    with pytest.raises(TypeError, match="(?i).*class.*implementation.*"):
+        implements(Base)(object())
+
+    with pytest.raises(TypeError, match="(?i).*class.*interface.*"):
+        implements(object())(BaseImpl)
+
+    with pytest.raises(TypeError, match="(?i).*instance.*Predicate.*"):
+        implements(Base).when(object())(BaseImpl)
+
+    # should work
+    implements(Base)(BaseImpl)
+
+
+def test_unique_predicate():
+    class MyPred(Predicate):
+        def weight(self) -> Optional[Any]:
+            return None
+
+    @interface
+    class Base:
+        pass
+
+    with pytest.raises(RuntimeError, match="(?i).*unique.*"):
+        @_(implements(Base).when(MyPred(), MyPred()))
+        class BaseImpl(Base):
+            pass
+
+    # should work
+    @_(implements(Base).when(MyPred()))
+    class BaseImpl(Base):
+        pass
+
+
+def test_custom_service():
+    @interface
+    class Base:
+        pass
+
+    @implements(Base)
+    @service(singleton=False)
+    class BaseImpl(Base):
+        pass
+
+    # is a singleton
+    assert world.get(BaseImpl) is not world.get(BaseImpl)
+    assert isinstance(world.get[Base].single(), BaseImpl)
+
+
+def test_type_enforcement_if_possible():
+    @interface
+    class Base:
+        pass
+
+    with pytest.raises(TypeError, match="(?i).*subclass.*Base.*"):
+        @implements(Base)
+        class Invalid:
+            pass
+
+    @interface
+    class BaseProtocol(Protocol):
+        pass
+

@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar, Any
 
 from typing_extensions import Protocol
 
 SelfAnyPredicateWeight = TypeVar('SelfAnyPredicateWeight', bound='AnyPredicateWeight')
-SelfPredicate = TypeVar('SelfPredicate', bound='Predicate')
-SelfPredicateConstraint = TypeVar('SelfPredicateConstraint', bound='PredicateConstraint')
-P = TypeVar('P', bound='Predicate')
+SelfPredicate = TypeVar('SelfPredicate', bound='Predicate[Any]')
+SelfPredicateConstraint = TypeVar('SelfPredicateConstraint', bound='PredicateConstraint[Any]')
+P = TypeVar('P', bound='Predicate[Any]')
+Weight = TypeVar('Weight', bound='AnyPredicateWeight')
 
 
 class AntidotePredicateWeight:
-    predicate: Predicate
+    predicate: Predicate[Any]
 
-    def __init__(self, predicate: Predicate) -> None:
+    def __init__(self, predicate: Predicate[Any]) -> None:
         self.predicate = predicate
 
     def __lt__(self, other: AntidotePredicateWeight) -> bool:
@@ -36,12 +37,12 @@ class AnyPredicateWeight(Protocol):
         ...  # pragma: no cover
 
 
-class Predicate:
+class Predicate(Generic[Weight]):
     def __and__(self: SelfPredicate, other: SelfPredicate) -> SelfPredicate:
         raise RuntimeError(f"Predicate {type(self)!r} does not support __and__,"
-                           f"so you cannot specify more than one at once!")  # pragma: no cover
+                           f"so it must be unique!")  # pragma: no cover
 
-    def weight(self) -> Optional[AnyPredicateWeight]:
+    def weight(self) -> Optional[Weight]:
         raise NotImplementedError()  # pragma: no cover
 
 
@@ -52,5 +53,5 @@ class PredicateConstraint(Generic[P]):
         raise RuntimeError(f"PredicateConstraint {type(self)!r} "
                            f"does not support __and__.")  # pragma: no cover
 
-    def __call__(self, predicate: Optional[P]) -> bool:
+    def evaluate(self, predicate: Optional[P]) -> bool:
         raise NotImplementedError()  # pragma: no cover
