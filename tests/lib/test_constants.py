@@ -3,10 +3,10 @@ from __future__ import annotations
 import pytest
 
 from antidote import const, Constants, inject, Wiring, world
-from antidote._providers import LazyProvider
-from antidote.lib.injectable import register_injectable_provider
 from antidote.core.exceptions import DependencyInstantiationError
 from antidote.exceptions import DependencyNotFoundError
+from antidote.lib.injectable import register_injectable_provider
+from antidote.lib.lazy import register_lazy_provider
 
 
 class A:
@@ -16,7 +16,7 @@ class A:
 @pytest.fixture(autouse=True)
 def test_world():
     with world.test.empty():
-        world.provider(LazyProvider)
+        register_lazy_provider()
         register_injectable_provider()
         yield
 
@@ -215,17 +215,6 @@ def test_no_const():
 
     conf = Config()
     assert conf.A == 'a'
-
-
-def test_no_constants_class():
-    class Config:
-        A = const()
-
-    with pytest.raises(RuntimeError, match=".*Constants.*"):
-        _ = Config.A
-
-    with pytest.raises(RuntimeError, match=".*Constants.*"):
-        _ = Config().A
 
 
 def test_no_get_method():

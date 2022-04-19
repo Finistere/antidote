@@ -6,7 +6,9 @@ import pytest
 from typing_extensions import Annotated
 
 from antidote import (const, Constants, Factory, From, implementation, implements, inject,
-                      interface, LazyCall, LazyMethodCall, Provide, Service, service, world)
+                      injectable, interface, lazy, LazyCall, LazyMethodCall, Provide, Service,
+                      service,
+                      world)
 from antidote._internal.utils import short_id
 from antidote.lib.interface import ImplementationsOf, Predicate
 
@@ -491,16 +493,15 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            def provide_const(self, key, arg):
-                return key
+            def provide_const(self, name, arg):
+                return name
 
-        assert_valid(
-            DebugTestCase(
-                value=Conf.TEST,
-                expected=f"""
-                    {prefix}.Conf.TEST
-                    """
-            ))
+        assert_valid(DebugTestCase(
+            value=Conf.TEST,
+            expected=f"""
+                {prefix}.Conf.TEST
+                """
+        ))
 
     with world.test.new():
         class MyService(Service):
@@ -509,9 +510,9 @@ def test_constants_debug():
         class Conf(Constants):
             TEST = const('1')
 
-            def provide_const(self, key, arg, service: Provide[MyService] = None):
+            def provide_const(self, name, arg, service: Provide[MyService] = None):
                 assert isinstance(service, MyService)
-                return key
+                return name
 
         assert_valid(
             DebugTestCase(
@@ -522,6 +523,121 @@ def test_constants_debug():
                         └── {prefix}.MyService
                     """
             ))
+
+
+def test_const():
+    prefix = "tests.world.test_debug.test_const.<locals>"
+
+    class Conf:
+        TEST = const('a')
+
+    assert_valid(DebugTestCase(
+        value=Conf.TEST,
+        expected=f"""
+            {prefix}.Conf.TEST
+            """
+    ))
+
+    class Env:
+        TEST = const.env('b')
+
+    assert_valid(DebugTestCase(
+        value=Env.TEST,
+        expected=f"""
+            {prefix}.Env.TEST
+            """
+    ))
+
+    @const.provider
+    def build(name: str, arg: Optional[object], test=Conf.TEST) -> str:
+        return name
+
+    class BuildConf:
+        TEST = build.const('c')
+
+    assert_valid(DebugTestCase(
+        value=BuildConf.TEST,
+        expected=f"""
+            {prefix}.BuildConf.TEST
+            └── {prefix}.build
+                └── {prefix}.Conf.TEST
+            """
+    ))
+
+    @injectable
+    class CustomConf:
+        @const.provider
+        def custom(self, name: str, arg: Optional[object], test=Conf.TEST) -> str:
+            return name
+
+        TEST = custom.const('d')
+
+    assert_valid(DebugTestCase(
+        value=CustomConf.TEST,
+        expected=f"""
+            {prefix}.CustomConf.TEST
+            └── {prefix}.CustomConf.custom
+                └── {prefix}.Conf.TEST
+            """
+    ))
+
+
+def test_lazy():
+    prefix = "tests.world.test_debug.test_lazy.<locals>"
+
+    class Dummy:
+        pass
+
+    @lazy
+    def dummy(value: str = '', *, kw: int = 0) -> Dummy:
+        return Dummy()
+
+    assert_valid(
+        DebugTestCase(
+            value=dummy(),
+            expected=f"""
+                {prefix}.dummy()
+                """
+        ),
+        DebugTestCase(
+            value=dummy(value='1'),
+            expected=f"""
+                {prefix}.dummy('1')
+                """
+        ),
+        DebugTestCase(
+            value=dummy('1'),
+            expected=f"""
+                {prefix}.dummy('1')
+                """
+        ),
+        DebugTestCase(
+            value=dummy(kw=92),
+            expected=f"""
+                {prefix}.dummy(kw=92)
+                """
+        ),
+        DebugTestCase(
+            value=dummy('23', kw=92),
+            expected=f"""
+                {prefix}.dummy('23', kw=92)
+                """
+        )
+    )
+
+    @lazy
+    def build(x: Dummy = dummy()) -> str:
+        return ''
+
+    assert_valid(
+        DebugTestCase(
+            value=build(),
+            expected=f"""
+                {prefix}.build()
+                └── {prefix}.dummy()
+                """
+        )
+    )
 
 
 def test_custom_scope():

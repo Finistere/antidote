@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Dict, Hashable, Optional
+from typing import Callable, Dict, Optional
 
 # @formatter:off
 cimport cython
@@ -52,7 +52,7 @@ cdef class FactoryProvider(FastProvider):
         provider.__keep_singletons_cache = keep_singletons_cache
         return provider
 
-    def exists(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: object) -> bool:
         if isinstance(dependency, Parameterized):
             dependency = dependency.wrapped
         return (isinstance(dependency, FactoryDependency)
@@ -64,7 +64,7 @@ cdef class FactoryProvider(FastProvider):
         except KeyError:
             raise ValueError(f"Factory {factory!r} has never been declared.")
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: object) -> Optional[DependencyDebug]:
         cdef:
             Factory factory
 
@@ -143,7 +143,7 @@ cdef class FactoryProvider(FastProvider):
                  *,
                  Scope scope,
                  factory: Callable[..., object] = None,
-                 factory_dependency: Hashable = None
+                 factory_dependency: object = None
                  ) -> FactoryDependency:
         cdef:
             Header header

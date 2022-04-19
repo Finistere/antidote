@@ -1,16 +1,24 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Type, TypeVar
+import functools
+import inspect
+from dataclasses import make_dataclass
+from typing import Any, Callable, cast, Optional, overload, Type, TypeVar
 
-from typing_extensions import final, Protocol, runtime_checkable
+from typing_extensions import final, ParamSpec, Protocol, runtime_checkable
 
+from ...core import inject
 from ..._internal import API
 from ..._internal.utils.meta import Singleton
 
 __all__ = ['NeutralWeight', 'Predicate', 'PredicateWeight', 'PredicateConstraint',
-           'MergeablePredicateConstraint', 'MergeablePredicate']
+           'MergeablePredicateConstraint', 'MergeablePredicate', 'predicate']
+
+from ...core.exceptions import DoubleInjectionError
 
 SelfWeight = TypeVar('SelfWeight', bound='PredicateWeight')
+T = TypeVar('T')
+P = ParamSpec('P')
 
 
 @API.experimental
@@ -108,6 +116,9 @@ class NeutralWeight(Singleton):
     def __str__(self) -> str:
         return "N"
 
+    def __repr__(self) -> str:
+        return "NeutralWeight"
+
 
 WeightCo = TypeVar('WeightCo', bound=PredicateWeight, covariant=True)
 
@@ -156,6 +167,10 @@ class Predicate(Protocol[WeightCo]):
         ...     pass
         >>> world.get[ObjectStorage].all()
         [<AwsStorage ...>]
+
+    .. tip::
+
+        Consider using :py:func:`.predicate` for simple predicates.
 
     Predicates can share mother classes, but only one predicate of a specific type can be applied
     on a implementation:
@@ -287,3 +302,72 @@ class MergeablePredicateConstraint(PredicateConstraint[Pct], Protocol):
     @classmethod
     def merge(cls: Type[SelfPC], a: SelfPC, b: SelfPC) -> SelfPC:
         ...
+
+
+@overload
+def predicate(__func: Callable[P, bool]) -> Callable[P, Predicate[NeutralWeight]]:
+    ...
+
+
+@overload
+def predicate(__func: Callable[P, Optional[WeightCo]]) -> Callable[P, Predicate[WeightCo]]:
+    ...
+
+
+@API.experimental
+def predicate(__func: Callable[P, bool] | Callable[P, Optional[WeightCo]]
+              ) -> Callable[P, Predicate[NeutralWeight]] | Callable[P, Predicate[WeightCo]]:
+    """
+    Create a new predicate based on the decorated function.
+
+    .. doctest:: lib_interface_predicate_decorator
+
+        >>> from antidote import world
+        >>> from antidote.lib.interface import predicate
+        >>> @predicate
+        ... def use_me(condition: bool) -> bool:
+        ...     return condition
+        >>> from antidote import interface, implements
+        >>> @interface
+        ... class Base:
+        ...     pass
+        >>> @implements(Base).when(use_me(True))
+        ... class BaseImpl(Base):
+        ...     pass
+        >>> world.get(Base)
+        <BaseImpl ...>
+
+
+    Args:
+        __func: **/positional-only/** Function to call defining whether the implementation can
+            be used or not. The function should either return a boolean or an optional weight.
+            The function will be injected if not already.
+
+    Returns:
+        A new function with the same arguments returning a predicate with a constant weight.
+    """
+    if not inspect.isfunction(__func):
+        raise TypeError(f"@predicate can only decorate functions, not a {type(__func)!r}")
+
+    try:
+        __func = inject(__func)
+    except DoubleInjectionError:
+        pass
+
+    camel_case_name = ''.join(part.title() for part in __func.__name__.split('_'))
+    cls = make_dataclass(f'{camel_case_name}Predicate',
+                         [('_weight', object)],
+                         namespace={
+                             'weight': lambda self: self._weight  # type: ignore
+                         },
+                         frozen=True)
+    predicate_cls = cast(Callable[[object], Predicate[Any]], cls)
+
+    @functools.wraps(__func)
+    def wrapped(*args: P.args, **kwargs: P.kwargs) -> Predicate[Any]:
+        result = __func(*args, **kwargs)
+        if isinstance(result, bool):
+            return predicate_cls(NeutralWeight() if result else None)
+        return predicate_cls(result)
+
+    return wrapped

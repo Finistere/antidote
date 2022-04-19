@@ -8,18 +8,13 @@
 
 .. include:: _build/README.rst
 
-
-Table of Content
-================
-
 .. toctree::
-    :maxdepth: 2
+   :hidden:
 
-    tutorial
-    faq
-    recipes
-    how_to
-    extend
-    reference
-    changelog
-
+   tutorial
+   recipes
+   how_to
+   extend
+   reference
+   faq
+   changelog

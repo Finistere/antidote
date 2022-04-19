@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import collections.abc as c_abc
 import warnings
-from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, Optional,
+from typing import (Any, Callable, Hashable, Iterable, Mapping, Optional,
                     overload, Sequence, Type, TYPE_CHECKING, TypeVar, Union)
 
 from typing_extensions import final, Literal, TypeAlias
@@ -70,8 +70,7 @@ AUTO_PROVIDE_TYPE: TypeAlias = Optional[Union[
 @API.private  # Use the singleton instance `inject`, not the class directly.
 class Injector(Singleton):
     """
-    Use :py:obj:`.inject` directly, this class is not meant to instantiated or
-    subclassed.
+    This class itself shouldn't be used directly, rely on the singleton :py:obj:`.inject` instead.
     """
 
     get: DependencyGetter = DependencyGetter.raw(
@@ -207,7 +206,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -224,7 +223,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -241,7 +240,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -257,7 +256,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -273,7 +272,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -289,7 +288,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -306,7 +305,7 @@ class Injector(Singleton):
                  strict_validation: bool = True,
                  ignore_type_hints: bool = False,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -438,16 +437,7 @@ class Injector(Singleton):
         return __arg and decorate(__arg) or decorate
 
 
-def __apply_inject(_: object) -> Injector:
-    return Injector()
-
-
-# A bit unclear why this works better in PyCharm for typing. But in all cases, it looks better
-# as it gets the syntax coloration of a real function.
-# API.public
-@__apply_inject
-def inject() -> None:
-    ...
+inject = Injector()
 
 
 @API.public  # Function will be kept in sync with @inject, so you may use it.

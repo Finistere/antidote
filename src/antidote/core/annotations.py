@@ -33,6 +33,8 @@ class AntidoteAnnotation:
 # API.private
 INJECT_SENTINEL = AntidoteAnnotation()
 
+HiddenDependency = Annotated[T, object()]
+
 # API.public
 Inject = Annotated[T, INJECT_SENTINEL]
 Inject.__doc__ = """
@@ -56,7 +58,6 @@ Annotation specifying that the type hint itself is the dependency:
 
 # API.deprecated
 Provide = Annotated[T, INJECT_SENTINEL]
-Provide.__doc__ = Inject.__doc__
 
 
 @API.public
@@ -142,6 +143,9 @@ class Get(AntidoteAnnotation, Marker):
 @API.public
 class From(FinalImmutable, AntidoteAnnotation):
     """
+    .. deprecated:: 1.4
+        :py:func:`~.factory.factory` is deprecated, replaced by the more versatile :py:func:`.lazy`.
+
     Annotation specifying from where a dependency must be provided. To be used with
     :py:func:`~.antidote.factory`, :py:class:`.Factory` and :py:func:`.implementation`
     typically.

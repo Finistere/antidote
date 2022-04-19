@@ -1,6 +1,6 @@
-**************************
-Frequently Asked Questions
-**************************
+***
+FAQ
+***
 
 
 
@@ -136,9 +136,9 @@ to do all that wiring properly. Here is the same example with Antidote:
 
 .. testcode:: why_dependency_injection
 
-    from antidote import injectable, inject, Constants, const
+    from antidote import injectable, inject, const
 
-    class Config(Constants):
+    class Config:
         DB_HOST = const('localhost')
         DB_PORT = const(5432)
 

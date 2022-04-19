@@ -6,7 +6,9 @@ from typing import Any, cast, Optional, Tuple
 from typing_extensions import Annotated, get_args, get_origin
 
 from .annotations import AntidoteAnnotation, From, FromArg, Get, INJECT_SENTINEL
+from .container import RawMarker
 from .marker import InjectClassMarker, InjectFromSourceMarker, InjectImplMarker, Marker
+from .typing import Dependency
 from .._internal import API
 from .._internal.argspec import Argument
 from .._internal.utils import Default
@@ -21,7 +23,9 @@ def extract_annotated_dependency(type_hint: object) -> object:
     if origin is Annotated:
         args = get_args(type_hint)
         antidote_annotations = [a
-                                for a in getattr(type_hint, "__metadata__", tuple())
+                                for a in getattr(type_hint,
+                                                 "__metadata__",
+                                                 cast(Tuple[object, ...], tuple()))
                                 if isinstance(a, AntidoteAnnotation)]
         if len(antidote_annotations) > 1:
             raise TypeError(f"Multiple AntidoteAnnotation are not supported. "
@@ -80,8 +84,7 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
             else:
                 raise TypeError(f"Unsupported AntidoteAnnotation, {type(annotation)}")
 
-    if isinstance(argument.default, Marker):
-        from .._constants import LazyConst
+    if isinstance(argument.default, RawMarker):
         from ._injection import ArgDependency
 
         type_hint, origin, args = _extract_type_hint(argument, extras=False)
@@ -89,8 +92,8 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
         dependency: object
         if isinstance(marker, Get):
             return ArgDependency(marker.dependency, default=marker.default)
-        elif isinstance(marker, LazyConst):
-            return ArgDependency(cast(object, marker))
+        elif isinstance(marker, Dependency):
+            return ArgDependency(cast(Dependency[object], marker))
         elif isinstance(marker, (InjectClassMarker, InjectImplMarker, InjectFromSourceMarker)):
             if isinstance(marker, InjectFromSourceMarker):
                 if not is_valid_class_type_hint(type_hint):
@@ -124,7 +127,12 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
             return ArgDependency(dependency,
                                  default=None if argument.is_optional else Default.sentinel)
         else:
-            raise TypeError("Custom Marker are NOT supported.")
+            # FIXME: it's ugly, need to rework marker/dependency
+            from ..lib.lazy._provider import Lazy
+            if isinstance(marker, Lazy):
+                return ArgDependency(marker)
+            else:
+                raise TypeError("Custom Marker are NOT supported.")
 
     return None
 

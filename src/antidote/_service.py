@@ -6,9 +6,9 @@ from typing import Any, cast, Dict, Tuple, Type
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
-from .lib.injectable._provider import Parameterized, InjectableProvider
 from ._utils import validate_method_parameters
 from .core import inject
+from .lib.injectable._provider import InjectableProvider, Parameterized
 
 _ABSTRACT_FLAG = '__antidote_abstract'
 
@@ -33,9 +33,7 @@ class ServiceMeta(AbstractMeta):
     def parameterized(cls, **kwargs: object) -> object:
         """
         .. deprecated:: 1.1
-            :code:`parameterized()` is a complex behavior with poor type-safety. Use-cases that
-            really benefit from this behavior are few and would be better implemeneted explicitly
-            in your own code.
+            Use :py:func:`.lazy` to create parameterized dependencies.
 
         Creates a new dependency based on the service with the given arguments. The new
         dependency will have the same scope as the original one.

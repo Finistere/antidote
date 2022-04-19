@@ -46,6 +46,9 @@ cdef class DependencyValue:
 cdef class Container:
     pass
 
+cdef class RawMarker:
+    pass
+
 cdef class RawProvider:
     cdef:
         object _container_ref

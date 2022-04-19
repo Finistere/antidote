@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, cast, Dict, Optional, TypeVar, Union  # noqa: F401
+from typing import Any, Callable, cast, Dict, Mapping, Optional, TypeVar, Union  # noqa: F401
 
 from typing_extensions import TypeAlias
 
@@ -18,7 +18,7 @@ AnyF: TypeAlias = 'Union[Callable[..., object], staticmethod[Any], classmethod[A
 def wire_class(*,
                klass: C,
                wiring: Wiring,
-               type_hints_locals: Optional[Dict[str, object]]
+               type_hints_locals: Optional[Mapping[str, object]]
                ) -> C:
     methods: Dict[str, AnyF] = dict()
     if isinstance(wiring.methods, Methods):

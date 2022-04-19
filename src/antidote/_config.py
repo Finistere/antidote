@@ -8,6 +8,8 @@ from ._internal.utils.meta import Singleton
 @final
 class Config(Singleton):
     """
+    This class itself shouldn't be used directly, rely on the singleton :py:obj:`.config` instead.
+
     Global configuration used by Antidote to (de-)activate features.
     """
 
@@ -18,9 +20,9 @@ class Config(Singleton):
 
         Whether :py:func:`.inject`, :py:func:`.injectable`, :py:class:`.implements` and
         :py:func:`.wire` should rely on inspection to determine automatically the locals
-        for their argument :code:`type_hints_locals` used for
-        :py:func:`typing.get_type_hints`. Deactivated by default. If activated, inspection is only
-        used when :code:`type_hints_locals` is not specified explitely.
+        for :py:func:`typing.get_type_hints` when relying on type hints. Deactivated by default.
+        This behavior can always be overridden by specifying :code:`type_hints_locals` argument
+        explicitly, either to :py:obj:`None` for deactivation or to :code:`'auto'` for activation.
 
         It's mostly interesting during tests. The following example wouldn't work with
         string annotations:

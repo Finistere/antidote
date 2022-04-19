@@ -1,5 +1,6 @@
+import functools
 import itertools
-from typing import Optional, Sequence, Union
+from typing import Iterator, Optional, Sequence, Union
 
 import pytest
 from typing_extensions import Annotated
@@ -10,6 +11,25 @@ from antidote.core.exceptions import NoInjectionsFoundError
 from antidote.core.injection import inject, validate_injection
 from antidote.exceptions import DependencyNotFoundError, DoubleInjectionError
 
+
+class MyService:
+    pass
+
+
+class AnotherService:
+    pass
+
+
+@pytest.fixture(autouse=True)
+def setup_world() -> Iterator[None]:
+    with world.test.empty():
+        world.test.singleton({
+            MyService: MyService(),
+            AnotherService: AnotherService()
+        })
+        yield
+
+
 SENTINEL = "SENTINEL"
 
 
@@ -19,14 +39,6 @@ class DoesNotRaise:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
-
-
-class MyService:
-    pass
-
-
-class AnotherService:
-    pass
 
 
 @pytest.mark.parametrize('kwargs, expectation', [
@@ -127,46 +139,43 @@ def test_without_type_hints(injector, expected, kwargs):
         def klass(cls, first=SENTINEL, second=SENTINEL):
             return first, second
 
-    with world.test.empty():
-        world.test.singleton({
-            MyService: MyService(),
-            AnotherService: AnotherService(),
-            'first': object(),
-            'second': object(),
-            'prefix:first': object(),
-            'prefix:second': object()
-        })
+    world.test.singleton({
+        'first': object(),
+        'second': object(),
+        'prefix:first': object(),
+        'prefix:second': object()
+    })
 
-        expected = tuple((
-            world.get(d) if d is not None else SENTINEL
-            for d in expected
-        ))
-        (first, second) = expected
-        a, b = object(), object()
+    expected = tuple((
+        world.get(d) if d is not None else SENTINEL
+        for d in expected
+    ))
+    (first, second) = expected
+    a, b = object(), object()
 
-        assert (a, second) == f(first=a)
-        assert (a, second) == A().method(first=a)
-        assert (a, second) == A.class_method(first=a)
-        assert (a, second) == A.static_method(first=a)
-        assert (a, second) == A.klass(first=a)
+    assert (a, second) == f(first=a)
+    assert (a, second) == A().method(first=a)
+    assert (a, second) == A.class_method(first=a)
+    assert (a, second) == A.static_method(first=a)
+    assert (a, second) == A.klass(first=a)
 
-        assert (first, b) == f(second=b)
-        assert (first, b) == A().method(second=b)
-        assert (first, b) == A.class_method(second=b)
-        assert (first, b) == A.static_method(second=b)
-        assert (first, b) == A.klass(second=b)
+    assert (first, b) == f(second=b)
+    assert (first, b) == A().method(second=b)
+    assert (first, b) == A.class_method(second=b)
+    assert (first, b) == A.static_method(second=b)
+    assert (first, b) == A.klass(second=b)
 
-        assert (a, second) == f(a)
-        assert (a, second) == A().method(a)
-        assert (a, second) == A.class_method(a)
-        assert (a, second) == A.static_method(a)
-        assert (a, second) == A.klass(a)
+    assert (a, second) == f(a)
+    assert (a, second) == A().method(a)
+    assert (a, second) == A.class_method(a)
+    assert (a, second) == A.static_method(a)
+    assert (a, second) == A.klass(a)
 
-        assert (a, b) == f(a, b)
-        assert (a, b) == A().method(a, b)
-        assert (a, b) == A.class_method(a, b)
-        assert (a, b) == A.static_method(a, b)
-        assert (a, b) == A.klass(a, b)
+    assert (a, b) == f(a, b)
+    assert (a, b) == A().method(a, b)
+    assert (a, b) == A.class_method(a, b)
+    assert (a, b) == A.static_method(a, b)
+    assert (a, b) == A.klass(a, b)
 
 
 @pytest.mark.parametrize('expected,kwargs', no_SENTINEL_injection + [
@@ -230,46 +239,43 @@ def test_with_auto_provide(injector, expected, kwargs):
         def klass(cls, first: MyService = SENTINEL, second: AnotherService = SENTINEL):
             return first, second
 
-    with world.test.empty():
-        world.test.singleton({
-            MyService: MyService(),
-            AnotherService: AnotherService(),
-            'first': "first",
-            'second': "second",
-            'prefix:first': "prefix:first",
-            'prefix:second': "prefix:second"
-        })
+    world.test.singleton({
+        'first': "first",
+        'second': "second",
+        'prefix:first': "prefix:first",
+        'prefix:second': "prefix:second"
+    })
 
-        expected = tuple((
-            world.get(d) if d is not None else SENTINEL
-            for d in expected
-        ))
-        (first, second) = expected
-        a, b = "a", "b"
+    expected = tuple((
+        world.get(d) if d is not None else SENTINEL
+        for d in expected
+    ))
+    (first, second) = expected
+    a, b = "a", "b"
 
-        assert (a, second) == f(first=a)
-        assert (a, second) == A().method(first=a)
-        assert (a, second) == A.class_method(first=a)
-        assert (a, second) == A.static_method(first=a)
-        assert (a, second) == A.klass(first=a)
+    assert (a, second) == f(first=a)
+    assert (a, second) == A().method(first=a)
+    assert (a, second) == A.class_method(first=a)
+    assert (a, second) == A.static_method(first=a)
+    assert (a, second) == A.klass(first=a)
 
-        assert (first, b) == f(second=b)
-        assert (first, b) == A().method(second=b)
-        assert (first, b) == A.class_method(second=b)
-        assert (first, b) == A.static_method(second=b)
-        assert (first, b) == A.klass(second=b)
+    assert (first, b) == f(second=b)
+    assert (first, b) == A().method(second=b)
+    assert (first, b) == A.class_method(second=b)
+    assert (first, b) == A.static_method(second=b)
+    assert (first, b) == A.klass(second=b)
 
-        assert (a, second) == f(a)
-        assert (a, second) == A().method(a)
-        assert (a, second) == A.class_method(a)
-        assert (a, second) == A.static_method(a)
-        assert (a, second) == A.klass(a)
+    assert (a, second) == f(a)
+    assert (a, second) == A().method(a)
+    assert (a, second) == A.class_method(a)
+    assert (a, second) == A.static_method(a)
+    assert (a, second) == A.klass(a)
 
-        assert (a, b) == f(a, b)
-        assert (a, b) == A().method(a, b)
-        assert (a, b) == A.class_method(a, b)
-        assert (a, b) == A.static_method(a, b)
-        assert (a, b) == A.klass(a, b)
+    assert (a, b) == f(a, b)
+    assert (a, b) == A().method(a, b)
+    assert (a, b) == A.class_method(a, b)
+    assert (a, b) == A.static_method(a, b)
+    assert (a, b) == A.klass(a, b)
 
 
 @pytest.mark.parametrize(
@@ -351,44 +357,41 @@ def test_with_provide(injector, expected, kwargs):
                   second: AnotherService = SENTINEL):
             return first, second
 
-    with world.test.empty():
-        world.test.singleton({MyService: MyService(),
-                              AnotherService: AnotherService(),
-                              'first': object(),
-                              'second': object(),
-                              'prefix:first': object(),
-                              'prefix:second': object()})
+    world.test.singleton({'first': object(),
+                          'second': object(),
+                          'prefix:first': object(),
+                          'prefix:second': object()})
 
-        expected = tuple((
-            world.get(d) if d is not None else SENTINEL
-            for d in expected
-        ))
-        (first, second) = expected
-        a, b = object(), object()
+    expected = tuple((
+        world.get(d) if d is not None else SENTINEL
+        for d in expected
+    ))
+    (first, second) = expected
+    a, b = object(), object()
 
-        assert (a, second) == f(first=a)
-        assert (a, second) == A().method(first=a)
-        assert (a, second) == A.class_method(first=a)
-        assert (a, second) == A.static_method(first=a)
-        assert (a, second) == A.klass(first=a)
+    assert (a, second) == f(first=a)
+    assert (a, second) == A().method(first=a)
+    assert (a, second) == A.class_method(first=a)
+    assert (a, second) == A.static_method(first=a)
+    assert (a, second) == A.klass(first=a)
 
-        assert (first, b) == f(second=b)
-        assert (first, b) == A().method(second=b)
-        assert (first, b) == A.class_method(second=b)
-        assert (first, b) == A.static_method(second=b)
-        assert (first, b) == A.klass(second=b)
+    assert (first, b) == f(second=b)
+    assert (first, b) == A().method(second=b)
+    assert (first, b) == A.class_method(second=b)
+    assert (first, b) == A.static_method(second=b)
+    assert (first, b) == A.klass(second=b)
 
-        assert (a, second) == f(a)
-        assert (a, second) == A().method(a)
-        assert (a, second) == A.class_method(a)
-        assert (a, second) == A.static_method(a)
-        assert (a, second) == A.klass(a)
+    assert (a, second) == f(a)
+    assert (a, second) == A().method(a)
+    assert (a, second) == A.class_method(a)
+    assert (a, second) == A.static_method(a)
+    assert (a, second) == A.klass(a)
 
-        assert (a, b) == f(a, b)
-        assert (a, b) == A().method(a, b)
-        assert (a, b) == A.class_method(a, b)
-        assert (a, b) == A.static_method(a, b)
-        assert (a, b) == A.klass(a, b)
+    assert (a, b) == f(a, b)
+    assert (a, b) == A().method(a, b)
+    assert (a, b) == A.class_method(a, b)
+    assert (a, b) == A.static_method(a, b)
+    assert (a, b) == A.klass(a, b)
 
 
 @pytest.mark.parametrize('type_hint',
@@ -404,10 +407,9 @@ def test_ignored_type_hints(injector, type_hint):
     def f(x: type_hint):
         pass
 
-    with world.test.empty():
-        world.test.singleton(type_hint, object())
-        with pytest.raises(TypeError):
-            f()
+    world.test.singleton(type_hint, object())
+    with pytest.raises(TypeError):
+        f()
 
 
 def test_none_optional_support(injector):
@@ -652,17 +654,19 @@ def test_invalid_args(injected_method_with, expectation, kwargs):
     ]
 )
 def test_unknown_dependency(injected_method_with, expectation, kwargs):
-    with expectation:
-        injected_method_with(**kwargs)()
+    with world.test.empty():
+        with expectation:
+            injected_method_with(**kwargs)()
 
 
 def test_unknown_provide(injector):
-    @injector
-    def f(x: Provide[MyService]):
-        return x
+    with world.test.empty():
+        @injector
+        def f(x: Provide[MyService]):
+            return x
 
-    with pytest.raises(DependencyNotFoundError):
-        f()
+        with pytest.raises(DependencyNotFoundError):
+            f()
 
 
 @pytest.mark.parametrize(
@@ -819,133 +823,122 @@ def test_static_class_method(injector):
 
 @pytest.mark.asyncio
 async def test_async(injector):
-    with world.test.empty():
-        service = MyService()
-        another_service = AnotherService()
-        world.test.singleton({
-            MyService: service,
-            AnotherService: another_service
-        })
+    service = world.get(MyService)
+    another_service = world.get(AnotherService)
 
+    @injector
+    async def f(x: Provide[MyService]):
+        return x
+
+    res = await f()
+    assert res is service
+
+    class Dummy:
         @injector
-        async def f(x: Provide[MyService]):
+        async def method(self, x: Provide[MyService]):
             return x
 
-        res = await f()
-        assert res is service
+        @injector
+        @classmethod
+        async def klass(cls, x: Provide[MyService]):
+            return x
 
-        class Dummy:
-            @injector
-            async def method(self, x: Provide[MyService]):
-                return x
+        @injector
+        @staticmethod
+        async def static(x: Provide[MyService]):
+            return x
 
-            @injector
-            @classmethod
-            async def klass(cls, x: Provide[MyService]):
-                return x
+    dummy = Dummy()
+    print(dir(dummy))
+    res = await dummy.method()
+    assert res is service
+    res = await dummy.klass()
+    assert res is service
+    res = await dummy.static()
+    assert res is service
+    res = await Dummy.klass()
+    assert res is service
+    res = await Dummy.static()
+    assert res is service
 
-            @injector
-            @staticmethod
-            async def static(x: Provide[MyService]):
-                return x
+    @injector(dependencies=(MyService, AnotherService))
+    async def f(x, y):
+        return x, y
 
-        dummy = Dummy()
-        print(dir(dummy))
-        res = await dummy.method()
-        assert res is service
-        res = await dummy.klass()
-        assert res is service
-        res = await dummy.static()
-        assert res is service
-        res = await Dummy.klass()
-        assert res is service
-        res = await Dummy.static()
-        assert res is service
+    res = await f()
+    assert res == (service, another_service)
+    res = await f(y=1)
+    assert res == (service, 1)
+    res = await f(1)
+    assert res == (1, another_service)
+    res = await f(1, 2)
+    assert res == (1, 2)
 
-        @injector(dependencies=(MyService, AnotherService))
-        async def f(x, y):
-            return x, y
+    @injector(dependencies=(MyService, 'unknown'))
+    async def f(x, y):
+        return x, y
 
-        res = await f()
-        assert res == (service, another_service)
-        res = await f(y=1)
-        assert res == (service, 1)
-        res = await f(1)
-        assert res == (1, another_service)
-        res = await f(1, 2)
-        assert res == (1, 2)
+    with pytest.raises(DependencyNotFoundError, match='.*unknown.*'):
+        await f()
 
-        @injector(dependencies=(MyService, 'unknown'))
-        async def f(x, y):
-            return x, y
+    @injector(dependencies=(MyService,))
+    async def f(x, y):
+        return x, y
 
-        with pytest.raises(DependencyNotFoundError, match='.*unknown.*'):
-            await f()
+    with pytest.raises(TypeError):
+        await f()
 
-        @injector(dependencies=(MyService,))
-        async def f(x, y):
-            return x, y
+    @injector(dependencies=(MyService, 'unknown'))
+    async def f(x, y=None):
+        return x, y
 
-        with pytest.raises(TypeError):
-            await f()
-
-        @injector(dependencies=(MyService, 'unknown'))
-        async def f(x, y=None):
-            return x, y
-
-        res = await f()
-        assert res == (service, None)
+    res = await f()
+    assert res == (service, None)
 
 
 def test_dependencies_shortcut():
-    with world.test.empty():
-        world.test.singleton(MyService, MyService())
+    @inject([MyService])
+    def f(x):
+        return x
 
-        @inject([MyService])
-        def f(x):
+    assert f() is world.get[MyService]()
+
+    @inject(dict(x=MyService))
+    def g(x):
+        return x
+
+    assert g() is world.get[MyService]()
+
+    with pytest.raises(TypeError):
+        @inject("test")
+        def h(x):
             return x
 
-        assert f() is world.get[MyService]()
-
-        @inject(dict(x=MyService))
-        def g(x):
+    with pytest.raises(TypeError):
+        @inject([MyService], dependencies=dict())
+        def h2(x):
             return x
 
-        assert g() is world.get[MyService]()
-
-        with pytest.raises(TypeError):
-            @inject("test")
-            def h(x):
-                return x
-
-        with pytest.raises(TypeError):
-            @inject([MyService], dependencies=dict())
-            def h2(x):
-                return x
-
-        with pytest.raises(TypeError):
-            @inject(dict(x=MyService), dependencies=dict())
-            def h3(x):
-                return x
+    with pytest.raises(TypeError):
+        @inject(dict(x=MyService), dependencies=dict())
+        def h3(x):
+            return x
 
 
 def test_ignore_type_hints():
-    with world.test.new():
-        world.test.singleton(MyService, MyService())
-
-        with pytest.raises(NameError, match=".*name 'A' is not defined.*"):
-            @inject
-            def f(a: 'A', my_service: MyService = inject.get(MyService)):
-                return my_service
-
-        @inject(ignore_type_hints=True)
-        def g(a: 'A', my_service: MyService = inject.get(MyService)):
+    with pytest.raises(NameError, match=".*name 'A' is not defined.*"):
+        @inject
+        def f(a: 'A', my_service: MyService = inject.get(MyService)):
             return my_service
 
-        class A:
-            pass
+    @inject(ignore_type_hints=True)
+    def g(a: 'A', my_service: MyService = inject.get(MyService)):
+        return my_service
 
-        assert g(A()) is world.get[MyService]()
+    class A:
+        pass
+
+    assert g(A()) is world.get[MyService]()
 
 
 def test_no_injection_error_when_ignoring_type_hints():
@@ -958,3 +951,20 @@ def test_no_injection_error_when_ignoring_type_hints():
         @inject(ignore_type_hints=True)
         def g():
             pass
+
+
+def test_wrapped_injection():
+    @inject
+    def f(my_service: MyService = inject.get(MyService)) -> MyService:
+        return my_service
+
+    assert f() is world.get[MyService]()
+
+    @functools.wraps(f)
+    def g() -> MyService:
+        return f()
+
+    with pytest.raises(DoubleInjectionError):
+        inject(g)
+
+    assert g() is world.get[MyService]()

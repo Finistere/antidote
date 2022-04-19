@@ -20,14 +20,7 @@ C = TypeVar('C', bound=type)
 class Service(metaclass=ServiceMeta, abstract=True):
     """
     .. deprecated:: 1.1
-        Use :py:func:`.injectable` instead.
-
-    .. note::
-
-        If you encounter conflicts with :py:class:`.Service` metaclass, consider using
-        the class decorator :py:func:`.service` instead. You may also use
-        :py:class:`.ABCService` if you only need to be compatible with the
-        :py:class:`abc.ABC` class.
+        Use :py:func:`.injectable` instead which is a drop-in replacement for :py:func:`.service`
 
     Defines subclasses as services:
 
@@ -164,7 +157,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
             .. deprecated:: 1.1
 
             Copies current configuration and overrides only specified arguments.
-            Accepts the same arguments as :py:meth:`.__init__`
+            Accepts the same arguments as :code:`__init__`
             """
             warnings.warn("Service class is deprecated, use @injectable decorator instead.",
                           DeprecationWarning)
@@ -195,7 +188,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
 class ABCService(Service, metaclass=ABCServiceMeta, abstract=True):
     """
     .. deprecated:: 1.1
-        Use :py:func:`.injectable` instead.
+        Use :py:func:`.injectable` instead which is a drop-in replacement for :py:func:`.service`
 
     This class only purpose is to facilitate the use of a abstract parent class, relying
     on :py:class:`abc.ABC`, with :py:class:`.Service`.
@@ -245,7 +238,7 @@ def service(klass: Optional[C] = None,
             ) -> Union[C, Callable[[C], C]]:
     """
     .. deprecated:: 1.3
-        Use :py:func:`.injectable` instead.
+        Use :py:func:`.injectable` instead which is a drop-in replacement.
 
     Defines the decorated class as a service.
 

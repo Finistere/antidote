@@ -117,6 +117,11 @@ _SCOPE_SINGLETON = Scope('singleton')
 _SCOPE_SENTINEL = Scope('__sentinel__')
 
 
+@API.private
+class RawMarker:
+    pass
+
+
 @API.public
 @final
 class DependencyValue(FinalImmutable):

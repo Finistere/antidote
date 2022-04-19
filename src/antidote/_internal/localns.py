@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Dict, Optional, Union
+from typing import Mapping, Optional, Union
 
 from typing_extensions import Literal
 
@@ -11,8 +11,8 @@ from .utils import Default
 
 @API.private
 def retrieve_or_validate_injection_locals(
-        type_hints_locals: Union[Dict[str, object], None, Default, Literal['auto']]
-) -> Optional[Dict[str, object]]:
+        type_hints_locals: Union[Mapping[str, object], None, Default, Literal['auto']]
+) -> Optional[Mapping[str, object]]:
     from .._config import config
 
     if type_hints_locals is Default.sentinel:

@@ -11,9 +11,9 @@ from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
 from ._providers import FactoryProvider
 from ._providers.factory import FactoryDependency
-from .lib.injectable._provider import Parameterized
 from ._utils import validate_method_parameters
 from .core import inject
+from .lib.injectable._provider import Parameterized
 from .service import service
 
 _ABSTRACT_FLAG = '__antidote_abstract'
@@ -57,9 +57,7 @@ class FactoryMeta(AbstractMeta):
     def parameterized(cls, **kwargs: object) -> PreBuild:
         """
         .. deprecated:: 1.1
-            :code:`parameterized()` is a complex behavior with poor type-safety. Use-cases that
-            really benefit from this behavior are few and would be better implemeneted explicitly
-            in your own code.
+            Use :py:func:`.lazy` to create parameterized dependencies.
 
         Creates a new dependency based on the factory with the given arguments. The new
         dependency will have the same scope as the original one.

@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Dict, Hashable, List, Optional
+from typing import Callable, Dict, List, Optional
 
-from ..lib.injectable._provider import Parameterized
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
 from ..core import (Container, DependencyDebug, DependencyValue, does_not_freeze, Provider,
                     Scope)
+from ..lib.injectable._provider import Parameterized
 
 
 @API.private
-class FactoryProvider(Provider[Hashable]):
+class FactoryProvider(Provider[object]):
     def __init__(self) -> None:
         super().__init__()
         self.__factory_to_dependency: dict[object, FactoryDependency] = dict()
@@ -40,7 +40,7 @@ class FactoryProvider(Provider[Hashable]):
         }
         return p
 
-    def exists(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: object) -> bool:
         # For now we don't support multiple factories for a single dependency. Neither
         # is sharing the dependency with another provider. Simply because I don't see a
         # use case where it would make sense.
@@ -50,7 +50,7 @@ class FactoryProvider(Provider[Hashable]):
         return (isinstance(dependency, FactoryDependency)
                 and dependency in self.__factories)
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: object) -> Optional[DependencyDebug]:
         dependency_factory = (dependency.wrapped
                               if isinstance(dependency, Parameterized)
                               else dependency)
@@ -77,7 +77,7 @@ class FactoryProvider(Provider[Hashable]):
                                wired=wired,
                                dependencies=dependencies)
 
-    def maybe_provide(self, dependency: Hashable, container: Container
+    def maybe_provide(self, dependency: object, container: Container
                       ) -> Optional[DependencyValue]:
         dependency_factory = (dependency.wrapped
                               if isinstance(dependency, Parameterized)
@@ -177,7 +177,7 @@ class FactoryDependency(FinalImmutable):
 class Factory:
     __slots__ = ('scope', 'function', 'dependency')
     scope: Optional[Scope]
-    dependency: Optional[Hashable]
+    dependency: Optional[object]
     function: Optional[Callable[..., object]]
 
     def __post_init__(self) -> None:

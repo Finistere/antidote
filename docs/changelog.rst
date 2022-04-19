@@ -6,13 +6,99 @@ Changelog
 For any given version :code:`N`, all releases :code:`N.X.X` guarantee:
 
 - API stability: Python code that used to work will continue work.
-- Namespace stability for :code:`antidote`, :code:`antidote.core` and :code:`antidote.exceptions`.
+- Namespace stability for :code:`antidote`, :code:`antidote.core`, :code:`antidote.exceptions` and
+  :code:`antidote.lib.*`.
   All other namespaces have no guarantees.
 - *best effort* for static type hints stability. Meaning that code relying on Antidote that used to pass MyPy
   or any other static type checker should continue working, but it's not guaranteed.
 
 Most, if not all, the API is annotated with decorators such as :code:`@API.public` specifying whether
 the given functionality can be relied upon.
+
+
+1.4.0 (2022-05-??)
+==================
+
+
+Deprecation
+-----------
+
+- :py:class:`.Constants` is deprecated as not necessary anymore with the new :py:obj:`.const`.
+- :py:func:`~.factory.factory` is deprecated in favor of :py:func:`.lazy`.
+
+
+Features
+--------
+
+- :py:func:`.lazy` has been added to replace :py:func:`~.factory.factory` and the
+  :code:`parameterized()` methods of both :py:class:`.Factory` and :py:class:`.Service`.
+
+  .. code-block:: python
+
+      from antidote import lazy, inject
+
+      class Redis:
+          pass
+
+      @lazy  # singleton by default
+      def load_redis() -> Redis:
+          return Redis()
+
+      @inject
+      def task(redis = load_redis()):
+          ...
+
+- :py:obj:`.const` has been entirely reworked for better typing and ease of use:
+
+  - it doesn't require :py:class:`.Constants` anymore.
+  - environment variables are supported out of the box with :py:meth:`.Const.env`.
+  - custom logic for retrieval can be defined with :py:meth:`.Const.provider`.
+
+  Here's a rough overview:
+
+  .. code-block:: python
+
+      from typing import Optional, TypeVar, Type
+
+      from antidote import const, injectable
+
+      T = TypeVar('T')
+
+      class Conf:
+          THREADS = const(12)  # static const
+          PORT = const.env[int]()  # converted to int automatically
+          HOST = const.env("HOSTNAME")  # define environment variable name explicitly,
+
+
+      @injectable
+      class Conf2:
+          # stateful factory. It can also be stateless outside of Conf2.
+          @const.provider
+          def get(self, name: str, arg: Optional[str]) -> str:
+              return arg or name
+
+          DUMMY = get.const()
+          NUMBER = get.const[int]("90")  # value will be 90
+
+- :py:meth:`.implements.overriding` overrides an existing implementation, and will be used in
+  exactly the same conditions as the overridden one: default or not, predicates...
+- :py:meth:`.implements.by_default` defines a default implementation for an interface outside of
+  the weight system.
+
+
+Experimental
+------------
+
+- :py:meth:`.ConstantValueProvider.converter` provides a similar to feature to the legacy
+  :code:`auto_cast` from :py:class:`.Constants`.
+
+
+Bug fix
+-------
+
+- Better behavior of :py:obj:`.inject` and :py:func:`.world.debug` with function wrappers, having a
+  :code:`__wrapped__` attribute.
+
 
 
 1.3.0 (2022-04-26)
@@ -467,7 +553,7 @@ Breaking changes
 
 - Antidote exceptions have no public attributes anymore.
 - Injecting twice the same function/method will raise an error.
-- :py:class:`.Constants` has been simplified, :py:func:`.const` is now simply always required
+- :py:class:`.Constants` has been simplified, :py:obj:`.const` is now simply always required
   to define a constant.
 
 
@@ -508,7 +594,7 @@ Features
   service class but use this feature to have two different dependencies which each point to
   different database.
 - :py:class:`.Constants`, formerly :code:`LazyConstantsMeta`, supports a new of defining constants:
-  :py:func:`.const`. It has two purposes, explicitly define constants and optionally specify
+  :py:obj:`.const`. It has two purposes, explicitly define constants and optionally specify
   the actual type.
 - Added :py:func:`.world.freeze` which will prevent any new dependencies to be added.
 

@@ -5,7 +5,7 @@ import inspect
 import textwrap
 from collections import deque
 from dataclasses import dataclass, field
-from typing import (Deque, Hashable, List, Optional, Set, Tuple, TYPE_CHECKING)
+from typing import (Any, Deque, List, Optional, Set, Tuple, TYPE_CHECKING)
 
 from .immutable import Immutable
 from .. import API
@@ -49,10 +49,11 @@ def debug_repr(__obj: object) -> str:
 
 
 @API.private
-def get_injections(__func: object) -> List[object]:
-    from ..wrapper import get_wrapper_injections
+def get_injections(__func: Any) -> List[object]:
+    from ..wrapper import get_wrapper_injections, is_wrapper
     try:
-        return list(get_wrapper_injections(__func).values())  # type: ignore
+        wrapped_func = inspect.unwrap(__func, stop=lambda f: is_wrapper(f))
+        return list(get_wrapper_injections(wrapped_func).values())
     except TypeError:
         return []
 
@@ -65,7 +66,7 @@ class Task:
 @API.private
 @dataclass
 class DependencyTask(Task):
-    dependency: Hashable
+    dependency: object
     prefix: str = field(default='')
 
 
@@ -145,7 +146,7 @@ def tree_debug_info(container: 'RawContainer',
 
     def add_root_injections(parent: DebugTreeNode,
                             parent_dependencies: Set[object],
-                            dependency: Hashable) -> None:
+                            dependency: object) -> None:
         from ...core.wiring import Methods
 
         if isinstance(dependency, type):

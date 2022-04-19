@@ -7,8 +7,8 @@ from typing_extensions import final
 
 from ._internal import API
 from ._internal.utils import debug_repr, FinalImmutable, short_id
-from ._providers import Lazy
 from .core import Container, Dependency, DependencyDebug, DependencyValue, Scope
+from .lib.lazy._provider import Lazy
 from .service import Service
 
 if TYPE_CHECKING:

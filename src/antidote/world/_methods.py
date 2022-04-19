@@ -5,6 +5,7 @@ from typing import Any, cast, Type, TypeVar
 from .._internal import API
 from .._internal.state import current_container, init
 from .._internal.world import WorldLazy
+from ..core import Provider
 from ..core.container import RawProvider, Scope
 from ..core.getter import DependencyGetter
 
@@ -56,7 +57,7 @@ enforce it.
 
 """
 
-P = TypeVar('P', bound=Type[RawProvider])
+P = TypeVar('P', bound=Type[Provider[Any]])
 
 
 @API.public

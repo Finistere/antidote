@@ -7,8 +7,8 @@ from ._internal import API
 from ._internal.utils import debug_repr, FinalImmutable, short_id
 from ._lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
                     LazyMethodCallWithArgsKwargs)
-from ._providers import Lazy
 from .core import Container, DependencyDebug, DependencyValue, Scope
+from .lib.lazy._provider import Lazy
 from .service import Service
 from .utils import validated_scope
 
@@ -17,6 +17,23 @@ from .utils import validated_scope
 @final
 class LazyCall(FinalImmutable, Lazy):
     """
+    .. deprecated:: 1.4
+        Use :py:func:`.lazy` instead.
+
+    .. admonition:: MIGRATION
+
+        .. doctest:: lazy_func_migration
+
+            >>> from antidote import lazy, inject, world
+            >>> @lazy  # singleton by default.
+            ... def random_object():
+            ...     return object()
+            >>> @inject
+            ... def f(obj: object = random_object()) -> object:
+            ...     return obj
+            >>> f() is world.get[object](random_object())
+            True
+
     Declares the result of a function call as a depdency.
 
     .. doctest:: lazy_func
@@ -93,6 +110,10 @@ class LazyCall(FinalImmutable, Lazy):
 @final
 class LazyMethodCall(FinalImmutable):
     """
+    .. deprecated:: 1.1
+        There won't be an equivalent replacement. Consider using :py:func:`.lazy`
+        or :py:obj:`.const`.
+
     Similar to :py:class:`~.LazyCall` but adapted to methods within a class definition.
     It can only be used with a :py:class:`.Service` subclass.
 

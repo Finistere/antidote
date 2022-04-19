@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterator, Optional, TypeVar
+from typing import Any, Iterator, List, Optional, TypeVar
 
 import pytest
+from typing_extensions import Protocol
 
-from antidote import implements, interface, world
+from antidote import implements, inject, interface, world
 from antidote.lib.injectable import register_injectable_provider
 from antidote.lib.interface import (NeutralWeight, Predicate, QualifiedBy,
                                     register_interface_provider)
@@ -281,3 +282,57 @@ def test_lang_example() -> None:
     assert world.get[Alert].single(LocaleIs("fr")) is world.get(FrenchAlert)
     assert world.get[Alert].single(LocaleIs("it")) is world.get(DefaultAlert)
     assert world.get[Alert].single(LocaleIs("en")) is world.get(DefaultAlert)
+
+
+def test_event_subscriber_example() -> None:
+    class Event:
+        ...
+
+    class InitializationEvent(Event):
+        ...
+
+    E = TypeVar('E', bound=Event, contravariant=True)
+
+    @interface  # can be applied on protocols and "standard" classes
+    class EventSubscriber(Protocol[E]):
+        def process(self, event: E) -> None:
+            ...
+
+    # Ensures OnInitialization is really a EventSubscriber if possible
+    @_(implements(EventSubscriber).when(qualified_by=InitializationEvent))
+    class OnInitialization:
+        def __init__(self) -> None:
+            self.called_with: list[InitializationEvent] = []
+
+        def process(self, event: InitializationEvent) -> None:
+            self.called_with.append(event)
+
+    @inject
+    def process_initialization(event: InitializationEvent,
+                               # injects all subscribers qualified by InitializationEvent
+                               subscribers: List[EventSubscriber[InitializationEvent]] = inject.me(
+                                   qualified_by=InitializationEvent)
+                               ) -> None:
+        for subscriber in subscribers:
+            subscriber.process(event)
+
+    sub: OnInitialization = world.get(OnInitialization)
+    event = InitializationEvent()
+    process_initialization(event)
+    assert sub.called_with == [event]
+
+    process_initialization(
+        event,
+        # Explicitly retrieving the subscribers
+        subscribers=world.get[EventSubscriber[InitializationEvent]].all(
+            qualified_by=InitializationEvent
+        )
+    )
+    assert sub.called_with == [event, event]
+
+    process_initialization(
+        event,
+        # Explicitly retrieving the subscribers
+        subscribers=world.get[EventSubscriber[InitializationEvent]].all(qualified_by=object())
+    )
+    assert sub.called_with == [event, event]

@@ -1,13 +1,12 @@
 import pytest
 
 from antidote import world
-from antidote._providers import FactoryProvider, IndirectProvider, LazyProvider
+from antidote._providers import FactoryProvider, IndirectProvider
 from antidote.core.container import RawProvider
 
 
 @pytest.fixture(params=[
     FactoryProvider,
-    LazyProvider,
     IndirectProvider
 ])
 def provider(request):

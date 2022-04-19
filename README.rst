@@ -29,8 +29,7 @@ and **fast full isolation of your tests**.
 Antidote provides the following features:
 
 - Ease of use
-    - Injection anywhere you need through a decorator :code:`@inject`, be it static methods, functions, etc..
-      By default, it will only rely on annotated type hints, but it supports a lot more!
+    - Injection anywhere you need through a decorator :code:`@inject`
     - No :code:`**kwargs` arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
     - `Documented <https://antidote.readthedocs.io/en/latest>`_, everything has tested examples.
     - No need for any custom setup, just use your injected function as usual. You just don't have to specify
@@ -132,7 +131,7 @@ Simple, right ? And you can still use it like a normal function, typically when 
 
     f(Database())
 
-:code:`.inject` here used the marker :code:`inject.me()` with the help of the type hint to determine
+:code:`@inject` here used the marker :code:`inject.me()` with the help of the type hint to determine
 the dependency. But it also supports the following ways to express the dependency wiring:
 
 - annotated type hints:
@@ -151,7 +150,7 @@ the dependency. But it also supports the following ways to express the dependenc
         def f(db):
             pass
 
-- dictionary:
+- mapping:
     .. code-block:: python
 
         @inject({'db': Database})
@@ -216,10 +215,11 @@ Constants can be provided lazily by Antidote:
 
 .. code-block:: python
 
-    from antidote import inject, Constants, const
+    from antidote import inject, const
 
-    class Config(Constants):
+    class Config:
         DB_HOST = const('localhost')
+        DB_PORT = const(5432)
 
     @inject
     def ping_db(db_host: str = Config.DB_HOST):
@@ -227,147 +227,196 @@ Constants can be provided lazily by Antidote:
 
     ping_db()  # nice !
 
-This feature really shines when your constants aren't hard-coded:
+Constants really shines when they aren't hard-coded:
 
 .. code-block:: python
 
     from typing import Optional
-    from antidote import inject, Constants, const
 
-    class Config(Constants):
-        # Like world.get, a type hint can be provided and is enforced.
-        DB_HOST = const[str]()
-        DB_PORT = const[int]()
-        DB_USER = const[str](default='postgres')  # default is used on LookupError
-
-        # name of the constant and the arg given to const() if any.
-        def provide_const(self, name: str, arg: Optional[object]):
-            return os.environ[name]
+    class Config:
+        # Retrieve constant from environment variables
+        DB_HOST = const.env()  # using the constant name
+        # or with an explicit name, default value, and forced conversion to int
+        # (and other selected types)
+        DB_PORT = const.env[int]("DATABASE_PORT", default=5432)
 
     import os
     os.environ['DB_HOST'] = 'localhost'
-    os.environ['DB_PORT'] = '5432'
+    os.environ['DATABASE_PORT'] = '5432'
 
     @inject
     def check_connection(db_host: str = Config.DB_HOST,
-                         db_port: int = Config.DB_PORT,
-                         db_user: str = Config.DB_USER):
+                         db_port: int = Config.DB_PORT):
         pass
 
     check_connection()  # perfect !
 
-Note that on the injection site, nothing changed!
-
-
-Factory
--------
-
-Factories are used by Antidote to generate a dependency, typically a class from an external code:
+Note that on the injection site, nothing changed! And obviously you can create your own logic:
 
 .. code-block:: python
 
-    from antidote import factory, inject
+    from antidote import const
+
+    @const.provider
+    def static(name: str, arg: Optional[str]) -> str:
+        return arg
+
+    class Config:
+        DB_HOST = static.const('localhost')
+
+Stateful configuration is also possible:
+
+.. code-block:: python
+
+    from antidote import injectable, const
+
+    @injectable
+    class Config:
+        def __init__(self):
+            self.data = {'host': 'localhost'}
+
+        @const.provider
+        def get(self, name: str, arg: Optional[str]) -> str:
+            return self.data[arg]
+
+        DB_HOST = get.const('host')
+
+
+
+Lazy
+----
+
+Lazy functions can be used in multiple cases:
+
+- to load external classes:
+
+.. code-block:: python
+
+    from antidote import lazy, inject
+
+    class Redis:
+        pass
+
+    @lazy  # singleton by default
+    def load_redis() -> Redis:
+        return Redis()
+
+    @inject
+    def task(redis = load_redis()):
+        ...
+
+- as a factory:
+
+.. code-block:: python
+
+    from antidote import lazy, inject
 
     class User:
         pass
 
-    @factory(singleton=False)  # function is injected by default
+    @lazy(singleton=False)
     def current_user(db: Database = inject.me()) -> User:
         return User()
 
-    # Consistency between the type hint and the factory result type hint is enforced.
     @inject
-    def is_admin(user: User = inject.me(source=current_user)):
+    def is_admin(user: User = current_user()):
         pass
 
-While it's a bit verbose, you always know how the dependency is created. Obviously you can retrieve
-it from world:
+- or even to parameterize dependencies:
 
 .. code-block:: python
 
-    from antidote import world
+    from dataclasses import dataclass
+    from antidote import lazy, inject
 
-    world.get(User, source=current_user)
+    @dataclass
+    class Template:
+        path: str
+
+    @lazy
+    def load_template(path: str) -> Template:
+        return Template(path=path)
+
+    @inject
+    def registration(template: Template = load_template('registration.html')):
+        pass
 
 
 
 Interface/Implementation
 ------------------------
 
-Antidote also works with interfaces which can have one or multiple implementations
+Antidote also works with interfaces which can have one or multiple implementations which
+can be overridden:
 
 .. code-block:: python
-
-    from typing import Protocol, TypeVar
 
     from antidote import implements, inject, interface, world
 
 
-    class Event:
-        ...
+    @interface
+    class Task:
+        pass
 
 
-    class InitializationEvent(Event):
-        ...
+    @implements(Task).by_default
+    class Default(Task):
+        pass
 
 
-    E = TypeVar('E', bound=Event, contravariant=True)
+    @implements(Task)
+    class Custom(Task):
+        pass
 
 
-    @interface  # can be applied on protocols and "standard" classes
-    class EventSubscriber(Protocol[E]):
-        def process(self, event: E) -> None:
-            ...
-
-
-    # Ensures OnInitialization is really a EventSubscriber if possible
-    @implements(EventSubscriber).when(qualified_by=InitializationEvent)
-    class OnInitialization:
-        def process(self, event: InitializationEvent) -> None:
-            ...
+    world.get(Task)
 
 
     @inject
-    def process_initialization(event: InitializationEvent,
-                               # injects all subscribers qualified by InitializationEvent
-                               subscribers: list[EventSubscriber[InitializationEvent]] \
-                                       = inject.me(qualified_by=InitializationEvent)
-                               ) -> None:
-        for subscriber in subscribers:
-            subscriber.process(event)
+    def f(task: Task = inject.me()) -> Task:
+        return task
 
 
-    event = InitializationEvent()
-    process_initialization(event)
-    process_initialization(
-        event,
-        # Explicitly retrieving the subscribers
-        subscribers=world.get[EventSubscriber].all(qualified_by=InitializationEvent)
-    )
 
-
-Implementations can be can be retrieved in multiple ways:
+Implementations support qualifiers out of the box:
 
 .. code-block:: python
 
-    # When you want to retrieve a single implementation matching your constraints
+    import enum
+
+
+    class Hook(enum.Enum):
+        START = enum.auto()
+        STOP = enum.auto()
+
+
+    @interface
+    class Task:
+        pass
+
+
+    @implements(Task).when(qualified_by=Hook.START)
+    class StartX(Task):
+        pass
+
+
+    @implements(Task).when(qualified_by=Hook.STOP)
+    class StopX(Task):
+        pass
+
+
+    assert world.get[Task].single(qualified_by=Hook.START) == world.get(StartX)
+    assert world.get[Task].all(qualified_by=Hook.START) == [world.get(StartX)]
+
+
     @inject
-    def f(subscriber: EventSubscriber[InitializationEvent] \
-                  = inject.me(qualified_by=InitializationEvent)
-          ) -> EventSubscriber[InitializationEvent]:
-        return subscriber
+    def get_single_task(task: Task = inject.me(qualified_by=Hook.START)) -> Task:
+        return task
 
 
-    assert world.get[EventSubscriber].single(qualified_by=InitializationEvent) is f()
-
-    # When there's only one implementation
     @inject
-    def f2(subscriber: EventSubscriber[InitializationEvent] = inject.me()
-          ) -> EventSubscriber[InitializationEvent]:
-        return subscriber
-
-
-    assert world.get(EventSubscriber) is f2()
+    def get_all_task(tasks: list[Task] = inject.me(qualified_by=Hook.START)) -> list[Task]:
+        return tasks
 
 
 
@@ -426,13 +475,12 @@ have a quick summary of what is actually going on:
     # would output something like this:
     """
     function_with_complex_dependencies
-    └── Permanent implementation: MovieDB @ current_movie_db
-        └──<∅> IMDBMovieDB
-            └── ImdbAPI @ imdb_factory
-                └── imdb_factory
-                    ├── Config.IMDB_API_KEY
-                    ├── Config.IMDB_PORT
-                    └── Config.IMDB_HOST
+    └──<∅> IMDBMovieDB
+        └── ImdbAPI
+            └── load_imdb
+                ├── Config.IMDB_API_KEY
+                ├── Config.IMDB_PORT
+                └── Config.IMDB_HOST
 
     Singletons have no scope markers.
     <∅> = no scope (new instance each time)

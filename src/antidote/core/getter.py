@@ -112,9 +112,10 @@ class DependencyGetter:
         """
         __dependency = cast(Any, extract_annotated_dependency(__dependency))
         if source is not None:
-            if isinstance(__dependency, Dependency):
+            if not isinstance(__dependency, type):
                 raise TypeError("When specifying a source, the dependency must be a class")
-            __dependency = cast(Dependency[T], Get(__dependency, source=source).dependency)
+            __dependency = cast(Dependency[T],
+                                Get(__dependency, source=source).dependency)
         return cast(T, self.__load(__dependency, default))
 
     def __getitem__(self, tpe: Type[T]) -> TypedDependencyGetter[T]:

@@ -254,10 +254,13 @@ def test_invalid_interface() -> None:
         interface(object())  # type: ignore
 
     with pytest.raises(TypeError, match="(?i).*class.*"):
-        ImplementationsOf(object())  # type: ignore
+        ImplementationsOf(object())
 
     with pytest.raises(ValueError, match="(?i).*decorated.*@interface.*"):
         ImplementationsOf(Qualifier)
+
+    with pytest.raises(ValueError, match="(?i).*decorated.*@interface.*"):
+        implements(Qualifier)(Qualifier)
 
 
 def test_invalid_implementation() -> None:
@@ -301,10 +304,19 @@ def test_unique_predicate() -> None:
         pass
 
 
-def test_custom_service() -> None:
+def test_custom_injectable() -> None:
     @interface
     class Base:
         pass
+
+    @_(implements(Base).by_default)
+    @injectable(singleton=False)
+    class Default(Base):
+        pass
+
+    # is a singleton
+    assert world.get(Default) is not world.get(Default)
+    assert isinstance(world.get[Base].single(), Default)
 
     @implements(Base)
     @injectable(singleton=False)
@@ -314,6 +326,15 @@ def test_custom_service() -> None:
     # is a singleton
     assert world.get(BaseImpl) is not world.get(BaseImpl)
     assert isinstance(world.get[Base].single(), BaseImpl)
+
+    @_(implements(Base).overriding(BaseImpl))
+    @injectable(singleton=False)
+    class Custom(Base):
+        pass
+
+    # is a singleton
+    assert world.get(Custom) is not world.get(Custom)
+    assert isinstance(world.get[Base].single(), Custom)
 
 
 def test_type_enforcement_if_possible() -> None:
@@ -399,3 +420,71 @@ def test_generic_protocol() -> None:
         return x
 
     assert f_all() == [dummy]
+
+
+def test_override() -> None:
+    @interface
+    class Base:
+        ...
+
+    @implements(Base)
+    class Default(Base):
+        ...
+
+    assert world.get[Base].single() is world.get(Default)
+
+    @_(implements(Base).overriding(Default))
+    class Custom(Base):
+        ...
+
+    assert world.get[Base].single() is world.get(Custom)
+
+    with pytest.raises(RuntimeError):
+        @_(implements(Base).overriding(Default))
+        class CustomV2(Base):
+            ...
+
+    with pytest.raises(TypeError):
+        implements(Base).overriding(object())  # type: ignore
+
+
+def test_by_default() -> None:
+    @interface
+    class Base:
+        ...
+
+    @_(implements(Base).by_default)
+    class Default(Base):
+        ...
+
+    with pytest.raises(RuntimeError, match="(?i)default dependency"):
+        @_(implements(Base).by_default)
+        class Default2(Base):
+            ...
+
+    assert world.get[Base].single() is world.get(Default)
+    assert world.get[Base].all() == [world.get(Default)]
+
+    @_(implements(Base))
+    class Dummy(Base):
+        ...
+
+    assert world.get[Base].single() is world.get(Dummy)
+    assert world.get[Base].all() == [world.get(Dummy), world.get(Default)]
+
+
+def test_by_default_override() -> None:
+    @interface
+    class Base:
+        ...
+
+    @_(implements(Base).by_default)
+    class Default(Base):
+        ...
+
+    @_(implements(Base).overriding(Default))
+    class Custom(Base):
+        ...
+
+    assert world.get[Base].single() is world.get(Custom)
+    assert world.get[Base].all() == [world.get(Custom)]
