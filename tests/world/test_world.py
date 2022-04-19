@@ -5,7 +5,8 @@ from typing_extensions import Annotated
 
 from antidote import factory, From, FromArg, Get, Service, world
 from antidote._internal.world import LazyDependency
-from antidote._providers import FactoryProvider, ServiceProvider
+from antidote.lib.injectable._provider import InjectableProvider
+from antidote._providers import FactoryProvider
 from antidote.exceptions import DependencyNotFoundError, FrozenWorldError
 from .utils import DummyIntProvider
 
@@ -21,7 +22,7 @@ class A:
 
 
 def test_get():
-    world.provider(ServiceProvider)
+    world.provider(InjectableProvider)
     a = A()
     world.test.singleton(A, a)
     assert world.get(A) is a
@@ -141,8 +142,8 @@ def test_lazy_factory():
 
 
 def test_freeze():
-    world.provider(ServiceProvider)
-    provider = world.get[ServiceProvider]()
+    world.provider(InjectableProvider)
+    provider = world.get[InjectableProvider]()
 
     class Service:
         pass

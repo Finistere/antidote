@@ -3,7 +3,7 @@ from typing import Iterator, Optional, Union
 
 import pytest
 
-from antidote import factory, inject, QualifiedBy, service, world
+from antidote import factory, inject, QualifiedBy, injectable, world
 from antidote.core.marker import Marker
 from antidote.exceptions import DependencyNotFoundError
 
@@ -14,12 +14,8 @@ def setup_world() -> Iterator[None]:
         yield
 
 
-class GlobalService:
-    pass
-
-
 def test_marker_me():
-    @service
+    @injectable
     class MyService:
         pass
 
@@ -117,7 +113,7 @@ def test_invalid_marker_me_from_argument_mix():
 
 
 def test_marker_get():
-    @service
+    @injectable
     class MyService:
         pass
 
@@ -184,32 +180,34 @@ def test_custom_marker():
 
 
 def test_marker_me_optional():
-    service(GlobalService)
+    @injectable
+    class MyService:
+        pass
 
     @inject
-    def f(my_service: Optional[GlobalService] = inject.me()):
+    def f(my_service: Optional[MyService] = inject.me()):
         return my_service
 
-    assert f() is world.get[GlobalService]()
+    assert f() is world.get[MyService]()
 
     with world.test.empty():
         assert f() is None
 
     @inject
-    def f2(my_service: Union[GlobalService, None] = inject.me()):
+    def f2(my_service: Union[MyService, None] = inject.me()):
         return my_service
 
-    assert f2() is world.get[GlobalService]()
+    assert f2() is world.get[MyService]()
 
     with world.test.empty():
         assert f2() is None
 
     if sys.version_info >= (3, 10):
         @inject
-        def f3(my_service: 'GlobalService | None' = inject.me()):
+        def f3(my_service: 'MyService | None' = inject.me()):
             return my_service
 
-        assert f3() is world.get[GlobalService]()
+        assert f3() is world.get[MyService]()
 
         with world.test.empty():
             assert f3() is None

@@ -57,7 +57,7 @@ def test_annotated_typing() -> None:
             assert dummy is not None
             return dummy
 
-        assert g().hello() is world.get[Dummy](Dummy @ build_dummy)
+        assert g().hello() is world.get[Dummy](Dummy @ build_dummy)  # type: ignore
 
 
 def test_proper_typing_assert_none() -> None:

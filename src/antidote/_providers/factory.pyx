@@ -5,7 +5,7 @@ from typing import Callable, Dict, Hashable, Optional
 cimport cython
 from cpython.ref cimport PyObject
 
-from antidote._providers.service cimport Parameterized
+from antidote.lib.injectable._provider cimport Parameterized
 from antidote.core.container cimport (DependencyResult, FastProvider, Header, header_flag_cacheable, header_is_singleton, HeaderObject, RawContainer, Scope)
 from .._internal.utils import debug_repr
 from ..core import DependencyDebug

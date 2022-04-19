@@ -5,10 +5,11 @@ from typing import Dict, Hashable
 cimport cython
 from cpython.ref cimport PyObject
 
-from antidote.core.container cimport (DependencyResult, FastProvider, header_flag_cacheable, HeaderObject, Scope)
-from .._internal.utils import debug_repr
+from antidote.core.container cimport (DependencyResult, FastProvider, header_flag_cacheable,
+                                      HeaderObject, Scope, Header)
+from antidote._internal.utils import debug_repr
 # @formatter:on
-from ..core import DependencyDebug
+from antidote.core import DependencyDebug
 
 cdef extern from "Python.h":
     PyObject *Py_True
@@ -50,7 +51,7 @@ cdef class Parameterized:
                 and self.parameters == other.parameters)  # noqa
 
 @cython.final
-cdef class ServiceProvider(FastProvider):
+cdef class InjectableProvider(FastProvider):
     """
     Provider managing factories. Also used to register classes directly.
     """
@@ -58,7 +59,7 @@ cdef class ServiceProvider(FastProvider):
         dict __services
 
     def __cinit__(self, dict services = None):
-        self.__services = services or dict()  # type: Dict[Hashable, HeaderObject]
+        self.__services = services or dict()  # type: Dict[Hashable, Injectable]
 
     def __repr__(self):
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
@@ -68,18 +69,22 @@ cdef class ServiceProvider(FastProvider):
             return dependency.wrapped in self.__services
         return dependency in self.__services
 
-    cpdef ServiceProvider clone(self, bint keep_singletons_cache):
-        return ServiceProvider.__new__(ServiceProvider, self.__services.copy())
+    cpdef InjectableProvider clone(self, bint keep_singletons_cache):
+        return InjectableProvider.__new__(InjectableProvider, self.__services.copy())
 
     def maybe_debug(self, build: Hashable):
+        cdef:
+            Injectable injectable
         klass = build.wrapped if isinstance(build, Parameterized) else build
         try:
-            header = self.__services[klass]
+            injectable = self.__services[klass]
         except KeyError:
             return None
-        return DependencyDebug(debug_repr(build),
-                               scope=header.to_scope(self._bound_container()),
-                               wired=[klass])
+        return DependencyDebug(
+            debug_repr(build),
+            scope=HeaderObject(injectable.header).to_scope(self._bound_container()),
+            wired=[klass]
+        )
 
     cdef fast_provide(self,
                       PyObject *dependency,
@@ -96,7 +101,7 @@ cdef class ServiceProvider(FastProvider):
             ptr = PyDict_GetItem(<PyObject *> self.__services,
                                  <PyObject *> (<Parameterized> dependency).wrapped)
             if ptr:
-                result.header = (<HeaderObject> ptr).header
+                result.header = (<Injectable> ptr).header
                 result.value = PyObject_Call(
                     <PyObject *> (<Parameterized> dependency).wrapped,
                     <PyObject *> empty_tuple,
@@ -105,12 +110,33 @@ cdef class ServiceProvider(FastProvider):
         else:
             ptr = PyDict_GetItem(<PyObject *> self.__services, dependency)
             if ptr:
-                result.header = (<HeaderObject> ptr).header | header_flag_cacheable()
-                result.value = PyObject_CallObject(dependency, NULL)
+                result.header = (<Injectable> ptr).header | header_flag_cacheable()
+                result.value = PyObject_CallObject(
+                    <PyObject *> (<Injectable> ptr).factory,
+                    NULL
+                )
 
-    def register(self, klass: type, *, Scope scope):
+    def register(self,
+                 klass: type,
+                 *,
+                 Scope scope,
+                 object factory = None):
+        cdef:
+            Injectable injectable
         assert inspect.isclass(klass) \
                and (isinstance(scope, Scope) or scope is None)
         with self._bound_container_ensure_not_frozen():
             self._bound_container_raise_if_exists(klass)
-            self.__services[klass] = HeaderObject.from_scope(scope)
+            injectable = Injectable.__new__(Injectable)
+            injectable.header = HeaderObject.from_scope(scope).header
+            injectable.factory = factory if factory is not None else klass
+            self.__services[klass] = injectable
+
+@cython.final
+cdef class Injectable:
+    cdef:
+        Header header
+        object factory
+
+    def __repr__(self):
+        return f"Injectable(factory={self.factory})"

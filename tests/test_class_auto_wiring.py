@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional, Tuple, Type, Union
 import pytest
 from typing_extensions import Protocol
 
-from antidote import Constants, Factory, Provide, Service, service, world
+from antidote import Constants, Factory, injectable, Provide, Service, service, world
 from antidote.core import Wiring
 
 
@@ -127,6 +127,7 @@ def builder(cls_or_decorator: Union[type, Callable[..., Any]],
 
 @pytest.fixture(params=[
     pytest.param((builder, service), id="@service"),
+    pytest.param((builder, injectable), id="@injectable"),
     *[
         pytest.param((builder, c, w), id=f"{c.__name__} - {w}")
         for (c, w) in itertools.product([Factory,

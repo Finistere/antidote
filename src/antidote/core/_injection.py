@@ -3,12 +3,12 @@ from __future__ import annotations
 import collections.abc as c_abc
 import inspect
 from dataclasses import dataclass
-from typing import (Any, Callable, cast, Dict, Iterable, List, Mapping, Set,  # noqa: F401
+from typing import (Any, Callable, cast, Dict, Iterable, List, Mapping, Optional, Set,  # noqa: F401
                     TYPE_CHECKING, Union)
 
 from typing_extensions import final, TypeAlias
 
-from .exceptions import DoubleInjectionError
+from .exceptions import DoubleInjectionError, NoInjectionsFoundError
 from .marker import Marker
 from .._internal import API
 from .._internal.argspec import Arguments
@@ -52,7 +52,8 @@ def raw_inject(f: AnyF,
                dependencies: DEPENDENCIES_TYPE,
                auto_provide: AUTO_PROVIDE_TYPE,
                strict_validation: bool,
-               ignore_type_hints: bool) -> AnyF:
+               ignore_type_hints: bool,
+               type_hints_locals: Optional[Dict[str, object]]) -> AnyF:
     if not isinstance(ignore_type_hints, bool):
         raise TypeError(f"ignore_type_hints must be a boolean, not {type(ignore_type_hints)}")
 
@@ -74,7 +75,9 @@ def raw_inject(f: AnyF,
                         f"nor a (class/static) method")
 
     blueprint = _build_injection_blueprint(
-        arguments=Arguments.from_callable(f, ignore_type_hints=ignore_type_hints),
+        arguments=Arguments.from_callable(f,
+                                          ignore_type_hints=ignore_type_hints,
+                                          type_hints_locals=type_hints_locals),
         dependencies=dependencies,
         auto_provide=auto_provide,
         strict_validation=strict_validation
@@ -83,7 +86,7 @@ def raw_inject(f: AnyF,
     # any overhead.
     if blueprint.is_empty():
         if ignore_type_hints:
-            raise RuntimeError("No dependencies found while ignoring type hints!")
+            raise NoInjectionsFoundError(f"No dependencies found while ignoring type hints for {f}")
         return f
 
     wrapped_real_f = build_wrapper(blueprint=blueprint, wrapped=real_f)

@@ -11,12 +11,12 @@ __sentinel = object()
 
 @overload
 def singleton(dependency: Hashable, value: object) -> None:
-    ...  # pragma: no cover
+    ...
 
 
 @overload
 def singleton(dependency: Dict[Hashable, object]) -> None:
-    ...  # pragma: no cover
+    ...
 
 
 @API.public

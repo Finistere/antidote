@@ -1,14 +1,11 @@
 import pytest
 
 from antidote import LazyCall, LazyMethodCall, Service, world
-from antidote._providers import LazyProvider, ServiceProvider
 
 
 @pytest.fixture(autouse=True)
 def empty_world():
-    with world.test.empty():
-        world.provider(LazyProvider)
-        world.provider(ServiceProvider)
+    with world.test.new():
         yield
 
 

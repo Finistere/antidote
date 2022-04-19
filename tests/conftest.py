@@ -1,6 +1,8 @@
 import pytest
 
-from antidote import is_compiled
+from antidote import config, is_compiled
+
+config.auto_detect_type_hints_locals = True
 
 
 def pytest_runtest_setup(item):

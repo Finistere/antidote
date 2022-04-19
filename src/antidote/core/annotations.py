@@ -40,10 +40,10 @@ Annotation specifying that the type hint itself is the dependency:
 
 .. doctest:: core_annotation_provide
 
-    >>> from antidote import world, inject, Inject, service
+    >>> from antidote import world, inject, Inject, injectable
     >>> from typing import Annotated
     ... # from typing_extensions import Annotated # Python < 3.9
-    >>> @service
+    >>> @injectable
     ... class Database:
     ...     pass
     >>> @inject
@@ -89,7 +89,7 @@ class Get(AntidoteAnnotation, Marker):
                  *,
                  default: object = Default.sentinel
                  ) -> None:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __init__(self,
@@ -98,7 +98,7 @@ class Get(AntidoteAnnotation, Marker):
                  source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]],
                  default: object = Default.sentinel
                  ) -> None:
-        ...  # pragma: no cover
+        ...
 
     def __init__(self,
                  __dependency: Any,

@@ -7,7 +7,7 @@ from typing import Any, Iterator, Optional, TypeVar
 import pytest
 
 from antidote import implements, interface, world
-from antidote._providers import ServiceProvider
+from antidote.lib.injectable import register_injectable_provider
 from antidote.lib.interface import (NeutralWeight, Predicate, QualifiedBy,
                                     register_interface_provider)
 
@@ -21,7 +21,7 @@ def _(x: T) -> T:
 @pytest.fixture(autouse=True)
 def setup_world() -> Iterator[None]:
     with world.test.empty():
-        world.provider(ServiceProvider)
+        register_injectable_provider()
         register_interface_provider()
         yield
 
@@ -268,15 +268,15 @@ class LocaleIs:
 def test_lang_example() -> None:
     @interface
     class Alert:
-        ...  # pragma: no cover
+        ...
 
     @_(implements(Alert).when(LocaleIs('fr')))
     class FrenchAlert(Alert):
-        ...  # pragma: no cover
+        ...
 
     @_(implements(Alert).when(LocaleIs('en')))
     class DefaultAlert(Alert):
-        ...  # pragma: no cover
+        ...
 
     assert world.get[Alert].single(LocaleIs("fr")) is world.get(FrenchAlert)
     assert world.get[Alert].single(LocaleIs("it")) is world.get(DefaultAlert)

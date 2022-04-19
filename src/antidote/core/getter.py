@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 @API.private
 class DependencyLoader(Protocol):
     def __call__(self, dependency: object, default: object) -> Any:
-        ...  # pragma: no cover
+        ...
 
 
 @API.private
 class SupportsRMatmul(Protocol):
     def __rmatmul__(self, type_hint: object) -> object:
-        ...  # pragma: no cover
+        ...
 
 
 @API.private  # rely on world.get or inject.get
@@ -57,7 +57,7 @@ class DependencyGetter:
                  *,
                  default: Union[T, Default] = Default.sentinel
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -65,36 +65,32 @@ class DependencyGetter:
                  *,
                  default: Union[T, Default] = Default.sentinel
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
                  __dependency: Type[T],
                  *,
-                 default: Union[T, Default] = Default.sentinel,
-                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
+                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]],
+                 default: Union[T, Default] = Default.sentinel
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @API.public
     def __call__(self,
-                 __dependency: Any,
+                 __dependency: Union[Type[T], Dependency[T]],
                  *,
-                 default: Any = Default.sentinel,
-                 source: Optional[Union[
-                     Source[Any],
-                     Callable[..., Any],
-                     Type[CallableClass[Any]]
-                 ]] = None
-                 ) -> Any:
+                 source: Any = None,
+                 default: Union[T, Default] = Default.sentinel
+                 ) -> T:
         """
         Retrieve the specified dependency. The interface is the same for both :py:obj:`.inject` and
         :py:obj:`.world`:
 
         .. doctest:: core_getter_getter
 
-            >>> from antidote import world, service, inject
-            >>> @service
+            >>> from antidote import world, injectable, inject
+            >>> @injectable
             ... class Dummy:
             ...     pass
             >>> world.get(Dummy)
@@ -116,10 +112,11 @@ class DependencyGetter:
         """
         __dependency = cast(Any, extract_annotated_dependency(__dependency))
         if source is not None:
-            __dependency = Get(__dependency, source=source).dependency
-        return self.__load(__dependency, default)
+            if isinstance(__dependency, Dependency):
+                raise TypeError("When specifying a source, the dependency must be a class")
+            __dependency = cast(Dependency[T], Get(__dependency, source=source).dependency)
+        return cast(T, self.__load(__dependency, default))
 
-    @API.public
     def __getitem__(self, tpe: Type[T]) -> TypedDependencyGetter[T]:
         """
 
@@ -129,7 +126,7 @@ class DependencyGetter:
         Returns:
 
         """
-        return TypedDependencyGetter(self.__enforce_type, self.__load, tpe)
+        return TypedDependencyGetter[T](self.__enforce_type, self.__load, tpe)
 
 
 @API.private  # use world.get, not the class directly
@@ -146,7 +143,7 @@ class TypedDependencyGetter(Generic[T]):
                  *,
                  default: Union[T, Default] = Default.sentinel,
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -154,7 +151,7 @@ class TypedDependencyGetter(Generic[T]):
                  default: Union[T, Default] = Default.sentinel,
                  source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]]
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -162,7 +159,7 @@ class TypedDependencyGetter(Generic[T]):
                  *,
                  default: Union[T, Default] = Default.sentinel
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -171,7 +168,7 @@ class TypedDependencyGetter(Generic[T]):
                  default: Union[T, Default] = Default.sentinel,
                  source: Union[Source[R], Callable[..., R], Type[CallableClass[R]]]
                  ) -> T:
-        ...  # pragma: no cover
+        ...
 
     @API.public
     def __call__(self,
@@ -257,7 +254,7 @@ class TypedDependencyGetter(Generic[T]):
         if self.__enforce_type:
             assert enforce_type_if_possible(value, list)
             x: object
-            for x in value:
+            for x in cast(List[object], value):
                 assert enforce_type_if_possible(x, self.__type)
 
         return cast(List[T], value)

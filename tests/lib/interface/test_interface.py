@@ -7,9 +7,9 @@ from typing import Any, Generic, Iterable, Iterator, List, Optional, Sequence, T
 import pytest
 from typing_extensions import Protocol, runtime_checkable
 
-from antidote import ImplementationsOf, implements, inject, interface, service, world
-from antidote._providers import ServiceProvider
+from antidote import ImplementationsOf, implements, inject, injectable, interface, world
 from antidote.core.exceptions import DependencyInstantiationError, DependencyNotFoundError
+from antidote.lib.injectable import register_injectable_provider
 from antidote.lib.interface import QualifiedBy, register_interface_provider
 
 T = TypeVar('T')
@@ -18,18 +18,6 @@ Tco = TypeVar('Tco', covariant=True)
 
 def _(x: T) -> T:
     return x
-
-
-class Base:
-    pass
-
-
-class GenericBase(Generic[Tco]):
-    pass
-
-
-class GenericProtocolBase(Protocol[Tco]):
-    pass
 
 
 class Qualifier:
@@ -53,13 +41,15 @@ qD = Qualifier("qD")
 @pytest.fixture(autouse=True)
 def setup_world() -> Iterator[None]:
     with world.test.empty():
-        world.provider(ServiceProvider)
+        register_injectable_provider()
         register_interface_provider()
         yield
 
 
 def test_single_implementation() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     @implements(Base)
     class Dummy(Base):
@@ -122,7 +112,9 @@ def test_single_implementation() -> None:
 
 
 def test_single_multiple_implementations_failure() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     @implements(Base)
     class Dummy(Base):
@@ -147,7 +139,9 @@ def test_single_multiple_implementations_failure() -> None:
 
 
 def test_qualified_implementations() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     @_(implements(Base).when(qualified_by=qA))
     class A(Base):
@@ -267,7 +261,9 @@ def test_invalid_interface() -> None:
 
 
 def test_invalid_implementation() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     class BaseImpl(Base):
         pass
@@ -286,7 +282,9 @@ def test_invalid_implementation() -> None:
 
 
 def test_unique_predicate() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     class MyPred:
         def weight(self) -> Optional[Any]:
@@ -304,10 +302,12 @@ def test_unique_predicate() -> None:
 
 
 def test_custom_service() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     @implements(Base)
-    @service(singleton=False)
+    @injectable(singleton=False)
     class BaseImpl(Base):
         pass
 
@@ -317,7 +317,9 @@ def test_custom_service() -> None:
 
 
 def test_type_enforcement_if_possible() -> None:
-    interface(Base)
+    @interface
+    class Base:
+        pass
 
     with pytest.raises(TypeError, match="(?i).*subclass.*Base.*"):
         @implements(Base)
@@ -345,8 +347,10 @@ def test_type_enforcement_if_possible() -> None:
             pass
 
 
-def test_generic():
-    interface(GenericBase)
+def test_generic() -> None:
+    @interface
+    class GenericBase(Generic[Tco]):
+        pass
 
     @implements(GenericBase)
     class Dummy(GenericBase[int]):
@@ -370,8 +374,10 @@ def test_generic():
     assert f_all() == [dummy]
 
 
-def test_generic_protocol():
-    interface(GenericProtocolBase)
+def test_generic_protocol() -> None:
+    @interface
+    class GenericProtocolBase(Protocol[Tco]):
+        pass
 
     @implements(GenericProtocolBase)
     class Dummy:

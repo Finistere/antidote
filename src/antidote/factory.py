@@ -211,7 +211,7 @@ def factory(f: T,
             scope: Optional[Scope] = Scope.sentinel(),
             wiring: Optional[Wiring] = Wiring()
             ) -> T:
-    ...  # pragma: no cover
+    ...
 
 
 @overload
@@ -220,7 +220,7 @@ def factory(*,
             scope: Optional[Scope] = Scope.sentinel(),
             wiring: Optional[Wiring] = Wiring()
             ) -> Callable[[T], T]:
-    ...  # pragma: no cover
+    ...
 
 
 @API.public
@@ -318,7 +318,7 @@ def factory(f: Optional[T] = None,
 
             if wiring is not None:
                 try:
-                    func = inject(func, dependencies=wiring.dependencies)
+                    func = cast(T, inject(func, dependencies=wiring.dependencies))
                 except DoubleInjectionError:
                     pass
 
@@ -336,7 +336,7 @@ def factory(f: Optional[T] = None,
                 raise TypeError(f"The return type hint is expected to be a class, "
                                 f"not {type(output)}.")
 
-            func = service(func, singleton=True, wiring=wiring)  # type: ignore
+            service(func, singleton=True, wiring=wiring)
 
             factory_provider.register(
                 output=output,

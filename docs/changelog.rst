@@ -15,6 +15,92 @@ Most, if not all, the API is annotated with decorators such as :code:`@API.publi
 the given functionality can be relied upon.
 
 
+1.3.0 (2022-04-26)
+==================
+
+
+Deprecation
+-----------
+
+- :py:func:`.service` is deprecated in favor of :py:func:`.injectable` which is a drop-in
+  replacement.
+- :py:func:`.inject` used to raise a :py:exc:`RuntimeError` when specifying
+  :code:`ignore_type_hints=True` and no injections were found. It now raises
+  :py:exc:`.NoInjectionsFoundError`
+- :py:meth:`.Wiring.wire` used to return the wired class, it won't be the case anymore.
+
+
+Features
+--------
+
+- Add local type hint support with :code:`type_hints_locals` argument for :py:func:`.inject`,
+  :py:func:`.injectable`, :py:class:`.implements` and :py:func:`.wire`. The default behavior can
+  be configured globally with :py:obj:`.config`. Auto-detection is done through :py:mod:`inspect`
+  and frame manipulation. It's mostly helpful inside tests.
+
+  .. code-block:: python
+
+      from __future__ import annotations
+
+      from antidote import config, inject, injectable, world
+
+
+      def function() -> None:
+          @injectable
+          class Dummy:
+              pass
+
+          @inject(type_hints_locals='auto')
+          def f(dummy: Dummy = inject.me()) -> Dummy:
+              return dummy
+
+          assert f() is world.get(Dummy)
+
+
+      function()
+
+      config.auto_detect_type_hints_locals = True
+
+
+      def function2() -> None:
+          @injectable
+          class Dummy:
+              pass
+
+          @inject
+          def f(dummy: Dummy = inject.me()) -> Dummy:
+              return dummy
+
+          assert f() is world.get(Dummy)
+
+
+      function2()
+
+- Add :code:`factory_method` to :py:func:`.injectable` (previous :py:func:`.service`)
+
+  .. code-block:: python
+
+      from __future__ import annotations
+
+      from antidote import injectable
+
+
+      @injectable(factory_method='build')
+      class Dummy:
+          @classmethod
+          def build(cls) -> Dummy:
+              return cls()
+
+- Added :code:`ignore_type_hints` argument to :py:class:`.Wiring` and :py:func:`.wire`.
+- Added :code:`type_hints_locals` and :code:`class_in_localns` argument to :py:class:`.Wiring.wire`.
+
+
+Bug fix
+-------
+
+- Fix :code:`Optional` detection in predicate constraints.
+
+
 
 1.2.0 (2022-04-19)
 ==================

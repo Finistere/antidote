@@ -3,7 +3,6 @@ from contextlib import contextmanager
 import pytest
 
 from antidote import Provide, Service, service, Wiring, world
-from antidote._providers import ServiceProvider
 from antidote.exceptions import DuplicateDependencyError
 
 
@@ -14,8 +13,7 @@ def does_not_raise():
 
 @pytest.fixture(autouse=True)
 def test_world():
-    with world.test.empty():
-        world.provider(ServiceProvider)
+    with world.test.new():
         yield
 
 

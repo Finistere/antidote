@@ -3,7 +3,8 @@ from typing import Callable
 import pytest
 
 from antidote import Scope, world
-from antidote._providers import IndirectProvider, ServiceProvider
+from antidote._providers import IndirectProvider
+from antidote.lib.injectable._provider import InjectableProvider
 from antidote.core.exceptions import DependencyNotFoundError
 from antidote.exceptions import DuplicateDependencyError, FrozenWorldError
 
@@ -28,8 +29,8 @@ def empty_world():
 
 @pytest.fixture
 def service(empty_world):
-    world.provider(ServiceProvider)
-    return world.get(ServiceProvider)
+    world.provider(InjectableProvider)
+    return world.get(InjectableProvider)
 
 
 @pytest.fixture
@@ -55,7 +56,7 @@ def test_implementation(permanent: bool):
 
 @pytest.mark.parametrize('singleton', [True, False])
 @pytest.mark.parametrize('permanent', [True, False])
-def test_implementation_permanent_singleton(service: ServiceProvider,
+def test_implementation_permanent_singleton(service: InjectableProvider,
                                             singleton: bool,
                                             permanent: bool):
     scope = Scope.singleton() if singleton else None

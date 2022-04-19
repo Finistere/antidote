@@ -1,18 +1,13 @@
 import pytest
 
-from antidote import Factory, factory, implementation, inject, Provide, service, Service, world
+from antidote import Factory, factory, implementation, inject, Provide, injectable, Service, world
 from antidote._implementation import validate_provided_class
-from antidote._providers import (FactoryProvider, IndirectProvider,
-                                 ServiceProvider)
 from antidote.exceptions import DependencyInstantiationError
 
 
 @pytest.fixture(autouse=True)
 def test_world():
-    with world.test.empty():
-        world.provider(ServiceProvider)
-        world.provider(FactoryProvider)
-        world.provider(IndirectProvider)
+    with world.test.new():
         yield
 
 
@@ -365,7 +360,7 @@ def test_double_injection():
 
 
 def test_source_notation():
-    @service
+    @injectable
     class A(Interface):
         pass
 

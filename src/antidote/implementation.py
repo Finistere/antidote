@@ -1,12 +1,10 @@
 import functools
 import inspect
-import warnings
 from typing import Callable, cast, Type, TypeVar
 
 from typing_extensions import ParamSpec, Protocol
 
 from ._implementation import ImplementationWrapper, validate_provided_class
-from ._internal import API
 from ._providers import IndirectProvider
 from .core import inject
 from .core.exceptions import DoubleInjectionError
@@ -15,24 +13,23 @@ P = ParamSpec('P')
 T = TypeVar('T')
 
 
-@API.private
+# @API.private
 class ImplementationProtocol(Protocol[P, T]):
     """
     :meta private:
     """
 
     def __rmatmul__(self, klass: type) -> object:  # pragma: no cover
-        warnings.warn("Use the new `world.get(<dependency>, source=<implementation>)` syntax.")
         ...
 
     def __antidote_dependency__(self, target: Type[T]) -> object:
-        ...  # pragma: no cover
+        ...
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
-        ...  # pragma: no cover
+        ...
 
 
-@API.public
+# @API.public
 def implementation(interface: type,
                    *,
                    permanent: bool = True
@@ -129,7 +126,7 @@ def implementation(interface: type,
     if not inspect.isclass(interface):
         raise TypeError(f"interface must be a class, not {type(interface)}")
 
-    @inject
+    @inject  # type: ignore
     def register(func: Callable[P, T],
                  indirect_provider: IndirectProvider = inject.me()
                  ) -> ImplementationProtocol[P, T]:
@@ -137,7 +134,8 @@ def implementation(interface: type,
             raise TypeError(f"{func} is not a function")
 
         try:
-            func = inject(func)
+            # for pyright
+            func = inject(func)  # type: ignore
         except DoubleInjectionError:
             pass
 
@@ -149,6 +147,6 @@ def implementation(interface: type,
 
         dependency = indirect_provider.register_implementation(interface, impl,
                                                                permanent=permanent)
-        return ImplementationWrapper[P, T](func, dependency)  # type: ignore
+        return ImplementationWrapper[P, T](cast(Callable[P, T], func), dependency)
 
-    return cast(Callable[[Callable[P, T]], ImplementationProtocol[P, T]], register)
+    return register  # type: ignore

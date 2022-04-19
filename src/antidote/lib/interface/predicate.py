@@ -64,7 +64,7 @@ class PredicateWeight(Protocol):
         Returns:
             Weight of the predicate or implementation.
         """
-        ...  # pragma: no cover
+        ...
 
     def __lt__(self: SelfWeight, other: SelfWeight) -> bool:
         """
@@ -74,7 +74,7 @@ class PredicateWeight(Protocol):
             other: other will always be an instance of the current weight class.
 
         """
-        ...  # pragma: no cover
+        ...
 
     def __add__(self: SelfWeight, other: SelfWeight) -> SelfWeight:
         """
@@ -84,7 +84,7 @@ class PredicateWeight(Protocol):
             other: other will always be an instance of the current weight class.
 
         """
-        ...  # pragma: no cover
+        ...
 
 
 @API.experimental
@@ -174,7 +174,7 @@ class Predicate(Protocol[WeightCo]):
     """
 
     def weight(self) -> Optional[WeightCo]:
-        ...  # pragma: no cover
+        ...
 
 
 SelfP = TypeVar('SelfP', bound=Predicate[Any])
@@ -208,7 +208,7 @@ class MergeablePredicate(Predicate[WeightCo], Protocol):
 
     @classmethod
     def merge(cls: Type[SelfP], a: SelfP, b: SelfP) -> SelfP:
-        ...  # pragma: no cover
+        ...
 
 
 Pct = TypeVar('Pct', bound=Predicate[Any], contravariant=True)
@@ -257,7 +257,7 @@ class PredicateConstraint(Protocol[Pct]):
     """
 
     def evaluate(self, predicate: Optional[Pct]) -> bool:
-        ...  # pragma: no cover
+        ...
 
 
 SelfPC = TypeVar('SelfPC', bound=PredicateConstraint[Any])
@@ -286,4 +286,4 @@ class MergeablePredicateConstraint(PredicateConstraint[Pct], Protocol):
 
     @classmethod
     def merge(cls: Type[SelfPC], a: SelfPC, b: SelfPC) -> SelfPC:
-        ...  # pragma: no cover
+        ...

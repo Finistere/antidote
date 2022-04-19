@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import inspect
-from typing import Any, Callable, cast, Dict, TypeVar, Union  # noqa: F401
+from typing import Any, Callable, cast, Dict, Optional, TypeVar, Union  # noqa: F401
 
 from typing_extensions import TypeAlias
 
-from .exceptions import DoubleInjectionError
+from .exceptions import DoubleInjectionError, NoInjectionsFoundError
 from .injection import inject
 from .wiring import Methods, Wiring
 from .._internal import API
@@ -13,14 +15,15 @@ AnyF: TypeAlias = 'Union[Callable[..., object], staticmethod[Any], classmethod[A
 
 
 @API.private
-def wire_class(cls: C, wiring: Wiring) -> C:
-    if not isinstance(cls, type):
-        raise TypeError(f"Expecting a class, got a {type(cls)}")
-
+def wire_class(*,
+               klass: C,
+               wiring: Wiring,
+               type_hints_locals: Optional[Dict[str, object]]
+               ) -> C:
     methods: Dict[str, AnyF] = dict()
     if isinstance(wiring.methods, Methods):
         assert wiring.methods is Methods.ALL  # Sanity check
-        for name, member in cls.__dict__.items():
+        for name, member in klass.__dict__.items():
             if (name in {'__call__', '__init__'}
                     or not (name.startswith("__") and name.endswith("__"))):
                 if (inspect.isfunction(member)
@@ -29,7 +32,7 @@ def wire_class(cls: C, wiring: Wiring) -> C:
     else:
         for method_name in wiring.methods:
             try:
-                attr = cls.__dict__[method_name]
+                attr = klass.__dict__[method_name]
             except KeyError as e:
                 raise AttributeError(method_name) from e
 
@@ -45,13 +48,17 @@ def wire_class(cls: C, wiring: Wiring) -> C:
                 method,
                 dependencies=wiring.dependencies,
                 auto_provide=wiring.auto_provide,
-                strict_validation=False
+                strict_validation=False,
+                ignore_type_hints=wiring.ignore_type_hints,
+                type_hints_locals=type_hints_locals
             )
         except DoubleInjectionError:
             if wiring.raise_on_double_injection:
                 raise
+        except NoInjectionsFoundError:
+            pass
         else:
             if injected_method is not method:  # If something has changed
-                setattr(cls, name, injected_method)
+                setattr(klass, name, injected_method)
 
-    return cast(C, cls)
+    return klass

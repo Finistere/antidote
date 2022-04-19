@@ -4,7 +4,6 @@ from typing import Any, Callable
 import pytest
 
 from antidote import Factory, factory, inject, Inject, Provide, Service, Wiring, world
-from antidote._providers import (FactoryProvider, LazyProvider, ServiceProvider)
 from antidote.exceptions import DependencyInstantiationError
 
 
@@ -15,10 +14,7 @@ def does_not_raise():
 
 @pytest.fixture(autouse=True)
 def test_world():
-    with world.test.empty():
-        world.provider(ServiceProvider)
-        world.provider(FactoryProvider)
-        world.provider(LazyProvider)
+    with world.test.new():
         yield
 
 

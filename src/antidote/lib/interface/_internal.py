@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Any, cast, List, Optional, Type, TypeVar, Union
+from typing import Any, cast, Dict, List, Optional, Type, TypeVar, Union
 
 from typing_extensions import get_type_hints, TypeAlias
 
@@ -86,15 +86,11 @@ def create_constraints(
 
 @API.private
 @inject
-def register_interface(__interface: C,
+def register_interface(__interface: type,
                        *,
                        provider: InterfaceProvider = inject.get(InterfaceProvider)
-                       ) -> C:
-    if not isinstance(__interface, type):
-        raise TypeError(f"Expected a class for the interface, got a {type(__interface)!r}")
-
+                       ) -> None:
     provider.register(__interface)
-    return cast(C, __interface)
 
 
 @API.private
@@ -103,9 +99,10 @@ def register_implementation(*,
                             interface: type,
                             implementation: C,
                             predicates: List[Union[Predicate[Weight], Predicate[NeutralWeight]]],
+                            type_hints_locals: Optional[Dict[str, object]],
                             provider: InterfaceProvider = inject.get(InterfaceProvider)
                             ) -> C:
-    from ...service import service
+    from ..injectable import injectable
 
     if not isinstance(interface, type):
         raise TypeError(f"Expected a class for the interface, got a {type(interface)!r}")
@@ -140,6 +137,6 @@ def register_implementation(*,
     )
 
     try:
-        return cast(C, service(implementation))
+        return injectable(implementation, type_hints_locals=type_hints_locals)
     except DuplicateDependencyError:
-        return cast(C, implementation)
+        return implementation

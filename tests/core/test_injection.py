@@ -6,6 +6,7 @@ from typing_extensions import Annotated
 
 from antidote import From, FromArg, Get, world
 from antidote.core.annotations import Provide
+from antidote.core.exceptions import NoInjectionsFoundError
 from antidote.core.injection import inject, validate_injection
 from antidote.exceptions import DependencyNotFoundError, DoubleInjectionError
 
@@ -951,4 +952,9 @@ def test_no_injection_error_when_ignoring_type_hints():
     with pytest.raises(RuntimeError, match="(?i)No dependencies found.*"):
         @inject(ignore_type_hints=True)
         def f():
+            pass
+
+    with pytest.raises(NoInjectionsFoundError, match="(?i)No dependencies found.*"):
+        @inject(ignore_type_hints=True)
+        def g():
             pass

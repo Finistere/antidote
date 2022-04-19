@@ -114,9 +114,9 @@ Injection
 
 .. code-block:: python
 
-    from antidote import inject, service
+    from antidote import inject, injectable
 
-    @service
+    @injectable
     class Database:
         pass
 
@@ -185,18 +185,18 @@ You can also retrieve the dependency by hand with :code:`world.get`:
     world.get[Database](Database)  # with type hint, enforced when possible
 
 
-Service
--------
+Injectable
+----------
 
-Services are classes for which Antidote provides an instance. It can be a singleton or not.
-Scopes are also supported. Every method is injected by default, relying on annotated type
-hints and markers such as :code:`inject.me()`:
+Any class marked as `@injectable` can be provided by Antidote. It can be a singleton or not.
+Scopes and a factory method are also supported. Every method is injected by default, relying on
+annotated type hints and markers such as :code:`inject.me()`:
 
 .. code-block:: python
 
-    from antidote import service, inject
+    from antidote import injectable, inject
 
-    @service(singleton=False)
+    @injectable(singleton=False)
     class QueryBuilder:
         # methods are also injected by default
         def __init__(self, db: Database = inject.me()):
@@ -378,9 +378,9 @@ Testing and Debugging
 
 .. code-block:: python
 
-    from antidote import service, inject
+    from antidote import injectable, inject
 
-    @service
+    @injectable
     class Database:
         pass
 

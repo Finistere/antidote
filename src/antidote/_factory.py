@@ -11,7 +11,7 @@ from ._internal import API
 from ._internal.utils import AbstractMeta, FinalImmutable
 from ._providers import FactoryProvider
 from ._providers.factory import FactoryDependency
-from ._providers.service import Parameterized
+from .lib.injectable._provider import Parameterized
 from ._utils import validate_method_parameters
 from .core import inject
 from .service import service

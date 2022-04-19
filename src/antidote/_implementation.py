@@ -11,7 +11,7 @@ P = ParamSpec('P')
 T = TypeVar('T')
 
 
-@API.private
+# @API.private
 class ImplementationWrapper(Generic[P, T]):
     def __init__(self,
                  wrapped: Callable[P, T],
@@ -46,7 +46,7 @@ class ImplementationWrapper(Generic[P, T]):
 @API.private
 def validate_provided_class(dependency: Hashable, *, expected: type) -> None:
     from ._providers.factory import FactoryDependency
-    from ._providers.service import Parameterized
+    from .lib.injectable._provider import Parameterized
     from ._providers.indirect import ImplementationDependency
 
     cls: object = dependency
