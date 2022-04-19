@@ -6,8 +6,7 @@ from typing import Any, cast, Dict, Tuple, Type
 
 from ._internal import API
 from ._internal.utils import AbstractMeta
-from ._providers import ServiceProvider
-from ._providers.service import Parameterized
+from .lib.injectable._provider import Parameterized, InjectableProvider
 from ._utils import validate_method_parameters
 from .core import inject
 
@@ -96,7 +95,7 @@ class ABCServiceMeta(ServiceMeta, ABCMeta):
 @API.private
 @inject
 def _configure_service(cls: type,
-                       service_provider: ServiceProvider = inject.me(),
+                       service_provider: InjectableProvider = inject.me(),
                        conf: object = None) -> None:
     from .service import Service
 
@@ -110,6 +109,6 @@ def _configure_service(cls: type,
     if wiring is not None:
         wiring.wire(cls)
 
-    validate_method_parameters(cls.__init__, conf.parameters)
+    validate_method_parameters(cls.__init__, conf.parameters)  # type: ignore
 
     service_provider.register(cls, scope=conf.scope)

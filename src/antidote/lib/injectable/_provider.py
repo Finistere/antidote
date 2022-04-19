@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import inspect
-from typing import cast, Dict, Hashable, Optional
+from typing import Any, Callable, Dict, Hashable, Optional, TypeVar, Union
 
-from .._internal import API
-from .._internal.utils import debug_repr, FinalImmutable
-from ..core import Container, DependencyDebug, DependencyValue, Provider, Scope
+from antidote._internal import API
+from antidote._internal.utils import debug_repr, FinalImmutable
+from antidote.core import Container, DependencyDebug, DependencyValue, Provider, Scope
+
+C = TypeVar('C', bound=type)
 
 
+@API.deprecated
 @API.private
 class Parameterized(FinalImmutable):
     __slots__ = ('wrapped', 'parameters', '_hash')
-    wrapped: Hashable
+    wrapped: Any
     parameters: Dict[str, object]
     _hash: int
 
@@ -45,56 +48,67 @@ class Parameterized(FinalImmutable):
 
 
 @API.private
-class ServiceProvider(Provider[Hashable]):
+class InjectableProvider(Provider[Union[Parameterized, type]]):
     def __init__(self) -> None:
         super().__init__()
-        self.__services: Dict[object, Optional[Scope]] = dict()
+        self.__services: dict[type, tuple[Optional[Scope], Callable[..., object]]] = dict()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(services={list(self.__services.items())!r})"
 
-    def exists(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: object) -> bool:
         if isinstance(dependency, Parameterized):
-            return dependency.wrapped in self.__services
+            return isinstance(dependency.wrapped, type) and dependency.wrapped in self.__services
         return dependency in self.__services
 
-    def clone(self, keep_singletons_cache: bool) -> ServiceProvider:
-        p = ServiceProvider()
+    def clone(self, keep_singletons_cache: bool) -> InjectableProvider:
+        p = InjectableProvider()
         p.__services = self.__services.copy()
         return p
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
-        klass = dependency.wrapped if isinstance(dependency, Parameterized) else dependency
-        try:
-            scope = self.__services[klass]
-        except KeyError:
-            return None
+    def debug(self, dependency: Union[Parameterized, type]) -> DependencyDebug:
+        if isinstance(dependency, Parameterized):
+            assert isinstance(dependency.wrapped, type)
+            klass = dependency.wrapped
+        else:
+            klass = dependency
+        scope, factory = self.__services[klass]
         return DependencyDebug(debug_repr(dependency),
                                scope=scope,
-                               wired=[klass])
+                               wired=[factory])
 
-    def maybe_provide(self, dependency: Hashable, container: Container
+    def maybe_provide(self,
+                      dependency: object,
+                      container: Container
                       ) -> Optional[DependencyValue]:
-        dep = dependency.wrapped if isinstance(dependency, Parameterized) else dependency
+        if isinstance(dependency, Parameterized):
+            if not isinstance(dependency.wrapped, type):
+                # Parameterized is deprecated anyway.
+                return None  # pragma: no cover
+            klass: type = dependency.wrapped
+        elif isinstance(dependency, type):
+            klass = dependency
+        else:
+            return None
         try:
-            scope = self.__services[dep]
+            scope, factory = self.__services[klass]
         except KeyError:
             return None
 
-        klass = cast(type, dep)
         if isinstance(dependency, Parameterized):
-            instance = klass(**dependency.parameters)
+            instance = factory(**dependency.parameters)
         else:
-            instance = klass()
+            instance = factory()
 
         return DependencyValue(instance, scope=scope)
 
     def register(self,
-                 klass: type,
+                 klass: C,
                  *,
-                 scope: Optional[Scope]
+                 scope: Optional[Scope],
+                 factory: Optional[Callable[[], C]] = None
                  ) -> None:
         assert inspect.isclass(klass) \
                and (isinstance(scope, Scope) or scope is None)
         self._assert_not_duplicate(klass)
-        self.__services[klass] = scope
+        self.__services[klass] = scope, factory or klass

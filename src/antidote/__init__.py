@@ -1,9 +1,11 @@
 from . import world
+from ._config import config
 from .constants import const, Constants
 from .core import Arg, From, FromArg, Get, inject, Inject, Provide, Scope, wire, Wiring
 from .factory import Factory, factory
 from .implementation import implementation
 from .lazy import LazyCall, LazyMethodCall
+from .lib.injectable import injectable
 from .lib.interface import ImplementationsOf, implements, interface, QualifiedBy
 from .service import ABCService, Service, service
 from .utils import is_compiled
@@ -34,9 +36,11 @@ __all__ = [
     'const',
     'constants',
     'factory',
+    'config',
     'implementation',
     'implements',
     'inject',
+    'injectable',
     'interface',
     'is_compiled',
     'service',

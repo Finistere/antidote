@@ -39,8 +39,9 @@ source = [
 
 [tool.coverage.report]
 exclude_lines = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:"
+    "# pragma: no cover",
+    "if TYPE_CHECKING:$",
+    "^\\s*\\.\\.\\.$"
 ]
 
 
@@ -50,14 +51,9 @@ exclude_lines = [
 [tool.pyright]
 include = [
     "src",
-    "tests/lib/interface/**",
+    "tests/lib",
 ]
 exclude = [
-    "tests/core/**",
-    "tests/internals/**",
-    "tests/mypy_typing/**",
-    "tests/providers/**",
-    "tests/world/**",
     "tests/lib/test_constants.py",
     "tests/lib/test_lazy.py",
     "tests/lib/test_factory.py",
@@ -77,4 +73,17 @@ reportSelfClsParameterName = false
 reportImportCycles = false
 # We're using our own internal APIs which we're trying to hide as much as possible
 reportPrivateUsage = false
+# some cast / ignores are for MyPy.
 reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnnecessaryCast = "warning"
+
+
+########
+# Mypy #
+########
+[tool.mypy]
+files = [
+    "src",
+]
+python_version = "3.7"
+strict = true

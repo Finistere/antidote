@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from antidote import const, Constants, inject, Wiring, world
-from antidote._providers import LazyProvider, ServiceProvider
+from antidote._providers import LazyProvider
+from antidote.lib.injectable import register_injectable_provider
 from antidote.core.exceptions import DependencyInstantiationError
 from antidote.exceptions import DependencyNotFoundError
 
@@ -16,7 +17,7 @@ class A:
 def test_world():
     with world.test.empty():
         world.provider(LazyProvider)
-        world.provider(ServiceProvider)
+        register_injectable_provider()
         yield
 
 

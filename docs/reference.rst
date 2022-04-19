@@ -23,8 +23,8 @@ world
 
         .. doctest:: world_get
 
-            >>> from antidote import world, service
-            >>> @service
+            >>> from antidote import world, injectable
+            >>> @injectable
             ... class Dummy:
             ...     pass
             >>> world.get(Dummy)
@@ -57,19 +57,34 @@ world.test.override
     :members:
 
 
+
 Utilities
 =========
 
+
+.. automodule:: antidote._config
+    :members:
+
+    .. py:data:: config
+        :type: antidote._config.Config
+
+        Singleton instance of :py:class:`.Config`
+
+
 .. automodule:: antidote.utils
     :members: is_compiled, validated_scope, validate_injection
+
 
 
 Lib
 ===
 
 
-Service
--------
+Injectable
+----------
+
+.. automodule:: antidote.lib.injectable
+    :members:
 
 .. automodule:: antidote.service
     :members: service
@@ -151,13 +166,18 @@ Inject
 
     .. py:function:: inject
 
-        Singleton instance of :py:class:`~.core.injection.Inject`
+        Singleton instance of :py:class:`~.core.injection.Injector`
 
-.. autoclass:: antidote.core.injection.Inject
+.. autoclass:: antidote.core.injection.Injector
 
     .. automethod:: __call__
     .. automethod:: me
-    .. automethod:: get
+    .. py:attribute:: get
+        :type: antidote.core.getter.DependencyGetter
+
+        :py:class:`.DependencyGetter` to explicit state the dependencies to be retrieved.
+        It follows the same API as :py:obj:`.world.get`.
+
 
 .. autoclass:: antidote.core.getter.DependencyGetter
     :members: __call__, __getitem__

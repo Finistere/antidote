@@ -225,9 +225,9 @@ Lazily calling a method requires the class to be :py:class:`.Service`.
 
 .. testcode:: recipes_lazy
 
-    from antidote import LazyMethodCall, service
+    from antidote import LazyMethodCall, injectable
 
-    @service
+    @injectable
     class ExampleCom:
         def get(url):
             return requests.get(f"https://example.com{url}")
@@ -489,8 +489,8 @@ To use the newly created scope, use :code:`scope` parameters:
 
 .. doctest:: recipes_scope
 
-    >>> from antidote import service
-    >>> @service(scope=REQUEST_SCOPE)
+    >>> from antidote import injectable
+    >>> @injectable(scope=REQUEST_SCOPE)
     ... class Dummy:
     ...     pass
 

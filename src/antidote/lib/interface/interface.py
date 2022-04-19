@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, cast, Generic, List, Optional, Type, TypeVar
+from typing import Any, Callable, cast, Dict, Generic, List, Optional, Type, TypeVar, Union
 
-from typing_extensions import final
+from typing_extensions import final, Literal
 
 from ._internal import create_constraints, register_implementation, register_interface
 from ._provider import InterfaceProvider, Query
 from .predicate import NeutralWeight, Predicate, PredicateConstraint, PredicateWeight
 from .qualifier import QualifiedBy
 from ..._internal import API
+from ..._internal.localns import retrieve_or_validate_injection_locals
+from ..._internal.utils import Default
 from ...core import Dependency, inject
 
 __all__ = ['register_interface_provider', 'interface', 'implements', 'ImplementationsOf']
@@ -132,7 +134,10 @@ def interface(klass: C) -> C:
         decorated interface class.
 
     """
-    return register_interface(klass)
+    if not isinstance(klass, type):
+        raise TypeError(f"Expected a class for the interface, got a {type(klass)!r}")
+    register_interface(klass)
+    return klass
 
 
 @API.public
@@ -163,18 +168,39 @@ class implements(Generic[Itf]):
 
     """
 
-    def __init__(self, __interface: Itf) -> None:
+    def __init__(self,
+                 __interface: Itf,
+                 *,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
+                 ) -> None:
         """
         Args:
             __interface: Interface class.
+            type_hints_locals: Local variables to use for :py:func:`typing.get_type_hints`. They
+                can be explicitly defined by passing a dictionary or automatically detected with
+                :py:mod:`inspect` and frame manipulation by specifying :code:`'auto'`. Specifying
+                :py:obj:`None` will deactivate the use of locals. When :code:`ignore_type_hints` is
+                :py:obj:`True`, this features cannot be used. The default behavior depends on the
+                :py:data:`.config` value of :py:attr:`~.Config.auto_detect_type_hints_locals`. If
+                :py:obj:`True` the default value is equivalent to specifying :code:`'auto'`,
+                otherwise to :py:obj:`None`.
+
+                .. versionadded:: 1.3
         """
         self.__interface = __interface
+        self.__type_hints_locals = retrieve_or_validate_injection_locals(type_hints_locals)
 
     @API.public
     def __call__(self, klass: C) -> C:
         register_implementation(
             interface=self.__interface,
             implementation=klass,
+            type_hints_locals=self.__type_hints_locals,
             predicates=[]
         )
         return klass
@@ -215,6 +241,7 @@ class implements(Generic[Itf]):
             register_implementation(
                 interface=self.__interface,
                 implementation=klass,
+                type_hints_locals=self.__type_hints_locals,
                 predicates=predicates
             )
             return klass

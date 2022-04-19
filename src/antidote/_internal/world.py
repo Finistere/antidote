@@ -101,15 +101,15 @@ class TypedWorldLazy(Generic[T], Immutable):
 def new_container() -> RawContainer:
     """ default new container in Antidote """
 
-    from .._providers import (LazyProvider, ServiceProvider,
-                              IndirectProvider, FactoryProvider)
+    from .._providers import LazyProvider, IndirectProvider, FactoryProvider
     from ..lib.interface._provider import InterfaceProvider
+    from ..lib.injectable._provider import InjectableProvider
 
     container = RawContainer()
     container.add_provider(FactoryProvider)
     container.add_provider(LazyProvider)
     container.add_provider(IndirectProvider)
-    container.add_provider(ServiceProvider)
+    container.add_provider(InjectableProvider)
     container.add_provider(InterfaceProvider)
 
     return container

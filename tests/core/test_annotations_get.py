@@ -3,7 +3,7 @@ from typing import Type
 import pytest
 from typing_extensions import Annotated
 
-from antidote import factory, Get, inject, service, world
+from antidote import factory, Get, inject, injectable, world
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +13,7 @@ def new_world():
 
 
 def test_injectable():
-    @service
+    @injectable
     class Dummy:
         pass
 
@@ -30,7 +30,7 @@ def test_injectable():
 
 
 def test_nested_get():
-    @service
+    @injectable
     class Dummy:
         pass
 

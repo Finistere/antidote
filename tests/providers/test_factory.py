@@ -2,7 +2,7 @@ import pytest
 
 from antidote import Scope, world
 from antidote._providers import FactoryProvider
-from antidote._providers.service import Parameterized
+from antidote.lib.injectable._provider import Parameterized
 from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
                                  FrozenWorldError)
 

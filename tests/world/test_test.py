@@ -3,7 +3,7 @@ from typing import Callable, Hashable, Optional
 import pytest
 
 from antidote import world
-from antidote._providers import ServiceProvider
+from antidote.lib.injectable._provider import InjectableProvider
 from antidote.core import (Container, DependencyValue, StatelessProvider)
 from antidote.core.exceptions import FrozenWorldError
 from antidote.exceptions import DependencyNotFoundError
@@ -67,7 +67,7 @@ def test_world(context: Callable, keeps_singletons: bool, strategy: str):
             with pytest.raises(DependencyNotFoundError):
                 world.get(DummyIntProvider)
             with pytest.raises(DependencyNotFoundError):
-                world.get(ServiceProvider)
+                world.get(InjectableProvider)
 
         if strategy != 'clone':
             world.test.singleton("y", y)
@@ -138,7 +138,7 @@ def test_empty():
         world.provider(DummyIntProvider)
         assert world.get(10) == 20
         with pytest.raises(DependencyNotFoundError):
-            world.get(ServiceProvider)
+            world.get(InjectableProvider)
 
     with pytest.raises(DependencyNotFoundError):
         world.get("a")

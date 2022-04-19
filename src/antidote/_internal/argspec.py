@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, Dict, Iterator, List, Sequence, Set, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Union
 
 from typing_extensions import get_type_hints
 
@@ -47,7 +47,8 @@ class Arguments:
     def from_callable(cls,
                       func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]],
                       *,
-                      ignore_type_hints: bool = False
+                      ignore_type_hints: bool = False,
+                      type_hints_locals: Optional[dict[str, object]] = None
                       ) -> Arguments:
         if not (callable(func) or isinstance(func, (staticmethod, classmethod))):
             raise TypeError(f"func must be a callable or a static/class-method. "
@@ -55,7 +56,8 @@ class Arguments:
         return cls._build(
             func=func.__func__ if isinstance(func, (staticmethod, classmethod)) else func,
             unbound_method=is_unbound_method(func),  # doing it before un-wrapping.
-            ignore_type_hints=ignore_type_hints
+            ignore_type_hints=ignore_type_hints,
+            type_hints_locals=type_hints_locals
         )
 
     @classmethod
@@ -63,7 +65,8 @@ class Arguments:
                *,
                func: Callable[..., object],
                unbound_method: bool,
-               ignore_type_hints: bool
+               ignore_type_hints: bool,
+               type_hints_locals: Optional[dict[str, object]]
                ) -> Arguments:
         arguments: List[Argument] = []
         has_var_positional = False
@@ -74,8 +77,8 @@ class Arguments:
             type_hints = {}
             extra_type_hints = {}
         else:
-            type_hints = get_type_hints(func)
-            extra_type_hints = get_type_hints(func, include_extras=True)
+            type_hints = get_type_hints(func, localns=type_hints_locals)
+            extra_type_hints = get_type_hints(func, localns=type_hints_locals, include_extras=True)
 
         for name, parameter in inspect.signature(func).parameters.items():
             if parameter.kind is parameter.VAR_POSITIONAL:
@@ -153,7 +156,7 @@ def is_unbound_method(func: Union[Callable[..., object], staticmethod[Any], clas
     >>> class A:
     ...     def f(self):
     ...         pass
-    >>> A.f.__qualname__
+    >>> A.method.__qualname__
     'A.f'
 
     This helps us differentiate method defined in a module and those for a class.

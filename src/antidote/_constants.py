@@ -164,10 +164,11 @@ class LazyConstDescriptor(Generic[Tco], FinalImmutable):
             raise
 
         if self.auto_cast:
-            value = self.type_(value)
+            value = cast(type, self.type_)(value)  # necessary for Mypy...
 
         assert enforce_type_if_possible(value, self.type_)
-        return value
+        # See https://github.com/python/mypy/issues/11428
+        return cast(Tco, value)  # necessary for Mypy...
 
 
 @API.private

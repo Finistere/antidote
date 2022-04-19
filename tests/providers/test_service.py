@@ -1,7 +1,7 @@
 import pytest
 
 from antidote import Scope, world
-from antidote._providers.service import Parameterized, ServiceProvider
+from antidote.lib.injectable._provider import Parameterized, InjectableProvider
 from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
                                  FrozenWorldError)
 
@@ -9,8 +9,8 @@ from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyErr
 @pytest.fixture
 def provider():
     with world.test.empty():
-        world.provider(ServiceProvider)
-        yield world.get(ServiceProvider)
+        world.provider(InjectableProvider)
+        yield world.get(InjectableProvider)
 
 
 @pytest.fixture(params=[
@@ -69,7 +69,7 @@ def test_parameterized_eq_hash():
         assert a != x
 
 
-def test_simple(provider: ServiceProvider, scope: Scope):
+def test_simple(provider: InjectableProvider, scope: Scope):
     provider.register(A, scope=scope)
     assert isinstance(world.get(A), A)
     assert repr(A) in repr(provider)
@@ -78,14 +78,14 @@ def test_simple(provider: ServiceProvider, scope: Scope):
 @pytest.mark.parametrize('singleton', [True, False])
 def test_register(singleton: bool):
     with world.test.empty():
-        provider = ServiceProvider()
+        provider = InjectableProvider()
         provider.register(A, scope=Scope.singleton() if singleton else None)
         assert world.test.maybe_provide_from(provider, A).is_singleton() is singleton
         assert isinstance(world.test.maybe_provide_from(provider, A).unwrapped, A)
 
 
 def test_parameterized(scope: Scope):
-    provider = ServiceProvider()
+    provider = InjectableProvider()
     provider.register(A, scope=scope)
 
     s = world.test.maybe_provide_from(provider,
@@ -94,7 +94,7 @@ def test_parameterized(scope: Scope):
     assert dict(val=object) == s.kwargs
 
 
-def test_duplicate_error(provider: ServiceProvider, scope: Scope):
+def test_duplicate_error(provider: InjectableProvider, scope: Scope):
     provider.register(A, scope=scope)
 
     with pytest.raises(DuplicateDependencyError):
@@ -102,7 +102,7 @@ def test_duplicate_error(provider: ServiceProvider, scope: Scope):
 
 
 @pytest.mark.parametrize('keep_singletons_cache', [True, False])
-def test_copy(provider: ServiceProvider,
+def test_copy(provider: InjectableProvider,
               keep_singletons_cache: bool, scope: Scope):
     class C:
         pass
@@ -136,14 +136,14 @@ def test_copy(provider: ServiceProvider,
         world.get(E)
 
 
-def test_freeze(provider: ServiceProvider, scope: Scope):
+def test_freeze(provider: InjectableProvider, scope: Scope):
     world.freeze()
 
     with pytest.raises(FrozenWorldError):
         provider.register(A, scope=scope)
 
 
-def test_exists(provider: ServiceProvider, scope: Scope):
+def test_exists(provider: InjectableProvider, scope: Scope):
     provider.register(A, scope=scope)
     assert not provider.exists(object())
     assert provider.exists(A)
@@ -151,7 +151,7 @@ def test_exists(provider: ServiceProvider, scope: Scope):
     assert not provider.exists(Parameterized(B, dict(a=1)))
 
 
-def test_custom_scope(provider: ServiceProvider):
+def test_custom_scope(provider: InjectableProvider):
     dummy_scope = world.scopes.new(name='dummy')
 
     class MyService:
@@ -169,6 +169,6 @@ def test_custom_scope(provider: ServiceProvider):
     pytest.param(object(), None, id='klass'),
     pytest.param(A, object(), id='scope')
 ])
-def test_sanity_checks(provider: ServiceProvider, klass, scope):
+def test_sanity_checks(provider: InjectableProvider, klass, scope):
     with pytest.raises((AssertionError, TypeError)):
         provider.register(klass, scope=scope)

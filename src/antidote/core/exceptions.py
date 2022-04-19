@@ -21,6 +21,17 @@ class DoubleInjectionError(AntidoteError):
         super().__init__(f"Object {func} has already been injected by Antidote.")
 
 
+# Inheriting RuntimeError, as it used to be one before using a custom exception.
+# Do not rely on it being a RuntimeError. It will be removed in the future.
+@API.public
+class NoInjectionsFoundError(AntidoteError, RuntimeError):
+    """
+    Raised when no injection could be found for a given function, even though parameters like
+    :code:`ignore_type_hints` were explicitly specified. Usually this implies that
+    :py:func:`.inject` was supposed to find injection, but just not in the type hints.
+    """
+
+
 @API.public
 class DuplicateDependencyError(AntidoteError):
     """

@@ -2,7 +2,7 @@ from .annotations import From, FromArg, Get, Inject, Provide
 from .container import Container, DependencyValue, Scope
 from .injection import Arg, DEPENDENCIES_TYPE, inject
 from .provider import does_not_freeze, Provider, StatelessProvider
-from .typing import Source, Dependency
+from .typing import Dependency, Source
 from .utils import DependencyDebug
 from .wiring import wire, Wiring, WithWiringMixin
 

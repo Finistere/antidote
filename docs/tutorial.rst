@@ -13,13 +13,13 @@ more in depth documentation.
 ===============
 
 
-Let's start with the basics and define a simple class that can be injected, an :py:func:`.service`:
+Let's start with the basics and define a simple class that can be injected, an :py:func:`.injectable`:
 
 .. testcode:: tutorial_overview
 
-    from antidote import inject, service
+    from antidote import inject, injectable
 
-    @service
+    @injectable
     class Database:
         ...
 
@@ -35,7 +35,7 @@ Now you don't need to provide :code:`Database` to :code:`do_stuff()` anymore!
     >>> load_database()
     <Database object at ...>
 
-By default :py:func:`.service` declares singletons, meaning there's only one instance of
+By default :py:func:`.injectable` declares singletons, meaning there's only one instance of
 :code:`Database`:
 
 .. doctest:: tutorial_overview
@@ -97,14 +97,14 @@ Antidote will enforce the type when possible, if the provided type information i
 
 
 But how does Antidote work underneath ? To simplify a bit, Antidote can be summarized as single
-catalog of dependencies :py:mod:`.world`. Decorators like :py:func:`.service` declares dependencies
+catalog of dependencies :py:mod:`.world`. Decorators like :py:func:`.injectable` declares dependencies
 and :py:obj:`.inject` retrieves them::
 
                  +-----------+
           +----->|   world   +------+
           |      +-----------+      |
 
-       @service                  @inject
+       @injectable                  @inject
 
           |                         |
           |                         v
@@ -123,13 +123,13 @@ ways to define the dependencies to be injected. Most of them will be used in thi
 
 .. testcode:: tutorial_injection
 
-    from antidote import inject, service
+    from antidote import inject, injectable
 
-    @service
+    @injectable
     class Database:
         ...
 
-    @service
+    @injectable
     class Cache:
         ...
 
@@ -211,76 +211,128 @@ The only exception is the :py:meth:`.Inject.me` marker which will provide :py:ob
     True
 
 
-3. Services
-===========
+3. Injectables
+==============
 
 
-A service is class that can be provided by Antidote, it's declared with :py:func:`.service`.
+Any class decorated with `@injectable` can be provided by Antidote:.
 
-.. testcode:: tutorial_services
+.. testcode:: tutorial_injectables
 
-    from antidote import service
+    from antidote import injectable
 
-    @service
+    @injectable
     class Database:
         ...
+
+.. doctest:: tutorial_injectables
+    :hide:
+
+    >>> from antidote import world
+    >>> world.get(Database)
+    <Database object at ...>
+    >>> world.get(Database) is world.get(Database)
+    True
 
 By default it's a singleton, so only one instance will exist. This behavior can be controlled with:
 
-.. testcode:: tutorial_services
+.. testcode:: tutorial_injectables
 
-    @service(singleton=False)
+    @injectable(singleton=False)
     class Database:
         ...
 
-On top of declaring the dependency, :py:func:`.service` also wires the class and so injects all
+.. doctest:: tutorial_injectables
+    :hide:
+
+    >>> from antidote import world
+    >>> world.get(Database)
+    <Database object at ...>
+    >>> world.get(Database) is not world.get(Database)
+    True
+
+On top of declaring the dependency, :py:func:`.injectable` also wires the class and so injects all
 methods by default:
 
-.. testcode:: tutorial_services
+.. testcode:: tutorial_injectables
 
     from antidote import inject
 
-    @service
+    @injectable
     class AuthenticationService:
         def __init__(self, db: Database = inject.me()):
             self.db = db
 
-.. doctest:: tutorial_services
+.. doctest:: tutorial_injectables
 
     >>> from antidote import world
     >>> world.get(AuthenticationService).db
     <Database object at ...>
 
-You can customize injection by applying a custom :py:func:`.inject` on methods or by specifying your
+You can customize injection by applying a custom :py:func:`.inject` on methods:
+
+.. testcode:: tutorial_injectables
+
+    @injectable
+    class AuthenticationService:
+        @inject({'db': Database})
+        def __init__(self, db: Database):
+            self.db = db
+
+.. doctest:: tutorial_injectables
+    :hide:
+
+    >>> from antidote import world
+    >>> world.get(AuthenticationService).db
+    <Database object at ...>
+
+
+or by specifying your
 own :py:class:`.Wiring`.
 
-.. testcode:: tutorial_services
-
-    from __future__ import annotations
+.. testcode:: tutorial_injectables
 
     from antidote import Wiring
 
-    @service
+    @injectable(wiring=Wiring(methods=['__init__']))
     class AuthenticationService:
-        # Out of the box this wiring would fail as Antidote would try to retrieve the type hints
-        # and AuthenticationService isn't yet defined.
-        @inject(ignore_type_hints=True)
-        def __init__(self,
-                     original: Optional[AuthenticationService] = None,
-                     db: Database = inject.get(Database)):
+        def __init__(self, db: Database = inject.me()):
             self.db = db
 
-    @service(wiring=Wiring(methods=['__init__']))
-    class AuthenticationService:
-        def __init__(db: Database = inject.me()):
-            self.db = db
+.. doctest:: tutorial_injectables
+    :hide:
+
+    >>> from antidote import world
+    >>> world.get(AuthenticationService).db
+    <Database object at ...>
 
 .. note::
 
     This class wiring behavior can be used through :py:func:`.wire`, it isn't specific to
-    :py:func:`.service`.
+    :py:func:`.injectable`.
 
-One last point, :py:func:`.service` is best used on your own classes. If you want to register
+You can also specify a factory method to control to have fine control over the instantiation:
+
+.. testcode:: tutorial_injectables
+
+    from __future__ import annotations
+
+
+    @injectable(factory_method='build')
+    class AuthenticationService:
+        @classmethod
+        def build(cls) -> AuthenticationService:
+            return cls()
+
+.. doctest:: tutorial_injectables
+    :hide:
+
+    >>> from antidote import world
+    >>> world.get(AuthenticationService)
+    <AuthenticationService object at ...>
+
+
+One last point, :py:func:`.injectable` is best used on your own classes. If you want to register
 external classes in Antidote, you should rely on a :py:func:`~.factory.factory` instead presented
 in a later section.
 
@@ -519,9 +571,9 @@ Until now, you've seen that you could still use normally injected functions:
 
 .. testcode:: tutorial_test
 
-    from antidote import service, inject
+    from antidote import injectable, inject
 
-    @service
+    @injectable
     class MyService:
         pass
 
@@ -594,7 +646,7 @@ cannot be defined. After all you want to test your existing dependencies not cre
 .. doctest:: tutorial_test
 
     >>> with world.test.clone():
-    ...     @service
+    ...     @injectable
     ...     class NewService:
     ...         pass
     Traceback (most recent call last):
@@ -606,7 +658,7 @@ To test new dependencies, you should use :py:func:`.world.test.new` instead:
 .. doctest:: tutorial_test
 
     >>> with world.test.new():
-    ...     @service
+    ...     @injectable
     ...     class NewService:
     ...         pass
     ...     world.get(NewService)

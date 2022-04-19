@@ -60,9 +60,9 @@ and where it should be injected:
 
 .. testcode:: why_dependency_injection
 
-    from antidote import service, inject
+    from antidote import injectable, inject
 
-    @service
+    @injectable
     class Database:
         def query(self, sql: str) -> Any:
             pass
@@ -84,7 +84,7 @@ so you want to avoid it if possible. A simple way to do
 
 .. testcode:: why_dependency_injection
 
-    # services.py
+    # injectables.py
     from typing import Optional
 
     __db: Optional[Database] = None
@@ -136,13 +136,13 @@ to do all that wiring properly. Here is the same example with Antidote:
 
 .. testcode:: why_dependency_injection
 
-    from antidote import service, inject, Constants, const
+    from antidote import injectable, inject, Constants, const
 
     class Config(Constants):
         DB_HOST = const('localhost')
         DB_PORT = const(5432)
 
-    @service
+    @injectable
     class Database:
         def __init__(self,
                      host: str = Config.DB_HOST,
@@ -267,9 +267,9 @@ Let's see how the same example looks with Antidote:
 
     # my_service.py
     # Antidote
-    from antidote import service
+    from antidote import injectable
 
-    @service
+    @injectable
     class MyService:
         pass
 

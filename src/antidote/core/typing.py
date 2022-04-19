@@ -25,7 +25,7 @@ class Source(Protocol[Tct]):
 @API.private
 class CallableClass(Protocol[Tco]):
     def __call__(self, *args: Any, **kwargs: Any) -> Tco:
-        ...  # pragma: no cover
+        ...
 
 
 @API.private

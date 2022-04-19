@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import collections.abc as c_abc
 import warnings
-from typing import (Any, Callable, Hashable, Iterable, Mapping, Optional,
-                    overload,
-                    Sequence, Type, TYPE_CHECKING, TypeVar, Union)
+from typing import (Any, Callable, Dict, Hashable, Iterable, Mapping, Optional,
+                    overload, Sequence, Type, TYPE_CHECKING, TypeVar, Union)
 
-from typing_extensions import final, TypeAlias
+from typing_extensions import final, Literal, TypeAlias
 
 from .annotations import Get
 from .getter import DependencyGetter
 from .marker import InjectClassMarker, InjectFromSourceMarker, InjectImplMarker
 from .._internal import API
-from .._internal.utils import FinalImmutable
+from .._internal.localns import retrieve_or_validate_injection_locals
+from .._internal.utils import Default, FinalImmutable
 from .._internal.utils.meta import Singleton
 
 if TYPE_CHECKING:
@@ -68,7 +68,7 @@ AUTO_PROVIDE_TYPE: TypeAlias = Optional[Union[
 
 
 @API.private  # Use the singleton instance `inject`, not the class directly.
-class Inject(Singleton):
+class Injector(Singleton):
     """
     Use :py:obj:`.inject` directly, this class is not meant to instantiated or
     subclassed.
@@ -80,14 +80,14 @@ class Inject(Singleton):
 
     @overload
     def me(self) -> Any:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def me(self,
            *,
            source: Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]
            ) -> Any:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def me(self,
@@ -95,7 +95,7 @@ class Inject(Singleton):
            qualified_by: Optional[object | list[object]] = None,
            qualified_by_one_of: Optional[list[object]] = None
            ) -> Any:
-        ...  # pragma: no cover
+        ...
 
     @API.public
     def me(self,
@@ -109,8 +109,8 @@ class Inject(Singleton):
 
         .. doctest:: core_inject_me
 
-            >>> from antidote import inject, service
-            >>> @service
+            >>> from antidote import inject, injectable
+            >>> @injectable
             ... class MyService:
             ...     pass
             >>> @inject
@@ -205,9 +205,15 @@ class Inject(Singleton):
                  dependencies: DEPENDENCIES_TYPE = None,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> staticmethod[F]:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -216,9 +222,15 @@ class Inject(Singleton):
                  dependencies: DEPENDENCIES_TYPE = None,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> classmethod[F]:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -227,9 +239,15 @@ class Inject(Singleton):
                  dependencies: DEPENDENCIES_TYPE = None,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> F:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -237,9 +255,15 @@ class Inject(Singleton):
                  dependencies: DEPENDENCIES_TYPE = None,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> Callable[[F], F]:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -247,9 +271,15 @@ class Inject(Singleton):
                  *,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> Callable[[F], F]:
-        ...  # pragma: no cover
+        ...
 
     @overload
     def __call__(self,
@@ -257,9 +287,15 @@ class Inject(Singleton):
                  *,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> Callable[[F], F]:
-        ...  # pragma: no cover
+        ...
 
     @API.public
     def __call__(self,
@@ -268,7 +304,13 @@ class Inject(Singleton):
                  dependencies: DEPENDENCIES_TYPE = None,
                  auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
                  strict_validation: bool = True,
-                 ignore_type_hints: bool = False
+                 ignore_type_hints: bool = False,
+                 type_hints_locals: Union[
+                     Dict[str, object],
+                     Literal['auto'],
+                     Default,
+                     None
+                 ] = Default.sentinel
                  ) -> AnyF:
         """
         Inject the dependencies into the function lazily, they are only retrieved
@@ -281,11 +323,11 @@ class Inject(Singleton):
 
         .. doctest:: core_inject
 
-            >>> from antidote import inject, service, Inject
-            >>> @service
+            >>> from antidote import inject, injectable, Inject
+            >>> @injectable
             ... class A:
             ...     pass
-            >>> @service
+            >>> @injectable
             ... class B:
             ...     pass
             >>> @inject
@@ -304,7 +346,6 @@ class Inject(Singleton):
             ...     pass  # a, b = <not injected>, world.get('dependency')
 
         Args:
-            ignore_type_hints:
             __arg: Callable to be wrapped. Can also be used on static methods or class
                 methods. May also be sequence of dependencies or mapping from argument
                 name to dependencies.
@@ -334,6 +375,18 @@ class Inject(Singleton):
                 decorated function's argumnet. For example, a key in the dependencies dict
                 that does not match any argument would raise error. Defaults to
                 :py:obj:`True`.
+            ignore_type_hints: If :py:obj:`True`, type hints will not be used at all and
+                :code:`type_hints_locals` will have no impact.
+            type_hints_locals: Local variables to use for :py:func:`typing.get_type_hints`. They
+                can be explicitly defined by passing a dictionary or automatically detected with
+                :py:mod:`inspect` and frame manipulation by specifying :code:`'auto'`. Specifying
+                :py:obj:`None` will deactivate the use of locals. When :code:`ignore_type_hints` is
+                :py:obj:`True`, this features cannot be used. The default behavior depends on the
+                :py:data:`.config` value of :py:attr:`~.Config.auto_detect_type_hints_locals`. If
+                :py:obj:`True` the default value is equivalent to specifying :code:`'auto'`,
+                otherwise to :py:obj:`None`.
+
+                .. versionadded:: 1.3
 
         Returns:
             The decorator to be applied or the injected function if the
@@ -364,23 +417,37 @@ class Inject(Singleton):
             If you rely on this behavior, wrap @inject instead.
             """, DeprecationWarning)
 
+        if ignore_type_hints:
+            if type_hints_locals is not None and type_hints_locals is not Default.sentinel:
+                raise TypeError(f"When ignoring type hints, type_hints_locals MUST be None "
+                                f"or not specified at all. Got: {type_hints_locals}")
+            localns = None
+        else:
+            localns = retrieve_or_validate_injection_locals(type_hints_locals)
+
         def decorate(f: AnyF) -> AnyF:
             return raw_inject(
                 f,
                 dependencies=dependencies,
                 auto_provide=auto_provide if auto_provide is not None else False,
                 strict_validation=strict_validation,
-                ignore_type_hints=ignore_type_hints
+                ignore_type_hints=ignore_type_hints,
+                type_hints_locals=localns
             )
 
         return __arg and decorate(__arg) or decorate
 
 
-inject = Inject()
-inject.__doc__ = \
-    """
-    Singleton instance of :py:class:`~.core.injection.Inject`
-    """
+def __apply_inject(_: object) -> Injector:
+    return Injector()
+
+
+# A bit unclear why this works better in PyCharm for typing. But in all cases, it looks better
+# as it gets the syntax coloration of a real function.
+# API.public
+@__apply_inject
+def inject() -> None:
+    ...
 
 
 @API.public  # Function will be kept in sync with @inject, so you may use it.

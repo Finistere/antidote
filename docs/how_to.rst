@@ -14,9 +14,9 @@ existing dependency:
 
     .. testcode:: how_to_annotated_type_hints
 
-        from antidote import service, inject, Inject
+        from antidote import injectable, inject, Inject
 
-        @service
+        @injectable
         class Database:
             pass
 
@@ -105,9 +105,9 @@ arguments:
 
 .. testcode:: how_to_test
 
-    from antidote import inject, service
+    from antidote import inject, injectable
 
-    @service
+    @injectable
     class Database:
         pass
 
@@ -200,9 +200,9 @@ tree with :py:func:`.world.debug`:
 
 .. testcode:: how_to_debug
 
-    from antidote import world, service, inject
+    from antidote import world, injectable, inject
 
-    @service
+    @injectable
     class MyService:
         pass
 

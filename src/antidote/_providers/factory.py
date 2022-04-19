@@ -4,7 +4,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Callable, Dict, Hashable, List, Optional
 
-from .service import Parameterized
+from ..lib.injectable._provider import Parameterized
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
 from ..core import (Container, DependencyDebug, DependencyValue, does_not_freeze, Provider,
@@ -97,9 +97,9 @@ class FactoryProvider(Provider[Hashable]):
             factory.function = f.unwrapped
 
         if isinstance(dependency, Parameterized):
-            instance: object = factory.function(**dependency.parameters)
+            instance: object = factory.function(**dependency.parameters)  # type: ignore
         else:
-            instance = factory.function()
+            instance = factory.function()  # type: ignore
 
         return DependencyValue(instance, scope=factory.scope)
 

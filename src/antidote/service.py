@@ -20,7 +20,7 @@ C = TypeVar('C', bound=type)
 class Service(metaclass=ServiceMeta, abstract=True):
     """
     .. deprecated:: 1.1
-        Use :py:func:`~.service.service` instead.
+        Use :py:func:`.injectable` instead.
 
     .. note::
 
@@ -118,7 +118,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
 
         @property
         def singleton(self) -> bool:
-            warnings.warn("Service class is deprecated, use @service decorator instead.",
+            warnings.warn("Service class is deprecated, use @injectable decorator instead.",
                           DeprecationWarning)
             return self.scope is Scope.singleton()
 
@@ -142,7 +142,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
                     :py:class:`~.core.container.Scope`. Defaults to
                     :py:meth:`~.core.container.Scope.singleton`.
             """
-            warnings.warn("Service class is deprecated, use @service decorator instead.",
+            warnings.warn("Service class is deprecated, use @injectable decorator instead.",
                           DeprecationWarning)
             if not (wiring is None or isinstance(wiring, Wiring)):
                 raise TypeError(f"wiring must be a Wiring or None, not {type(wiring)}")
@@ -166,7 +166,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :py:meth:`.__init__`
             """
-            warnings.warn("Service class is deprecated, use @service decorator instead.",
+            warnings.warn("Service class is deprecated, use @injectable decorator instead.",
                           DeprecationWarning)
             if not (singleton is Copy.IDENTICAL or scope is Copy.IDENTICAL):
                 raise TypeError("Use either singleton or scope argument, not both.")
@@ -182,11 +182,11 @@ class Service(metaclass=ServiceMeta, abstract=True):
     """
 
     def __init__(self) -> None:
-        warnings.warn("Service class is deprecated, use @service decorator instead.",
+        warnings.warn("Service class is deprecated, use @injectable decorator instead.",
                       DeprecationWarning)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        warnings.warn("Service class is deprecated, use @service decorator instead.",
+        warnings.warn("Service class is deprecated, use @injectable decorator instead.",
                       DeprecationWarning)
         super().__init_subclass__(**kwargs)
 
@@ -195,7 +195,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
 class ABCService(Service, metaclass=ABCServiceMeta, abstract=True):
     """
     .. deprecated:: 1.1
-        Use :py:func:`~.service.service` instead.
+        Use :py:func:`.injectable` instead.
 
     This class only purpose is to facilitate the use of a abstract parent class, relying
     on :py:class:`abc.ABC`, with :py:class:`.Service`.
@@ -222,18 +222,18 @@ def service(klass: C,
             *,
             singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring()
+            wiring: Optional[Wiring] = Wiring(),
             ) -> C:
-    ...  # pragma: no cover
+    ...
 
 
 @overload
 def service(*,
             singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring()
+            wiring: Optional[Wiring] = Wiring(),
             ) -> Callable[[C], C]:
-    ...  # pragma: no cover
+    ...
 
 
 @API.public
@@ -241,9 +241,12 @@ def service(klass: Optional[C] = None,
             *,
             singleton: Optional[bool] = None,
             scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring()
+            wiring: Optional[Wiring] = Wiring(),
             ) -> Union[C, Callable[[C], C]]:
     """
+    .. deprecated:: 1.3
+        Use :py:func:`.injectable` instead.
+
     Defines the decorated class as a service.
 
     .. doctest:: service_decorator

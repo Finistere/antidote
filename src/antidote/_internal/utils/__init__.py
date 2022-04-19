@@ -20,8 +20,8 @@ else:
     UnionType = Union
 
 Im = TypeVar('Im', bound=Immutable)
-T = TypeVar('T')
-Tp = TypeVar('Tp', bound=type)
+_T = TypeVar('_T')
+_Tp = TypeVar('_Tp', bound=type)
 
 
 @API.private
@@ -66,14 +66,14 @@ def _enforce(obj: Any, tpe: type, check: Callable[[Any, type], bool]) -> None:
 
 
 @API.private
-def enforce_type_if_possible(obj: object, tpe: Type[T]) -> TypeGuard[T]:
+def enforce_type_if_possible(obj: object, tpe: Type[_T]) -> TypeGuard[_T]:
     if isinstance(tpe, type):
         _enforce(obj, tpe, isinstance)
     return True
 
 
 @API.private
-def enforce_subclass_if_possible(child: type, mother: Tp) -> TypeGuard[Tp]:
+def enforce_subclass_if_possible(child: type, mother: _Tp) -> TypeGuard[_Tp]:
     if isinstance(mother, type) and isinstance(child, type):
         _enforce(child, mother, issubclass)
     return True
@@ -97,4 +97,5 @@ def is_optional(type_hint: object) -> bool:
 def extract_optional_value(type_hint: object) -> Optional[object]:
     if is_optional(type_hint):
         args = cast(Any, get_args(type_hint))
-        return args[0] if isinstance(None, args[1]) else args[1]
+        return cast(object, args[0] if isinstance(None, args[1]) else args[1])
+    return None

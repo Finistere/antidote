@@ -1,6 +1,7 @@
 .cache
 .python-version
 .tox
+.tox-venv
 .eggs
 *.pyc
 *.egg-info
