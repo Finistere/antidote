@@ -16,7 +16,7 @@ the given functionality can be relied upon.
 
 
 
-1.2.0 (2022-04-X)
+1.2.0 (2022-04-19)
 ==================
 
 
