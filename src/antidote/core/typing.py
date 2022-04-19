@@ -5,6 +5,7 @@ from typing import Any, Generic, Type, TypeVar
 
 from typing_extensions import Protocol, runtime_checkable
 
+from .marker import Marker
 from .._internal import API
 
 Tct = TypeVar('Tct', contravariant=True)
@@ -29,5 +30,5 @@ class CallableClass(Protocol[Tco]):
 
 
 @API.private
-class Dependency(Generic[Tco]):
+class Dependency(Generic[Tco], Marker):
     pass

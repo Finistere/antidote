@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Any, Awaitable, Callable, cast, Dict, Hashable, Sequence
+from typing import Any, Awaitable, Callable, cast, Dict, Sequence
 
 from . import API
 from .state import current_container
@@ -20,7 +20,7 @@ class Injection(FinalImmutable):
     __slots__ = ('arg_name', 'required', 'dependency', 'default_value')
     arg_name: str
     required: bool
-    dependency: Hashable
+    dependency: object
     default_value: object
 
     def __init__(self,
@@ -28,7 +28,7 @@ class Injection(FinalImmutable):
                  arg_name: str,
                  required: bool,
                  default: object,
-                 dependency: Hashable
+                 dependency: object
                  ) -> None:
         super().__init__(
             arg_name=arg_name,
@@ -62,7 +62,7 @@ def build_wrapper(blueprint: InjectionBlueprint,
 
 
 @API.private
-def get_wrapper_injections(wrapper: Callable[..., object]) -> Dict[str, Hashable]:
+def get_wrapper_injections(wrapper: Callable[..., object]) -> Dict[str, object]:
     if not isinstance(wrapper, InjectedWrapper):
         raise TypeError(f"Argument must be an {InjectedWrapper}")
 

@@ -5,7 +5,7 @@ import dataclasses
 import enum
 import warnings
 from dataclasses import dataclass
-from typing import (Callable, cast, Dict, FrozenSet, Iterable, Optional, overload, TypeVar,
+from typing import (Callable, cast, FrozenSet, Iterable, Mapping, Optional, overload, TypeVar,
                     Union)
 
 from typing_extensions import final, Literal
@@ -160,7 +160,7 @@ class Wiring:
     def wire(self,
              *,
              klass: type,
-             type_hints_locals: Optional[dict[str, object]] = None,
+             type_hints_locals: Optional[Mapping[str, object]] = None,
              class_in_localns: bool = True
              ) -> None:
         ...
@@ -169,7 +169,7 @@ class Wiring:
              __klass: API.Deprecated[Optional[C]] = None,
              *,
              klass: Optional[C] = None,
-             type_hints_locals: Optional[dict[str, object]] = None,
+             type_hints_locals: Optional[Mapping[str, object]] = None,
              class_in_localns: Union[bool, Default] = Default.sentinel
              ) -> Optional[C]:
         """
@@ -220,7 +220,7 @@ class Wiring:
             if class_in_localns:
                 if self.ignore_type_hints:
                     raise ValueError("class_in_localns cannot be True if ignoring type hints!")
-                type_hints_locals = type_hints_locals or dict()
+                type_hints_locals = dict(type_hints_locals or {})
                 type_hints_locals.setdefault(cls.__name__, cls)
 
         wire_class(klass=cls, wiring=self, type_hints_locals=type_hints_locals)
@@ -236,7 +236,7 @@ def wire(__klass: C,
          raise_on_double_injection: bool = False,
          ignore_type_hints: bool = False,
          type_hints_locals: Union[
-             Dict[str, object],
+             Mapping[str, object],
              Literal['auto'],
              Default,
              None
@@ -253,7 +253,7 @@ def wire(*,
          raise_on_double_injection: bool = False,
          ignore_type_hints: bool = False,
          type_hints_locals: Union[
-             Dict[str, object],
+             Mapping[str, object],
              Literal['auto'],
              Default,
              None
@@ -272,7 +272,7 @@ def wire(
         raise_on_double_injection: bool = False,
         ignore_type_hints: bool = False,
         type_hints_locals: Union[
-            Dict[str, object],
+            Mapping[str, object],
             Literal['auto'],
             Default,
             None

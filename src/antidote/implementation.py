@@ -5,6 +5,7 @@ from typing import Callable, cast, Type, TypeVar
 from typing_extensions import ParamSpec, Protocol
 
 from ._implementation import ImplementationWrapper, validate_provided_class
+from ._internal import API
 from ._providers import IndirectProvider
 from .core import inject
 from .core.exceptions import DoubleInjectionError
@@ -29,15 +30,57 @@ class ImplementationProtocol(Protocol[P, T]):
         ...
 
 
-# @API.public
+@API.public
 def implementation(interface: type,
                    *,
                    permanent: bool = True
                    ) -> Callable[[Callable[P, T]], ImplementationProtocol[P, T]]:
     """
     .. deprecated:: 1.2
-        Use :py:func:`.interface` instead. While you cannot use @factory with it anymore,
-        it's a lot more flexible for service discovery.
+        Use :py:func:`.interface` instead.
+
+    .. admonition:: MIGRATION
+
+        Hereafter is a re-implementation of the examples with the predicate API. It does rely on
+        :py:func:`.predicate` which is experimental for now though.
+
+        .. testcode:: implementation_migration
+
+            from antidote import const, implements, interface
+            from antidote.lib.interface import predicate  # experimental
+
+
+            class Config:
+                CACHE = const('redis')
+
+
+            @predicate
+            def cache_is(expected: str, value: str = Config.CACHE) -> bool:
+                return expected == value
+
+
+            @interface
+            class Cache:
+                pass
+
+
+            @implements(Cache).when(cache_is('redis'))
+            class RedisCache(Cache):
+                pass
+
+
+            @implements(Cache).by_default
+            class LocalCache(Cache):
+                pass
+
+        .. doctest:: implementation_migration
+
+            >>> from antidote import inject
+            >>> @inject
+            ... def f(cache: Cache = inject.me()) -> None:
+            ...     return cache
+            >>> f()
+            <RedisCache ...>
 
     Defines which dependency should be retrieved when :code:`interface` is requested.
     Suppose we have to support two different databases and the configuration defines
@@ -126,7 +169,7 @@ def implementation(interface: type,
     if not inspect.isclass(interface):
         raise TypeError(f"interface must be a class, not {type(interface)}")
 
-    @inject  # type: ignore
+    @inject
     def register(func: Callable[P, T],
                  indirect_provider: IndirectProvider = inject.me()
                  ) -> ImplementationProtocol[P, T]:
@@ -149,4 +192,4 @@ def implementation(interface: type,
                                                                permanent=permanent)
         return ImplementationWrapper[P, T](cast(Callable[P, T], func), dependency)
 
-    return register  # type: ignore
+    return register

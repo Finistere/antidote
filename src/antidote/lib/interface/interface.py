@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, cast, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import (Any, Callable, cast, Generic, List, Mapping, Optional, Type, TypeVar,
+                    Union)
 
-from typing_extensions import final, Literal
+from typing_extensions import final, get_origin, Literal
 
-from ._internal import create_constraints, register_implementation, register_interface
-from ._provider import InterfaceProvider, Query
+from ._internal import (create_constraints, override_implementation,
+                        register_default_implementation,
+                        register_implementation,
+                        register_interface)
+from ._provider import InterfaceProvider
+from ._query import Query
 from .predicate import NeutralWeight, Predicate, PredicateConstraint, PredicateWeight
 from .qualifier import QualifiedBy
 from ..._internal import API
@@ -14,18 +19,12 @@ from ..._internal.localns import retrieve_or_validate_injection_locals
 from ..._internal.utils import Default
 from ...core import Dependency, inject
 
-__all__ = ['register_interface_provider', 'interface', 'implements', 'ImplementationsOf']
+__all__ = ['interface', 'implements', 'ImplementationsOf']
 
 Itf = TypeVar('Itf', bound=type)
 C = TypeVar('C', bound=type)
 T = TypeVar('T')
 Weight = TypeVar('Weight', bound=PredicateWeight)
-
-
-@API.experimental
-def register_interface_provider() -> None:
-    from antidote import world
-    world.provider(InterfaceProvider)
 
 
 @API.public
@@ -95,17 +94,15 @@ def interface(klass: C) -> C:
         ...     LINUX = auto()
         ...     WINDOWS = auto()
         >>> V1 = object()
-        >>> def _(x):  # Necessary for Python <3.9 (PEP 614)
-        ...     return x
         >>> @interface
         ... class Command:
         ...     def execute(self) -> str:
         ...         raise NotImplementedError()
-        >>> @_(implements(Command).when(qualified_by=[System.LINUX, V1]))
+        >>> @implements(Command).when(qualified_by=[System.LINUX, V1])
         ... class LinuxCommand(Command):
         ...     def execute(self) -> str:
         ...         return "Linux"
-        >>> @_(implements(Command).when(qualified_by=[System.WINDOWS, V1]))
+        >>> @implements(Command).when(qualified_by=[System.WINDOWS, V1])
         ... class WindowsCommand(Command):
         ...     def execute(self) -> str:
         ...         return "Windows"
@@ -124,10 +121,28 @@ def interface(klass: C) -> C:
         >>> world.get[Command].all(qualified_by_one_of=[System.WINDOWS, System.LINUX])
         [<WindowsCommand ...>, <LinuxCommand ...>]
 
+    .. tip::
+
+        For Python ealier than 3.9, before PEP614, you can rely on the following trick for
+        decorators:
+
+        .. doctest:: lib_interface_decorator_qualified_by
+
+            >>> from typing import TypeVar
+            >>> T = TypeVar('T')
+            >>> def _(x: T) -> T:
+            ...     return x
+            >>> @_(implements(Command).when(qualified_by=[System.LINUX, V1]))
+            ... class LinuxCommand(Command):
+            ...     def execute(self) -> str:
+            ...         return "Linux"
+
+
+
     Args:
-        klass: Interface class which implementations should implement. Implementations should
-            be a subclass of it. The interface can also be a :py:class:`~typing.Protocol`
-            in which case type checking will only be enforced if
+        klass: **/positional-only/** Interface class which implementations should implement.
+            Implementations should be a subclass of it. The interface can also be a
+            :py:class:`~typing.Protocol` in which case type checking will only be enforced if
             :py:func:`~typing.runtime_checkable` is used.
 
     Returns:
@@ -172,7 +187,7 @@ class implements(Generic[Itf]):
                  __interface: Itf,
                  *,
                  type_hints_locals: Union[
-                     Dict[str, object],
+                     Mapping[str, object],
                      Literal['auto'],
                      Default,
                      None
@@ -180,7 +195,7 @@ class implements(Generic[Itf]):
                  ) -> None:
         """
         Args:
-            __interface: Interface class.
+            __interface: **/positional-only/** Interface class.
             type_hints_locals: Local variables to use for :py:func:`typing.get_type_hints`. They
                 can be explicitly defined by passing a dictionary or automatically detected with
                 :py:mod:`inspect` and frame manipulation by specifying :code:`'auto'`. Specifying
@@ -195,7 +210,6 @@ class implements(Generic[Itf]):
         self.__interface = __interface
         self.__type_hints_locals = retrieve_or_validate_injection_locals(type_hints_locals)
 
-    @API.public
     def __call__(self, klass: C) -> C:
         register_implementation(
             interface=self.__interface,
@@ -237,16 +251,110 @@ class implements(Generic[Itf]):
             else:
                 predicates.append(QualifiedBy(qualified_by))
 
-        def register(klass: C) -> C:
+        def register(__klass: C) -> C:
             register_implementation(
                 interface=self.__interface,
-                implementation=klass,
+                implementation=__klass,
                 type_hints_locals=self.__type_hints_locals,
                 predicates=predicates
             )
-            return klass
+            return __klass
 
         return register
+
+    def overriding(self, __existing_implementation: Type[Itf]) -> Callable[[C], C]:
+        """
+        .. versionadded: 1.4
+
+        Override an existing implementation with the same predicates, so in the same conditions as
+        the existing one.
+
+        .. doctest:: lib_interface_implements_overriding
+
+            >>> from antidote import interface, implements, world
+            >>> @interface
+            ... class Base:
+            ...     pass
+            >>> @implements(Base)
+            ... class BaseImpl(Base):
+            ...     pass
+            >>> world.get[Base].single()
+            <BaseImpl object at ...>
+            >>> @implements(Base).overriding(BaseImpl)
+            ... class Custom(Base):
+            ...     pass
+            >>> world.get[Base].single()
+            <Custom object at ...>
+
+        Trying to override again the same implementation will raise an error:
+
+        .. doctest:: lib_interface_implements_overriding
+
+            >>> @implements(Base).overriding(BaseImpl)
+            ... class CustomV2(Base):
+            ...     pass
+            Traceback (most recent call last):
+              File "<stdin>", line 1, in ?
+            RuntimeError
+
+        Args:
+            __existing_implementation: **/positional-only/** Existing implementation to override.
+
+        Returns:
+            class decorator
+
+        """
+        if not isinstance(__existing_implementation, type):
+            raise TypeError(f"Expected a class for the overridden implementation, "
+                            f"got a {type(__existing_implementation)!r}")
+
+        def register(__klass: C) -> C:
+            override_implementation(
+                interface=self.__interface,
+                existing_implementation=__existing_implementation,
+                new_implementation=__klass,
+                type_hints_locals=self.__type_hints_locals
+            )
+            return __klass
+
+        return register
+
+    def by_default(self, __klass: C) -> C:
+        """
+        .. versionadded: 1.4
+
+        Define a default implementation used when no alternative was found. It can also
+        be overridden with :py:meth:`~.implements.overriding`.
+
+        .. doctest:: lib_interface_implements_by_default
+
+            >>> from antidote import interface, implements, world
+            >>> @interface
+            ... class Base:
+            ...     pass
+            >>> @implements(Base).by_default
+            ... class Default(Base):
+            ...     pass
+            >>> world.get[Base].single()
+            <Default object at ...>
+            >>> @implements(Base)
+            ... class BaseImpl(Base):
+            ...     pass
+            >>> world.get[Base].single()
+            <BaseImpl object at ...>
+
+        Args:
+            __klass: **/positional-only/** default implementation for the interface.
+
+        Returns:
+            decorated class
+        """
+        register_default_implementation(
+            interface=self.__interface,
+            implementation=__klass,
+            type_hints_locals=self.__type_hints_locals
+        )
+        return __klass
 
 
 @API.public
@@ -285,9 +393,11 @@ class ImplementationsOf(Generic[T]):
                  ) -> None:
         """
         Args:
-            interface: Interface for which implementations should be retrieved. It must have been
-                decorated with :py:func:`~.interface`.
+            interface: **/positional-only/** Interface for which implementations should be
+                retrieved. It must have been decorated with :py:func:`~.interface`.
         """
+        # Support generic interfaces
+        interface = cast(Type[T], get_origin(interface) or interface)
         if not isinstance(interface, type):
             raise TypeError(f"Expected a class, got a {type(interface)!r}")
         if not provider.has_interface(interface):

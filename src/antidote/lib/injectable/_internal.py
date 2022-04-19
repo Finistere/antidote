@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, cast, Dict, Optional, TypeVar
+from typing import Callable, cast, Mapping, Optional, TypeVar
 
 from ._provider import InjectableProvider
 from ..._internal import API
@@ -17,7 +17,7 @@ def register_injectable(*,
                         scope: Optional[Scope],
                         wiring: Optional[Wiring],
                         factory_method: Optional[str],
-                        type_hints_locals: Optional[Dict[str, object]],
+                        type_hints_locals: Optional[Mapping[str, object]],
                         provider: InjectableProvider = inject.get(InjectableProvider)
                         ) -> None:
     from ...service import Service

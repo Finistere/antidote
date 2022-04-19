@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Callable, cast, Generic, Hashable, Iterator, Optional, TypeVar  # noqa: F401
+from typing import Any, Callable, cast, Generic, Iterator, Optional, TypeVar  # noqa: F401
 
 from typing_extensions import final, TypeAlias
 
@@ -12,7 +12,7 @@ from .utils import DependencyDebug
 from .._internal import API
 from .._internal.utils import debug_repr
 
-T = TypeVar('T', bound=Hashable)
+T = TypeVar('T')
 M = TypeVar('M', bound=Callable[..., object])
 AnyProvider: TypeAlias = 'Provider[Any]'
 P = TypeVar('P', bound=AnyProvider)

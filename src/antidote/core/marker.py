@@ -5,6 +5,7 @@ from typing import Any, Callable, Type, TYPE_CHECKING, TypeVar, Union
 
 from typing_extensions import final
 
+from .container import RawMarker
 from .._internal import API
 from .._internal.utils.meta import Singleton
 
@@ -15,7 +16,7 @@ T = TypeVar('T')
 
 
 @API.private
-class Marker:
+class Marker(RawMarker):
     pass
 
 

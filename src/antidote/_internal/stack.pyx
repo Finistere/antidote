@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from typing import Hashable
 
 # @formatter:off
 cimport cython
@@ -33,7 +32,7 @@ cdef class DependencyStack:
         PyMem_Free(self._hashes)
 
     @contextmanager
-    def instantiating(self, dependency: Hashable):
+    def instantiating(self, dependency: object):
         if 0 != self.push(<PyObject *> dependency):
             raise self.reset_with_error(<PyObject *> dependency)
         try:

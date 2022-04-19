@@ -1,26 +1,55 @@
 from __future__ import annotations
 
 import collections.abc as c_abc
-from typing import (Any, FrozenSet, Iterable, Optional, Sequence, Union, ClassVar)
+from typing import (Any, ClassVar, FrozenSet, Iterable, Optional, Sequence, Union)
 
 from typing_extensions import final
 
-from ._constants import ConstantsMeta, MakeConst
+from ._constants import ConstantsMeta
 from ._internal import API
 from ._internal.utils import Copy, FinalImmutable
 from .core.wiring import Wiring, WithWiringMixin
-
-# API.public
-const = MakeConst()
 
 
 @API.public
 class Constants(metaclass=ConstantsMeta, abstract=True):
     """
+    .. deprecated:: 1.4
+        Deprecated in the sense that it's not necessary anymore. You can use :py:obj:`.const`
+        without inheriting this class anymore.
+
+    .. admonition:: MIGRATION
+
+        For static constants, without a custom :code:`provide_const` you have nothing to do,
+        just remove :py:class:`.Constants`. If you're retrieving the constants from environment
+        variables consider using :py:attr:`~.ConstSingleton.env`. Otherwise you can rely on
+        a const :py:meth:`~.ConstSingleton.factory`:
+
+        .. doctest:: constants_migration
+
+            >>> from typing import Optional
+            >>> from antidote import const, injectable, world
+            >>> @injectable
+            ... class Config:
+            ...     def __init__(self):
+            ...         self._data = {'host': 'localhost', 'port': 80}
+            ...
+            ...     @const.provider
+            ...     def provide(self, name: str, arg: Optional[str]) -> object:
+            ...         return self._data[arg]
+            ...
+            ...     PORT = provide.const[int]('port')
+            ...     HOST = provide.const[str]('host')
+            >>> world.get[int](Config.PORT)
+            80
+            >>> world.get[str](Config.HOST)
+            'localhost'
+
+
     Used to declare constants, typically configuration which may be retrieved from the
     environment, a file, etc...
 
-    Constants are simply defined with :py:func:`.const`:
+    Constants are simply defined with :py:obj:`.const`:
 
     .. doctest:: constants
 
@@ -119,7 +148,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                 wiring: :py:class:`Wiring` used on the class. Defaults to wire only
                     :code:`__init__()`.
                 auto_cast: When the type of the constant is specified with
-                    :py:func:`.const`, the value of the dependency will be cast to its
+                    :py:obj:`.const`, the value of the dependency will be cast to its
                     type if it's one of :code:`str`, :code:`float` or :code:`int` by
                     default. You can disable this by specifying code:`auto_cast=False` or
                     change the types for which it's done by specifying explicitly those
@@ -150,7 +179,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                  ) -> Constants.Conf:
             """
             Copies current configuration and overrides only specified arguments.
-            Accepts the same arguments as :py:meth:`.__init__`
+            Accepts the same arguments as :code:`__init__`
             """
             return Copy.immutable(self, wiring=wiring, auto_cast=auto_cast)
 
@@ -158,13 +187,13 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
 
     def provide_const(self, *, name: str, arg: Optional[Any]) -> object:
         """
-        Used to retrieve the value of the constant defined with :py:func:`.const`.
+        Used to retrieve the value of the constant defined with :py:obj:`.const`.
         If a :py:exc:`LookUpError` is raised, the :code:`default` value defined
-        with :py:func:`.const` will be used if any.
+        with :py:obj:`.const` will be used if any.
 
         Args:
             name: Name of the constant
-            arg: Argument given to :py:func:`.const` when creating the constant.
+            arg: Argument given to :py:obj:`.const` when creating the constant.
 
         Returns:
             Constant value.

@@ -35,4 +35,5 @@ prune docs/_build
 
 # bin
 recursive-include bin *.sh
+recursive-include bin Dockerfile
 

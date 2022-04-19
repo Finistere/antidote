@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import inspect
-from typing import Callable, Dict, Hashable, Optional
+from typing import Callable, Dict, Optional
+
+from typing_extensions import Protocol
 
 from .._internal import API
 from .._internal.utils import debug_repr, FinalImmutable
@@ -9,10 +11,10 @@ from ..core import Container, DependencyDebug, DependencyValue, Provider, Scope
 
 
 @API.private
-class IndirectProvider(Provider[Hashable]):
+class IndirectProvider(Provider[object]):
     def __init__(self) -> None:
         super().__init__()
-        self.__implementations: Dict[ImplementationDependency, Hashable] = dict()
+        self.__implementations: Dict[ImplementationDependency, object] = dict()
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(" \
@@ -23,11 +25,11 @@ class IndirectProvider(Provider[Hashable]):
         p.__implementations = self.__implementations.copy()
         return p
 
-    def exists(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: object) -> bool:
         return (isinstance(dependency, ImplementationDependency)
                 and dependency in self.__implementations)
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: object) -> Optional[DependencyDebug]:
         if not isinstance(dependency, ImplementationDependency):
             return None
 
@@ -41,10 +43,10 @@ class IndirectProvider(Provider[Hashable]):
 
         return DependencyDebug(debug_repr(dependency),
                                scope=Scope.singleton() if dependency.permanent else None,
-                               wired=[dependency.implementation],  # type: ignore
+                               wired=[dependency.implementation],
                                dependencies=[target])
 
-    def maybe_provide(self, dependency: Hashable, container: Container
+    def maybe_provide(self, dependency: object, container: Container
                       ) -> Optional[DependencyValue]:
         if not isinstance(dependency, ImplementationDependency):
             return None
@@ -69,7 +71,7 @@ class IndirectProvider(Provider[Hashable]):
 
     def register_implementation(self,
                                 interface: type,
-                                implementation: Callable[[], Hashable],
+                                implementation: Callable[[], object],
                                 *,
                                 permanent: bool
                                 ) -> ImplementationDependency:
@@ -82,17 +84,22 @@ class IndirectProvider(Provider[Hashable]):
         return impl
 
 
+class ImplementationCallback(Protocol):
+    def __call__(self) -> object:
+        ...
+
+
 @API.private
 class ImplementationDependency(FinalImmutable):
     __slots__ = ('interface', 'implementation', 'permanent', '__hash')
     interface: type
-    implementation: Callable[[], Hashable]
+    implementation: ImplementationCallback
     permanent: bool
     __hash: int
 
     def __init__(self,
                  interface: object,
-                 implementation: Callable[[], Hashable],
+                 implementation: Callable[[], object],
                  permanent: bool):
         super().__init__(interface,
                          implementation,
@@ -109,7 +116,7 @@ class ImplementationDependency(FinalImmutable):
             return f"Implementation: {self}"
 
     def __str__(self) -> str:
-        impl = self.implementation  # type: ignore
+        impl = self.implementation
         return f"{debug_repr(self.interface)} @ {debug_repr(impl)}"
 
     # Custom hash & eq necessary to find duplicates
@@ -121,6 +128,6 @@ class ImplementationDependency(FinalImmutable):
                 and self.__hash == other.__hash
                 and (self.interface is other.interface
                      or self.interface == other.interface)
-                and (self.implementation is other.implementation  # type: ignore
-                     or self.implementation == other.implementation)  # type: ignore
+                and (self.implementation is other.implementation
+                     or self.implementation == other.implementation)
                 )  # noqa

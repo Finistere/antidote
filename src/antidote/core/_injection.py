@@ -47,35 +47,37 @@ class ArgDependency:
 
 
 @API.private
-def raw_inject(f: AnyF,
+def raw_inject(obj: AnyF,
                *,
                dependencies: DEPENDENCIES_TYPE,
                auto_provide: AUTO_PROVIDE_TYPE,
                strict_validation: bool,
                ignore_type_hints: bool,
-               type_hints_locals: Optional[Dict[str, object]]) -> AnyF:
+               type_hints_locals: Optional[Mapping[str, object]]) -> AnyF:
     if not isinstance(ignore_type_hints, bool):
         raise TypeError(f"ignore_type_hints must be a boolean, not {type(ignore_type_hints)}")
 
     if not isinstance(strict_validation, bool):
         raise TypeError(f"strict_validation must be a boolean, "
                         f"not {type(strict_validation)}")
-    if inspect.isclass(f):
+    if inspect.isclass(obj):
         # User-friendlier error for classes.
         raise TypeError("Classes cannot be wrapped with @inject. "
                         "Consider using @wire")
+    if is_wrapper(obj):
+        raise DoubleInjectionError(get_wrapped(obj))
 
-    real_f = f.__func__ if isinstance(f, (classmethod, staticmethod)) else f
-    if is_wrapper(f):
-        raise DoubleInjectionError(get_wrapped(f))
-    if is_wrapper(real_f):
-        raise DoubleInjectionError(get_wrapped(real_f))
-    if not inspect.isfunction(real_f):
-        raise TypeError(f"wrapped object {f} is neither a function "
+    func = obj.__func__ if isinstance(obj, (classmethod, staticmethod)) else obj
+    if not inspect.isfunction(func):
+        raise TypeError(f"wrapped object {func} is neither a function "
                         f"nor a (class/static) method")
 
+    unwrapped_func = inspect.unwrap(func, stop=lambda f: is_wrapper(f))
+    if is_wrapper(unwrapped_func):
+        raise DoubleInjectionError(get_wrapped(unwrapped_func))
+
     blueprint = _build_injection_blueprint(
-        arguments=Arguments.from_callable(f,
+        arguments=Arguments.from_callable(obj,
                                           ignore_type_hints=ignore_type_hints,
                                           type_hints_locals=type_hints_locals),
         dependencies=dependencies,
@@ -86,15 +88,16 @@ def raw_inject(f: AnyF,
     # any overhead.
     if blueprint.is_empty():
         if ignore_type_hints:
-            raise NoInjectionsFoundError(f"No dependencies found while ignoring type hints for {f}")
-        return f
+            raise NoInjectionsFoundError(f"No dependencies found while ignoring type hints "
+                                         f"for {obj}")
+        return obj
 
-    wrapped_real_f = build_wrapper(blueprint=blueprint, wrapped=real_f)
-    if isinstance(f, staticmethod):
-        return staticmethod(wrapped_real_f)
-    if isinstance(f, classmethod):
-        return classmethod(wrapped_real_f)
-    return cast(AnyF, wrapped_real_f)
+    wrapped_func = build_wrapper(blueprint=blueprint, wrapped=func)
+    if isinstance(obj, staticmethod):
+        return staticmethod(wrapped_func)
+    if isinstance(obj, classmethod):
+        return classmethod(wrapped_func)
+    return cast(AnyF, wrapped_func)
 
 
 @API.private
@@ -241,6 +244,7 @@ def _check_valid_arg_names(param: str,
         if not isinstance(name, str):
             raise TypeError(f"{param} expected an argument name (str), "
                             f"not {name!r} ({type(name)})")
+        # TODO: maybe remove this check? it doesn't work well with injection before staticmethod.
         if arguments.has_self and name == arguments[0].name:
             raise ValueError(f"Cannot inject first argument in {param} "
                              f"({arguments[0]!r}) of a method / @classmethod.")

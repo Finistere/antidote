@@ -3,9 +3,9 @@ from __future__ import annotations
 import inspect
 from typing import Any, Callable, Dict, Hashable, Optional, TypeVar, Union
 
-from antidote._internal import API
-from antidote._internal.utils import debug_repr, FinalImmutable
-from antidote.core import Container, DependencyDebug, DependencyValue, Provider, Scope
+from ..._internal import API
+from ..._internal.utils import debug_repr, FinalImmutable
+from ...core import Container, DependencyDebug, DependencyValue, Provider, Scope
 
 C = TypeVar('C', bound=type)
 

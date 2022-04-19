@@ -181,7 +181,7 @@ def test_factory(factory_method: str) -> None:
                          ['singleton', 'scope', 'wiring', 'factory_method', 'type_hints_locals'])
 def test_invalid_arguments(arg: str) -> None:
     with pytest.raises(TypeError, match=".*" + arg + ".*"):
-        @injectable(**{arg: object()})  # type: ignore
+        @injectable(**{arg: object()})
         class Dummy:
             ...
 

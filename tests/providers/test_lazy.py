@@ -1,14 +1,15 @@
 import pytest
 
 from antidote import Scope, world
-from antidote._providers.lazy import Lazy, LazyProvider
 from antidote.core import Container, DependencyValue
+from antidote.lib.lazy import register_lazy_provider
+from antidote.lib.lazy._provider import Lazy, LazyProvider
 
 
 @pytest.fixture()
 def lazy_provider():
     with world.test.empty():
-        world.provider(LazyProvider)
+        register_lazy_provider()
         yield world.get(LazyProvider)
 
 

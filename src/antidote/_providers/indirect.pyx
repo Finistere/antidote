@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Hashable, Optional
+from typing import Callable, Optional
 
 # @formatter:off
 cimport cython
@@ -37,11 +37,11 @@ cdef class IndirectProvider(FastProvider):
     cpdef IndirectProvider clone(self, bint keep_singletons_cache):
         return IndirectProvider.__new__(IndirectProvider, self.__implementations.copy())
 
-    def exists(self, dependency: Hashable) -> bool:
+    def exists(self, dependency: object) -> bool:
         return (isinstance(dependency, ImplementationDependency)
                 and dependency in self.__implementations)
 
-    def maybe_debug(self, dependency: Hashable) -> Optional[DependencyDebug]:
+    def maybe_debug(self, dependency: object) -> Optional[DependencyDebug]:
         cdef:
             ImplementationDependency impl
 
@@ -101,7 +101,7 @@ cdef class IndirectProvider(FastProvider):
 
     def register_implementation(self,
                                 interface: type,
-                                implementation: Callable[[], Hashable],
+                                implementation: Callable[[], object],
                                 *,
                                 permanent: bool
                                 ) -> ImplementationDependency:
@@ -123,8 +123,8 @@ cdef class ImplementationDependency:
         int _hash
 
     def __init__(self,
-                 interface: Hashable,
-                 implementation: Callable[[], Hashable],
+                 interface: object,
+                 implementation: Callable[[], object],
                  permanent: bool):
         self.interface = interface
         self.implementation = implementation

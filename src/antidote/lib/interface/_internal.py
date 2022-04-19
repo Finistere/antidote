@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import itertools
-from typing import Any, cast, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, cast, List, Mapping, Optional, Type, TypeVar, Union
 
 from typing_extensions import get_type_hints, TypeAlias
 
-from ._provider import ConstraintsAlias, InterfaceProvider
+from ._provider import InterfaceProvider
+from ._query import ConstraintsAlias
 from .predicate import (MergeablePredicate, MergeablePredicateConstraint, NeutralWeight, Predicate,
                         PredicateConstraint, PredicateWeight)
 from ..._internal import API
@@ -13,7 +14,8 @@ from ..._internal.utils import enforce_subclass_if_possible, extract_optional_va
 from ...core import inject
 from ...core.exceptions import DuplicateDependencyError
 
-__all__ = ['create_constraints', 'register_interface', 'register_implementation']
+__all__ = ['create_constraints', 'register_interface', 'register_implementation',
+           'register_default_implementation', 'override_implementation']
 
 T = TypeVar('T')
 C = TypeVar('C', bound=type)
@@ -21,6 +23,7 @@ C = TypeVar('C', bound=type)
 P = TypeVar('P', bound=Predicate[Any])
 PC = TypeVar('PC', bound=PredicateConstraint[Any])
 Weight = TypeVar('Weight', bound=PredicateWeight)
+WeightCo = TypeVar('WeightCo', bound=PredicateWeight, covariant=True)
 
 AnyP: TypeAlias = Predicate[Any]
 AnyPC: TypeAlias = PredicateConstraint[Any]
@@ -97,18 +100,14 @@ def register_interface(__interface: type,
 @inject
 def register_implementation(*,
                             interface: type,
-                            implementation: C,
+                            implementation: type,
                             predicates: List[Union[Predicate[Weight], Predicate[NeutralWeight]]],
-                            type_hints_locals: Optional[Dict[str, object]],
+                            type_hints_locals: Optional[Mapping[str, object]],
                             provider: InterfaceProvider = inject.get(InterfaceProvider)
-                            ) -> C:
+                            ) -> None:
     from ..injectable import injectable
 
-    if not isinstance(interface, type):
-        raise TypeError(f"Expected a class for the interface, got a {type(interface)!r}")
-    if not isinstance(implementation, type):
-        raise TypeError(f"Expected a class for the implementation, got a {type(implementation)!r}")
-    enforce_subclass_if_possible(implementation, interface)
+    _validate(interface=interface, implementation=implementation, provider=provider)
 
     # Remove duplicates and combine predicates when possible
     distinct_predicates: dict[Type[Predicate[Any]], Predicate[Any]] = dict()
@@ -121,7 +120,7 @@ def register_implementation(*,
         if previous is not None:
             if not issubclass(cls, MergeablePredicate):
                 raise RuntimeError(f"Cannot have multiple predicates of type {cls!r} "
-                                   f"without declaring a reducer!")
+                                   f"without declaring a merge method!")
             cls = cast(Type[MergeablePredicate[Any]], cls)
             distinct_predicates[cls] = cls.merge(
                 cast(MergeablePredicate[Any], previous),
@@ -137,6 +136,69 @@ def register_implementation(*,
     )
 
     try:
-        return injectable(implementation, type_hints_locals=type_hints_locals)
+        injectable(implementation, type_hints_locals=type_hints_locals)
     except DuplicateDependencyError:
-        return implementation
+        pass
+
+
+@API.private
+@inject
+def override_implementation(*,
+                            interface: type,
+                            existing_implementation: type,
+                            new_implementation: type,
+                            type_hints_locals: Optional[Mapping[str, object]],
+                            provider: InterfaceProvider = inject.get(InterfaceProvider)
+                            ) -> None:
+    from ..injectable import injectable
+
+    _validate(interface=interface, implementation=new_implementation, provider=provider)
+
+    overridden = provider.override_implementation(
+        interface=interface,
+        existing_dependency=existing_implementation,
+        new_dependency=new_implementation
+    )
+    if not overridden:
+        raise RuntimeError(f"Implementation {existing_implementation!r} does not exist.")
+
+    try:
+        injectable(new_implementation, type_hints_locals=type_hints_locals)
+    except DuplicateDependencyError:
+        pass
+
+
+@API.private
+@inject
+def register_default_implementation(interface: type,
+                                    implementation: type,
+                                    type_hints_locals: Optional[Mapping[str, object]],
+                                    provider: InterfaceProvider = inject.get(InterfaceProvider)
+                                    ) -> None:
+    from ..injectable import injectable
+
+    _validate(interface=interface, implementation=implementation, provider=provider)
+    provider.register_default_implementation(
+        interface=interface,
+        dependency=implementation
+    )
+
+    try:
+        injectable(implementation, type_hints_locals=type_hints_locals)
+    except DuplicateDependencyError:
+        pass
+
+
+@API.private
+def _validate(*,
+              interface: type,
+              implementation: type,
+              provider: InterfaceProvider
+              ) -> None:
+    if not isinstance(interface, type):
+        raise TypeError(f"Expected a class for the interface, got a {type(interface)!r}")
+    if not provider.has_interface(interface):
+        raise ValueError(f"Interface {interface!r} has not been decorated with @interface.")
+    if not isinstance(implementation, type):
+        raise TypeError(f"Expected a class for the implementation, got a {type(implementation)!r}")
+    enforce_subclass_if_possible(implementation, interface)

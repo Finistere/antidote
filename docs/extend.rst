@@ -46,14 +46,14 @@ the result and the provider will never be called again.
 .. testcode:: extend_antidote_add_provider
 
     import random
-    from typing import Hashable, Optional
+    from typing import Optional
 
     from antidote import world
     from antidote.core import StatelessProvider, DependencyValue, Container
 
     @world.provider
     class RandomProvider(StatelessProvider[str]):
-        def exists(self, dependency: Hashable) -> bool:
+        def exists(self, dependency: object) -> bool:
             return dependency == 'random'
 
         def provide(self, dependency: str, container: Container) -> DependencyValue:
@@ -75,7 +75,7 @@ them out of the box, we expect someone else to provide the examples:
 .. testcode:: extend_antidote_add_provider
 
     import random
-    from typing import Hashable, Optional, Dict, List
+    from typing import Optional, Dict, List
 
     from antidote import world, inject, Provide
     from antidote.core import Provider, DependencyValue, Container
@@ -93,7 +93,7 @@ them out of the box, we expect someone else to provide the examples:
             # themselves.
             return RandomProvider(self._values.copy())
 
-        def exists(self, dependency: Hashable) -> bool:
+        def exists(self, dependency: object) -> bool:
             return dependency in self._kind_to_values
 
         def provide(self, dependency: str, container: Container) -> DependencyValue:
@@ -109,7 +109,7 @@ them out of the box, we expect someone else to provide the examples:
 
     # The recommend way is not to expose the provider directly, but to expose utility
     # functions which have the provider injected. Making them easier to use and maintain.
-    # Often those would be decorators, like... @factory !
+    # Often those would be decorators, like... @injectable !
     @inject
     def add_random(kind: str,
                    values: List[object],

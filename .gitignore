@@ -8,6 +8,8 @@
 *.so
 *.cpp
 *.ipynb
+*.nix
+.gdb_history
 
 .mypy_cache/
 .pytest_cache/

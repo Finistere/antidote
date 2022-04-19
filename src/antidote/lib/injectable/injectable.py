@@ -1,26 +1,19 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, overload, TypeVar, Union
+from typing import Callable, Mapping, Optional, overload, TypeVar, Union
 
 from typing_extensions import Literal
 
 from ._internal import register_injectable
-from ._provider import InjectableProvider
 from ..._internal import API
 from ..._internal.localns import retrieve_or_validate_injection_locals
 from ..._internal.utils import Default
 from ...core import Scope, Wiring
 from ...utils import validated_scope
 
-__all__ = ['register_injectable_provider', 'injectable']
+__all__ = ['injectable']
 
 C = TypeVar('C', bound=type)
-
-
-@API.experimental
-def register_injectable_provider() -> None:
-    from antidote import world
-    world.provider(InjectableProvider)
 
 
 @overload
@@ -31,7 +24,7 @@ def injectable(klass: C,
                wiring: Optional[Wiring] = Wiring(),
                factory_method: Optional[str] = None,
                type_hints_locals: Union[
-                   Dict[str, object],
+                   Mapping[str, object],
                    Literal['auto'],
                    Default,
                    None
@@ -47,7 +40,7 @@ def injectable(*,
                wiring: Optional[Wiring] = Wiring(),
                factory_method: Optional[str] = None,
                type_hints_locals: Union[
-                   Dict[str, object],
+                   Mapping[str, object],
                    Literal['auto'],
                    Default,
                    None
@@ -65,7 +58,7 @@ def injectable(
         wiring: Optional[Wiring] = Wiring(),
         factory_method: Optional[str] = None,
         type_hints_locals: Union[
-            Dict[str, object],
+            Mapping[str, object],
             Literal['auto'],
             Default,
             None
@@ -132,13 +125,11 @@ def injectable(
     Args:
         klass: Class to register as a dependency. It will be instantiated  only when
             requested.
-        singleton: Whether the service is a singleton or not. A singleton is
-            instantiated only once. Mutually exclusive with :code:`scope`.
-            Defaults to :py:obj:`True`
-        scope: Scope of the service. Mutually exclusive with :code:`singleton`.
-            The scope defines if and how long the service will be cached. See
-            :py:class:`~.core.container.Scope`. Defaults to
-            :py:meth:`~.core.container.Scope.singleton`.
+        singleton: Whether the injectable is a singleton or not. A singleton is instantiated only
+            once. Mutually exclusive with :code:`scope`. Defaults to :py:obj:`True`
+        scope: Scope of the service. Mutually exclusive with :code:`singleton`.  The scope defines
+            if and how long the service will be cached. See :py:class:`~.core.container.Scope`.
+            Defaults to :py:meth:`~.core.container.Scope.singleton`.
         wiring: :py:class:`.Wiring` to be used on the class. By defaults will apply
             a simple :py:func:`.inject` on all methods, so only annotated type hints are
             taken into account. Can be deactivated by specifying :py:obj:`None`.

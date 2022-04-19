@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from typing import (Any, Callable, Deque, Dict, Hashable, List, Mapping, Optional,
                     Tuple, Type)
 from weakref import ref
-from .._internal.utils import Default
 
 # @formatter:off
 cimport cython
@@ -16,6 +15,7 @@ from antidote._internal.stack cimport DependencyStack
 from .exceptions import (DependencyCycleError, DependencyInstantiationError,
                          DependencyNotFoundError, DuplicateDependencyError,
                          FrozenWorldError)
+from .._internal.utils import Default
 # @formatter:on
 
 cdef extern from "Python.h":
@@ -144,16 +144,17 @@ cdef class DependencyValue:
     cdef DependencyValue from_result(RawContainer container, DependencyResult *result):
         scope = HeaderObject(result.header).to_scope(container)
         value = <object> result.value
-        print(scope, value)
         Py_DECREF(result.value)
         return DependencyValue.__new__(DependencyValue,
                                        value,
                                        scope=scope)
 
-
 ############
 # PROVIDER #
 ############
+
+cdef class RawMarker:
+    pass
 
 cdef class Container:
     def get(self, dependency: Hashable, default: object = Default.sentinel):

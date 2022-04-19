@@ -22,14 +22,15 @@ def test_create_constraints_qualifiers() -> None:
 
 
 def test_create_invalid_kwargs() -> None:
+    x = dict(x=1)
     with pytest.raises(TypeError, match="(?i).*Invalid qualifier.*"):
-        create(qualified_by=tuple())
+        create(qualified_by=x)
 
     with pytest.raises(TypeError, match="(?i).*qualified_by_one_of.*"):
-        create(qualified_by_one_of=tuple())  # type: ignore
+        create(qualified_by_one_of=x)  # type: ignore
 
     with pytest.raises(TypeError, match="(?i).*Invalid qualifier.*"):
-        create(qualified_by_one_of=[tuple()])
+        create(qualified_by_one_of=[x])
 
 
 def test_create_constraint_combination() -> None:
@@ -47,7 +48,7 @@ def test_create_constraint_invalid_predicate_class() -> None:
 
     class MissingPredicateArgument:
         def evaluate(self, *args: object, **kwargs: object) -> None:
-            pass  # pragma: no cover
+            ...
 
     with pytest.raises(TypeError, match="(?i).*predicate.*"):
         create(MissingPredicateArgument())  # type: ignore
@@ -62,8 +63,8 @@ def test_create_constraint_invalid_predicate_class() -> None:
 ])
 def test_create_constraint_invalid_type_hint(type_hint: Any) -> None:
     class InvalidTypeHint:
-        def evaluate(self, predicate: type_hint) -> None:  # type: ignore
-            pass  # pragma: no cover
+        def evaluate(self, predicate: type_hint) -> None:
+            ...
 
     with pytest.raises(TypeError, match="(?i).*Optional.*Predicate.*"):
         create(InvalidTypeHint())  # type: ignore

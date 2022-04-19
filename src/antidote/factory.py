@@ -22,7 +22,9 @@ T = TypeVar('T')
 class Factory(metaclass=FactoryMeta, abstract=True):
     """
     .. deprecated:: 1.1
-        Use :py:func:`~.factory.factory` instead.
+        Use :py:func:`.lazy` instead for external classes or :py:func:`.injectable` with
+        the :code:`factory_method` argument for classes you own. See :py:func:`.factory`
+        for migration examples.
 
     Defines sublcass as a factory to Antidote. The provided dependency is defined through
     the type annotation of :code:`__call__`:
@@ -186,7 +188,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
             .. deprecated:: 1.1
 
             Copies current configuration and overrides only specified arguments.
-            Accepts the same arguments as :py:meth:`.__init__`
+            Accepts the same arguments as :code:`__init__`
             """
             if not (singleton is Copy.IDENTICAL or scope is Copy.IDENTICAL):
                 raise TypeError("Use either singleton or scope argument, not both.")
@@ -231,6 +233,64 @@ def factory(f: Optional[T] = None,
             wiring: Optional[Wiring] = Wiring()
             ) -> Union[Callable[[T], T], T]:
     """
+    .. deprecated:: 1.4
+        Use :py:func:`.lazy` instead for external classes or :py:func:`.injectable` with
+        the :code:`factory_method` argument for classes you own.
+
+    .. admonition:: MIGRATION
+
+        For classes you own you should use :py:func:`.injectable`:
+
+        .. doctest:: factory_migration
+
+            >>> from antidote import injectable, world
+            >>> @injectable(factory_method='build')
+            ... class MyDatabase:
+            ...     @classmethod
+            ...     def build(cls) -> 'MyDatabase':
+            ...         return MyDatabase()
+            >>> world.get(MyDatabase)
+            <MyDatabase object at ...>
+
+        For the other cases you can use :py:func:`.lazy`:
+
+        .. doctest:: factory_migration
+
+            >>> from antidote import lazy, inject
+            >>> class External:
+            ...     pass
+            >>> @lazy
+            ... def my_external() -> External:
+            ...     return External()
+            >>> @inject
+            ... def build(ext: External = my_external()) -> External:
+            ...     return ext
+            >>> build()
+            <External object at ...>
+            >>> # type hint only necessary for correct typing.
+            ... build() is world.get[External](my_external())
+            True
+
+        In both cases you can inject the build function:
+
+        .. doctest:: factory_migration
+
+            >>> from antidote import injectable
+            >>> @injectable
+            ... class MyFactory:
+            ...     def create_external(self) -> External:
+            ...         return External()
+            >>> @lazy
+            ... def current_external(factory: MyFactory = inject.me()) -> External:
+            ...     return factory.create_external()
+            >>> @injectable(factory_method='build')
+            ... class MyExternal:
+            ...     @classmethod
+            ...     def build(cls, external: External = current_external()) -> 'MyExternal':
+            ...         return MyExternal()
+            >>> world.get(MyExternal)
+            <MyExternal object at ...>
+
     Registers a factory which provides as single dependency, defined through the return
     type annotation.
 
@@ -276,6 +336,7 @@ def factory(f: Optional[T] = None,
         ... class DatabaseFactory:
         ...     def __call__(self) -> Database:
         ...         return Database()
+
 
 
     Args:
