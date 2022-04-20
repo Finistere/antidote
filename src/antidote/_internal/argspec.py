@@ -1,17 +1,11 @@
 from __future__ import annotations
 
 import inspect
-import sys
-from typing import Any, Callable, cast, Dict, Iterator, List, Sequence, Set, Union
+from typing import Any, Callable, Dict, Iterator, List, Sequence, Set, Union
 
-from typing_extensions import get_args, get_origin, get_type_hints
+from typing_extensions import get_type_hints
 
-from .utils import FinalImmutable
-
-if sys.version_info >= (3, 10):
-    from types import UnionType
-else:
-    UnionType = Union
+from .utils import FinalImmutable, is_optional
 
 
 class Argument(FinalImmutable):
@@ -27,11 +21,7 @@ class Argument(FinalImmutable):
 
     @property
     def is_optional(self) -> bool:
-        origin = get_origin(self.type_hint)
-        if origin is Union or origin is UnionType:
-            args = cast(Any, get_args(self.type_hint))
-            return len(args) == 2 and (isinstance(None, args[1]) or isinstance(None, args[0]))
-        return False
+        return is_optional(self.type_hint)
 
     def __repr__(self) -> str:
         if self.type_hint is self.type_hint_with_extras:
