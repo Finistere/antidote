@@ -1,13 +1,23 @@
 import enum
+import sys
 import typing
-from typing import Any, Callable, Type, TypeVar
+from typing import Any, Callable, cast, Optional, Type, TypeVar, Union
 
-from typing_extensions import Protocol, TypeGuard
+from typing_extensions import get_args, get_origin, Protocol, TypeGuard
 
 from .debug import debug_repr, short_id
 from .immutable import FinalImmutable, Immutable
 from .meta import AbstractMeta, FinalMeta
 from .. import API
+
+__all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
+           'FinalMeta', 'API', 'Default', 'Copy', 'enforce_subclass_if_possible',
+           'enforce_type_if_possible', 'extract_optional_value']
+
+if sys.version_info >= (3, 10):
+    from types import UnionType
+else:
+    UnionType = Union
 
 Im = TypeVar('Im', bound=Immutable)
 T = TypeVar('T')
@@ -30,10 +40,6 @@ class Copy(enum.Enum):
             for attr, value in kwargs.items()
         })
 
-
-__all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
-           'FinalMeta', 'API', 'Default', 'Copy', 'enforce_subclass_if_possible',
-           'enforce_type_if_possible']
 
 # inspired by how `typing_extensions.runtime_checkable` checks for a protocol
 # 3.8+
@@ -71,3 +77,24 @@ def enforce_subclass_if_possible(child: type, mother: Tp) -> TypeGuard[Tp]:
     if isinstance(mother, type) and isinstance(child, type):
         _enforce(child, mother, issubclass)
     return True
+
+
+@API.private
+def is_union(type_hint: object) -> bool:
+    origin = get_origin(type_hint)
+    return origin is Union or origin is UnionType
+
+
+@API.private
+def is_optional(type_hint: object) -> bool:
+    args = cast(Any, get_args(type_hint))
+    return (is_union(type_hint)
+            and len(args) == 2
+            and (isinstance(None, args[1]) or isinstance(None, args[0])))
+
+
+@API.private
+def extract_optional_value(type_hint: object) -> Optional[object]:
+    if is_optional(type_hint):
+        args = cast(Any, get_args(type_hint))
+        return args[0] if isinstance(None, args[1]) else args[1]

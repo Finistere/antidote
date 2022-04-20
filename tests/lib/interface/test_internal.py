@@ -1,3 +1,4 @@
+import sys
 from typing import Any, Optional, Union
 
 import pytest
@@ -66,3 +67,12 @@ def test_create_constraint_invalid_type_hint(type_hint: Any) -> None:
 
     with pytest.raises(TypeError, match="(?i).*Optional.*Predicate.*"):
         create(InvalidTypeHint())  # type: ignore
+
+
+if sys.version_info >= (3, 10):
+    def test_python310_support() -> None:
+        class NewUnionSyntaxTypeHint:
+            def evaluate(self, predicate: 'QualifiedBy | None') -> bool:
+                pass  # pragma: no cover
+
+        create(NewUnionSyntaxTypeHint())

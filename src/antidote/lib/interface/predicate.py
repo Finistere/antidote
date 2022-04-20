@@ -7,7 +7,8 @@ from typing_extensions import final, Protocol, runtime_checkable
 from ..._internal import API
 from ..._internal.utils.meta import Singleton
 
-__all__ = ['NeutralWeight', 'Predicate', 'PredicateWeight', 'PredicateConstraint']
+__all__ = ['NeutralWeight', 'Predicate', 'PredicateWeight', 'PredicateConstraint',
+           'MergeablePredicateConstraint', 'MergeablePredicate']
 
 SelfWeight = TypeVar('SelfWeight', bound='PredicateWeight')
 
@@ -193,7 +194,7 @@ class MergeablePredicate(Predicate[WeightCo], Protocol):
         >>> from antidote.lib.interface import NeutralWeight
         >>> class UseMe:
         ...     @classmethod
-        ...     def merge(cls, a: UseMe, b: UseMe) -> UseMe:
+        ...     def merge(cls, a: 'UseMe', b: 'UseMe') -> 'UseMe':
         ...         return UseMe(a.condition and b.condition)
         ...
         ...     def __init__(self, condition: bool) -> None:
@@ -275,7 +276,7 @@ class MergeablePredicateConstraint(PredicateConstraint[Pct], Protocol):
         >>> from antidote.lib.interface import NeutralWeight, QualifiedBy
         >>> class NotQualified:
         ...     @classmethod
-        ...     def merge(cls, a: NotQualified, b: NotQualified) -> NotQualified:
+        ...     def merge(cls, a: 'NotQualified', b: 'NotQualified') -> 'NotQualified':
         ...         return a
         ...
         ...     def evaluate(self, predicate: Optional[QualifiedBy]) -> bool:

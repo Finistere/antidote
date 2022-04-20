@@ -3,13 +3,13 @@ from __future__ import annotations
 import itertools
 from typing import Any, cast, List, Optional, Type, TypeVar, Union
 
-from typing_extensions import get_args, get_origin, get_type_hints, TypeAlias
+from typing_extensions import get_type_hints, TypeAlias
 
 from ._provider import ConstraintsAlias, InterfaceProvider
 from .predicate import (MergeablePredicate, MergeablePredicateConstraint, NeutralWeight, Predicate,
                         PredicateConstraint, PredicateWeight)
 from ..._internal import API
-from ..._internal.utils import enforce_subclass_if_possible
+from ..._internal.utils import enforce_subclass_if_possible, extract_optional_value
 from ...core import inject
 from ...core.exceptions import DuplicateDependencyError
 
@@ -76,13 +76,7 @@ def create_constraints(
         if predicate_type_hint is None:
             raise TypeError(f"Missing 'predicate' argument on the predicate filter {contraint}")
 
-        if get_origin(predicate_type_hint) is not Union:
-            raise TypeError("Predicate type hint must be Optional[P] with P being a Predicate")
-        args = cast(Any, get_args(predicate_type_hint))
-        if not (len(args) == 2 and (isinstance(None, args[1]) or isinstance(None, args[0]))):
-            raise TypeError("Predicate type hint must be Optional[P] with P being a Predicate")
-
-        predicate_type = args[0] if isinstance(None, args[1]) else args[1]
+        predicate_type = extract_optional_value(predicate_type_hint)
         if not (isinstance(predicate_type, type) and issubclass(predicate_type, Predicate)):
             raise TypeError("Predicate type hint must be Optional[P] with P being a Predicate")
         result.append((cast(Type[Predicate[Any]], predicate_type), contraint))
