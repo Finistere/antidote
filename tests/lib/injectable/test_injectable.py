@@ -141,7 +141,7 @@ def test_custom_wiring() -> None:
     class Dummy:
         pass
 
-    @injectable(wiring=Wiring(dependencies={'x': Dummy}))
+    @injectable(wiring=Wiring(dependencies={"x": Dummy}))
     class MyService:
         def __init__(self, x: Dummy) -> None:
             self.dummy = x
@@ -154,7 +154,7 @@ def test_custom_wiring() -> None:
     assert service.method() is world.get(Dummy)  # type: ignore
 
 
-@pytest.mark.parametrize('factory_method', ['static_method', 'class_method'])
+@pytest.mark.parametrize("factory_method", ["static_method", "class_method"])
 def test_factory(factory_method: str) -> None:
     sentinel = object()
 
@@ -177,10 +177,12 @@ def test_factory(factory_method: str) -> None:
     assert dummy.x is sentinel
 
 
-@pytest.mark.parametrize('arg',
-                         ['singleton', 'scope', 'wiring', 'factory_method', 'type_hints_locals'])
+@pytest.mark.parametrize(
+    "arg", ["singleton", "scope", "wiring", "factory_method", "type_hints_locals"]
+)
 def test_invalid_arguments(arg: str) -> None:
     with pytest.raises(TypeError, match=".*" + arg + ".*"):
+
         @injectable(**{arg: object()})
         class Dummy:
             ...
@@ -196,17 +198,20 @@ def test_invalid_class() -> None:
 
 def test_invalid_factory_method() -> None:
     with pytest.raises(AttributeError, match=".*build.*"):
-        @injectable(factory_method='build')
+
+        @injectable(factory_method="build")
         class Dummy:
             ...
 
     with pytest.raises(TypeError, match=".*factory_method.*"):
-        @injectable(factory_method='build')
+
+        @injectable(factory_method="build")
         class Dummy2:
             build = 1
 
     with pytest.raises(TypeError, match=".*factory_method.*"):
-        @injectable(factory_method='build')
+
+        @injectable(factory_method="build")
         class Dummy3:
             def build(self) -> None:
                 ...
@@ -214,6 +219,7 @@ def test_invalid_factory_method() -> None:
 
 def test_forbid_inheriting_service_class() -> None:
     with pytest.raises(DuplicateDependencyError, match=".*Service.*"):
+
         @injectable
         class Dummy(Service):
             ...
@@ -221,6 +227,7 @@ def test_forbid_inheriting_service_class() -> None:
 
 def test_duplicate_declaration() -> None:
     with pytest.raises(DuplicateDependencyError, match=".*Dummy.*"):
+
         @injectable
         @injectable
         class Dummy:

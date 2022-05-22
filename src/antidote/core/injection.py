@@ -2,8 +2,20 @@ from __future__ import annotations
 
 import collections.abc as c_abc
 import warnings
-from typing import (Any, Callable, Hashable, Iterable, Mapping, Optional,
-                    overload, Sequence, Type, TYPE_CHECKING, TypeVar, Union)
+from typing import (
+    Any,
+    Callable,
+    Hashable,
+    Iterable,
+    Mapping,
+    Optional,
+    overload,
+    Sequence,
+    Type,
+    TYPE_CHECKING,
+    TypeVar,
+    Union,
+)
 
 from typing_extensions import final, Literal, TypeAlias
 
@@ -19,9 +31,9 @@ if TYPE_CHECKING:
     from .typing import CallableClass, Source
     from ..lib.interface import PredicateConstraint
 
-F = TypeVar('F', bound=Callable[..., Any])
-T = TypeVar('T')
-AnyF: TypeAlias = 'Union[Callable[..., Any], staticmethod[Any], classmethod[Any]]'
+F = TypeVar("F", bound=Callable[..., Any])
+T = TypeVar("T")
+AnyF: TypeAlias = "Union[Callable[..., Any], staticmethod[Any], classmethod[Any]]"
 
 
 @API.deprecated
@@ -35,7 +47,8 @@ class Arg(FinalImmutable):
     Represents an argument (name and type hint) if you need a very custom injection
     logic.
     """
-    __slots__ = ('name', 'type_hint', 'type_hint_with_extras')
+
+    __slots__ = ("name", "type_hint", "type_hint_with_extras")
     name: str
     """Name of the argument"""
     type_hint: Any
@@ -46,8 +59,9 @@ class Arg(FinalImmutable):
     """
 
     def __init__(self, name: str, type_hint: Any, type_hint_with_extras: Any) -> None:
-        warnings.warn("Deprecated as specifying a function to @inject is deprecated",
-                      DeprecationWarning)
+        warnings.warn(
+            "Deprecated as specifying a function to @inject is deprecated", DeprecationWarning
+        )
         super().__init__(name, type_hint, type_hint_with_extras)
 
 
@@ -60,11 +74,13 @@ DEPENDENCIES_TYPE: TypeAlias = Union[
     Callable[[Arg], Optional[Hashable]],  # arg -> dependency
 ]
 # API.deprecated
-AUTO_PROVIDE_TYPE: TypeAlias = Optional[Union[
-    bool,  # all class type hints or nothing
-    Iterable[type],  # specific list of classes
-    Callable[[type], bool]  # Function determining which classes should be auto provided
-]]
+AUTO_PROVIDE_TYPE: TypeAlias = Optional[
+    Union[
+        bool,  # all class type hints or nothing
+        Iterable[type],  # specific list of classes
+        Callable[[type], bool],  # Function determining which classes should be auto provided
+    ]
+]
 
 
 @API.private  # Use the singleton instance `inject`, not the class directly.
@@ -82,27 +98,28 @@ class Injector(Singleton):
         ...
 
     @overload
-    def me(self,
-           *,
-           source: Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]
-           ) -> Any:
+    def me(
+        self, *, source: Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]
+    ) -> Any:
         ...
 
     @overload
-    def me(self,
-           *constraints: PredicateConstraint[Any],
-           qualified_by: Optional[object | list[object]] = None,
-           qualified_by_one_of: Optional[list[object]] = None
-           ) -> Any:
+    def me(
+        self,
+        *constraints: PredicateConstraint[Any],
+        qualified_by: Optional[object | list[object]] = None,
+        qualified_by_one_of: Optional[list[object]] = None,
+    ) -> Any:
         ...
 
     @API.public
-    def me(self,
-           *constraints: PredicateConstraint[Any],
-           qualified_by: Optional[object | list[object]] = None,
-           qualified_by_one_of: Optional[list[object]] = None,
-           source: Optional[Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]] = None
-           ) -> Any:
+    def me(
+        self,
+        *constraints: PredicateConstraint[Any],
+        qualified_by: Optional[object | list[object]] = None,
+        qualified_by_one_of: Optional[list[object]] = None,
+        source: Optional[Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]] = None,
+    ) -> Any:
         """
         Injection Marker specifying that the current type hint should be used as dependency.
 
@@ -179,138 +196,125 @@ class Injector(Singleton):
             qualified_by_one_of: At least one of the specified qualifiers must qualify the
                 implementation.
         """
-        impl_args_kwargs = constraints or any(kw is not None for kw in
-                                              (qualified_by,
-                                               qualified_by_one_of))
+        impl_args_kwargs = constraints or any(
+            kw is not None for kw in (qualified_by, qualified_by_one_of)
+        )
         if source is not None:
             if impl_args_kwargs:
-                raise TypeError("Additional arguments are not supported "
-                                "when specifying the source.")
+                raise TypeError(
+                    "Additional arguments are not supported objectwhen specifying the source."
+                )
             return InjectFromSourceMarker(source=source)
         elif impl_args_kwargs:
             return InjectImplMarker(
                 constraints_args=constraints,
                 constraints_kwargs=dict(
-                    qualified_by=qualified_by,
-                    qualified_by_one_of=qualified_by_one_of
-                ))
+                    qualified_by=qualified_by, qualified_by_one_of=qualified_by_one_of
+                ),
+            )
         else:
             return InjectClassMarker()
 
     @overload
-    def __call__(self,
-                 __arg: staticmethod[F],
-                 *,
-                 dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> staticmethod[F]:
+    def __call__(
+        self,
+        __arg: staticmethod[F],
+        *,
+        dependencies: DEPENDENCIES_TYPE = None,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> staticmethod[F]:
         ...
 
     @overload
-    def __call__(self,
-                 __arg: classmethod[F],
-                 *,
-                 dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> classmethod[F]:
+    def __call__(
+        self,
+        __arg: classmethod[F],
+        *,
+        dependencies: DEPENDENCIES_TYPE = None,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> classmethod[F]:
         ...
 
     @overload
-    def __call__(self,
-                 __arg: F,
-                 *,
-                 dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> F:
+    def __call__(
+        self,
+        __arg: F,
+        *,
+        dependencies: DEPENDENCIES_TYPE = None,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> F:
         ...
 
     @overload
-    def __call__(self,
-                 *,
-                 dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> Callable[[F], F]:
+    def __call__(
+        self,
+        *,
+        dependencies: DEPENDENCIES_TYPE = None,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> Callable[[F], F]:
         ...
 
     @overload
-    def __call__(self,
-                 __arg: Sequence[object],
-                 *,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> Callable[[F], F]:
+    def __call__(
+        self,
+        __arg: Sequence[object],
+        *,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> Callable[[F], F]:
         ...
 
     @overload
-    def __call__(self,
-                 __arg: Mapping[str, object],
-                 *,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> Callable[[F], F]:
+    def __call__(
+        self,
+        __arg: Mapping[str, object],
+        *,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> Callable[[F], F]:
         ...
 
     @API.public
-    def __call__(self,
-                 __arg: Union[None, AnyF, Sequence[object], Mapping[str, object]] = None,
-                 *,
-                 dependencies: DEPENDENCIES_TYPE = None,
-                 auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
-                 strict_validation: bool = True,
-                 ignore_type_hints: bool = False,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> AnyF:
+    def __call__(
+        self,
+        __arg: Union[None, AnyF, Sequence[object], Mapping[str, object]] = None,
+        *,
+        dependencies: DEPENDENCIES_TYPE = None,
+        auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None,
+        strict_validation: bool = True,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> AnyF:
         """
         Inject the dependencies into the function lazily, they are only retrieved
         upon execution. As several options can apply to the same argument, the priority is
@@ -396,30 +400,38 @@ class Injector(Singleton):
 
         if isinstance(__arg, (c_abc.Sequence, c_abc.Mapping)):
             if isinstance(__arg, str):
-                raise TypeError("First argument must be an sequence/mapping of dependencies "
-                                "or the function to be wrapped, not a string.")
+                raise TypeError(
+                    "First argument must be an sequence/mapping of dependencies "
+                    "or the function to be wrapped, not a string."
+                )
             if dependencies is not None:
-                raise TypeError("dependencies must be None if a sequence/mapping of "
-                                "dependencies is provided as first argument.")
+                raise TypeError(
+                    "dependencies must be None if a sequence/mapping of "
+                    "dependencies is provided as first argument."
+                )
             dependencies = __arg
             __arg = None
 
         if callable(dependencies):
-            warnings.warn("""
-            Passing a callable to dependencies is deprecated.
-            If you rely on this behavior, wrap @inject instead.
-            """, DeprecationWarning)
+            warnings.warn(
+                "Passing a callable to dependencies is deprecated."
+                "If you rely on this behavior, wrap @inject instead.",
+                DeprecationWarning,
+            )
 
         if auto_provide is not None:
-            warnings.warn("""
-            Using auto_provide is deprecated.
-            If you rely on this behavior, wrap @inject instead.
-            """, DeprecationWarning)
+            warnings.warn(
+                "Using auto_provide is deprecated."
+                "If you rely on this behavior, wrap @inject instead.",
+                DeprecationWarning,
+            )
 
         if ignore_type_hints:
             if type_hints_locals is not None and type_hints_locals is not Default.sentinel:
-                raise TypeError(f"When ignoring type hints, type_hints_locals MUST be None "
-                                f"or not specified at all. Got: {type_hints_locals}")
+                raise TypeError(
+                    f"When ignoring type hints, type_hints_locals MUST be None "
+                    f"or not specified at all. Got: {type_hints_locals}"
+                )
             localns = None
         else:
             localns = retrieve_or_validate_injection_locals(type_hints_locals)
@@ -431,7 +443,7 @@ class Injector(Singleton):
                 auto_provide=auto_provide if auto_provide is not None else False,
                 strict_validation=strict_validation,
                 ignore_type_hints=ignore_type_hints,
-                type_hints_locals=localns
+                type_hints_locals=localns,
             )
 
         return __arg and decorate(__arg) or decorate
@@ -441,8 +453,9 @@ inject = Injector()
 
 
 @API.public  # Function will be kept in sync with @inject, so you may use it.
-def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
-                       auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None) -> None:
+def validate_injection(
+    dependencies: DEPENDENCIES_TYPE = None, auto_provide: API.Deprecated[AUTO_PROVIDE_TYPE] = None
+) -> None:
     """
     Validates that injection parameters are valid. If not, an error is raised.
 
@@ -467,10 +480,14 @@ def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
     if auto_provide is not None:
         warnings.warn("Using auto_provide is deprecated.", DeprecationWarning)
 
-    if not (dependencies is None
-            or (isinstance(dependencies, (c_abc.Sequence, c_abc.Mapping))
-                and not isinstance(dependencies, str))
-            or callable(dependencies)):
+    if not (
+        dependencies is None
+        or (
+            isinstance(dependencies, (c_abc.Sequence, c_abc.Mapping))
+            and not isinstance(dependencies, str)
+        )
+        or callable(dependencies)
+    ):
         raise TypeError(
             f"dependencies can be None, a mapping of arguments names to dependencies, "
             f"a sequence of dependencies, a function, "
@@ -480,17 +497,21 @@ def validate_injection(dependencies: DEPENDENCIES_TYPE = None,
         if not all(isinstance(k, str) for k in dependencies.keys()):
             raise TypeError("Dependencies keys must be argument names (str)")
 
-    if isinstance(auto_provide, str) \
-            or not (auto_provide is None
-                    or callable(auto_provide)
-                    or isinstance(auto_provide, (bool, c_abc.Iterable))):
+    if isinstance(auto_provide, str) or not (
+        auto_provide is None
+        or callable(auto_provide)
+        or isinstance(auto_provide, (bool, c_abc.Iterable))
+    ):
         raise TypeError(
             f"auto_provide must be either a boolean or an iterable of classes, "
-            f"not {type(auto_provide)!r}.")
+            f"not {type(auto_provide)!r}."
+        )
 
     # If we can iterate over it safely
     if isinstance(auto_provide, (list, set, tuple, frozenset)):
         for cls in auto_provide:
             if not isinstance(cls, type):
-                raise TypeError(f"auto_provide must be a boolean or an iterable of "
-                                f"classes, but contains {cls!r} which is not a class.")
+                raise TypeError(
+                    f"auto_provide must be a boolean or an iterable of "
+                    f"classes, but contains {cls!r} which is not a class."
+                )

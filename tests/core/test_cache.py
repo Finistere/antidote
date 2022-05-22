@@ -8,9 +8,9 @@ def test_fast_dict():
     d = DependencyCache()
     n = 37
     for i in range(n):
-        d[i] = i ** 2
+        d[i] = i**2
 
     for i in range(n):
-        assert d[i] == i ** 2
+        assert d[i] == i**2
 
     assert len(d) == n

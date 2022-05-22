@@ -28,18 +28,18 @@ def test_lazy():
         world.test.singleton(x, object())
         lazy_provider = LazyProvider()
 
-        assert world.test.maybe_provide_from(lazy_provider,
-                                             Dummy(x)).unwrapped is world.get(x)
+        assert world.test.maybe_provide_from(lazy_provider, Dummy(x)).unwrapped is world.get(x)
         for s in [True, False]:
-            assert world.test.maybe_provide_from(
-                lazy_provider,
-                Dummy(x, singleton=s)).is_singleton() is s
+            assert (
+                world.test.maybe_provide_from(lazy_provider, Dummy(x, singleton=s)).is_singleton()
+                is s
+            )
 
 
 def test_exists():
     lazy = LazyProvider()
     assert not lazy.exists(object())
-    assert lazy.exists(Dummy('x'))
+    assert lazy.exists(Dummy("x"))
 
 
 def test_copy(lazy_provider: LazyProvider):

@@ -4,8 +4,7 @@ Utilities used by world, mostly for syntactic sugar.
 from __future__ import annotations
 
 import warnings
-from typing import (Any, cast, Generic, Hashable, Type,
-                    TypeVar)
+from typing import Any, cast, Generic, Hashable, Type, TypeVar
 
 from typing_extensions import final, Protocol
 
@@ -14,7 +13,7 @@ from .utils.immutable import Immutable
 from .utils.meta import Singleton
 from ..core.container import RawContainer
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @API.private
@@ -39,14 +38,13 @@ class LazyDependency(Immutable, Generic[T]):
         <MyService ...>
 
     """
-    __slots__ = ('unwrapped', '_type')
+
+    __slots__ = ("unwrapped", "_type")
     unwrapped: Hashable
     """Actual dependency to be retrieved"""
     _type: Type[T]
 
-    def __init__(self,
-                 __dependency: Hashable,
-                 expected_type: Type[T]) -> None:
+    def __init__(self, __dependency: Hashable, expected_type: Type[T]) -> None:
         """
         Args:
             __dependency: actual dependency to be retrieved.
@@ -59,11 +57,11 @@ class LazyDependency(Immutable, Generic[T]):
             dependency value retrieved from :py:mod:`~..world`.
         """
         from antidote import world
+
         value = world.get(cast(Any, self.unwrapped))
 
         if not isinstance(value, self._type):
-            raise TypeError(f"Dependency is not an instance of {self._type}, "
-                            f"but {type(value)}")
+            raise TypeError(f"Dependency is not an instance of {self._type}, but {type(value)}")
 
         return value
 
@@ -85,13 +83,12 @@ class WorldLazy(Singleton):
 @API.private
 @final
 class TypedWorldLazy(Generic[T], Immutable):
-    __slots__ = ('__type',)
+    __slots__ = ("__type",)
     __type: Type[T]
 
     def __call__(self, __dependency: Hashable = None) -> LazyDependency[T]:
         warnings.warn("Deprecated behavior, wrap world.get() yourself", DeprecationWarning)
-        return LazyDependency[T](self.__type if __dependency is None else __dependency,
-                                 self.__type)
+        return LazyDependency[T](self.__type if __dependency is None else __dependency, self.__type)
 
     def __matmul__(self, other: SupportsRMatmul) -> LazyDependency[T]:
         return self.__call__(self.__type @ other)
@@ -99,7 +96,7 @@ class TypedWorldLazy(Generic[T], Immutable):
 
 @API.private
 def new_container() -> RawContainer:
-    """ default new container in Antidote """
+    """default new container in Antidote"""
 
     from .._providers import IndirectProvider, FactoryProvider
     from ..lib.interface._provider import InterfaceProvider

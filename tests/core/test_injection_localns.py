@@ -90,13 +90,13 @@ def test_explicit_locals():
     alternate_dummy = AlternateDummy()
     world.test.singleton(AlternateDummy, alternate_dummy)
 
-    @inject(type_hints_locals={'Dummy': AlternateDummy})
+    @inject(type_hints_locals={"Dummy": AlternateDummy})
     def f(x: Dummy = inject.me()) -> Dummy:
         return x
 
     assert f() is alternate_dummy
 
-    @wire(type_hints_locals={'Dummy': AlternateDummy})
+    @wire(type_hints_locals={"Dummy": AlternateDummy})
     class Service:
         def method(self, x: Dummy = inject.me()) -> Dummy:
             return x
@@ -112,22 +112,26 @@ def test_no_locals():
     world.test.singleton(Dummy, dummy)
 
     with pytest.raises(NameError, match="(?i).*Dummy.*"):
+
         @inject(type_hints_locals=None)
         def f(x: Dummy = inject.me()) -> Dummy:
             return x
 
     with pytest.raises(NameError, match="(?i).*Dummy.*"):
+
         @inject(type_hints_locals={})
         def g(x: Dummy = inject.me()) -> Dummy:
             return x
 
     with pytest.raises(NameError, match="(?i).*Dummy.*"):
+
         @wire(type_hints_locals=None)
         class F:
             def method(self, x: Dummy = inject.me()) -> Dummy:
                 return x
 
     with pytest.raises(NameError, match="(?i).*Dummy.*"):
+
         @wire(type_hints_locals={})
         class G:
             def method(self, x: Dummy = inject.me()) -> Dummy:
@@ -142,11 +146,13 @@ def test_no_type_hints():
     world.test.singleton(Dummy, dummy)
 
     with pytest.raises(TypeError, match=".*@inject.me.*"):
+
         @inject(ignore_type_hints=True)
         def f(x: Dummy = inject.me()) -> Dummy:
             return x
 
     with pytest.raises(TypeError, match=".*@inject.me.*"):
+
         @wire(ignore_type_hints=True)
         class F:
             def method(self, x: Dummy = inject.me()) -> Dummy:
@@ -169,6 +175,7 @@ def test_no_type_hints():
 def test_config_not_activated():
     config.auto_detect_type_hints_locals = False
     try:
+
         class Dummy:
             pass
 
@@ -176,11 +183,13 @@ def test_config_not_activated():
         world.test.singleton(Dummy, dummy)
 
         with pytest.raises(NameError, match=".*Dummy.*"):
+
             @inject
             def f(x: Dummy = inject.me()) -> Dummy:
                 return x
 
         with pytest.raises(NameError, match=".*Dummy.*"):
+
             @wire
             class Service:
                 def method(self, x: Dummy = inject.me()) -> Dummy:

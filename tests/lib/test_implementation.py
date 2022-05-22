@@ -22,22 +22,23 @@ def test_default_implementation():
     class B(Interface, Service):
         pass
 
-    choice = 'a'
+    choice = "a"
 
     @implementation(Interface)
     def choose():
         return dict(a=A, b=B)[choice]
 
     assert world.get(Interface @ choose) is world.get(A)
-    choice = 'b'
+    choice = "b"
     assert choose() is B
     assert world.get(Interface @ choose) is world.get(A)
 
 
-@pytest.mark.parametrize('singleton,permanent',
-                         [(True, True), (True, False), (False, True), (False, False)])
+@pytest.mark.parametrize(
+    "singleton,permanent", [(True, True), (True, False), (False, True), (False, False)]
+)
 def test_implementation(singleton: bool, permanent: bool):
-    choice = 'a'
+    choice = "a"
 
     class A(Interface, Service):
         __antidote__ = Service.Conf(singleton=singleton)
@@ -53,7 +54,7 @@ def test_implementation(singleton: bool, permanent: bool):
     assert isinstance(world.get(dependency), A)
     assert (world.get(dependency) is world.get(A)) is singleton
 
-    choice = 'b'
+    choice = "b"
     assert choose_service() == B
     if permanent:
         assert isinstance(world.get(dependency), A)
@@ -67,7 +68,7 @@ def test_implementation_parameterized_service():
     x = object()
 
     class A(Interface, Service):
-        __antidote__ = Service.Conf(parameters=['test'])
+        __antidote__ = Service.Conf(parameters=["test"])
 
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -89,7 +90,7 @@ def test_implementation_with_factory():
             self.kwargs = kwargs
 
     class BuildA(Factory):
-        __antidote__ = Factory.Conf(parameters=['test'])
+        __antidote__ = Factory.Conf(parameters=["test"])
 
         def __call__(self, **kwargs) -> A:
             return A(**kwargs)
@@ -110,21 +111,29 @@ def dummy_choose():
     return A
 
 
-@pytest.mark.parametrize('expectation,kwargs,func',
-                         [
-                             pytest.param(pytest.raises(TypeError, match='.*function.*'),
-                                          dict(interface=Interface),
-                                          object(),
-                                          id='function'),
-                             pytest.param(pytest.raises(TypeError, match='.*interface.*'),
-                                          dict(interface=object()),
-                                          dummy_choose,
-                                          id='interface'),
-                             pytest.param(pytest.raises(TypeError, match='.*permanent.*'),
-                                          {'interface': Interface, 'permanent': object()},
-                                          dummy_choose,
-                                          id='permanent')
-                         ])
+@pytest.mark.parametrize(
+    "expectation,kwargs,func",
+    [
+        pytest.param(
+            pytest.raises(TypeError, match=".*function.*"),
+            dict(interface=Interface),
+            object(),
+            id="function",
+        ),
+        pytest.param(
+            pytest.raises(TypeError, match=".*interface.*"),
+            dict(interface=object()),
+            dummy_choose,
+            id="interface",
+        ),
+        pytest.param(
+            pytest.raises(TypeError, match=".*permanent.*"),
+            {"interface": Interface, "permanent": object()},
+            dummy_choose,
+            id="permanent",
+        ),
+    ],
+)
 def test_invalid_implementation(expectation, kwargs: dict, func):
     with expectation:
         implementation(**kwargs)(func)
@@ -159,8 +168,9 @@ def test_invalid_implementation_return_type():
             world.get(Interface @ choose2)
 
     with world.test.new():
+
         class C(Service):
-            __antidote__ = Service.Conf(parameters=['test'])
+            __antidote__ = Service.Conf(parameters=["test"])
 
             def __init__(self, **kwargs):
                 self.kwargs = kwargs
@@ -174,12 +184,13 @@ def test_invalid_implementation_return_type():
             world.get(Interface @ impl)
 
     with world.test.new():
+
         class D:
             def __init__(self, **kwargs):
                 self.kwargs = kwargs
 
         class BuildD(Factory):
-            __antidote__ = Factory.Conf(parameters=['test'])
+            __antidote__ = Factory.Conf(parameters=["test"])
 
             def __call__(self, **kwargs) -> D:
                 return D(**kwargs)
@@ -218,13 +229,13 @@ def test_getattr():
     def current_interface():
         return A
 
-    current_interface.hello = 'world'
+    current_interface.hello = "world"
 
     build = implementation(Interface)(current_interface)
-    assert build.hello == 'world'
+    assert build.hello == "world"
 
-    build.new_hello = 'new_world'
-    assert build.new_hello == 'new_world'
+    build.new_hello = "new_world"
+    assert build.new_hello == "new_world"
 
 
 def test_validate_provided_class():
@@ -235,10 +246,10 @@ def test_validate_provided_class():
         validate_provided_class(object(), expected=Interface)
 
     class A(Interface, Service):
-        __antidote__ = Service.Conf(parameters=['a'])
+        __antidote__ = Service.Conf(parameters=["a"])
 
     class B(Service):
-        __antidote__ = Service.Conf(parameters=['a'])
+        __antidote__ = Service.Conf(parameters=["a"])
 
     validate_provided_class(A, expected=Interface)
     validate_provided_class(B, expected=B)
@@ -275,6 +286,7 @@ def test_validate_provided_class_factory():
         pass
 
     with world.test.new():
+
         @factory
         def build_a() -> A:
             return A()
@@ -289,14 +301,15 @@ def test_validate_provided_class_factory():
             validate_provided_class(B @ build_b, expected=Interface)
 
     with world.test.new():
+
         class BuildA(Factory):
-            __antidote__ = Factory.Conf(parameters=['a'])
+            __antidote__ = Factory.Conf(parameters=["a"])
 
             def __call__(self, **kwargs) -> A:
                 return A(**kwargs)
 
         class BuildB(Factory):
-            __antidote__ = Factory.Conf(parameters=['a'])
+            __antidote__ = Factory.Conf(parameters=["a"])
 
             def __call__(self, **kwargs) -> B:
                 return B(**kwargs)

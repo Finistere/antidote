@@ -11,11 +11,11 @@ from ._provider import LazyFunction
 from ..._internal import API
 from ...core import Scope
 
-__all__ = ['DependencyKey', 'LazyWrapperWithoutScope', 'LazyWrapper']
+__all__ = ["DependencyKey", "LazyWrapperWithoutScope", "LazyWrapper"]
 
-T = TypeVar('T')
-P = ParamSpec('P')
-Tco = TypeVar('Tco', covariant=True)
+T = TypeVar("T")
+P = ParamSpec("P")
+Tco = TypeVar("Tco", covariant=True)
 
 
 # See https://github.com/python/mypy/issues/6910
@@ -29,6 +29,7 @@ class Function(Protocol[P, Tco]):
 @final
 class LazyWrapperWithoutScope(Generic[P, T]):
     """placeholder to avoid dataclass using __signature__"""
+
     __wrapped__: Function[P, T]
     __signature__: inspect.Signature
 
@@ -42,10 +43,9 @@ class LazyWrapperWithoutScope(Generic[P, T]):
             bound = self.__signature__.bind(*args, **kwargs)
             args = cast(Any, bound.args)
             kwargs = cast(Any, bound.kwargs)
-        dependency = LazyFunction.of(func=self.__wrapped__,
-                                     args=cast(Any, args),
-                                     kwargs=cast(Any, kwargs),
-                                     scope=None)
+        dependency = LazyFunction.of(
+            func=self.__wrapped__, args=cast(Any, args), kwargs=cast(Any, kwargs), scope=None
+        )
         return cast(T, dependency)
 
     def call(self, *args: P.args, **kwargs: P.kwargs) -> T:
@@ -56,6 +56,7 @@ class LazyWrapperWithoutScope(Generic[P, T]):
 @final
 class LazyWrapper(Generic[P, T]):
     """placeholder to avoid dataclass using __signature__"""
+
     __wrapped__: Function[P, T]
     __scope: Scope
     __signature__: inspect.Signature
@@ -79,10 +80,12 @@ class LazyWrapper(Generic[P, T]):
         try:
             dependency = self.__dependency_cache[key]
         except KeyError:
-            lazy = LazyFunction.of(func=self.__wrapped__,
-                                   args=cast(Any, args),
-                                   kwargs=cast(Any, kwargs),
-                                   scope=self.__scope)
+            lazy = LazyFunction.of(
+                func=self.__wrapped__,
+                args=cast(Any, args),
+                kwargs=cast(Any, kwargs),
+                scope=self.__scope,
+            )
             dependency = self.__dependency_cache.setdefault(key, lazy)
         return cast(T, dependency)
 
@@ -94,7 +97,7 @@ class LazyWrapper(Generic[P, T]):
 @final
 @dataclass(frozen=True)
 class DependencyKey:
-    __slots__ = ('args', 'kwargs', 'hash')
+    __slots__ = ("args", "kwargs", "hash")
     args: tuple[object, ...]
     kwargs: dict[str, object]
     hash: int
@@ -110,12 +113,12 @@ class DependencyKey:
         return self.hash
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, DependencyKey)
-                and self.hash == other.hash
-                and (self.args is other.args
-                     or self.args == other.args)
-                and (self.kwargs is other.kwargs
-                     or self.kwargs == other.kwargs))
+        return (
+            isinstance(other, DependencyKey)
+            and self.hash == other.hash
+            and (self.args is other.args or self.args == other.args)
+            and (self.kwargs is other.kwargs or self.kwargs == other.kwargs)
+        )
 
 
 # For speed and space efficiency

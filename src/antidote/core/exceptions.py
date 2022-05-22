@@ -5,7 +5,7 @@ from .._internal import API
 
 @API.public
 class AntidoteError(Exception):
-    """ Base class of all errors of antidote. """
+    """Base class of all errors of antidote."""
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self})"
@@ -48,8 +48,9 @@ class DependencyInstantiationError(AntidoteError):
 
     def __init__(self, dependency: Hashable, stack: Optional[List[Hashable]] = None) -> None:
         from .._internal.utils import debug_repr
+
         msg = f"Could not instantiate {debug_repr(dependency)}"
-        stack = (stack or [])
+        stack = stack or []
         if stack:  # first and last dependency will raise their own errors.
             stack.append(dependency)
             msg += f"\nFull dependency stack:\n{_stack_repr(stack)}\n"
@@ -75,6 +76,7 @@ class DependencyNotFoundError(AntidoteError):
 
     def __init__(self, dependency: Hashable) -> None:
         from .._internal.utils import debug_repr
+
         super().__init__(debug_repr(dependency))
 
 
@@ -101,9 +103,9 @@ def _stack_repr(stack: Iterable[object]) -> str:
 
     text: List[str] = []
     for depth, dependency in enumerate(stack):
-        indent = '    ' * (depth - 1) if depth > 1 else ''
+        indent = "    " * (depth - 1) if depth > 1 else ""
         first_line, *rest = debug_repr(dependency).split("\n", 1)
         text.append(f"{indent}{'└── ' if depth else ''}{first_line}")
         if rest:
-            text.append(textwrap.indent(rest[0], indent + ('    ' if depth > 1 else '')))
-    return '\n'.join(text)
+            text.append(textwrap.indent(rest[0], indent + ("    " if depth > 1 else "")))
+    return "\n".join(text)

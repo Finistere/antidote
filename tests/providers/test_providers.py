@@ -5,10 +5,7 @@ from antidote._providers import FactoryProvider, IndirectProvider
 from antidote.core.container import RawProvider
 
 
-@pytest.fixture(params=[
-    FactoryProvider,
-    IndirectProvider
-])
+@pytest.fixture(params=[FactoryProvider, IndirectProvider])
 def provider(request):
     return request.param()
 

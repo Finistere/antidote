@@ -9,13 +9,14 @@ from .. import API
 
 @API.private
 class ImmutableMeta(type):
-    def __new__(mcs: Type[ImmutableMeta],
-                name: str,
-                bases: Tuple[type, ...],
-                namespace: Dict[str, object],
-                **kwargs: object
-                ) -> ImmutableMeta:
-        if '__slots__' not in namespace:
+    def __new__(
+        mcs: Type[ImmutableMeta],
+        name: str,
+        bases: Tuple[type, ...],
+        namespace: Dict[str, object],
+        **kwargs: object,
+    ) -> ImmutableMeta:
+        if "__slots__" not in namespace:
             raise TypeError("Attributes must be defined in slots")
 
         # TODO: Type ignore necessary when type checking with Python 3.6
@@ -29,6 +30,7 @@ class Immutable(SlotsRepr, metaclass=ImmutableMeta):
     Imitates immutable behavior by raising an exception when modifying an
     attribute through the standard means.
     """
+
     __slots__ = ()
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -39,7 +41,7 @@ class Immutable(SlotsRepr, metaclass=ImmutableMeta):
             attrs.update(kwargs)
             cls = type(self).__name__
             attrs = {
-                (f'_{cls}{name}' if name.startswith('__') else name): attr
+                (f"_{cls}{name}" if name.startswith("__") else name): attr
                 for name, attr in attrs.items()
             }
         else:
@@ -53,11 +55,12 @@ class Immutable(SlotsRepr, metaclass=ImmutableMeta):
 
 @API.private
 class FinalImmutableMeta(ImmutableMeta):
-    def __new__(mcs: Type[FinalImmutableMeta],
-                name: str,
-                bases: Tuple[type, ...],
-                namespace: Dict[str, object]
-                ) -> FinalImmutableMeta:
+    def __new__(
+        mcs: Type[FinalImmutableMeta],
+        name: str,
+        bases: Tuple[type, ...],
+        namespace: Dict[str, object],
+    ) -> FinalImmutableMeta:
 
         for b in bases:
             if isinstance(b, FinalImmutableMeta) and b.__module__ != __name__:

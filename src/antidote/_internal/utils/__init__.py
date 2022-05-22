@@ -10,18 +10,29 @@ from .immutable import FinalImmutable, Immutable
 from .meta import AbstractMeta, FinalMeta
 from .. import API
 
-__all__ = ['debug_repr', 'short_id', 'FinalImmutable', 'Immutable', 'AbstractMeta',
-           'FinalMeta', 'API', 'Default', 'Copy', 'enforce_subclass_if_possible',
-           'enforce_type_if_possible', 'extract_optional_value']
+__all__ = [
+    "debug_repr",
+    "short_id",
+    "FinalImmutable",
+    "Immutable",
+    "AbstractMeta",
+    "FinalMeta",
+    "API",
+    "Default",
+    "Copy",
+    "enforce_subclass_if_possible",
+    "enforce_type_if_possible",
+    "extract_optional_value",
+]
 
 if sys.version_info >= (3, 10):
     from types import UnionType
 else:
     UnionType = Union
 
-Im = TypeVar('Im', bound=Immutable)
-_T = TypeVar('_T')
-_Tp = TypeVar('_Tp', bound=type)
+Im = TypeVar("Im", bound=Immutable)
+_T = TypeVar("_T")
+_Tp = TypeVar("_Tp", bound=type)
 
 
 @API.private
@@ -35,19 +46,24 @@ class Copy(enum.Enum):
 
     @staticmethod
     def immutable(current: Im, **kwargs: object) -> Im:
-        return type(current)(**{
-            attr: getattr(current, attr) if value is Copy.IDENTICAL else value
-            for attr, value in kwargs.items()
-        })
+        return type(current)(
+            **{
+                attr: getattr(current, attr) if value is Copy.IDENTICAL else value
+                for attr, value in kwargs.items()
+            }
+        )
 
 
 # inspired by how `typing_extensions.runtime_checkable` checks for a protocol
 # 3.8+
-if hasattr(typing, 'runtime_checkable'):
+if hasattr(typing, "runtime_checkable"):
+
     @API.private
     def _is_protocol(obj: type) -> bool:
-        return (issubclass(obj, typing.cast(type, typing.Generic))
-                and getattr(obj, "_is_protocol", False))
+        return issubclass(obj, typing.cast(type, typing.Generic)) and getattr(
+            obj, "_is_protocol", False
+        )
+
 else:
     ProtocolMeta = type(Protocol)
 
@@ -88,9 +104,11 @@ def is_union(type_hint: object) -> bool:
 @API.private
 def is_optional(type_hint: object) -> bool:
     args = cast(Any, get_args(type_hint))
-    return (is_union(type_hint)
-            and len(args) == 2
-            and (isinstance(None, args[1]) or isinstance(None, args[0])))
+    return (
+        is_union(type_hint)
+        and len(args) == 2
+        and (isinstance(None, args[1]) or isinstance(None, args[0]))
+    )
 
 
 @API.private

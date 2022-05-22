@@ -21,8 +21,7 @@ class ThreadSafetyTest:
 
     @classmethod
     def run(cls, target: Callable[[], object], n_threads=None):
-        threads = [threading.Thread(target=target)
-                   for _ in range(n_threads or cls.n_threads)]
+        threads = [threading.Thread(target=target) for _ in range(n_threads or cls.n_threads)]
 
         for thread in threads:
             thread.start()

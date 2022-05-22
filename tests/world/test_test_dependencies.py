@@ -15,13 +15,14 @@ def empty_context():
     yield
 
 
-@pytest.mark.parametrize('context', [empty_context(), world.test.clone()])
+@pytest.mark.parametrize("context", [empty_context(), world.test.clone()])
 def test_invalid_root_world(context):
     with context:
         with pytest.raises(RuntimeError, match=".*test world.*"):
-            world.test.singleton(Service, '1')
+            world.test.singleton(Service, "1")
 
         with pytest.raises(RuntimeError, match=".*test world.*"):
+
             @world.test.factory()
             def build() -> Service:
                 return Service()
@@ -32,10 +33,7 @@ def test_singleton():
         world.test.singleton("singleton", 12342)
         assert world.get("singleton") == 12342
 
-        world.test.singleton({
-            "singleton2": 89,
-            "singleton3": 123
-        })
+        world.test.singleton({"singleton2": 89, "singleton3": 123})
         assert world.get("singleton2") == 89
         assert world.get("singleton3") == 123
 
@@ -84,6 +82,7 @@ def test_factory_from_annotation():
 
 def test_factory_singleton():
     with world.test.empty():
+
         @world.test.factory(Service)
         def build():
             return Service()
@@ -91,6 +90,7 @@ def test_factory_singleton():
         assert world.get(Service) is world.get(Service)
 
     with world.test.empty():
+
         @world.test.factory(Service, singleton=True)
         def build2():
             return Service()
@@ -98,6 +98,7 @@ def test_factory_singleton():
         assert world.get(Service) is world.get(Service)
 
     with world.test.empty():
+
         @world.test.factory(Service, scope=Scope.singleton())
         def build3():
             return Service()
@@ -107,6 +108,7 @@ def test_factory_singleton():
 
 def test_factory_no_scope():
     with world.test.empty():
+
         @world.test.factory(Service, singleton=False)
         def build():
             return Service()
@@ -116,7 +118,7 @@ def test_factory_no_scope():
 
 def test_factory_scope():
     with world.test.empty():
-        scope = world.scopes.new(name='dummy')
+        scope = world.scopes.new(name="dummy")
 
         @world.test.factory(Service, scope=scope)
         def build():
@@ -135,6 +137,7 @@ def test_invalid_factory():
             world.test.factory()(object())
 
         with pytest.raises(ValueError, match="(?i).*either.*dependency.*type hint.*"):
+
             @world.test.factory()
             def build():
                 return Service()

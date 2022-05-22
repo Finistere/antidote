@@ -21,12 +21,13 @@ class SupportsRMatmul(Protocol):
         pass  # pragma: no cover
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @API.private
 class AntidoteAnnotation:
     """Base class for all Antidote annotation."""
+
     __slots__ = ()
 
 
@@ -80,37 +81,32 @@ class Get(AntidoteAnnotation, Marker):
         True
 
     """
-    __slots__ = ('dependency', 'default')
+
+    __slots__ = ("dependency", "default")
     dependency: object
     default: object
 
     @overload
-    def __init__(self,
-                 __dependency: object,
-                 *,
-                 default: object = Default.sentinel
-                 ) -> None:
+    def __init__(self, __dependency: object, *, default: object = Default.sentinel) -> None:
         ...
 
     @overload
-    def __init__(self,
-                 __dependency: Type[T],
-                 *,
-                 source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]],
-                 default: object = Default.sentinel
-                 ) -> None:
+    def __init__(
+        self,
+        __dependency: Type[T],
+        *,
+        source: Union[Source[T], Callable[..., T], Type[CallableClass[T]]],
+        default: object = Default.sentinel,
+    ) -> None:
         ...
 
-    def __init__(self,
-                 __dependency: Any,
-                 *,
-                 source: Optional[Union[
-                     Source[Any],
-                     Callable[..., Any],
-                     Type[CallableClass[Any]]
-                 ]] = None,
-                 default: object = Default.sentinel
-                 ) -> None:
+    def __init__(
+        self,
+        __dependency: Any,
+        *,
+        source: Optional[Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]] = None,
+        default: object = Default.sentinel,
+    ) -> None:
         if isinstance(__dependency, Get):
             __dependency = __dependency.dependency
 
@@ -123,16 +119,21 @@ class Get(AntidoteAnnotation, Marker):
             if isinstance(source, type) or callable(source):
                 factory_dependency = world.get(FactoryProvider).get_dependency_of(source)
             else:
-                raise TypeError(f"{source} is neither a factory function/class nor a source,"
-                                f" but a {type(source)}")
+                raise TypeError(
+                    f"{source} is neither a factory function/class nor a source,"
+                    f" but a {type(source)}"
+                )
 
             if not isinstance(__dependency, type):
-                raise TypeError(f"dependency must be a class for a factory, "
-                                f"not a {type(__dependency)}")
+                raise TypeError(
+                    f"dependency must be a class for a factory, not a {type(__dependency)}"
+                )
 
             if not issubclass(factory_dependency.output, __dependency):
-                raise TypeError(f"Expected dependency {__dependency} does not match output"
-                                f" of the factory {source}")
+                raise TypeError(
+                    f"Expected dependency {__dependency} does not match output"
+                    f" of the factory {source}"
+                )
 
             __dependency = factory_dependency
 
@@ -167,16 +168,14 @@ class From(FinalImmutable, AntidoteAnnotation):
         'localhost:5432'
 
     """
-    __slots__ = ('source',)
+
+    __slots__ = ("source",)
     source: SupportsRMatmul
 
-    def __init__(self,
-                 __source: Union[
-                     SupportsRMatmul,
-                     Source[Any],
-                     Callable[..., Any],
-                     Type[CallableClass[Any]]]
-                 ) -> None:
+    def __init__(
+        self,
+        __source: Union[SupportsRMatmul, Source[Any], Callable[..., Any], Type[CallableClass[Any]]],
+    ) -> None:
         super().__init__(source=__source)
 
 
@@ -211,12 +210,11 @@ class FromArg(FinalImmutable, AntidoteAnnotation):
         >>> f()
         5432
     """
-    __slots__ = ('function',)
+
+    __slots__ = ("function",)
     function: Callable[[Arg], Optional[Hashable]]
 
-    def __init__(self,
-                 __function: Callable[[Arg], Optional[Hashable]]
-                 ) -> None:
+    def __init__(self, __function: Callable[[Arg], Optional[Hashable]]) -> None:
         warnings.warn("Deprecated, @inject won't support this behavior anymore", DeprecationWarning)
         if callable(__function):
             super().__init__(function=__function)

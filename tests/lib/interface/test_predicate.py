@@ -10,7 +10,7 @@ from antidote import implements, inject, injectable, interface, world
 from antidote.lib.injectable import register_injectable_provider
 from antidote.lib.interface import NeutralWeight, predicate, Predicate, register_interface_provider
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def _(x: T) -> T:
@@ -95,11 +95,13 @@ def test_multiple_predicates() -> None:
     assert world.get(Base) is world.get(Yes)
 
     with pytest.raises(RuntimeError):
+
         @_(implements(Base).when(only_if(True), only_if(True)))
         class Invalid(Base):
             ...
 
     with pytest.raises(RuntimeError):
+
         @_(implements(Base).when(weighted(12), weighted(12)))
         class Invalid2(Base):
             ...
@@ -126,7 +128,7 @@ def test_predicate_already_injected() -> None:
         ...
 
     @predicate
-    @inject({'dummy': Dummy})
+    @inject({"dummy": Dummy})
     def if_only(condition: bool, dummy: Dummy) -> bool:
         return condition
 

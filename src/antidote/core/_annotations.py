@@ -22,14 +22,15 @@ def extract_annotated_dependency(type_hint: object) -> object:
     # Dependency explicitly given through Annotated (PEP-593)
     if origin is Annotated:
         args = get_args(type_hint)
-        antidote_annotations = [a
-                                for a in getattr(type_hint,
-                                                 "__metadata__",
-                                                 cast(Tuple[object, ...], tuple()))
-                                if isinstance(a, AntidoteAnnotation)]
+        antidote_annotations = [
+            a
+            for a in getattr(type_hint, "__metadata__", cast(Tuple[object, ...], tuple()))
+            if isinstance(a, AntidoteAnnotation)
+        ]
         if len(antidote_annotations) > 1:
-            raise TypeError(f"Multiple AntidoteAnnotation are not supported. "
-                            f"Found {antidote_annotations}")
+            raise TypeError(
+                f"Multiple AntidoteAnnotation are not supported. Found {antidote_annotations}"
+            )
         elif antidote_annotations:
             annotation: AntidoteAnnotation = antidote_annotations[0]
             if annotation is INJECT_SENTINEL:
@@ -39,8 +40,7 @@ def extract_annotated_dependency(type_hint: object) -> object:
             elif isinstance(annotation, From):
                 return args[0] @ annotation.source
             else:
-                raise TypeError(f"Annotation {annotation} cannot be used"
-                                f"outside of a function.")
+                raise TypeError(f"Annotation {annotation} cannot be used outside of a function.")
         else:
             return args[0]
 
@@ -56,12 +56,13 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
 
     # Dependency explicitly given through Annotated (PEP-593)
     if origin is Annotated:
-        antidote_annotations = [a
-                                for a in type_hint.__metadata__
-                                if isinstance(a, AntidoteAnnotation)]
+        antidote_annotations = [
+            a for a in type_hint.__metadata__ if isinstance(a, AntidoteAnnotation)
+        ]
         if len(antidote_annotations) > 1:
-            raise TypeError(f"Multiple AntidoteAnnotation are not supported. "
-                            f"Found {antidote_annotations}")
+            raise TypeError(
+                f"Multiple AntidoteAnnotation are not supported. Found {antidote_annotations}"
+            )
         elif antidote_annotations:
             if isinstance(argument.default, Marker):
                 raise TypeError("Cannot use a Marker with an Antidote annotation.")
@@ -77,9 +78,8 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
                 return args[0] @ annotation.source
             elif isinstance(annotation, FromArg):
                 from .injection import Arg
-                arg = Arg(argument.name,
-                          argument.type_hint,
-                          argument.type_hint_with_extras)
+
+                arg = Arg(argument.name, argument.type_hint, argument.type_hint_with_extras)
                 return annotation.function(arg)  # type: ignore
             else:
                 raise TypeError(f"Unsupported AntidoteAnnotation, {type(annotation)}")
@@ -105,10 +105,10 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
 
                 if origin in {Sequence, Iterable, list}:
                     klass = args[0]
-                    method = 'all'
+                    method = "all"
                 else:
                     klass = type_hint
-                    method = 'single'
+                    method = "single"
 
                 # Support generic interfaces
                 klass = get_origin(klass) or klass
@@ -116,19 +116,20 @@ def extract_annotated_arg_dependency(argument: Argument) -> object:
                     raise TypeError(f"@inject.me could not determine class from: {klass!r}")
                 if isinstance(marker, InjectImplMarker):
                     dependency = getattr(ImplementationsOf[type](klass), method)(
-                        *marker.constraints_args,
-                        **marker.constraints_kwargs
+                        *marker.constraints_args, **marker.constraints_kwargs
                     )
-                elif method == 'single':
+                elif method == "single":
                     dependency = klass
                 else:
                     dependency = getattr(ImplementationsOf[type](klass), method)()
 
-            return ArgDependency(dependency,
-                                 default=None if argument.is_optional else Default.sentinel)
+            return ArgDependency(
+                dependency, default=None if argument.is_optional else Default.sentinel
+            )
         else:
             # FIXME: it's ugly, need to rework marker/dependency
             from ..lib.lazy._provider import Lazy
+
             if isinstance(marker, Lazy):
                 return ArgDependency(marker)
             else:
@@ -144,9 +145,9 @@ def extract_auto_provided_arg_dependency(argument: Argument) -> Optional[type]:
     dependency = type_hint
 
     if origin is Annotated:
-        antidote_annotations = [a
-                                for a in type_hint.__metadata__
-                                if isinstance(a, AntidoteAnnotation)]
+        antidote_annotations = [
+            a for a in type_hint.__metadata__ if isinstance(a, AntidoteAnnotation)
+        ]
         if not antidote_annotations:
             dependency = args[0]
 
@@ -158,15 +159,15 @@ def extract_auto_provided_arg_dependency(argument: Argument) -> Optional[type]:
 
 @API.private
 def is_valid_class_type_hint(type_hint: object) -> bool:
-    return (getattr(type_hint, '__module__', '') != 'typing'
-            and type_hint not in _BUILTINS_TYPES
-            and isinstance(type_hint, type))
+    return (
+        getattr(type_hint, "__module__", "") != "typing"
+        and type_hint not in _BUILTINS_TYPES
+        and isinstance(type_hint, type)
+    )
 
 
 @API.private
-def _extract_type_hint(argument: Argument,
-                       extras: bool = True
-                       ) -> Tuple[Any, Any, Tuple[Any, ...]]:
+def _extract_type_hint(argument: Argument, extras: bool = True) -> Tuple[Any, Any, Tuple[Any, ...]]:
     type_hint = argument.type_hint_with_extras if extras else argument.type_hint
     origin = get_origin(type_hint)
     args = get_args(type_hint)

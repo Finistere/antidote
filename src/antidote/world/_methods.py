@@ -12,7 +12,7 @@ from ..core.getter import DependencyGetter
 init()
 
 __sentinel = object()
-T = TypeVar('T')
+T = TypeVar("T")
 
 # API.public
 get: DependencyGetter = DependencyGetter.enforced(
@@ -27,8 +27,9 @@ def __apply_lazy(_: object) -> WorldLazy:
 @API.deprecated
 @__apply_lazy
 def lazy() -> Any:
-    warnings.warn("Deprecated behavior, wrap world.get() yourself",
-                  DeprecationWarning)  # pragma: no cover
+    warnings.warn(
+        "Deprecated behavior, wrap world.get() yourself", DeprecationWarning
+    )  # pragma: no cover
 
 
 lazy.__doc__ = """
@@ -57,7 +58,7 @@ enforce it.
 
 """
 
-P = TypeVar('P', bound=Type[Provider[Any]])
+P = TypeVar("P", bound=Type[Provider[Any]])
 
 
 @API.public
@@ -82,8 +83,7 @@ def provider(p: P) -> P:
 
     """
     if not (inspect.isclass(p) and issubclass(p, RawProvider)):
-        raise TypeError(f"Provider must be a subclass of "
-                        f"RawProvider, not {p}")
+        raise TypeError(f"Provider must be a subclass of RawProvider, not {p}")
     container = current_container()
     if any(p == type(existing_provider) for existing_provider in container.providers):
         raise ValueError(f"Provider {p} already exists")
@@ -177,6 +177,7 @@ def new(*, name: str) -> Scope:
         name: Friendly identifier used for debugging purposes. It must be unique.
     """
     from .._internal.state import current_container
+
     if not isinstance(name, str):
         raise TypeError(f"name must be a str, not {type(name)}")
     if not name:
@@ -211,6 +212,8 @@ def reset(scope: Scope) -> None:
         raise ValueError(f"Cannot reset {scope}.")
     container = current_container()
     if scope not in container.scopes:
-        raise ValueError(f"Unknown scope {scope}. Only scopes created through "
-                         f"world.scopes.new() are supported.")
+        raise ValueError(
+            f"Unknown scope {scope}. Only scopes created through "
+            f"world.scopes.new() are supported."
+        )
     return container.reset_scope(scope)

@@ -10,30 +10,33 @@ from ..core.utils import DummyProvider
 sentinel = object()
 
 
-@pytest.mark.parametrize('override', [
-    pytest.param(lambda d, v: world.test.override.singleton(d, v), id='singleton'),
-    pytest.param(lambda d, v: world.test.override.singleton({d: v}), id='singletons')
-])
+@pytest.mark.parametrize(
+    "override",
+    [
+        pytest.param(lambda d, v: world.test.override.singleton(d, v), id="singleton"),
+        pytest.param(lambda d, v: world.test.override.singleton({d: v}), id="singletons"),
+    ],
+)
 def test_singleton(override: Callable[[Any, Any], Any]):
     with world.test.empty():
         with world.test.clone():
-            override('test', 'a')
-            assert world.get("test") == 'a'
+            override("test", "a")
+            assert world.get("test") == "a"
 
-        world.test.singleton('test', sentinel)
+        world.test.singleton("test", sentinel)
 
         with world.test.clone(keep_singletons=True):
             assert world.get("test") is sentinel
-            override('test', 'a')
-            assert world.get("test") == 'a'
+            override("test", "a")
+            assert world.get("test") == "a"
 
     with world.test.clone():
-        override("test", 'a')
-        assert world.get("test") == 'a'
+        override("test", "a")
+        assert world.get("test") == "a"
 
         # double override works
-        override("test", 'b')
-        assert world.get("test") == 'b'
+        override("test", "b")
+        assert world.get("test") == "b"
 
 
 def test_factory():
@@ -41,59 +44,64 @@ def test_factory():
     with world.test.empty():
         world.provider(DummyProvider)
         p = world.get[DummyProvider]()
-        p.data = {'test': sentinel}
-        assert world.get('test') is sentinel
+        p.data = {"test": sentinel}
+        assert world.get("test") is sentinel
 
         with world.test.clone():
-            @world.test.override.factory('test')
+
+            @world.test.override.factory("test")
             def f():
-                return 'a'
+                return "a"
 
-            assert world.get('test') == 'a'
+            assert world.get("test") == "a"
 
-            @world.test.override.factory('test')
+            @world.test.override.factory("test")
             def g():
-                return 'b'
+                return "b"
 
-            assert world.get('test') == 'b'
+            assert world.get("test") == "b"
 
     # overrides singletons
     with world.test.empty():
-        world.test.singleton({'test': sentinel, 'test2': sentinel})
-        assert world.get('test') is sentinel
-        assert world.get('test2') is sentinel
+        world.test.singleton({"test": sentinel, "test2": sentinel})
+        assert world.get("test") is sentinel
+        assert world.get("test2") is sentinel
 
         with world.test.clone(keep_singletons=True):
-            @world.test.override.factory('test')
-            def f1():
-                return 'a'
 
-            assert world.get('test') == 'a'
-            assert world.get('test2') is sentinel
+            @world.test.override.factory("test")
+            def f1():
+                return "a"
+
+            assert world.get("test") == "a"
+            assert world.get("test2") is sentinel
 
     # default => singleton
     with world.test.clone():
-        @world.test.override.factory('test')
+
+        @world.test.override.factory("test")
         def f2():
             return object()
 
-        assert world.get('test') is world.get('test')
+        assert world.get("test") is world.get("test")
 
     # non singleton
     with world.test.clone():
-        @world.test.override.factory('test', singleton=False)
+
+        @world.test.override.factory("test", singleton=False)
         def f3():
             return object()
 
-        assert world.get('test') is not world.get('test')
+        assert world.get("test") is not world.get("test")
 
     # singleton
     with world.test.clone():
-        @world.test.override.factory('test', singleton=True)
+
+        @world.test.override.factory("test", singleton=True)
         def f4():
             return object()
 
-        assert world.get('test') is world.get('test')
+        assert world.get("test") is world.get("test")
 
 
 def test_factory_return_type():
@@ -101,6 +109,7 @@ def test_factory_return_type():
         pass
 
     with world.test.clone():
+
         @world.test.override.factory()
         def build() -> X:
             return "hello X"
@@ -108,6 +117,7 @@ def test_factory_return_type():
         assert world.get(X) == "hello X"
 
         with pytest.raises(ValueError, match=".*dependency.*return type hint.*"):
+
             @world.test.override.factory()
             def build2():
                 return "hello X"
@@ -118,57 +128,59 @@ def test_provider():
     with world.test.empty():
         world.provider(DummyProvider)
         p = world.get[DummyProvider]()
-        p.data = {'test': sentinel, 'test2': sentinel}
-        assert world.get('test') is sentinel
-        assert world.get('test2') is sentinel
+        p.data = {"test": sentinel, "test2": sentinel}
+        assert world.get("test") is sentinel
+        assert world.get("test2") is sentinel
 
         with world.test.clone():
+
             @world.test.override.provider()
             def f(dependency: Hashable) -> Optional[DependencyValue]:
-                if dependency == 'test':
-                    return DependencyValue('a')
+                if dependency == "test":
+                    return DependencyValue("a")
 
-            assert world.get('test') == 'a'
-            assert world.get('test2') is sentinel
+            assert world.get("test") == "a"
+            assert world.get("test2") is sentinel
 
     # overrides singletons
     with world.test.empty():
-        world.test.singleton({'test': sentinel, 'test2': sentinel})
-        assert world.get('test') is sentinel
-        assert world.get('test2') is sentinel
+        world.test.singleton({"test": sentinel, "test2": sentinel})
+        assert world.get("test") is sentinel
+        assert world.get("test2") is sentinel
 
         with world.test.clone(keep_singletons=True):
+
             @world.test.override.provider()
             def f2(dependency: Hashable) -> Optional[DependencyValue]:
-                if dependency == 'test':
-                    return DependencyValue('a')
+                if dependency == "test":
+                    return DependencyValue("a")
 
-            assert world.get('test') == 'a'
-            assert world.get('test2') is sentinel
+            assert world.get("test") == "a"
+            assert world.get("test2") is sentinel
 
     # non singleton dependency
     with world.test.clone():
 
         @world.test.override.provider()
         def f3(dependency: Hashable) -> Optional[DependencyValue]:
-            if dependency == 'test':
+            if dependency == "test":
                 return DependencyValue(object())
 
-        assert world.get('test') is not world.get('test')
+        assert world.get("test") is not world.get("test")
 
     # singleton dependency
     with world.test.clone():
 
         @world.test.override.provider()
         def f4(dependency: Hashable) -> Optional[DependencyValue]:
-            if dependency == 'test':
+            if dependency == "test":
                 return DependencyValue(object(), scope=Scope.singleton())
 
-        assert world.get('test') is world.get('test')
+        assert world.get("test") is world.get("test")
 
 
 def test_scope_support():
-    dummy_scope = world.scopes.new(name='dummy')
+    dummy_scope = world.scopes.new(name="dummy")
 
     class X(Service):
         __antidote__ = Service.Conf(scope=dummy_scope)
@@ -212,9 +224,9 @@ def test_deep_clone():
                     world.get("test")
 
         with world.test.clone():
-            world.test.override.singleton("test", 'a')
+            world.test.override.singleton("test", "a")
             with world.test.clone(keep_singletons=True):
-                assert world.get("test") == 'a'
+                assert world.get("test") == "a"
 
             with world.test.clone(keep_singletons=False):
                 with pytest.raises(DependencyNotFoundError):
@@ -230,7 +242,7 @@ def test_debug():
 
             world.test.override.singleton("s", 1)
 
-            @world.test.override.factory('f')
+            @world.test.override.factory("f")
             def f():
                 return 2
 
@@ -253,12 +265,13 @@ def test_invalid():
             world.test.override.singleton(dict(), 1)
 
         with pytest.raises(TypeError):
-            @world.test.override.factory('test', singleton=object())
+
+            @world.test.override.factory("test", singleton=object())
             def f():
                 pass
 
         with pytest.raises(TypeError):
-            world.test.override.factory('test', singleton=True)(object())
+            world.test.override.factory("test", singleton=True)(object())
 
         with pytest.raises(TypeError):
             world.test.override.provider()(object())

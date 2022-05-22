@@ -1,6 +1,6 @@
 import inspect
 from collections import abc as c_abc
-from typing import (Any, Callable, FrozenSet, Iterable, Optional)
+from typing import Any, Callable, FrozenSet, Iterable, Optional
 
 from ._internal import API
 from ._internal.wrapper import get_wrapper_injections
@@ -19,13 +19,13 @@ def validated_parameters(parameters: Optional[Iterable[str]]) -> Optional[Frozen
         if all(isinstance(p, str) for p in parameters):
             return parameters
 
-    raise TypeError(f"parameters must be an iterable of strings or None, "
-                    f"not {type(parameters)}")
+    raise TypeError(f"parameters must be an iterable of strings or None, not {type(parameters)}")
 
 
 @API.private
-def validate_method_parameters(method: Callable[..., Any],
-                               parameters: Optional[FrozenSet[str]]) -> None:
+def validate_method_parameters(
+    method: Callable[..., Any], parameters: Optional[FrozenSet[str]]
+) -> None:
     if parameters is None:
         return
 
@@ -38,9 +38,12 @@ def validate_method_parameters(method: Callable[..., Any],
     for param in parameters:
         argument = signature.parameters.get(param)
         if argument is not None and argument.default is not inspect.Parameter.empty:
-            raise ValueError(f"Parameter '{param}' cannot have a "
-                             f"default value in {method.__name__}().")
+            raise ValueError(
+                f"Parameter '{param}' cannot have a default value in {method.__name__}()."
+            )
         if param in injections:
-            raise ValueError(f"Parameter '{param}' cannot have an injection in "
-                             f"{method.__name__}().  It currently will be injected with "
-                             f"{injections[param]!r}")
+            raise ValueError(
+                f"Parameter '{param}' cannot have an injection in "
+                f"{method.__name__}().  It currently will be injected with "
+                f"{injections[param]!r}"
+            )

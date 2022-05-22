@@ -41,11 +41,13 @@ def test_invalid_marker_me_missing_dependency():
 
 def test_invalid_marker_me_wrong_type_hint():
     with pytest.raises(TypeError, match=r"(?i).*inject\.me.*"):
+
         @inject
         def f(my_service=inject.me()):
             return my_service
 
     with pytest.raises(TypeError, match=r"(?i).*inject\.me.*"):
+
         @inject
         def g(my_service: int = inject.me()):
             return my_service
@@ -75,11 +77,13 @@ def test_invalid_marker_me_from_wrong_type_hint():
         return MyService()
 
     with pytest.raises(TypeError, match=r"(?i).*inject\.me.*"):
+
         @inject
         def f(my_service=inject.me(source=create_service)):
             return my_service
 
     with pytest.raises(TypeError, match=r"(?i).*inject\.me.*"):
+
         @inject
         def g(my_service: int = inject.me(source=create_service)):
             return my_service
@@ -88,6 +92,7 @@ def test_invalid_marker_me_from_wrong_type_hint():
         pass
 
     with pytest.raises(TypeError, match=r"(?i).*does not match.*"):
+
         @inject
         def h(my_service: OtherService = inject.me(source=create_service)):
             return my_service
@@ -102,11 +107,13 @@ def test_invalid_marker_me_from_argument_mix():
         return MyService()
 
     with pytest.raises(TypeError, match="(?i).*additional arguments.*"):
+
         @inject
         def f(x: MyService = inject.me(source=create_service, qualified_by=object())):
             pass
 
     with pytest.raises(TypeError, match="(?i).*additional arguments.*"):
+
         @inject
         def f2(x: MyService = inject.me(QualifiedBy(object()), source=create_service)):
             pass
@@ -164,6 +171,7 @@ def test_invalid_marker_from_get_wrong_target():
         pass
 
     with pytest.raises(TypeError, match=r"(?i).*does not match.*"):
+
         @inject
         def f(my_service: OtherService = inject.me(source=create_service)):
             return my_service
@@ -174,6 +182,7 @@ def test_custom_marker():
         pass
 
     with pytest.raises(TypeError, match="(?i).*custom marker.*"):
+
         @inject
         def test(test=CustomMarker()):
             pass
@@ -203,8 +212,9 @@ def test_marker_me_optional():
         assert f2() is None
 
     if sys.version_info >= (3, 10):
+
         @inject
-        def f3(my_service: 'MyService | None' = inject.me()):
+        def f3(my_service: "MyService | None" = inject.me()):
             return my_service
 
         assert f3() is world.get[MyService]()

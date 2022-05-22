@@ -16,30 +16,28 @@ from .core import inject
 from .lib.injectable._provider import Parameterized
 from .service import service
 
-_ABSTRACT_FLAG = '__antidote_abstract'
-P = ParamSpec('P')
-T = TypeVar('T')
+_ABSTRACT_FLAG = "__antidote_abstract"
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 @API.private
 class FactoryMeta(AbstractMeta):
     __factory_dependency: FactoryDependency
 
-    def __new__(mcs: Type[FactoryMeta],
-                name: str,
-                bases: Tuple[type, ...],
-                namespace: Dict[str, object],
-                **kwargs: Any
-                ) -> FactoryMeta:
-        abstract = kwargs.get('abstract')
+    def __new__(
+        mcs: Type[FactoryMeta],
+        name: str,
+        bases: Tuple[type, ...],
+        namespace: Dict[str, object],
+        **kwargs: Any,
+    ) -> FactoryMeta:
+        abstract = kwargs.get("abstract")
 
-        if '__call__' not in namespace and not abstract:
+        if "__call__" not in namespace and not abstract:
             raise TypeError(f"The class {name} must implement __call__()")
 
-        cls = cast(
-            FactoryMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)
-        )
+        cls = cast(FactoryMeta, super().__new__(mcs, name, bases, namespace, **kwargs))
         if not abstract:
             cls.__factory_dependency = _configure_factory(cls)
 
@@ -96,54 +94,60 @@ class FactoryMeta(AbstractMeta):
         Returns:
             Dependency to be retrieved from Antidote.
         """
-        warnings.warn("Deprecated, parameterized() is too complex and not type-safe",
-                      DeprecationWarning)
+        warnings.warn(
+            "Deprecated, parameterized() is too complex and not type-safe", DeprecationWarning
+        )
 
         from .factory import Factory
+
         assert cls.__factory_dependency is not None
 
         # Guaranteed through _configure_factory()
-        conf = cast(Factory.Conf, getattr(cls, '__antidote__'))
+        conf = cast(Factory.Conf, getattr(cls, "__antidote__"))
         if conf.parameters is None:
-            raise RuntimeError(f"Factory {cls} does not accept any parameters. You must "
-                               f"specify them explicitly in the configuration with: "
-                               f"Factory.Conf(parameters=...))")
+            raise RuntimeError(
+                f"Factory {cls} does not accept any parameters. You must "
+                f"specify them explicitly in the configuration with: "
+                f"Factory.Conf(parameters=...))"
+            )
 
         if set(kwargs.keys()) != set(conf.parameters or []):
-            raise ValueError(f"Given parameters do not match expected ones. "
-                             f"Got: ({','.join(map(repr, kwargs.keys()))}) "
-                             f"Expected: ({','.join(map(repr, conf.parameters))})")
+            raise ValueError(
+                f"Given parameters do not match expected ones. "
+                f"Got: ({','.join(map(repr, kwargs.keys()))}) "
+                f"Expected: ({','.join(map(repr, conf.parameters))})"
+            )
 
         return PreBuild(cls.__factory_dependency, kwargs)
 
 
 @API.private
 @inject
-def _configure_factory(cls: FactoryMeta,
-                       factory_provider: FactoryProvider = inject.me()
-                       ) -> FactoryDependency:
+def _configure_factory(
+    cls: FactoryMeta, factory_provider: FactoryProvider = inject.me()
+) -> FactoryDependency:
     from .factory import Factory
 
-    conf = getattr(cls, '__antidote__', None)
+    conf = getattr(cls, "__antidote__", None)
     if not isinstance(conf, Factory.Conf):
-        raise TypeError(f"Factory configuration (__antidote__) is expected to be "
-                        f"a {Factory.Conf}, not a {type(conf)}")
+        raise TypeError(
+            f"Factory configuration (__antidote__) is expected to be "
+            f"a {Factory.Conf}, not a {type(conf)}"
+        )
 
-    output = get_type_hints(cls.__call__).get('return')
+    output = get_type_hints(cls.__call__).get("return")
     if output is None:
-        raise ValueError("The return type hint is necessary on __call__."
-                         "It is used a the dependency.")
+        raise ValueError(
+            "The return type hint is necessary on __call__.objectIt is used a the dependency."
+        )
     if not inspect.isclass(output):
-        raise TypeError(f"The return type hint is expected to be a class, "
-                        f"not {type(output)}.")
+        raise TypeError(f"The return type hint is expected to be a class, not {type(output)}.")
 
     cls = service(cls, singleton=True, wiring=conf.wiring)
     validate_method_parameters(cls.__call__, conf.parameters)
 
     factory_dependency = factory_provider.register(
-        output=output,
-        scope=conf.scope,
-        factory_dependency=cls
+        output=output, scope=conf.scope, factory_dependency=cls
     )
 
     return factory_dependency
@@ -151,10 +155,7 @@ def _configure_factory(cls: FactoryMeta,
 
 @API.private
 class FactoryWrapper:
-    def __init__(self,
-                 *,
-                 wrapped: Callable[..., object],
-                 output: type) -> None:
+    def __init__(self, *, wrapped: Callable[..., object], output: type) -> None:
         self.__wrapped__ = wrapped
         self.__output = output
         functools.wraps(wrapped, updated=())(self)
@@ -163,8 +164,7 @@ class FactoryWrapper:
         return self.__wrapped__(*args, **kwargs)
 
     def __rmatmul__(self, klass: type) -> object:
-        warnings.warn("Prefer the Get(dependency, source=factory) notation.",
-                      DeprecationWarning)
+        warnings.warn("Prefer the Get(dependency, source=factory) notation.", DeprecationWarning)
         if klass is not self.__output:
             raise ValueError(f"Unsupported output {klass}")
         return FactoryDependency(factory=self, output=self.__output)
@@ -178,7 +178,7 @@ class FactoryWrapper:
 
 @API.private
 class PreBuild(FinalImmutable):
-    __slots__ = ('__factory_dependency', '__kwargs')
+    __slots__ = ("__factory_dependency", "__kwargs")
     __factory_dependency: FactoryDependency
     __kwargs: Dict[str, object]
 

@@ -9,6 +9,7 @@ def test_abstract_meta():
         pass
 
     with pytest.raises(TypeError, match="abstract"):
+
         class B(A):
             pass
 
@@ -19,11 +20,12 @@ def test_abstract_meta():
         pass
 
     with pytest.raises(TypeError, match="abstract"):
+
         class E(D):
             pass
 
 
-@pytest.mark.parametrize('meta', [FinalMeta, FinalImmutableMeta])
+@pytest.mark.parametrize("meta", [FinalMeta, FinalImmutableMeta])
 def test_final_meta(meta):
     class Mixin:
         pass
@@ -32,6 +34,7 @@ def test_final_meta(meta):
         __slots__ = ()
 
     with pytest.raises(TypeError):
+
         class SubDummy(Dummy):
             __slots__ = ()
 
@@ -43,5 +46,6 @@ def test_singleton():
     assert Dummy() is Dummy()
 
     with pytest.raises(TypeError):
+
         class SubDummy(Dummy):
             pass

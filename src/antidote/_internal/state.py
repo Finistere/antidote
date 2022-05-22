@@ -21,8 +21,10 @@ def current_container() -> RawContainer:
 def current_overridable_container() -> OverridableRawContainer:
     assert __container is not None
     if not isinstance(__container, OverridableRawContainer):
-        raise RuntimeError("Current world does not support overrides. "
-                           "Consider using world.test.clone(override=True)")
+        raise RuntimeError(
+            "Current world does not support overrides. "
+            "Consider using world.test.clone(override=True)"
+        )
     return __container
 
 
@@ -37,6 +39,7 @@ def init() -> None:
     with __container_lock:
         if __container is None:
             from .._internal.world import new_container
+
             __container = new_container()
 
 

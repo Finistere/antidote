@@ -14,20 +14,19 @@ FREEZE_ATTR_NAME = "__antidote__freeze_sensitive"
 # TODO: Inheriting GenericMeta for Python 3.6. To be removed ASAP.
 @API.private
 class ProviderMeta(type):
-    def __new__(mcs: Type[ProviderMeta],
-                name: str,
-                bases: Tuple[type, ...],
-                namespace: Dict[str, object],
-                abstract: bool = False,
-                **kwargs: object
-                ) -> ProviderMeta:
+    def __new__(
+        mcs: Type[ProviderMeta],
+        name: str,
+        bases: Tuple[type, ...],
+        namespace: Dict[str, object],
+        abstract: bool = False,
+        **kwargs: object,
+    ) -> ProviderMeta:
         # Every method which does not the have the does_not_freeze decorator
         # is considered
-        raw_methods = {"clone", "provide", "exists", "maybe_provide", "debug",
-                       "maybe_debug"}
-        attrs: Set[str] = {attr for attr in namespace.keys() if
-                           not attr.startswith("__")}
-        for attr in (attrs - raw_methods):
+        raw_methods = {"clone", "provide", "exists", "maybe_provide", "debug", "maybe_debug"}
+        attrs: Set[str] = {attr for attr in namespace.keys() if not attr.startswith("__")}
+        for attr in attrs - raw_methods:
             method = namespace[attr]
             if inspect.isfunction(method) and callable(method):
                 if getattr(method, FREEZE_ATTR_NAME, True):
@@ -39,7 +38,7 @@ class ProviderMeta(type):
         return cls
 
 
-F = TypeVar('F', bound=Callable[..., object])
+F = TypeVar("F", bound=Callable[..., object])
 
 
 @API.private

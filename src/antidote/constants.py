@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import collections.abc as c_abc
-from typing import (Any, ClassVar, FrozenSet, Iterable, Optional, Sequence, Union)
+from typing import Any, ClassVar, FrozenSet, Iterable, Optional, Sequence, Union
 
 from typing_extensions import final
 
@@ -126,6 +126,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         'localhost'
 
     """
+
     __slots__ = ()
 
     @final
@@ -135,14 +136,17 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
         use either method :py:meth:`.copy` or
         :py:meth:`~.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'auto_cast')
+
+        __slots__ = ("wiring", "auto_cast")
         wiring: Optional[Wiring]
         auto_cast: FrozenSet[type]
 
-        def __init__(self,
-                     *,
-                     auto_cast: Union[Iterable[type], bool] = True,
-                     wiring: Optional[Wiring] = Wiring()):
+        def __init__(
+            self,
+            *,
+            auto_cast: Union[Iterable[type], bool] = True,
+            wiring: Optional[Wiring] = Wiring(),
+        ):
             """
             Args:
                 wiring: :py:class:`Wiring` used on the class. Defaults to wire only
@@ -155,8 +159,7 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
                     types.
             """
             if not (wiring is None or isinstance(wiring, Wiring)):
-                raise TypeError(f"wiring can be None or a Wiring, "
-                                f"but not a {type(wiring)}")
+                raise TypeError(f"wiring can be None or a Wiring, but not a {type(wiring)}")
 
             if isinstance(auto_cast, bool):
                 if auto_cast:
@@ -172,11 +175,12 @@ class Constants(metaclass=ConstantsMeta, abstract=True):
 
             super().__init__(wiring=wiring, auto_cast=auto_cast)
 
-        def copy(self,
-                 *,
-                 wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
-                 auto_cast: Union[Union[Sequence[type], bool], Copy] = Copy.IDENTICAL
-                 ) -> Constants.Conf:
+        def copy(
+            self,
+            *,
+            wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
+            auto_cast: Union[Union[Sequence[type], bool], Copy] = Copy.IDENTICAL,
+        ) -> Constants.Conf:
             """
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :code:`__init__`

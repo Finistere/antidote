@@ -12,10 +12,10 @@ from .utils import DependencyDebug
 from .._internal import API
 from .._internal.utils import debug_repr
 
-T = TypeVar('T')
-M = TypeVar('M', bound=Callable[..., object])
-AnyProvider: TypeAlias = 'Provider[Any]'
-P = TypeVar('P', bound=AnyProvider)
+T = TypeVar("T")
+M = TypeVar("M", bound=Callable[..., object])
+AnyProvider: TypeAlias = "Provider[Any]"
+P = TypeVar("P", bound=AnyProvider)
 
 
 @API.public
@@ -31,10 +31,13 @@ def does_not_freeze(method: M) -> M:
 
 
 @API.public
-class Provider(RawProvider, Generic[T],
-               metaclass=ProviderMeta,
-               # reserved
-               abstract=True):
+class Provider(
+    RawProvider,
+    Generic[T],
+    metaclass=ProviderMeta,
+    # reserved
+    abstract=True,
+):
     """
     Abstract Base class for a provider.
 
@@ -109,6 +112,7 @@ class Provider(RawProvider, Generic[T],
         4. You may cache singletons by yourself, but you need to clean your cache when
            :py:meth:`~.clone` is called with :code:`keep_singletons_cache=False`.
     """
+
     __antidote__ = None  # reserved
 
     def clone(self: P, keep_singletons_cache: bool) -> P:
@@ -168,8 +172,7 @@ class Provider(RawProvider, Generic[T],
             :py:class:`~.core.container.DependencyValue`. If the dependency is a
             singleton, you MUST specify it with :code:`singleton=True`.
         """
-        raise RuntimeError("Either implement provide()"
-                           "or override maybe_provide()")
+        raise RuntimeError("Either implement provide()objector override maybe_provide()")
 
     def debug(self, dependency: T) -> DependencyDebug:
         """
@@ -188,10 +191,7 @@ class Provider(RawProvider, Generic[T],
         """
         raise DebugNotAvailableError("Either implement debug() or override maybe_debug()")
 
-    def maybe_provide(self,
-                      dependency: object,
-                      container: Container
-                      ) -> Optional[DependencyValue]:
+    def maybe_provide(self, dependency: object, container: Container) -> Optional[DependencyValue]:
         """
         **Expert feature**
 
@@ -234,8 +234,11 @@ class Provider(RawProvider, Generic[T],
                 return self.debug(cast(T, dependency))
             except DebugNotAvailableError:
                 import warnings
-                warnings.warn(f"Debug information for {debug_repr(dependency)} "
-                              f"not available in {type(self)}")
+
+                warnings.warn(
+                    f"Debug information for {debug_repr(dependency)} "
+                    f"not available in {type(self)}"
+                )
         return None
 
     @does_not_freeze

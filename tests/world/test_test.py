@@ -4,7 +4,7 @@ import pytest
 
 from antidote import world
 from antidote.lib.injectable._provider import InjectableProvider
-from antidote.core import (Container, DependencyValue, StatelessProvider)
+from antidote.core import Container, DependencyValue, StatelessProvider
 from antidote.core.exceptions import FrozenWorldError
 from antidote.exceptions import DependencyNotFoundError
 from .utils import DummyIntProvider
@@ -16,32 +16,27 @@ def empty_world():
         yield
 
 
-@pytest.mark.parametrize('context,keeps_singletons,strategy', [
-    pytest.param(lambda: world.test.empty(),
-                 False,
-                 'empty',
-                 id='empty'),
-    pytest.param(lambda: world.test.new(),
-                 False,
-                 'new',
-                 id='new'),
-    pytest.param(lambda: world.test.clone(),
-                 False,
-                 'clone',
-                 id='clone'),
-    pytest.param(lambda: world.test.clone(keep_singletons=True),
-                 True,
-                 'clone',
-                 id='clone-with-singletons')
-])
+@pytest.mark.parametrize(
+    "context,keeps_singletons,strategy",
+    [
+        pytest.param(lambda: world.test.empty(), False, "empty", id="empty"),
+        pytest.param(lambda: world.test.new(), False, "new", id="new"),
+        pytest.param(lambda: world.test.clone(), False, "clone", id="clone"),
+        pytest.param(
+            lambda: world.test.clone(keep_singletons=True),
+            True,
+            "clone",
+            id="clone-with-singletons",
+        ),
+    ],
+)
 def test_world(context: Callable, keeps_singletons: bool, strategy: str):
     class DummyFloatProvider(StatelessProvider[float]):
         def exists(self, dependency: Hashable) -> bool:
             return isinstance(dependency, float)
 
-        def provide(self, dependency: float, container: Container
-                    ) -> Optional[DependencyValue]:
-            return DependencyValue(dependency ** 2)
+        def provide(self, dependency: float, container: Container) -> Optional[DependencyValue]:
+            return DependencyValue(dependency**2)
 
     x = object()
     y = object()
@@ -51,36 +46,36 @@ def test_world(context: Callable, keeps_singletons: bool, strategy: str):
 
     with context():
         if keeps_singletons:
-            assert world.get('x') == x
+            assert world.get("x") == x
         else:
             with pytest.raises(DependencyNotFoundError):
-                world.get('x')
+                world.get("x")
 
-        if strategy == 'new':
+        if strategy == "new":
             assert isinstance(world.get[DummyIntProvider](), DummyIntProvider)
             assert world.get(DummyIntProvider).original is None
-        elif strategy == 'clone':
+        elif strategy == "clone":
             assert isinstance(world.get(DummyIntProvider), DummyIntProvider)
             assert world.get(DummyIntProvider) is not provider
             assert world.get(DummyIntProvider).original is provider
-        elif strategy == 'empty':
+        elif strategy == "empty":
             with pytest.raises(DependencyNotFoundError):
                 world.get(DummyIntProvider)
             with pytest.raises(DependencyNotFoundError):
                 world.get(InjectableProvider)
 
-        if strategy != 'clone':
+        if strategy != "clone":
             world.test.singleton("y", y)
-            assert world.get('y') is y
+            assert world.get("y") is y
 
             world.provider(DummyFloatProvider)
-            assert world.get(1.2) == 1.2 ** 2
+            assert world.get(1.2) == 1.2**2
 
-            s = world.scopes.new(name='dummy')
+            s = world.scopes.new(name="dummy")
             world.scopes.reset(s)
 
     with pytest.raises(DependencyNotFoundError):
-        world.get('y')
+        world.get("y")
 
     with pytest.raises(DependencyNotFoundError):
         world.get(1.2)
@@ -103,11 +98,10 @@ def test_clone_keep_singletons():
         assert world.get(10) == 20
 
 
-@pytest.mark.parametrize('keep_singletons', [True, False])
-@pytest.mark.parametrize('keep_scopes', [True, False])
+@pytest.mark.parametrize("keep_singletons", [True, False])
+@pytest.mark.parametrize("keep_scopes", [True, False])
 def test_clone_restrictions(keep_singletons, keep_scopes):
-    with world.test.clone(keep_singletons=keep_singletons,
-                          keep_scopes=keep_scopes):
+    with world.test.clone(keep_singletons=keep_singletons, keep_scopes=keep_scopes):
         with pytest.raises(FrozenWorldError):
             world.scopes.new(name="new scope")
 
@@ -115,7 +109,7 @@ def test_clone_restrictions(keep_singletons, keep_scopes):
             world.provider(DummyIntProvider)
 
         with pytest.raises(FrozenWorldError):
-            world.test.singleton('test', 1)
+            world.test.singleton("test", 1)
 
 
 def test_deep_clone():

@@ -9,27 +9,9 @@ def test_dependency_value():
 
 
 def test_dependency_debug():
-    ref = DependencyDebug("info",
-                          scope=Scope.singleton(),
-                          wired=[1],
-                          dependencies=[2])
-    assert ref == DependencyDebug("info",
-                                  scope=Scope.singleton(),
-                                  wired=[1],
-                                  dependencies=[2])
-    assert ref != DependencyDebug("info2",
-                                  scope=Scope.singleton(),
-                                  wired=[1],
-                                  dependencies=[2])
-    assert ref != DependencyDebug("info",
-                                  scope=None,
-                                  wired=[1],
-                                  dependencies=[2])
-    assert ref != DependencyDebug("info",
-                                  scope=Scope.singleton(),
-                                  wired=[10],
-                                  dependencies=[2])
-    assert ref != DependencyDebug("info",
-                                  scope=Scope.singleton(),
-                                  wired=[1],
-                                  dependencies=[20])
+    ref = DependencyDebug("info", scope=Scope.singleton(), wired=[1], dependencies=[2])
+    assert ref == DependencyDebug("info", scope=Scope.singleton(), wired=[1], dependencies=[2])
+    assert ref != DependencyDebug("info2", scope=Scope.singleton(), wired=[1], dependencies=[2])
+    assert ref != DependencyDebug("info", scope=None, wired=[1], dependencies=[2])
+    assert ref != DependencyDebug("info", scope=Scope.singleton(), wired=[10], dependencies=[2])
+    assert ref != DependencyDebug("info", scope=Scope.singleton(), wired=[1], dependencies=[20])

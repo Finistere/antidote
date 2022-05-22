@@ -1,7 +1,17 @@
 from contextlib import contextmanager
-from typing import (Any, Callable, cast, Dict, get_type_hints, Hashable, Iterator, Optional,
-                    overload,
-                    TypeVar, Union)
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    get_type_hints,
+    Hashable,
+    Iterator,
+    Optional,
+    overload,
+    TypeVar,
+    Union,
+)
 
 from ..._internal import API, state
 from ..._providers.world_test import WorldTestProvider
@@ -13,11 +23,9 @@ from ...utils import validated_scope
 
 @API.public
 @contextmanager
-def clone(*,
-          keep_singletons: bool = False,
-          keep_scopes: bool = False,
-          frozen: bool = True
-          ) -> Iterator[None]:
+def clone(
+    *, keep_singletons: bool = False, keep_scopes: bool = False, frozen: bool = True
+) -> Iterator[None]:
     """
     Clone the current container, namely scopes and providers. Existing singletons and
     scopes depdency values can also be propagated. Its primary use is to test existing
@@ -74,9 +82,7 @@ def clone(*,
     """
 
     def build(c: RawContainer) -> RawContainer:
-        return c.clone(keep_singletons=keep_singletons,
-                       keep_scopes=keep_scopes,
-                       frozen=frozen)
+        return c.clone(keep_singletons=keep_singletons, keep_scopes=keep_scopes, frozen=frozen)
 
     with state.override(build):
         yield
@@ -139,9 +145,11 @@ def singleton(dependency: Dict[Hashable, object]) -> None:
 
 @API.public
 @inject
-def singleton(dependency: Union[Dict[object, object], object],
-              value: object = __sentinel,
-              test_provider: Optional[WorldTestProvider] = inject.me()) -> None:
+def singleton(
+    dependency: Union[Dict[object, object], object],
+    value: object = __sentinel,
+    test_provider: Optional[WorldTestProvider] = inject.me(),
+) -> None:
     """
     Declare one or multiple singleton dependencies with its associated value.
 
@@ -163,29 +171,34 @@ def singleton(dependency: Union[Dict[object, object], object],
 
     """
     if test_provider is None:
-        raise RuntimeError("Test singletons can only be added inside a test world "
-                           "created with world.test.new() or world.test.empty()")
+        raise RuntimeError(
+            "Test singletons can only be added inside a test world "
+            "created with world.test.new() or world.test.empty()"
+        )
     if value is __sentinel:
         if isinstance(dependency, dict):
             test_provider.add_singletons(cast(Dict[object, object], dependency))
         else:
-            raise TypeError("If only a single argument is provided, "
-                            "it must be a dictionary of singletons.")
+            raise TypeError(
+                "If only a single argument is provided, object "
+                "it must be a dictionary of singletons."
+            )
     else:
         if isinstance(dependency, dict):
             raise TypeError("A dictionary cannot be used as a key.")
         test_provider.add_singletons({dependency: value})
 
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 @API.public
-def factory(dependency: Hashable = None,
-            *,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel()
-            ) -> Callable[[F], F]:
+def factory(
+    dependency: Hashable = None,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+) -> Callable[[F], F]:
     """
     Declare one or multiple singleton dependencies with its associated value.
 
@@ -224,15 +237,19 @@ def factory(dependency: Hashable = None,
     @inject
     def decorate(f: F, test_provider: Optional[WorldTestProvider] = inject.me()) -> F:
         if test_provider is None:
-            raise RuntimeError("Test singletons can only be added inside a test world "
-                               "created with world.test.new()")
+            raise RuntimeError(
+                "Test singletons can only be added inside a test world "
+                "created with world.test.new()"
+            )
         if not callable(f):
             raise TypeError(f"factory must be a callable, not a {type(f)}")
         if dependency is None:
-            output = get_type_hints(f).get('return')
+            output = get_type_hints(f).get("return")
             if output is None:
-                raise ValueError("Either the dependency argument or the return type hint "
-                                 "of the factory must be specified")
+                raise ValueError(
+                    "Either the dependency argument or the return type hint "
+                    "of the factory must be specified"
+                )
         else:
             output = dependency
         test_provider.add_factory(output, factory=f, scope=scope)
@@ -244,6 +261,7 @@ def factory(dependency: Hashable = None,
 ###############################
 # Utilities to test providers #
 ###############################
+
 
 @API.public
 @contextmanager
@@ -266,8 +284,7 @@ def empty() -> Iterator[None]:
 
 
 @API.public
-def maybe_provide_from(provider: RawProvider,
-                       dependency: Hashable) -> Optional[DependencyValue]:
+def maybe_provide_from(provider: RawProvider, dependency: Hashable) -> Optional[DependencyValue]:
     """
     Only used to test providers.
 
@@ -283,6 +300,7 @@ def maybe_provide_from(provider: RawProvider,
         dependency instance as returned by the provider.
     """
     if provider.is_registered:
-        raise RuntimeError("Method only intended to test provider that have not "
-                           "been registered in world.")
+        raise RuntimeError(
+            "Method only intended to test provider that have not been registered in world."
+        )
     return provider.maybe_provide(dependency, state.current_container())

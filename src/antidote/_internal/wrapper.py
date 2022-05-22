@@ -17,24 +17,18 @@ class Injection(FinalImmutable):
     Maps an argument name to its dependency and if the injection is required,
     which is equivalent to no default argument.
     """
-    __slots__ = ('arg_name', 'required', 'dependency', 'default_value')
+
+    __slots__ = ("arg_name", "required", "dependency", "default_value")
     arg_name: str
     required: bool
     dependency: object
     default_value: object
 
-    def __init__(self,
-                 *,
-                 arg_name: str,
-                 required: bool,
-                 default: object,
-                 dependency: object
-                 ) -> None:
+    def __init__(
+        self, *, arg_name: str, required: bool, default: object, dependency: object
+    ) -> None:
         super().__init__(
-            arg_name=arg_name,
-            required=required,
-            dependency=dependency,
-            default_value=default
+            arg_name=arg_name, required=required, dependency=dependency, default_value=default
         )
 
 
@@ -43,7 +37,8 @@ class InjectionBlueprint(FinalImmutable):
     """
     Stores all the injections for a function.
     """
-    __slots__ = ('injections',)
+
+    __slots__ = ("injections",)
     injections: Sequence[Injection]
 
     def is_empty(self) -> bool:
@@ -51,13 +46,13 @@ class InjectionBlueprint(FinalImmutable):
 
 
 @API.private
-def build_wrapper(blueprint: InjectionBlueprint,
-                  wrapped: Callable[..., object],
-                  skip_self: bool = False) -> Callable[..., object]:
+def build_wrapper(
+    blueprint: InjectionBlueprint, wrapped: Callable[..., object], skip_self: bool = False
+) -> Callable[..., object]:
     if inspect.iscoroutinefunction(wrapped):
-        return AsyncInjectedWrapper(blueprint,
-                                    cast(Callable[..., Awaitable[object]], wrapped),
-                                    skip_self)
+        return AsyncInjectedWrapper(
+            blueprint, cast(Callable[..., Awaitable[object]], wrapped), skip_self
+        )
     return SyncInjectedWrapper(blueprint, wrapped, skip_self)
 
 
@@ -70,11 +65,11 @@ def get_wrapper_injections(wrapper: Callable[..., object]) -> Dict[str, object]:
         prefix = f"_{SyncInjectedWrapper.__name__}"
     else:
         prefix = f"_{AsyncInjectedWrapper.__name__}"
-    blueprint: InjectionBlueprint = getattr(wrapper,
-                                            f"{prefix}__blueprint")
+    blueprint: InjectionBlueprint = getattr(wrapper, f"{prefix}__blueprint")
 
-    return {inj.arg_name: inj.dependency for inj in blueprint.injections if
-            inj.dependency is not None}
+    return {
+        inj.arg_name: inj.dependency for inj in blueprint.injections if inj.dependency is not None
+    }
 
 
 @API.private
@@ -111,12 +106,12 @@ class SyncInjectedWrapper(InjectedWrapper):
     arguments. An InjectionBlueprint is used to store the mapping of the
     arguments to their dependency if any and if the injection is required.
     """
+
     __wrapped__: Callable[..., object]
 
-    def __init__(self,
-                 blueprint: InjectionBlueprint,
-                 wrapped: Callable[..., object],
-                 skip_self: bool = False):
+    def __init__(
+        self, blueprint: InjectionBlueprint, wrapped: Callable[..., object], skip_self: bool = False
+    ):
         """
         Args:
             blueprint: Injection blueprint for the underlying function
@@ -129,18 +124,13 @@ class SyncInjectedWrapper(InjectedWrapper):
 
     def __call__(self, *args: object, **kwargs: object) -> object:
         kwargs = _inject_kwargs(
-            current_container(),
-            self.__blueprint,
-            self.__injection_offset + len(args),
-            kwargs
+            current_container(), self.__blueprint, self.__injection_offset + len(args), kwargs
         )
         return self.__wrapped__(*args, **kwargs)
 
     def __get__(self, instance: object, owner: type) -> object:
         return SyncInjectedBoundWrapper(
-            self.__blueprint,
-            self.__wrapped__.__get__(instance, owner),
-            instance is not None
+            self.__blueprint, self.__wrapped__.__get__(instance, owner), instance is not None
         )
 
 
@@ -162,12 +152,15 @@ class AsyncInjectedWrapper(InjectedWrapper):
     arguments. An InjectionBlueprint is used to store the mapping of the
     arguments to their dependency if any and if the injection is required.
     """
+
     __wrapped__: Callable[..., Awaitable[object]]
 
-    def __init__(self,
-                 blueprint: InjectionBlueprint,
-                 wrapped: Callable[..., Awaitable[object]],
-                 skip_self: bool = False):
+    def __init__(
+        self,
+        blueprint: InjectionBlueprint,
+        wrapped: Callable[..., Awaitable[object]],
+        skip_self: bool = False,
+    ):
         """
         Args:
             blueprint: Injection blueprint for the underlying function
@@ -180,18 +173,13 @@ class AsyncInjectedWrapper(InjectedWrapper):
 
     async def __call__(self, *args: object, **kwargs: object) -> object:
         kwargs = _inject_kwargs(
-            current_container(),
-            self.__blueprint,
-            self.__injection_offset + len(args),
-            kwargs
+            current_container(), self.__blueprint, self.__injection_offset + len(args), kwargs
         )
         return await self.__wrapped__(*args, **kwargs)
 
     def __get__(self, instance: object, owner: type) -> object:
         return AsyncInjectedBoundWrapper(
-            self.__blueprint,
-            self.__wrapped__.__get__(instance, owner),
-            instance is not None
+            self.__blueprint, self.__wrapped__.__get__(instance, owner), instance is not None
         )
 
 
@@ -207,10 +195,9 @@ class AsyncInjectedBoundWrapper(AsyncInjectedWrapper):
 
 
 @API.private
-def _inject_kwargs(container: Container,
-                   blueprint: InjectionBlueprint,
-                   offset: int,
-                   kwargs: Dict[str, object]) -> Dict[str, object]:
+def _inject_kwargs(
+    container: Container, blueprint: InjectionBlueprint, offset: int, kwargs: Dict[str, object]
+) -> Dict[str, object]:
     """
     Does the actual injection of the dependencies. Used by InjectedCallableWrapper.
     """
@@ -218,8 +205,7 @@ def _inject_kwargs(container: Container,
     for injection in blueprint.injections[offset:]:
         if injection.dependency is not None and injection.arg_name not in kwargs:
             try:
-                arg = container.get(injection.dependency,
-                                    injection.default_value)
+                arg = container.get(injection.dependency, injection.default_value)
                 if not dirty_kwargs:
                     kwargs = kwargs.copy()
                     dirty_kwargs = True

@@ -4,8 +4,14 @@ from typing import Hashable, Optional
 import pytest
 
 from antidote import world
-from antidote.core import (Container, DependencyDebug, DependencyValue, does_not_freeze, Provider,
-                           StatelessProvider)
+from antidote.core import (
+    Container,
+    DependencyDebug,
+    DependencyValue,
+    does_not_freeze,
+    Provider,
+    StatelessProvider,
+)
 from antidote.core.exceptions import DuplicateDependencyError
 from antidote.exceptions import FrozenWorldError
 
@@ -17,11 +23,10 @@ def does_not_raise():
 
 def test_freeze_world():
     class DummyProvider(Provider):
-        def provide(self, dependency: Hashable, container: Container
-                    ) -> Optional[DependencyValue]:
+        def provide(self, dependency: Hashable, container: Container) -> Optional[DependencyValue]:
             return None
 
-        def clone(self, keep_singletons_cache: bool) -> 'DummyProvider':
+        def clone(self, keep_singletons_cache: bool) -> "DummyProvider":
             return self
 
         def register(self):
@@ -65,8 +70,7 @@ def test_freeze_world():
 
 def test_stateless():
     class DummyProvider(StatelessProvider):
-        def provide(self, dependency: Hashable, container: Container
-                    ) -> Optional[DependencyValue]:
+        def provide(self, dependency: Hashable, container: Container) -> Optional[DependencyValue]:
             return None
 
     p = DummyProvider()
@@ -113,8 +117,7 @@ def test_provide():
         def exists(self, dependency: Hashable) -> bool:
             return dependency is x
 
-        def provide(self, dependency: Hashable,
-                    container: Container) -> DependencyValue:
+        def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
             assert dependency is x
             return DependencyValue(None)
 
@@ -132,12 +135,11 @@ def test_container_lock():
         @world.provider
         class A(Provider):
             def exists(self, dependency: Hashable) -> bool:
-                return dependency == 'a'
+                return dependency == "a"
 
-            def provide(self, dependency: Hashable,
-                        container: Container) -> DependencyValue:
+            def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
                 ThreadSafetyTest.check_locked(failures)
-                return DependencyValue('a')
+                return DependencyValue("a")
 
             def change_state(self):
                 with self._container_lock():
@@ -146,12 +148,11 @@ def test_container_lock():
         @world.provider
         class B(Provider):
             def exists(self, dependency: Hashable) -> bool:
-                return dependency == 'b'
+                return dependency == "b"
 
-            def provide(self, dependency: Hashable,
-                        container: Container) -> DependencyValue:
+            def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
                 ThreadSafetyTest.check_locked(failures)
-                return DependencyValue('b')
+                return DependencyValue("b")
 
             def change_state(self):
                 with self._container_lock():
@@ -161,13 +162,14 @@ def test_container_lock():
         b = world.get[B]()
         actions = [
             lambda: a.change_state(),
-            lambda: world.get('a'),
+            lambda: world.get("a"),
             lambda: b.change_state(),
-            lambda: world.get('b')
+            lambda: world.get("b"),
         ]
 
         def worker():
             import random
+
             for f in random.choices(actions, k=20):
                 f()
 
@@ -175,6 +177,7 @@ def test_container_lock():
         assert not failures
 
     with world.test.empty():
+
         class C(Provider):
             def change_state(self):
                 with self._container_lock():
@@ -195,9 +198,7 @@ def test_assert_not_duplicate():
         def exists(self, dependency: Hashable) -> bool:
             return dependency in self.registered
 
-        def provide(self,
-                    dependency: Hashable,
-                    container: Container) -> DependencyValue:
+        def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
             return DependencyValue(self.registered[dependency])
 
         def add(self, dependency: Hashable, value: object):
@@ -227,9 +228,7 @@ def test_assert_not_duplicate():
             def exists(self, dependency: Hashable) -> bool:
                 return dependency in self.registered
 
-            def provide(self,
-                        dependency: Hashable,
-                        container: Container) -> DependencyValue:
+            def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
                 return DependencyValue(self.registered[dependency])
 
             def add(self, dependency: Hashable, value: object):

@@ -12,11 +12,11 @@ from ...core.annotations import HiddenDependency
 from ...core.exceptions import DoubleInjectionError
 from ...utils import validated_scope
 
-__all__ = ['LazyWrappedFunction', 'lazy']
+__all__ = ["LazyWrappedFunction", "lazy"]
 
-P = ParamSpec('P')
-T = TypeVar('T')
-Out = TypeVar('Out', covariant=True)
+P = ParamSpec("P")
+T = TypeVar("T")
+Out = TypeVar("Out", covariant=True)
 
 
 @API.public
@@ -77,29 +77,29 @@ class LazyWrappedFunction(Protocol[P, Out]):
 
 
 @overload
-def lazy(*,
-         singleton: Optional[bool] = None,
-         scope: Optional[Scope] = Scope.sentinel()
-         ) -> Callable[[Callable[P, T]], LazyWrappedFunction[P, T]]:
+def lazy(
+    *, singleton: Optional[bool] = None, scope: Optional[Scope] = Scope.sentinel()
+) -> Callable[[Callable[P, T]], LazyWrappedFunction[P, T]]:
     ...
 
 
 @overload
-def lazy(__func: Callable[P, T],
-         *,
-         singleton: Optional[bool] = None,
-         scope: Optional[Scope] = Scope.sentinel()
-         ) -> LazyWrappedFunction[P, T]:
+def lazy(
+    __func: Callable[P, T],
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+) -> LazyWrappedFunction[P, T]:
     ...
 
 
 @API.public
-def lazy(__func: Optional[Callable[P, T]] = None,
-         *,
-         singleton: Optional[bool] = None,
-         scope: Optional[Scope] = Scope.sentinel()
-         ) -> Union[LazyWrappedFunction[P, T],
-                    Callable[[Callable[P, T]], LazyWrappedFunction[P, T]]]:
+def lazy(
+    __func: Optional[Callable[P, T]] = None,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+) -> Union[LazyWrappedFunction[P, T], Callable[[Callable[P, T]], LazyWrappedFunction[P, T]]]:
     """
     .. versionadded:: 1.4
 

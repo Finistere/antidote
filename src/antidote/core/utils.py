@@ -22,18 +22,21 @@ class DependencyDebug(FinalImmutable):
     Debug information on a dependency. Used by :py:mod:`.world.debug` to provide runtime
     information for debugging.
     """
-    __slots__ = ('info', 'scope', 'wired', 'dependencies')
+
+    __slots__ = ("info", "scope", "wired", "dependencies")
     info: str
     scope: Optional[Scope]
     wired: Sequence[object]
     dependencies: Sequence[object]
 
-    def __init__(self,
-                 __info: str,
-                 *,
-                 scope: Optional[Scope] = None,
-                 wired: Sequence[object] = tuple(),
-                 dependencies: Sequence[object] = tuple()):
+    def __init__(
+        self,
+        __info: str,
+        *,
+        scope: Optional[Scope] = None,
+        wired: Sequence[object] = tuple(),
+        dependencies: Sequence[object] = tuple(),
+    ):
         """
         Args:
             __info: Short and concise information on the dependency, just enough to
@@ -45,8 +48,10 @@ class DependencyDebug(FinalImmutable):
         super().__init__(__info, scope, wired, dependencies)
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, DependencyDebug) \
-               and self.info == other.info \
-               and self.scope == other.scope \
-               and self.wired == other.wired \
-               and self.dependencies == other.dependencies  # noqa: E126
+        return (
+            isinstance(other, DependencyDebug)
+            and self.info == other.info
+            and self.scope == other.scope
+            and self.wired == other.wired
+            and self.dependencies == other.dependencies
+        )  # noqa: E126

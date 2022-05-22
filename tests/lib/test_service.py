@@ -63,7 +63,7 @@ def test_singleton():
 
 
 def test_custom_scope():
-    dummy_scope = world.scopes.new(name='dummy')
+    dummy_scope = world.scopes.new(name="dummy")
 
     class Scoped(Service):
         __antidote__ = Service.Conf(scope=dummy_scope)
@@ -87,7 +87,7 @@ def test_parameterized():
     x = object()
 
     class A(Service):
-        __antidote__ = Service.Conf(parameters=['x'])
+        __antidote__ = Service.Conf(parameters=["x"])
 
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -99,7 +99,7 @@ def test_parameterized():
         A.parameterized()
 
     with pytest.raises(ValueError, match=".*parameters.*'x'.*"):
-        A.parameterized(unknown='something')
+        A.parameterized(unknown="something")
 
 
 def test_not_parametrized():
@@ -113,10 +113,11 @@ def test_not_parametrized():
 
 def test_invalid_with_default_parameters():
     with pytest.raises(ValueError, match=".*default.*"):
-        class A(Service):
-            __antidote__ = Service.Conf(parameters=['x'])
 
-            def __init__(self, x: str = 'default'):
+        class A(Service):
+            __antidote__ = Service.Conf(parameters=["x"])
+
+            def __init__(self, x: str = "default"):
                 self.x = x
 
 
@@ -125,8 +126,9 @@ def test_invalid_with_injected_parameters():
         pass
 
     with pytest.raises(ValueError, match=".*injected.*class.*A.*"):
+
         class B(Service):
-            __antidote__ = Service.Conf(parameters=['x'])
+            __antidote__ = Service.Conf(parameters=["x"])
 
             def __init__(self, x: Provide[A]):
                 self.x = x
@@ -134,29 +136,31 @@ def test_invalid_with_injected_parameters():
 
 def test_duplicate_registration():
     with pytest.raises(DuplicateDependencyError):
+
         @service
         class Dummy(Service):
             pass
 
 
-@pytest.mark.parametrize('cls', ['test', object(), lambda: None])
+@pytest.mark.parametrize("cls", ["test", object(), lambda: None])
 def test_invalid_class(cls):
     with pytest.raises(TypeError):
         service(cls)
 
 
 @pytest.mark.parametrize(
-    'kwargs,expectation',
+    "kwargs,expectation",
     [
         (dict(tags=object()), pytest.raises(TypeError, match=".*tags.*")),
-        (dict(tags=['test']), pytest.raises(TypeError, match=".*tags.*")),
+        (dict(tags=["test"]), pytest.raises(TypeError, match=".*tags.*")),
         (dict(singleton=object()), pytest.raises(TypeError, match=".*singleton.*")),
         (dict(scope=object()), pytest.raises(TypeError, match=".*scope.*")),
         (dict(wiring=object()), pytest.raises(TypeError, match=".*wiring.*")),
-    ]
+    ],
 )
 def test_invalid_service_args(kwargs, expectation):
     with expectation:
+
         @service(**kwargs)
         class Dummy:
             method = None
@@ -167,50 +171,57 @@ def test_no_subclass_of_service():
         pass
 
     with pytest.raises(TypeError, match=".*abstract.*"):
+
         class B(A):
             pass
 
 
 def test_invalid_conf():
     with pytest.raises(TypeError, match=".*__antidote__.*"):
+
         class Dummy(Service):
             __antidote__ = object()
 
 
-@pytest.mark.parametrize('expectation, parameters', [
-    (pytest.raises(TypeError), "string"),
-    (pytest.raises(TypeError), object()),
-    (pytest.raises(TypeError), [1]),
-    (does_not_raise(), ['x']),
-    (does_not_raise(), []),
-    (does_not_raise(), None),
-])
+@pytest.mark.parametrize(
+    "expectation, parameters",
+    [
+        (pytest.raises(TypeError), "string"),
+        (pytest.raises(TypeError), object()),
+        (pytest.raises(TypeError), [1]),
+        (does_not_raise(), ["x"]),
+        (does_not_raise(), []),
+        (does_not_raise(), None),
+    ],
+)
 def test_conf_parameters(expectation, parameters):
     with expectation:
+
         class A(Service):
             __antidote__ = Service.Conf(parameters=parameters)
 
 
-@pytest.mark.parametrize('expectation, kwargs', [
-    pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
-                 {arg: object()},
-                 id=arg)
-    for arg in ['wiring',
-                'singleton',
-                'scope',
-                'parameters']
-])
+@pytest.mark.parametrize(
+    "expectation, kwargs",
+    [
+        pytest.param(pytest.raises(TypeError, match=f".*{arg}.*"), {arg: object()}, id=arg)
+        for arg in ["wiring", "singleton", "scope", "parameters"]
+    ],
+)
 def test_invalid_conf_args(kwargs, expectation):
     with expectation:
         Service.Conf(**kwargs)
 
 
-@pytest.mark.parametrize('kwargs', [
-    dict(singleton=False),
-    dict(scope=None),
-    dict(wiring=Wiring(methods=['method'])),
-    dict(parameters=frozenset(['x']))
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(singleton=False),
+        dict(scope=None),
+        dict(wiring=Wiring(methods=["method"])),
+        dict(parameters=frozenset(["x"])),
+    ],
+)
 def test_conf_copy(kwargs):
     conf = Service.Conf(singleton=True).copy(**kwargs)
     for k, v in kwargs.items():

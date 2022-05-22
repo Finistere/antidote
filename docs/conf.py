@@ -33,14 +33,14 @@ import antidote
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.coverage',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
+    "sphinx.ext.coverage",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.napoleon",
     # 'sphinx_autodoc_typehints',
-    'sphinx.ext.autosectionlabel',
-    'sphinx.ext.intersphinx'
+    "sphinx.ext.autosectionlabel",
+    "sphinx.ext.intersphinx",
 ]
 
 # Python code that is treated like it were put in a testcleanup directive for
@@ -54,35 +54,33 @@ from antidote._internal import state
 state.reset()
 """
 
-autodoc_member_order = 'bysource'
+autodoc_member_order = "bysource"
 autoclass_content = "both"
 
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
-intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None)
-}
+intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 
 # Prefix each section label with the name of the document it is in.
 autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 2
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # General information about the project.
-project = 'Antidote'
-copyright = '2017, Benjamin Rabier'
-author = 'Benjamin Rabier'
+project = "Antidote"
+copyright = "2017, Benjamin Rabier"
+author = "Benjamin Rabier"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -103,7 +101,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # The name of the Pygments (syntax highlighting) style to use.
 # pygments_style = 'flask_theme_support.FlaskyStyle'
@@ -145,19 +143,17 @@ html_theme_options = {
     ]
 }
 
-html_context = {
-    "default_mode": "auto"
-}
+html_context = {"default_mode": "auto"}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Antidotedoc'
+htmlhelp_basename = "Antidotedoc"
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -165,15 +161,12 @@ latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     #
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     #
     # 'preamble': '',
-
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
@@ -183,18 +176,14 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Antidote.tex', 'Antidote Documentation',
-     'Benjamin Rabier', 'manual'),
+    (master_doc, "Antidote.tex", "Antidote Documentation", "Benjamin Rabier", "manual"),
 ]
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'dependency manager', 'Antidote Documentation',
-     [author], 1)
-]
+man_pages = [(master_doc, "dependency manager", "Antidote Documentation", [author], 1)]
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -202,9 +191,15 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Antidote', 'Antidote Documentation',
-     author, 'Antidote', 'One line description of project.',
-     'Miscellaneous'),
+    (
+        master_doc,
+        "Antidote",
+        "Antidote Documentation",
+        author,
+        "Antidote",
+        "One line description of project.",
+        "Miscellaneous",
+    ),
 ]
 
 
@@ -214,11 +209,11 @@ texinfo_documents = [
 
 def setup(app):
     # Fix image path
-    with open('../README.rst', 'r') as readme, \
-            open('_build/README.rst', 'w') as build_readme:
-        build_readme.write(readme.read()
-                           .replace('docs/_static/img', '_static/img')
-                           .replace('.. code-block:: python',
-                                    '.. testcode:: readme'))
+    with open("../README.rst", "r") as readme, open("_build/README.rst", "w") as build_readme:
+        build_readme.write(
+            readme.read()
+            .replace("docs/_static/img", "_static/img")
+            .replace(".. code-block:: python", ".. testcode:: readme")
+        )
 
-    app.add_css_file('css/style.css')  # may also be an URL
+    app.add_css_file("css/style.css")  # may also be an URL

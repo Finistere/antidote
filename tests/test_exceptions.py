@@ -1,8 +1,12 @@
 import pytest
 
-from antidote.exceptions import (DependencyCycleError, DependencyInstantiationError,
-                                 DependencyNotFoundError, DuplicateDependencyError,
-                                 FrozenWorldError)
+from antidote.exceptions import (
+    DependencyCycleError,
+    DependencyInstantiationError,
+    DependencyNotFoundError,
+    DuplicateDependencyError,
+    FrozenWorldError,
+)
 
 
 class Service:
@@ -14,14 +18,17 @@ class LongRepr:
         return "\n'test'\n"
 
 
-@pytest.mark.parametrize('error', [
-    pytest.param(DependencyCycleError([Service, 'test', Service]), id='cycle'),
-    pytest.param(DependencyCycleError([Service, LongRepr(), Service]), id='cycle-breaks'),
-    pytest.param(DependencyInstantiationError(Service, ['test', Service]),
-                 id='instantiation'),
-    pytest.param(DependencyInstantiationError(Service, [LongRepr(), Service]),
-                 id='instantiation-breaks'),
-])
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(DependencyCycleError([Service, "test", Service]), id="cycle"),
+        pytest.param(DependencyCycleError([Service, LongRepr(), Service]), id="cycle-breaks"),
+        pytest.param(DependencyInstantiationError(Service, ["test", Service]), id="instantiation"),
+        pytest.param(
+            DependencyInstantiationError(Service, [LongRepr(), Service]), id="instantiation-breaks"
+        ),
+    ],
+)
 def test_stack_error(error):
     for f in [str, repr]:
         assert f"{Service.__module__}.{Service.__name__}" in f(error)

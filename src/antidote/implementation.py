@@ -10,8 +10,8 @@ from ._providers import IndirectProvider
 from .core import inject
 from .core.exceptions import DoubleInjectionError
 
-P = ParamSpec('P')
-T = TypeVar('T')
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 # @API.private
@@ -31,10 +31,9 @@ class ImplementationProtocol(Protocol[P, T]):
 
 
 @API.public
-def implementation(interface: type,
-                   *,
-                   permanent: bool = True
-                   ) -> Callable[[Callable[P, T]], ImplementationProtocol[P, T]]:
+def implementation(
+    interface: type, *, permanent: bool = True
+) -> Callable[[Callable[P, T]], ImplementationProtocol[P, T]]:
     """
     .. deprecated:: 1.2
         Use :py:func:`.interface` instead.
@@ -170,9 +169,9 @@ def implementation(interface: type,
         raise TypeError(f"interface must be a class, not {type(interface)}")
 
     @inject
-    def register(func: Callable[P, T],
-                 indirect_provider: IndirectProvider = inject.me()
-                 ) -> ImplementationProtocol[P, T]:
+    def register(
+        func: Callable[P, T], indirect_provider: IndirectProvider = inject.me()
+    ) -> ImplementationProtocol[P, T]:
         if not inspect.isfunction(func):
             raise TypeError(f"{func} is not a function")
 
@@ -188,8 +187,7 @@ def implementation(interface: type,
             validate_provided_class(dep, expected=interface)
             return dep
 
-        dependency = indirect_provider.register_implementation(interface, impl,
-                                                               permanent=permanent)
+        dependency = indirect_provider.register_implementation(interface, impl, permanent=permanent)
         return ImplementationWrapper[P, T](cast(Callable[P, T], func), dependency)
 
     return register

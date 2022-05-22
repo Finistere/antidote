@@ -6,7 +6,25 @@ from .typing import Dependency, Source
 from .utils import DependencyDebug
 from .wiring import wire, Wiring, WithWiringMixin
 
-__all__ = ['Provide', 'Inject', 'Get', 'From', 'FromArg',
-           'Container', 'DependencyValue', 'Scope', 'inject', 'Arg',
-           'DEPENDENCIES_TYPE', 'does_not_freeze', 'Provider', 'StatelessProvider',
-           'DependencyDebug', 'wire', 'Wiring', 'WithWiringMixin', 'Source', 'Dependency']
+__all__ = [
+    "Provide",
+    "Inject",
+    "Get",
+    "From",
+    "FromArg",
+    "Container",
+    "DependencyValue",
+    "Scope",
+    "inject",
+    "Arg",
+    "DEPENDENCIES_TYPE",
+    "does_not_freeze",
+    "Provider",
+    "StatelessProvider",
+    "DependencyDebug",
+    "wire",
+    "Wiring",
+    "WithWiringMixin",
+    "Source",
+    "Dependency",
+]

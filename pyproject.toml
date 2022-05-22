@@ -87,3 +87,12 @@ files = [
 ]
 python_version = "3.7"
 strict = true
+
+
+#########
+# Black #
+#########
+[tool.black]
+line-length = 100
+target-version = ['py37']
+
