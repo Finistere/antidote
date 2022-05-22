@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import (Callable, cast, FrozenSet, Iterable, Optional, overload, TypeVar,
-                    Union)
+from typing import Callable, cast, FrozenSet, Iterable, Optional, overload, TypeVar, Union
 
 from typing_extensions import final, get_type_hints
 
@@ -15,7 +14,7 @@ from .core import inject, Scope, Wiring, WithWiringMixin
 from .core.exceptions import DoubleInjectionError
 from .utils import validated_scope
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @API.deprecated
@@ -138,7 +137,8 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'scope', 'parameters')
+
+        __slots__ = ("wiring", "scope", "parameters")
         wiring: Optional[Wiring]
         scope: Optional[Scope]
         parameters: Optional[FrozenSet[str]]
@@ -147,12 +147,14 @@ class Factory(metaclass=FactoryMeta, abstract=True):
         def singleton(self) -> bool:
             return self.scope is Scope.singleton()
 
-        def __init__(self,
-                     *,
-                     wiring: Optional[Wiring] = Wiring(),
-                     singleton: Optional[bool] = None,
-                     scope: Optional[Scope] = Scope.sentinel(),
-                     parameters: Optional[Iterable[str]] = None):
+        def __init__(
+            self,
+            *,
+            wiring: Optional[Wiring] = Wiring(),
+            singleton: Optional[bool] = None,
+            scope: Optional[Scope] = Scope.sentinel(),
+            parameters: Optional[Iterable[str]] = None,
+        ):
             """
 
             Args:
@@ -168,22 +170,22 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                     Defaults to :py:meth:`~.core.container.Scope.singleton`.
             """
             if not (wiring is None or isinstance(wiring, Wiring)):
-                raise TypeError(f"wiring must be a Wiring or None, "
-                                f"not {type(wiring)}")
+                raise TypeError(f"wiring must be a Wiring or None, not {type(wiring)}")
 
-            super().__init__(wiring=wiring,
-                             scope=validated_scope(scope,
-                                                   singleton,
-                                                   default=Scope.singleton()),
-                             parameters=validated_parameters(parameters))
+            super().__init__(
+                wiring=wiring,
+                scope=validated_scope(scope, singleton, default=Scope.singleton()),
+                parameters=validated_parameters(parameters),
+            )
 
-        def copy(self,
-                 *,
-                 wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
-                 singleton: Union[bool, Copy] = Copy.IDENTICAL,
-                 scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
-                 parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
-                 ) -> Factory.Conf:
+        def copy(
+            self,
+            *,
+            wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
+            singleton: Union[bool, Copy] = Copy.IDENTICAL,
+            scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
+            parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
+        ) -> Factory.Conf:
             """
             .. deprecated:: 1.1
 
@@ -194,10 +196,7 @@ class Factory(metaclass=FactoryMeta, abstract=True):
                 raise TypeError("Use either singleton or scope argument, not both.")
             if isinstance(singleton, bool):
                 scope = Scope.singleton() if singleton else None
-            return Copy.immutable(self,
-                                  wiring=wiring,
-                                  scope=scope,
-                                  parameters=parameters)
+            return Copy.immutable(self, wiring=wiring, scope=scope, parameters=parameters)
 
     __antidote__: Conf = Conf()
     """
@@ -207,31 +206,34 @@ class Factory(metaclass=FactoryMeta, abstract=True):
 
 
 @overload
-def factory(f: T,
-            *,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring()
-            ) -> T:
+def factory(
+    f: T,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+) -> T:
     ...
 
 
 @overload
-def factory(*,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring()
-            ) -> Callable[[T], T]:
+def factory(
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+) -> Callable[[T], T]:
     ...
 
 
 @API.public
-def factory(f: Optional[T] = None,
-            *,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring()
-            ) -> Union[Callable[[T], T], T]:
+def factory(
+    f: Optional[T] = None,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+) -> Union[Callable[[T], T], T]:
     """
     .. deprecated:: 1.4
         Use :py:func:`.lazy` instead for external classes or :py:func:`.injectable` with
@@ -362,20 +364,18 @@ def factory(f: Optional[T] = None,
         raise TypeError(f"wiring must be a Wiring or None, not a {type(wiring)!r}")
 
     @inject
-    def register_factory(func: T,
-                         factory_provider: FactoryProvider = inject.me()
-                         ) -> T:
+    def register_factory(func: T, factory_provider: FactoryProvider = inject.me()) -> T:
         from .service import service
 
         if callable(func) and inspect.isfunction(func):
-            output: object = get_type_hints(func).get('return')
+            output: object = get_type_hints(func).get("return")
 
             if output is None:
-                raise ValueError("A return type hint is necessary. "
-                                 "It is used a the dependency.")
+                raise ValueError("A return type hint is necessary. It is used a the dependency.")
             if not isinstance(output, type):
-                raise TypeError(f"The return type hint is expected to be a class, "
-                                f"not {type(output)}.")
+                raise TypeError(
+                    f"The return type hint is expected to be a class, not {type(output)}."
+                )
 
             if wiring is not None:
                 try:
@@ -385,25 +385,21 @@ def factory(f: Optional[T] = None,
 
             # TODO: Remove legacy wrapper for the 'dependency @ factory' notation
             func = cast(T, FactoryWrapper(wrapped=cast(Callable[..., object], func), output=output))
-            factory_provider.register(factory=cast(Callable[..., object], func),
-                                      scope=scope,
-                                      output=output)
+            factory_provider.register(
+                factory=cast(Callable[..., object], func), scope=scope, output=output
+            )
         elif isinstance(func, type):
-            output = get_type_hints(func.__call__).get('return')
+            output = get_type_hints(func.__call__).get("return")
             if output is None:
-                raise ValueError("A return type hint is necessary. "
-                                 "It is used a the dependency.")
+                raise ValueError("A return type hint is necessary. It is used a the dependency.")
             if not isinstance(output, type):
-                raise TypeError(f"The return type hint is expected to be a class, "
-                                f"not {type(output)}.")
+                raise TypeError(
+                    f"The return type hint is expected to be a class, not {type(output)}."
+                )
 
             service(func, singleton=True, wiring=wiring)
 
-            factory_provider.register(
-                output=output,
-                scope=scope,
-                factory_dependency=func
-            )
+            factory_provider.register(output=output, scope=scope, factory_dependency=func)
         else:
             raise TypeError(f"Factory must be either a class or a function, not a {type(func)}")
 

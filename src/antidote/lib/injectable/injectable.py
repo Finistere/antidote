@@ -11,58 +11,51 @@ from ..._internal.utils import Default
 from ...core import Scope, Wiring
 from ...utils import validated_scope
 
-__all__ = ['injectable']
+__all__ = ["injectable"]
 
-C = TypeVar('C', bound=type)
+C = TypeVar("C", bound=type)
 
 
 @overload
-def injectable(klass: C,
-               *,
-               singleton: Optional[bool] = None,
-               scope: Optional[Scope] = Scope.sentinel(),
-               wiring: Optional[Wiring] = Wiring(),
-               factory_method: Optional[str] = None,
-               type_hints_locals: Union[
-                   Mapping[str, object],
-                   Literal['auto'],
-                   Default,
-                   None
-               ] = Default.sentinel
-               ) -> C:
+def injectable(
+    klass: C,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+    factory_method: Optional[str] = None,
+    type_hints_locals: Union[
+        Mapping[str, object], Literal["auto"], Default, None
+    ] = Default.sentinel,
+) -> C:
     ...
 
 
 @overload
-def injectable(*,
-               singleton: Optional[bool] = None,
-               scope: Optional[Scope] = Scope.sentinel(),
-               wiring: Optional[Wiring] = Wiring(),
-               factory_method: Optional[str] = None,
-               type_hints_locals: Union[
-                   Mapping[str, object],
-                   Literal['auto'],
-                   Default,
-                   None
-               ] = Default.sentinel
-               ) -> Callable[[C], C]:
+def injectable(
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+    factory_method: Optional[str] = None,
+    type_hints_locals: Union[
+        Mapping[str, object], Literal["auto"], Default, None
+    ] = Default.sentinel,
+) -> Callable[[C], C]:
     ...
 
 
 @API.public
 def injectable(
-        klass: Optional[C] = None,
-        *,
-        singleton: Optional[bool] = None,
-        scope: Optional[Scope] = Scope.sentinel(),
-        wiring: Optional[Wiring] = Wiring(),
-        factory_method: Optional[str] = None,
-        type_hints_locals: Union[
-            Mapping[str, object],
-            Literal['auto'],
-            Default,
-            None
-        ] = Default.sentinel
+    klass: Optional[C] = None,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+    factory_method: Optional[str] = None,
+    type_hints_locals: Union[
+        Mapping[str, object], Literal["auto"], Default, None
+    ] = Default.sentinel,
 ) -> Union[C, Callable[[C], C]]:
     """
     .. versionadded:: 1.3
@@ -156,8 +149,10 @@ def injectable(
     if wiring is not None and not isinstance(wiring, Wiring):
         raise TypeError(f"wiring must be a Wiring or None, not a {type(wiring)!r}")
     if not (isinstance(factory_method, str) or factory_method is None):
-        raise TypeError(f"factory_method must be a class/staticmethod name or None, "
-                        f"not a {type(factory_method)}")
+        raise TypeError(
+            f"factory_method must be a class/staticmethod name or None, "
+            f"not a {type(factory_method)}"
+        )
 
     localns = retrieve_or_validate_injection_locals(type_hints_locals)
 
@@ -170,7 +165,7 @@ def injectable(
             scope=scope,
             wiring=wiring,
             factory_method=factory_method,
-            type_hints_locals=localns
+            type_hints_locals=localns,
         )
         return cls
 

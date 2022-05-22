@@ -4,7 +4,6 @@ from antidote.core import DependencyValue, Provider, Scope
 
 
 class DummyProvider(Provider):
-
     def clone(self, keep_singletons_cache: bool) -> Provider:
         return DummyProvider(self.data, self.singleton)
 
@@ -17,12 +16,12 @@ class DummyProvider(Provider):
         return dependency in self.data
 
     def provide(self, dependency, container):
-        return DependencyValue(self.data[dependency],
-                               scope=Scope.singleton() if self.singleton else None)
+        return DependencyValue(
+            self.data[dependency], scope=Scope.singleton() if self.singleton else None
+        )
 
 
 class DummyFactoryProvider(Provider):
-
     def clone(self, keep_singletons_cache: bool) -> Provider:
         return DummyFactoryProvider(self.data, self.singleton)
 
@@ -35,5 +34,6 @@ class DummyFactoryProvider(Provider):
         return dependency in self.data
 
     def provide(self, dependency, container):
-        return DependencyValue(self.data[dependency](container),
-                               scope=Scope.singleton() if self.singleton else None)
+        return DependencyValue(
+            self.data[dependency](container), scope=Scope.singleton() if self.singleton else None
+        )

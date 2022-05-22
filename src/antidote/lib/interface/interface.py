@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import (Any, Callable, cast, Generic, List, Mapping, Optional, Type, TypeVar,
-                    Union)
+from typing import Any, Callable, cast, Generic, List, Mapping, Optional, Type, TypeVar, Union
 
 from typing_extensions import final, get_origin, Literal
 
-from ._internal import (create_constraints, override_implementation,
-                        register_default_implementation,
-                        register_implementation,
-                        register_interface)
+from ._internal import (
+    create_constraints,
+    override_implementation,
+    register_default_implementation,
+    register_implementation,
+    register_interface,
+)
 from ._provider import InterfaceProvider
 from ._query import Query
 from .predicate import NeutralWeight, Predicate, PredicateConstraint, PredicateWeight
@@ -19,12 +21,12 @@ from ..._internal.localns import retrieve_or_validate_injection_locals
 from ..._internal.utils import Default
 from ...core import Dependency, inject
 
-__all__ = ['interface', 'implements', 'ImplementationsOf']
+__all__ = ["interface", "implements", "ImplementationsOf"]
 
-Itf = TypeVar('Itf', bound=type)
-C = TypeVar('C', bound=type)
-T = TypeVar('T')
-Weight = TypeVar('Weight', bound=PredicateWeight)
+Itf = TypeVar("Itf", bound=type)
+C = TypeVar("C", bound=type)
+T = TypeVar("T")
+Weight = TypeVar("Weight", bound=PredicateWeight)
 
 
 @API.public
@@ -183,16 +185,14 @@ class implements(Generic[Itf]):
 
     """
 
-    def __init__(self,
-                 __interface: Itf,
-                 *,
-                 type_hints_locals: Union[
-                     Mapping[str, object],
-                     Literal['auto'],
-                     Default,
-                     None
-                 ] = Default.sentinel
-                 ) -> None:
+    def __init__(
+        self,
+        __interface: Itf,
+        *,
+        type_hints_locals: Union[
+            Mapping[str, object], Literal["auto"], Default, None
+        ] = Default.sentinel,
+    ) -> None:
         """
         Args:
             __interface: **/positional-only/** Interface class.
@@ -215,14 +215,15 @@ class implements(Generic[Itf]):
             interface=self.__interface,
             implementation=klass,
             type_hints_locals=self.__type_hints_locals,
-            predicates=[]
+            predicates=[],
         )
         return klass
 
-    def when(self,
-             *_predicates: Predicate[Weight] | Predicate[NeutralWeight],
-             qualified_by: Optional[object | list[object]] = None
-             ) -> Callable[[C], C]:
+    def when(
+        self,
+        *_predicates: Predicate[Weight] | Predicate[NeutralWeight],
+        qualified_by: Optional[object | list[object]] = None,
+    ) -> Callable[[C], C]:
         """
         Associate :py:class:`.Predicate` with the decorated implementation. The
         implementation will only be used if all the predicates return a weight. In case multiple
@@ -256,7 +257,7 @@ class implements(Generic[Itf]):
                 interface=self.__interface,
                 implementation=__klass,
                 type_hints_locals=self.__type_hints_locals,
-                predicates=predicates
+                predicates=predicates,
             )
             return __klass
 
@@ -305,15 +306,17 @@ class implements(Generic[Itf]):
 
         """
         if not isinstance(__existing_implementation, type):
-            raise TypeError(f"Expected a class for the overridden implementation, "
-                            f"got a {type(__existing_implementation)!r}")
+            raise TypeError(
+                f"Expected a class for the overridden implementation, "
+                f"got a {type(__existing_implementation)!r}"
+            )
 
         def register(__klass: C) -> C:
             override_implementation(
                 interface=self.__interface,
                 existing_implementation=__existing_implementation,
                 new_implementation=__klass,
-                type_hints_locals=self.__type_hints_locals
+                type_hints_locals=self.__type_hints_locals,
             )
             return __klass
 
@@ -352,7 +355,7 @@ class implements(Generic[Itf]):
         register_default_implementation(
             interface=self.__interface,
             implementation=__klass,
-            type_hints_locals=self.__type_hints_locals
+            type_hints_locals=self.__type_hints_locals,
         )
         return __klass
 
@@ -382,15 +385,14 @@ class ImplementationsOf(Generic[T]):
         <ServiceImpl ...>
 
     """
-    __slots__ = ('__interface',)
+
+    __slots__ = ("__interface",)
     __interface: Type[T]
 
     @inject
-    def __init__(self,
-                 interface: Type[T],
-                 *,
-                 provider: InterfaceProvider = inject.get(InterfaceProvider)
-                 ) -> None:
+    def __init__(
+        self, interface: Type[T], *, provider: InterfaceProvider = inject.get(InterfaceProvider)
+    ) -> None:
         """
         Args:
             interface: **/positional-only/** Interface for which implementations should be
@@ -404,11 +406,12 @@ class ImplementationsOf(Generic[T]):
             raise ValueError(f"Interface {interface!r} was not decorated with @interface.")
         object.__setattr__(self, f"_{type(self).__name__}__interface", interface)
 
-    def all(self,
-            *constraints: PredicateConstraint[Any],
-            qualified_by: Optional[object | list[object]] = None,
-            qualified_by_one_of: Optional[list[object]] = None
-            ) -> Dependency[list[T]]:
+    def all(
+        self,
+        *constraints: PredicateConstraint[Any],
+        qualified_by: Optional[object | list[object]] = None,
+        qualified_by_one_of: Optional[list[object]] = None,
+    ) -> Dependency[list[T]]:
         """
         Construct the dependency to retrieve all implementations matching given constraints for
         the specified interface. Having no implementation matching the constraints will not raise
@@ -426,19 +429,18 @@ class ImplementationsOf(Generic[T]):
         query = Query(
             interface=self.__interface,
             constraints=create_constraints(
-                *constraints,
-                qualified_by=qualified_by,
-                qualified_by_one_of=qualified_by_one_of
+                *constraints, qualified_by=qualified_by, qualified_by_one_of=qualified_by_one_of
             ),
-            all=True
+            all=True,
         )
         return cast(Dependency[List[T]], query)
 
-    def single(self,
-               *constraints: PredicateConstraint[Any],
-               qualified_by: Optional[object | list[object]] = None,
-               qualified_by_one_of: Optional[list[object]] = None
-               ) -> Dependency[T]:
+    def single(
+        self,
+        *constraints: PredicateConstraint[Any],
+        qualified_by: Optional[object | list[object]] = None,
+        qualified_by_one_of: Optional[list[object]] = None,
+    ) -> Dependency[T]:
         """
         Construct the dependency to retrieve a single implementation matching given constraints for
         the specified interface. If multiple or no implementation is found, an error will be raised
@@ -456,10 +458,8 @@ class ImplementationsOf(Generic[T]):
         query = Query(
             interface=self.__interface,
             constraints=create_constraints(
-                *constraints,
-                qualified_by=qualified_by,
-                qualified_by_one_of=qualified_by_one_of
+                *constraints, qualified_by=qualified_by, qualified_by_one_of=qualified_by_one_of
             ),
-            all=False
+            all=False,
         )
         return cast(Dependency[T], query)

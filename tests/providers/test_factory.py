@@ -3,8 +3,7 @@ import pytest
 from antidote import Scope, world
 from antidote._providers import FactoryProvider
 from antidote.lib.injectable._provider import Parameterized
-from antidote.exceptions import (DependencyNotFoundError, DuplicateDependencyError,
-                                 FrozenWorldError)
+from antidote.exceptions import DependencyNotFoundError, DuplicateDependencyError, FrozenWorldError
 
 
 class A:
@@ -19,28 +18,30 @@ def build(**kwargs) -> A:
 @pytest.fixture()
 def provider():
     with world.test.empty():
-        world.test.singleton('lazy_build', build)
+        world.test.singleton("lazy_build", build)
         world.provider(FactoryProvider)
         yield world.get(FactoryProvider)
 
 
-@pytest.fixture(params=[dict(factory=build), dict(factory_dependency='lazy_build')])
+@pytest.fixture(params=[dict(factory=build), dict(factory_dependency="lazy_build")])
 def factory_params(request):
     return request.param
 
 
-@pytest.fixture(params=[
-    pytest.param(None, id='scope=None'),
-    pytest.param(Scope.singleton(), id='scope=singleton')
-])
+@pytest.fixture(
+    params=[
+        pytest.param(None, id="scope=None"),
+        pytest.param(Scope.singleton(), id="scope=singleton"),
+    ]
+)
 def scope(request):
     return request.param
 
 
 def test_str(provider: FactoryProvider, scope: Scope):
     provider.register(A, factory=build, scope=scope)
-    assert 'A' in str(provider)
-    assert 'build' in str(provider)
+    assert "A" in str(provider)
+    assert "build" in str(provider)
 
 
 def test_simple(provider: FactoryProvider):
@@ -51,8 +52,8 @@ def test_simple(provider: FactoryProvider):
 
 
 def test_lazy(provider: FactoryProvider):
-    world.test.singleton('A', build)
-    factory_id = provider.register(A, factory_dependency='A', scope=Scope.singleton())
+    world.test.singleton("A", build)
+    factory_id = provider.register(A, factory_dependency="A", scope=Scope.singleton())
     assert isinstance(world.get(factory_id), A)
     # singleton
     assert world.get(factory_id) is world.get(factory_id)
@@ -70,7 +71,7 @@ def test_exists(scope: Scope, factory_params: dict):
     assert not provider.exists(build)
 
 
-@pytest.mark.parametrize('singleton', [True, False])
+@pytest.mark.parametrize("singleton", [True, False])
 def test_singleton(provider: FactoryProvider, singleton: bool, factory_params: dict):
     scope = Scope.singleton() if singleton else None
     factory_id = provider.register(A, scope=scope, **factory_params)
@@ -89,9 +90,7 @@ def test_multiple_factories(provider: FactoryProvider, scope: Scope):
     assert isinstance(world.get(b2), A)
 
 
-def test_duplicate_dependency(provider: FactoryProvider,
-                              scope: Scope,
-                              factory_params: dict):
+def test_duplicate_dependency(provider: FactoryProvider, scope: Scope, factory_params: dict):
     provider.register(A, scope=scope, **factory_params)
     with pytest.raises(DuplicateDependencyError):
         provider.register(A, scope=scope, **factory_params)
@@ -99,12 +98,11 @@ def test_duplicate_dependency(provider: FactoryProvider,
 
 def test_parameterized_dependency(scope: Scope, factory_params: dict):
     with world.test.empty():
-        world.test.singleton('lazy_build', build)
+        world.test.singleton("lazy_build", build)
         provider = FactoryProvider()
         factory_id = provider.register(A, scope=scope, **factory_params)
         kwargs = dict(test=object())
-        a = world.test.maybe_provide_from(provider,
-                                          Parameterized(factory_id, kwargs)).unwrapped
+        a = world.test.maybe_provide_from(provider, Parameterized(factory_id, kwargs)).unwrapped
         assert isinstance(a, A)
         assert a.kwargs == kwargs
 
@@ -138,9 +136,9 @@ def test_copy(scope: Scope):
         original.register(C, factory=lambda: C(), scope=scope)
 
     with world.test.empty():
-        world.test.singleton('build', build)
+        world.test.singleton("build", build)
         original = FactoryProvider()
-        a_id = original.register(A, factory_dependency='build', scope=scope)
+        a_id = original.register(A, factory_dependency="build", scope=scope)
         a = world.test.maybe_provide_from(original, a_id).unwrapped
 
         assert isinstance(a, A)
@@ -149,7 +147,7 @@ def test_copy(scope: Scope):
         cloned_with_singletons = original.clone(True)
         cloned = original.clone(False)
         with world.test.empty():
-            world.test.singleton('build', build2)
+            world.test.singleton("build", build2)
             a2 = world.test.maybe_provide_from(cloned, a_id).unwrapped
 
             assert isinstance(a2, A)
@@ -200,18 +198,21 @@ def test_invalid_lazy_dependency(scope: Scope):
         world.test.maybe_provide_from(provider, fid)
 
 
-@pytest.mark.parametrize('output, factory, scope', [
-    pytest.param(object(), build, None, id='output'),
-    pytest.param(A, object(), None, id='factory'),
-    pytest.param(A, build, object(), id='scope')
-])
+@pytest.mark.parametrize(
+    "output, factory, scope",
+    [
+        pytest.param(object(), build, None, id="output"),
+        pytest.param(A, object(), None, id="factory"),
+        pytest.param(A, build, object(), id="scope"),
+    ],
+)
 def test_sanity_checks(provider: FactoryProvider, output, factory, scope):
     with pytest.raises((AssertionError, TypeError)):
         provider.register(output, factory=factory, scope=scope)
 
 
 def test_custom_scope(provider: FactoryProvider):
-    dummy_scope = world.scopes.new(name='dummy')
+    dummy_scope = world.scopes.new(name="dummy")
 
     class MyService:
         pass

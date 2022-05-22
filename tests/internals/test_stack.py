@@ -73,7 +73,7 @@ def test_to_list():
         with stack.instantiating(b):
             assert stack.to_list() == [a, b]
             stack_copy = stack.to_list()
-            stack_copy.append('dummy')
+            stack_copy.append("dummy")
             # should not have impacted the actual stack
             assert stack.to_list() == [a, b]
 

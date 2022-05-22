@@ -14,7 +14,7 @@ from .service import Service
 if TYPE_CHECKING:
     from .lazy import LazyMethodCall
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @API.private
@@ -23,7 +23,8 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy, Dependency[T]):
     """
     :meta private:
     """
-    __slots__ = ('func', '_scope', '_args', '_kwargs')
+
+    __slots__ = ("func", "_scope", "_args", "_kwargs")
     func: Callable[..., T]
     _scope: Optional[Scope]
     _args: Tuple[object, ...]
@@ -36,13 +37,10 @@ class LazyCallWithArgsKwargs(FinalImmutable, Lazy, Dependency[T]):
         return s
 
     def __antidote_debug_info__(self) -> DependencyDebug:
-        return DependencyDebug(self.__antidote_debug_repr__(),
-                               scope=self._scope,
-                               wired=[self.func])
+        return DependencyDebug(self.__antidote_debug_repr__(), scope=self._scope, wired=[self.func])
 
     def __antidote_provide__(self, container: Container) -> DependencyValue:
-        return DependencyValue(self.func(*self._args, **self._kwargs),
-                               scope=self._scope)
+        return DependencyValue(self.func(*self._args, **self._kwargs), scope=self._scope)
 
 
 @API.private
@@ -51,21 +49,22 @@ class LazyMethodCallWithArgsKwargs(FinalImmutable):
     """
     :meta private:
     """
-    __slots__ = ('_method_name', '_scope', '_args', '_kwargs', '__cache_attr')
+
+    __slots__ = ("_method_name", "_scope", "_args", "_kwargs", "__cache_attr")
     _method_name: str
     _scope: Optional[Scope]
     _args: Tuple[object, ...]
     _kwargs: Dict[str, object]
     __cache_attr: str
 
-    def __init__(self,
-                 method_name: str,
-                 scope: Optional[Scope],
-                 args: Tuple[object, ...],
-                 kwargs: Dict[str, object]
-                 ) -> None:
-        super().__init__(method_name, scope, args, kwargs,
-                         f"__antidote_dependency_{hex(id(self))}")
+    def __init__(
+        self,
+        method_name: str,
+        scope: Optional[Scope],
+        args: Tuple[object, ...],
+        kwargs: Dict[str, object],
+    ) -> None:
+        super().__init__(method_name, scope, args, kwargs, f"__antidote_dependency_{hex(id(self))}")
 
     def __get__(self, instance: object, owner: type) -> object:
         if not issubclass(owner, Service):
@@ -93,22 +92,26 @@ class LazyMethodCallDependency(FinalImmutable, Lazy):
     """
     :meta private:
     """
-    __slots__ = ('__descriptor', '__owner_ref')
+
+    __slots__ = ("__descriptor", "__owner_ref")
     __descriptor: Union[LazyMethodCall, LazyMethodCallWithArgsKwargs]
     __owner_ref: weakref.ReferenceType[type]
 
     def __antidote_debug_info__(self) -> DependencyDebug:
         owner = self.__owner_ref()
         assert owner is not None
-        descriptor = cast('LazyMethodCall', self.__descriptor)
-        return DependencyDebug(str(descriptor),
-                               scope=descriptor._scope,
-                               wired=[getattr(owner, descriptor._method_name)],
-                               dependencies=[owner])
+        descriptor = cast("LazyMethodCall", self.__descriptor)
+        return DependencyDebug(
+            str(descriptor),
+            scope=descriptor._scope,
+            wired=[getattr(owner, descriptor._method_name)],
+            dependencies=[owner],
+        )
 
     def __antidote_provide__(self, container: Container) -> DependencyValue:
         owner = self.__owner_ref()
         assert owner is not None
-        descriptor = cast('LazyMethodCall', self.__descriptor)
-        return DependencyValue(descriptor.__get__(container.get(owner), owner),
-                               scope=descriptor._scope)
+        descriptor = cast("LazyMethodCall", self.__descriptor)
+        return DependencyValue(
+            descriptor.__get__(container.get(owner), owner), scope=descriptor._scope
+        )

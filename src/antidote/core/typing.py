@@ -8,9 +8,9 @@ from typing_extensions import Protocol, runtime_checkable
 from .marker import Marker
 from .._internal import API
 
-Tct = TypeVar('Tct', contravariant=True)
-Tco = TypeVar('Tco', covariant=True)
-T = TypeVar('T')
+Tct = TypeVar("Tct", contravariant=True)
+Tco = TypeVar("Tco", covariant=True)
+T = TypeVar("T")
 
 
 @API.private

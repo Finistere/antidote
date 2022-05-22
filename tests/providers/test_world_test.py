@@ -3,7 +3,7 @@ import pytest
 from antidote import world
 from antidote._providers import WorldTestProvider
 from antidote.core import DependencyValue, Scope
-from antidote.exceptions import (DuplicateDependencyError)
+from antidote.exceptions import DuplicateDependencyError
 
 
 class Service:
@@ -50,7 +50,7 @@ def test_factory_no_scope(provider: WorldTestProvider):
 
 
 def test_factory_scope(provider: WorldTestProvider):
-    scope = world.scopes.new(name='dummy')
+    scope = world.scopes.new(name="dummy")
     provider.add_factory(Service, factory=lambda: Service(), scope=scope)
 
     s = world.get(Service)
@@ -97,5 +97,4 @@ def test_clone(provider: WorldTestProvider):
 
     clone_without_singletons = provider.clone(keep_singletons_cache=False)
     assert world.test.maybe_provide_from(clone_without_singletons, Service) is None
-    assert world.test.maybe_provide_from(clone_without_singletons,
-                                         AnotherService) == d(a_s)
+    assert world.test.maybe_provide_from(clone_without_singletons, AnotherService) == d(a_s)

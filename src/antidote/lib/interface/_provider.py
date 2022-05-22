@@ -7,17 +7,16 @@ from typing import Any, cast, Generic, Iterator, List, Optional, Sequence, TypeV
 from typing_extensions import final
 
 from ._query import ConstraintsAlias, Query
-from .predicate import (NeutralWeight,
-                        Predicate, PredicateWeight)
+from .predicate import NeutralWeight, Predicate, PredicateWeight
 from ..._internal import API
 from ..._internal.utils import debug_repr
 from ...core import Container, DependencyDebug, DependencyValue, does_not_freeze, Provider
 from ...core.utils import DebugInfoPrefix
 
-__all__ = ['InterfaceProvider']
+__all__ = ["InterfaceProvider"]
 
-T = TypeVar('T')
-Weight = TypeVar('Weight', bound=PredicateWeight)
+T = TypeVar("T")
+Weight = TypeVar("Weight", bound=PredicateWeight)
 
 
 class InterfaceProvider(Provider[Query]):
@@ -28,8 +27,7 @@ class InterfaceProvider(Provider[Query]):
     def clone(self: InterfaceProvider, keep_singletons_cache: bool) -> InterfaceProvider:
         provider = InterfaceProvider()
         provider.__implementations = {
-            key: value.copy()
-            for key, value in self.__implementations.items()
+            key: value.copy() for key, value in self.__implementations.items()
         }
 
         return provider
@@ -39,22 +37,15 @@ class InterfaceProvider(Provider[Query]):
         return tpe in self.__implementations
 
     def exists(self, dependency: object) -> bool:
-        return (dependency in self.__implementations
-                or (isinstance(dependency, Query)
-                    and dependency.interface in self.__implementations))
+        return dependency in self.__implementations or (
+            isinstance(dependency, Query) and dependency.interface in self.__implementations
+        )
 
-    def maybe_provide(self,
-                      dependency: object,
-                      container: Container
-                      ) -> Optional[DependencyValue]:
+    def maybe_provide(self, dependency: object, container: Container) -> Optional[DependencyValue]:
         if not isinstance(dependency, Query):
             if not isinstance(dependency, type):
                 return None
-            dependency = Query(
-                interface=dependency,
-                constraints=[],
-                all=False
-            )
+            dependency = Query(interface=dependency, constraints=[], all=False)
 
         try:
             implementations = self.__implementations[dependency.interface]
@@ -81,7 +72,8 @@ class InterfaceProvider(Provider[Query]):
                                 f"Multiple implementations match the interface "
                                 f"{dependency.interface!r} for the constraints "
                                 f"{dependency.constraints}: "
-                                f"{impl.dependency!r} and {left_impl.dependency!r}")
+                                f"{impl.dependency!r} and {left_impl.dependency!r}"
+                            )
 
                     return DependencyValue(container.get(impl.dependency))
             if implementations.default_dependency is not None:
@@ -93,11 +85,7 @@ class InterfaceProvider(Provider[Query]):
     def debug(self, dependency: Query) -> DependencyDebug:
         if not isinstance(dependency, Query):
             assert isinstance(dependency, type)
-            dependency = Query(
-                interface=dependency,
-                constraints=[],
-                all=False
-            )
+            dependency = Query(interface=dependency, constraints=[], all=False)
 
         implementations = self.__implementations[dependency.interface]
         values: list[Implementation[Any]] = []
@@ -107,32 +95,25 @@ class InterfaceProvider(Provider[Query]):
 
         if not dependency.all and len(values) > 0:
             heaviest = values[0]
-            values = [
-                impl
-                for impl in values
-                if not (impl < heaviest)
-            ]
+            values = [impl for impl in values if not (impl < heaviest)]
 
         return DependencyDebug(
             f"Interface {debug_repr(dependency.interface)}",
             dependencies=[
                 DebugInfoPrefix(
                     prefix=f"[{impl.weight}] " if len(values) > 1 else "",
-                    dependency=impl.dependency
+                    dependency=impl.dependency,
                 )
                 for impl in values
-            ]
+            ],
         )
 
     def register(self, interface: type) -> None:
         self.__implementations[interface] = Implementations()
 
-    def override_implementation(self,
-                                *,
-                                interface: type,
-                                existing_dependency: object,
-                                new_dependency: object
-                                ) -> bool:
+    def override_implementation(
+        self, *, interface: type, existing_dependency: object, new_dependency: object
+    ) -> bool:
         overridden = False
         implementations = self.__implementations[interface]
         for impl in implementations.candidates:
@@ -144,22 +125,17 @@ class InterfaceProvider(Provider[Query]):
             overridden = True
         return overridden
 
-    def register_default_implementation(self,
-                                        interface: type,
-                                        dependency: type
-                                        ) -> None:
+    def register_default_implementation(self, interface: type, dependency: type) -> None:
         implementations = self.__implementations[interface]
         if implementations.default_dependency is not None:
-            raise RuntimeError(f"Default dependency already defined as "
-                               f"{implementations.default_dependency!r}")
+            raise RuntimeError(
+                f"Default dependency already defined as {implementations.default_dependency!r}"
+            )
         self.__implementations[interface].default_dependency = dependency
 
-    def register_implementation(self,
-                                *,
-                                interface: type,
-                                dependency: object,
-                                predicates: list[Predicate[Any]]
-                                ) -> None:
+    def register_implementation(
+        self, *, interface: type, dependency: object, predicates: list[Predicate[Any]]
+    ) -> None:
         weight: PredicateWeight = NeutralWeight()
         if len(predicates) > 0:
             maybe_weights = [p.weight() for p in predicates]
@@ -182,11 +158,9 @@ class InterfaceProvider(Provider[Query]):
                 else:
                     weight += w
 
-        self.__implementations[interface].add_candidate(Implementation(
-            dependency=dependency,
-            predicates=predicates,
-            weight=weight
-        ))
+        self.__implementations[interface].add_candidate(
+            Implementation(dependency=dependency, predicates=predicates, weight=weight)
+        )
 
 
 @API.private
@@ -206,28 +180,26 @@ class Implementations:
         return reversed(self.__candidates)
 
     def copy(self) -> Implementations:
-        return Implementations(
-            self.__candidates.copy(),
-            self.default_dependency
-        )
+        return Implementations(self.__candidates.copy(), self.default_dependency)
 
 
 @API.private
 @final
 @dataclass(init=False)
 class Implementation(Generic[Weight]):
-    __slots__ = ('dependency', 'predicates', 'weight', 'same_weight_as_left')
+    __slots__ = ("dependency", "predicates", "weight", "same_weight_as_left")
     dependency: object
     predicates: Sequence[Union[Predicate[Weight], Predicate[NeutralWeight]]]
     weight: Weight | NeutralWeight
     same_weight_as_left: bool
 
-    def __init__(self,
-                 *,
-                 dependency: object,
-                 predicates: list[Predicate[Weight]],
-                 weight: Weight | NeutralWeight
-                 ) -> None:
+    def __init__(
+        self,
+        *,
+        dependency: object,
+        predicates: list[Predicate[Weight]],
+        weight: Weight | NeutralWeight,
+    ) -> None:
         self.dependency = dependency
         self.predicates = predicates
         self.weight = weight

@@ -17,12 +17,13 @@ class AnotherService:
     pass
 
 
-@pytest.fixture(params=['Wiring', 'wire'])
+@pytest.fixture(params=["Wiring", "wire"])
 def wire_(request):
     kind = request.param
-    if kind == 'Wiring':
+    if kind == "Wiring":
+
         def wire(**kwargs):
-            type_hints_locals = kwargs.pop('type_hints_locals', None)
+            type_hints_locals = kwargs.pop("type_hints_locals", None)
             wiring = Wiring(**kwargs)
 
             def decorator(cls: type) -> type:
@@ -34,25 +35,33 @@ def wire_(request):
         return wire
     else:
         from antidote import wire
+
         return wire
 
 
 @pytest.fixture(autouse=True)
 def new_world():
     with world.test.empty():
-        world.test.singleton({'x': object(),
-                              'xx': object(),
-                              'y': object(),
-                              'z': object(),
-                              MyService: MyService(),
-                              AnotherService: AnotherService()})
+        world.test.singleton(
+            {
+                "x": object(),
+                "xx": object(),
+                "y": object(),
+                "z": object(),
+                MyService: MyService(),
+                AnotherService: AnotherService(),
+            }
+        )
         yield
 
 
-@pytest.mark.parametrize('kwargs', [
-    dict(dependencies=('x', 'y')),
-    dict(dependencies=dict(x='x', y='y')),
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(dependencies=("x", "y")),
+        dict(dependencies=dict(x="x", y="y")),
+    ],
+)
 def test_no_strict_validation(wire_, kwargs):
     @wire_(**kwargs)
     class A:
@@ -96,11 +105,20 @@ def test_subclass_classmethod(wire_):
     assert (SubDummy, world.get(MyService)) == SubDummy.cls_method()
 
 
-@pytest.mark.parametrize('arg',
-                         ['methods', 'dependencies', 'auto_provide', 'raise_on_double_injection',
-                          'ignore_type_hints', 'type_hints_locals'])
+@pytest.mark.parametrize(
+    "arg",
+    [
+        "methods",
+        "dependencies",
+        "auto_provide",
+        "raise_on_double_injection",
+        "ignore_type_hints",
+        "type_hints_locals",
+    ],
+)
 def test_invalid_arguments(wire_, arg: str) -> None:
     with pytest.raises(TypeError, match=".*" + arg + ".*"):
+
         @wire_(**{arg: object()})  # type: ignore
         class Dummy:
             pass
@@ -112,11 +130,10 @@ def test_invalid_class(wire_):
 
 
 def test_iterable():
-    w = Wiring(methods=iter(['method']),
-               auto_provide=iter([MyService]))
+    w = Wiring(methods=iter(["method"]), auto_provide=iter([MyService]))
 
     assert isinstance(w.methods, frozenset)
-    assert w.methods == {'method'}
+    assert w.methods == {"method"}
     assert isinstance(w.auto_provide, frozenset)
     assert w.auto_provide == {MyService}
 
@@ -179,7 +196,7 @@ def test_default_all_methods(wire_):
 
 
 def test_methods(wire_):
-    @wire_(methods=['f'], dependencies={'x': MyService})
+    @wire_(methods=["f"], dependencies={"x": MyService})
     class A:
         def f(self, x):
             return x
@@ -192,13 +209,14 @@ def test_methods(wire_):
         A().g()
 
     with pytest.raises(AttributeError):
-        @wire_(methods=['f'])
+
+        @wire_(methods=["f"])
         class A:
             pass
 
 
 def test_double_injection(wire_):
-    @wire_(methods=['f'])
+    @wire_(methods=["f"])
     class A:
         @inject(auto_provide=True)  # auto_provide to force injection
         def f(self, x: MyService):
@@ -207,7 +225,8 @@ def test_double_injection(wire_):
     assert A().f() is world.get(MyService)
 
     with pytest.raises(DoubleInjectionError):
-        @wire_(methods=['f'], raise_on_double_injection=True)
+
+        @wire_(methods=["f"], raise_on_double_injection=True)
         class B:
             @inject(auto_provide=True)  # auto_provide to force injection
             def f(self, x: MyService):
@@ -222,6 +241,7 @@ def test_double_injection(wire_):
     assert C().f() is world.get(MyService)
 
     with pytest.raises(DoubleInjectionError):
+
         @wire_(raise_on_double_injection=True)
         class D:
             @inject(auto_provide=True)  # auto_provide to force injection
@@ -230,44 +250,50 @@ def test_double_injection(wire_):
 
 
 def test_invalid_methods(wire_):
-    with pytest.raises(TypeError, match='.*not_a_method.*'):
-        @wire_(methods=['not_a_method'])
+    with pytest.raises(TypeError, match=".*not_a_method.*"):
+
+        @wire_(methods=["not_a_method"])
         class Dummy:
             not_a_method = 1
 
-    with pytest.raises(TypeError, match='.*methods.*'):
+    with pytest.raises(TypeError, match=".*methods.*"):
         wire_(methods=[object()])
 
 
-@pytest.fixture(params=['method', 'classmethod', 'staticmethod'])
+@pytest.fixture(params=["method", "classmethod", "staticmethod"])
 def wired_method_builder(request):
     kind = request.param
 
     def build(wire, *, annotation=object):
-        if kind == 'method':
+        if kind == "method":
+
             @wire
             class A:
                 def f(self, x):
                     return x
 
-                f.__annotations__['x'] = annotation
+                f.__annotations__["x"] = annotation
 
-        elif kind == 'classmethod':
+        elif kind == "classmethod":
+
             @wire
             class A:
                 def f(cls, x: annotation):
                     return x
 
-                f.__annotations__['x'] = annotation
+                f.__annotations__["x"] = annotation
                 f = classmethod(f)
+
         else:
+
             @wire
             class A:
                 def f(x: annotation):
                     return x
 
-                f.__annotations__['x'] = annotation
+                f.__annotations__["x"] = annotation
                 f = staticmethod(f)
+
         return A().f
 
     return build
@@ -283,35 +309,32 @@ def test_use_inject_annotation(wire_, wired_method_builder):
 
 
 def test_dependencies(wire_, wired_method_builder):
-    f = wired_method_builder(wire_(methods=['f'], dependencies=('y',)))
-    assert f() is world.get('y')
+    f = wired_method_builder(wire_(methods=["f"], dependencies=("y",)))
+    assert f() is world.get("y")
 
-    f = wired_method_builder(wire_(methods=['f'], dependencies=dict(x='z')))
-    assert f() is world.get('z')
+    f = wired_method_builder(wire_(methods=["f"], dependencies=dict(x="z")))
+    assert f() is world.get("z")
 
-    f = wired_method_builder(wire_(methods=['f'], dependencies=dict(y='z')))
+    f = wired_method_builder(wire_(methods=["f"], dependencies=dict(y="z")))
     with pytest.raises(TypeError):
         f()
 
-    f = wired_method_builder(wire_(methods=['f'], dependencies=lambda arg: arg.name * 2))
-    assert f() is world.get('xx')
+    f = wired_method_builder(wire_(methods=["f"], dependencies=lambda arg: arg.name * 2))
+    assert f() is world.get("xx")
 
 
-@pytest.mark.parametrize('annotation', [object, MyService])
+@pytest.mark.parametrize("annotation", [object, MyService])
 def test_wiring_auto_provide(wire_, wired_method_builder, annotation):
-    f = wired_method_builder(wire_(methods=['f']),
-                             annotation=annotation)
+    f = wired_method_builder(wire_(methods=["f"]), annotation=annotation)
     with pytest.raises(TypeError):
         f()
 
     # Boolean
-    f = wired_method_builder(wire_(methods=['f'], auto_provide=False),
-                             annotation=annotation)
+    f = wired_method_builder(wire_(methods=["f"], auto_provide=False), annotation=annotation)
     with pytest.raises(TypeError):
         f()
 
-    f = wired_method_builder(wire_(methods=['f'], auto_provide=True),
-                             annotation=annotation)
+    f = wired_method_builder(wire_(methods=["f"], auto_provide=True), annotation=annotation)
     if annotation is MyService:
         assert f() is world.get(MyService)
     else:
@@ -319,8 +342,7 @@ def test_wiring_auto_provide(wire_, wired_method_builder, annotation):
             f()
 
     # List
-    f = wired_method_builder(wire_(methods=['f'], auto_provide=[MyService]),
-                             annotation=annotation)
+    f = wired_method_builder(wire_(methods=["f"], auto_provide=[MyService]), annotation=annotation)
     if annotation is MyService:
         assert f() is world.get(MyService)
     else:
@@ -330,30 +352,30 @@ def test_wiring_auto_provide(wire_, wired_method_builder, annotation):
     class Unknown:
         pass
 
-    f = wired_method_builder(wire_(methods=['f'], auto_provide=[Unknown]),
-                             annotation=annotation)
+    f = wired_method_builder(wire_(methods=["f"], auto_provide=[Unknown]), annotation=annotation)
     with pytest.raises(TypeError):
         f()
 
     # Function
-    f = wired_method_builder(wire_(methods=['f'],
-                                   auto_provide=lambda cls: issubclass(cls, MyService)),
-                             annotation=annotation)
+    f = wired_method_builder(
+        wire_(methods=["f"], auto_provide=lambda cls: issubclass(cls, MyService)),
+        annotation=annotation,
+    )
     if annotation is MyService:
         assert f() is world.get(MyService)
     else:
         with pytest.raises(TypeError):
             f()
 
-    f = wired_method_builder(wire_(methods=['f'], auto_provide=lambda cls: False),
-                             annotation=annotation)
+    f = wired_method_builder(
+        wire_(methods=["f"], auto_provide=lambda cls: False), annotation=annotation
+    )
     with pytest.raises(TypeError):
         f()
 
 
 def test_complex_wiring(wire_):
-    @wire_(auto_provide=True,
-           methods=['g'])
+    @wire_(auto_provide=True, methods=["g"])
     class A:
         def f(self, x: MyService):
             return x
@@ -368,8 +390,7 @@ def test_complex_wiring(wire_):
 
 
 def test_class_static_methods(wire_):
-    @wire_(methods=['static', 'klass'],
-           auto_provide=True)  # auto_provide to force injection
+    @wire_(methods=["static", "klass"], auto_provide=True)  # auto_provide to force injection
     class Dummy:
         @staticmethod
         def static(x: MyService):
@@ -379,19 +400,16 @@ def test_class_static_methods(wire_):
         def klass(cls, x: MyService):
             pass
 
-    assert isinstance(Dummy.__dict__['static'], staticmethod)
-    assert isinstance(Dummy.__dict__['klass'], classmethod)
+    assert isinstance(Dummy.__dict__["static"], staticmethod)
+    assert isinstance(Dummy.__dict__["klass"], classmethod)
 
 
-@pytest.mark.parametrize('kwargs', [
-    dict(methods={'method', 'test'}),
-    dict(dependencies=[MyService]),
-    dict(auto_provide=True)
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [dict(methods={"method", "test"}), dict(dependencies=[MyService]), dict(auto_provide=True)],
+)
 def test_copy(kwargs):
-    wiring = Wiring(methods=['method'],
-                    dependencies=dict(),
-                    auto_provide=False)
+    wiring = Wiring(methods=["method"], dependencies=dict(), auto_provide=False)
     copy = wiring.copy(**kwargs)
     for key, value in kwargs.items():
         assert getattr(copy, key) == value
@@ -405,20 +423,21 @@ class DummyConf(WithWiringMixin):
         return DummyConf(wiring)
 
 
-@pytest.mark.parametrize('kwargs', [
-    dict(methods={'method', 'test'}),
-    dict(dependencies=[MyService]),
-    dict(auto_provide=True),
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(methods={"method", "test"}),
+        dict(dependencies=[MyService]),
+        dict(auto_provide=True),
+    ],
+)
 def test_with_wiring(kwargs):
-    conf = DummyConf(Wiring(methods=['method'],
-                            dependencies=dict(),
-                            auto_provide=False))
+    conf = DummyConf(Wiring(methods=["method"], dependencies=dict(), auto_provide=False))
     copy = conf.with_wiring(**kwargs)
     for key, value in kwargs.items():
         assert getattr(copy.wiring, key) == value
 
-    kwargs.setdefault('methods', {'method'})
+    kwargs.setdefault("methods", {"method"})
     copy = DummyConf().with_wiring(**kwargs)
     for key, value in kwargs.items():
         assert getattr(copy.wiring, key) == value
@@ -440,7 +459,7 @@ def test_new_old_wiring_wire():
         wiring.wire(Dummy, klass=Dummy)
 
 
-@pytest.mark.parametrize('type_hints_locals', [None, dict()])
+@pytest.mark.parametrize("type_hints_locals", [None, dict()])
 def test_class_in_localns(type_hints_locals):
     wiring = Wiring()
 

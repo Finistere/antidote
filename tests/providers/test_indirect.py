@@ -54,13 +54,13 @@ def test_implementation(permanent: bool):
     assert Interface.__name__ in repr(indirect)
 
 
-@pytest.mark.parametrize('singleton', [True, False])
-@pytest.mark.parametrize('permanent', [True, False])
-def test_implementation_permanent_singleton(service: InjectableProvider,
-                                            singleton: bool,
-                                            permanent: bool):
+@pytest.mark.parametrize("singleton", [True, False])
+@pytest.mark.parametrize("permanent", [True, False])
+def test_implementation_permanent_singleton(
+    service: InjectableProvider, singleton: bool, permanent: bool
+):
     scope = Scope.singleton() if singleton else None
-    choice = 'a'
+    choice = "a"
 
     def implementation():
         return dict(a=A, b=B)[choice]
@@ -68,22 +68,16 @@ def test_implementation_permanent_singleton(service: InjectableProvider,
     service.register(A, scope=scope)
     service.register(B, scope=scope)
     indirect = IndirectProvider()
-    impl = indirect.register_implementation(Interface,
-                                            implementation,
-                                            permanent=permanent)
+    impl = indirect.register_implementation(Interface, implementation, permanent=permanent)
 
     instance = world.test.maybe_provide_from(indirect, impl).unwrapped
     assert isinstance(instance, A)
     assert (instance is world.get(A)) is singleton
-    assert world.test.maybe_provide_from(
-        indirect,
-        impl).is_singleton() is (singleton and permanent)
+    assert world.test.maybe_provide_from(indirect, impl).is_singleton() is (singleton and permanent)
 
-    choice = 'b'
+    choice = "b"
     assert implementation() == B
-    assert world.test.maybe_provide_from(
-        indirect,
-        impl).is_singleton() is (singleton and permanent)
+    assert world.test.maybe_provide_from(indirect, impl).is_singleton() is (singleton and permanent)
     instance = world.test.maybe_provide_from(indirect, impl).unwrapped
     if permanent:
         assert isinstance(instance, A)
@@ -102,20 +96,29 @@ def test_implementation_exists(indirect: IndirectProvider, permanent: bool):
     assert not indirect.exists(A)
 
 
-@pytest.mark.parametrize('keep_singletons_cache', [True, False])
-@pytest.mark.parametrize('register', [
-    pytest.param(
-        lambda indirect, inf, impl: indirect.register_implementation(inf, lambda: impl,
-                                                                     permanent=False),
-        id='implementation'),
-    pytest.param(
-        lambda indirect, inf, impl: indirect.register_implementation(inf, lambda: impl,
-                                                                     permanent=True),
-        id='implementation_permanent')
-])
-def test_clone(indirect: IndirectProvider,
-               keep_singletons_cache: bool,
-               register: Callable[[IndirectProvider, type, type], object]):
+@pytest.mark.parametrize("keep_singletons_cache", [True, False])
+@pytest.mark.parametrize(
+    "register",
+    [
+        pytest.param(
+            lambda indirect, inf, impl: indirect.register_implementation(
+                inf, lambda: impl, permanent=False
+            ),
+            id="implementation",
+        ),
+        pytest.param(
+            lambda indirect, inf, impl: indirect.register_implementation(
+                inf, lambda: impl, permanent=True
+            ),
+            id="implementation_permanent",
+        ),
+    ],
+)
+def test_clone(
+    indirect: IndirectProvider,
+    keep_singletons_cache: bool,
+    register: Callable[[IndirectProvider, type, type], object],
+):
     world.test.singleton({A: A()})
 
     dep = register(indirect, Interface, A)
@@ -189,7 +192,7 @@ def test_register_duplicate_check(indirect: IndirectProvider, permanent: bool):
 
 def test_invalid_link(permanent: bool):
     indirect = IndirectProvider()
-    target = 'target'
+    target = "target"
 
     def implementation():
         return target

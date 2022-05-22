@@ -12,7 +12,7 @@ from .utils import is_optional
 @final
 @dataclass(frozen=True)
 class Argument:
-    __slots__ = ('name', 'default', 'type_hint', 'type_hint_with_extras')
+    __slots__ = ("name", "default", "type_hint", "type_hint_with_extras")
     name: str
     default: object
     type_hint: Any
@@ -33,16 +33,23 @@ class Argument:
 
     def __str__(self) -> str:
         type_hint = getattr(self.type_hint, "__name__", repr(self.type_hint))
-        common = f'{self.name}:{type_hint}'
+        common = f"{self.name}:{type_hint}"
         return common + f" = {self.default}" if self.has_default else common
 
 
 @final
 @dataclass(frozen=True, init=False)
 class Arguments:
-    """ Used when generating the injection wrapper """
-    __slots__ = ('arguments', 'has_var_positional', 'has_var_keyword', 'has_self', 'without_self',
-                 '_name_to_argument')
+    """Used when generating the injection wrapper"""
+
+    __slots__ = (
+        "arguments",
+        "has_var_positional",
+        "has_var_keyword",
+        "has_self",
+        "without_self",
+        "_name_to_argument",
+    )
     arguments: Sequence[Argument]
     has_var_positional: bool
     has_var_keyword: bool
@@ -51,30 +58,31 @@ class Arguments:
     _name_to_argument: Dict[str, Argument]
 
     @classmethod
-    def from_callable(cls,
-                      func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]],
-                      *,
-                      ignore_type_hints: bool = False,
-                      type_hints_locals: Optional[Mapping[str, object]] = None
-                      ) -> Arguments:
+    def from_callable(
+        cls,
+        func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]],
+        *,
+        ignore_type_hints: bool = False,
+        type_hints_locals: Optional[Mapping[str, object]] = None,
+    ) -> Arguments:
         if not (callable(func) or isinstance(func, (staticmethod, classmethod))):
-            raise TypeError(f"func must be a callable or a static/class-method. "
-                            f"Not a {type(func)}")
+            raise TypeError(f"func must be a callable or a static/class-method. Not a {type(func)}")
         return cls._build(
             func=func.__func__ if isinstance(func, (staticmethod, classmethod)) else func,
             unbound_method=is_unbound_method(func),  # doing it before un-wrapping.
             ignore_type_hints=ignore_type_hints,
-            type_hints_locals=type_hints_locals
+            type_hints_locals=type_hints_locals,
         )
 
     @classmethod
-    def _build(cls,
-               *,
-               func: Callable[..., object],
-               unbound_method: bool,
-               ignore_type_hints: bool,
-               type_hints_locals: Optional[Mapping[str, object]]
-               ) -> Arguments:
+    def _build(
+        cls,
+        *,
+        func: Callable[..., object],
+        unbound_method: bool,
+        ignore_type_hints: bool,
+        type_hints_locals: Optional[Mapping[str, object]],
+    ) -> Arguments:
         arguments: List[Argument] = []
         has_var_positional = False
         has_var_keyword = False
@@ -94,37 +102,42 @@ class Arguments:
             elif parameter.kind is parameter.VAR_KEYWORD:
                 has_var_keyword = True
             else:
-                arguments.append(Argument(
-                    name=name,
-                    default=parameter.default,
-                    type_hint=type_hints.get(name),
-                    type_hint_with_extras=extra_type_hints.get(name)
-                ))
+                arguments.append(
+                    Argument(
+                        name=name,
+                        default=parameter.default,
+                        type_hint=type_hints.get(name),
+                        type_hint_with_extras=extra_type_hints.get(name),
+                    )
+                )
 
-        return Arguments(arguments=tuple(arguments),
-                         has_var_positional=has_var_positional,
-                         has_var_keyword=has_var_keyword,
-                         has_self=unbound_method)
+        return Arguments(
+            arguments=tuple(arguments),
+            has_var_positional=has_var_positional,
+            has_var_keyword=has_var_keyword,
+            has_self=unbound_method,
+        )
 
-    def __init__(self,
-                 arguments: Sequence[Argument],
-                 has_var_positional: bool,
-                 has_var_keyword: bool,
-                 has_self: bool):
-        object.__setattr__(self, 'arguments', arguments)
-        object.__setattr__(self, 'has_var_positional', has_var_positional)
-        object.__setattr__(self, 'has_var_keyword', has_var_keyword)
-        object.__setattr__(self, 'has_self', has_self)
-        object.__setattr__(self, '_name_to_argument', {arg.name: arg for arg in arguments})
+    def __init__(
+        self,
+        arguments: Sequence[Argument],
+        has_var_positional: bool,
+        has_var_keyword: bool,
+        has_self: bool,
+    ):
+        object.__setattr__(self, "arguments", arguments)
+        object.__setattr__(self, "has_var_positional", has_var_positional)
+        object.__setattr__(self, "has_var_keyword", has_var_keyword)
+        object.__setattr__(self, "has_self", has_self)
+        object.__setattr__(self, "_name_to_argument", {arg.name: arg for arg in arguments})
 
         if has_self:
-            without_self = Arguments(self.arguments[1:],
-                                     self.has_var_positional,
-                                     self.has_var_keyword,
-                                     has_self=False)
+            without_self = Arguments(
+                self.arguments[1:], self.has_var_positional, self.has_var_keyword, has_self=False
+            )
         else:
             without_self = self
-        object.__setattr__(self, 'without_self', without_self)
+        object.__setattr__(self, "without_self", without_self)
 
     @property
     def arg_names(self) -> Set[str]:
@@ -157,8 +170,9 @@ class Arguments:
         return iter(self.arguments)
 
 
-def is_unbound_method(func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]]
-                      ) -> bool:
+def is_unbound_method(
+    func: Union[Callable[..., object], staticmethod[Any], classmethod[Any]]
+) -> bool:
     """
     Methods and nested function will have a different __qualname__ than
     __name__ (See PEP-3155).
@@ -177,8 +191,10 @@ def is_unbound_method(func: Union[Callable[..., object], staticmethod[Any], clas
     if isinstance(func, classmethod):
         func = func.__func__
 
-    return (func.__qualname__ != func.__name__  # not top level
-            # not a bound method (self/cls already bound)
-            and not inspect.ismethod(func)
-            # not nested function
-            and not func.__qualname__[:-len(func.__name__)].endswith("<locals>."))
+    return (
+        func.__qualname__ != func.__name__  # not top level
+        # not a bound method (self/cls already bound)
+        and not inspect.ismethod(func)
+        # not nested function
+        and not func.__qualname__[: -len(func.__name__)].endswith("<locals>.")
+    )

@@ -4,7 +4,7 @@ from ._internal import API
 from ._internal.utils.meta import Singleton
 
 
-@API.public  # All of the methods are public, but the only support instance is the singleton config.
+@API.public  # All the methods are public, but the only support instance is the singleton config.
 @final
 class Config(Singleton):
     """
@@ -56,8 +56,9 @@ class Config(Singleton):
     @auto_detect_type_hints_locals.setter
     def auto_detect_type_hints_locals(self, value: bool) -> None:
         if not isinstance(value, bool):
-            raise TypeError(f"auto_detect_type_hints_locals must be a boolean, "
-                            f"not a {type(value)}.")
+            raise TypeError(
+                f"auto_detect_type_hints_locals must be a boolean, not a {type(value)}."
+            )
         setattr(self, "__type_hints_locals", value)
 
 

@@ -5,8 +5,7 @@ from typing_extensions import final
 
 from ._internal import API
 from ._internal.utils import debug_repr, FinalImmutable, short_id
-from ._lazy import (LazyCallWithArgsKwargs, LazyMethodCallDependency,
-                    LazyMethodCallWithArgsKwargs)
+from ._lazy import LazyCallWithArgsKwargs, LazyMethodCallDependency, LazyMethodCallWithArgsKwargs
 from .core import Container, DependencyDebug, DependencyValue, Scope
 from .lib.lazy._provider import Lazy
 from .service import Service
@@ -55,15 +54,18 @@ class LazyCall(FinalImmutable, Lazy):
         'Hello Adam'
 
     """
-    __slots__ = ('func', '_scope')
+
+    __slots__ = ("func", "_scope")
     func: Callable[..., object]
     _scope: Optional[Scope]
 
-    def __init__(self,
-                 func: Callable[..., object],
-                 *,
-                 singleton: Optional[bool] = None,
-                 scope: Optional[Scope] = Scope.sentinel()) -> None:
+    def __init__(
+        self,
+        func: Callable[..., object],
+        *,
+        singleton: Optional[bool] = None,
+        scope: Optional[Scope] = Scope.sentinel(),
+    ) -> None:
         """
         Args:
             func: Function to lazily call, any (keyword-)arguments given by the returned
@@ -78,9 +80,7 @@ class LazyCall(FinalImmutable, Lazy):
         """
         if not callable(func):
             raise TypeError(f"func must be a callable, not {type(func)}")
-        super().__init__(func, validated_scope(scope,
-                                               singleton,
-                                               default=Scope.singleton()))
+        super().__init__(func, validated_scope(scope, singleton, default=Scope.singleton()))
 
     def __call__(self, *args: object, **kwargs: object) -> LazyCallWithArgsKwargs[object]:
         """
@@ -97,9 +97,7 @@ class LazyCall(FinalImmutable, Lazy):
 
     @API.private
     def __antidote_debug_info__(self) -> DependencyDebug:
-        return DependencyDebug(self.__antidote_debug_repr__(),
-                               scope=self._scope,
-                               wired=[self.func])
+        return DependencyDebug(self.__antidote_debug_repr__(), scope=self._scope, wired=[self.func])
 
     @API.private
     def __antidote_provide__(self, container: Container) -> DependencyValue:
@@ -148,16 +146,19 @@ class LazyMethodCall(FinalImmutable):
         constants.
 
     """
-    __slots__ = ('_method_name', '_scope', '__cache_attr')
+
+    __slots__ = ("_method_name", "_scope", "__cache_attr")
     _method_name: str
     _scope: Optional[Scope]
     __cache_attr: str
 
-    def __init__(self,
-                 method: Callable[..., object],
-                 *,
-                 singleton: Optional[bool] = None,
-                 scope: Scope = Scope.sentinel()) -> None:
+    def __init__(
+        self,
+        method: Callable[..., object],
+        *,
+        singleton: Optional[bool] = None,
+        scope: Scope = Scope.sentinel(),
+    ) -> None:
         """
         Args:
             method: Method name or the method itself that must be called.
@@ -174,17 +175,14 @@ class LazyMethodCall(FinalImmutable):
         super().__init__(
             method.__name__,
             validated_scope(scope, singleton, default=Scope.singleton()),
-            f"__antidote_dependency_{hex(id(self))}"
+            f"__antidote_dependency_{hex(id(self))}",
         )
 
     def __call__(self, *args: object, **kwargs: object) -> LazyMethodCallWithArgsKwargs:
         """
         All argument are passed on to the lazily called method.
         """
-        return LazyMethodCallWithArgsKwargs(self._method_name,
-                                            self._scope,
-                                            args,
-                                            kwargs)
+        return LazyMethodCallWithArgsKwargs(self._method_name, self._scope, args, kwargs)
 
     def __str__(self) -> str:
         s = f"Lazy Method: {self._method_name}()"

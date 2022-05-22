@@ -418,7 +418,7 @@ cdef class RawContainer(Container):
             for p in self.__providers:
                 p_clone = p.clone(keep_singletons)
                 if p_clone is p or p_clone._container_ref is not None:
-                    raise RuntimeError("A Provider should always return a fresh "
+                    raise RuntimeError("A Provider should always return a new "
                                        "instance when copy() is called.")
                 p_clone._container_ref = ref(clone)
                 clone.__providers.append(p_clone)

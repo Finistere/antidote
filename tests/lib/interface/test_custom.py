@@ -9,10 +9,14 @@ from typing_extensions import Protocol
 
 from antidote import implements, inject, interface, world
 from antidote.lib.injectable import register_injectable_provider
-from antidote.lib.interface import (NeutralWeight, Predicate, QualifiedBy,
-                                    register_interface_provider)
+from antidote.lib.interface import (
+    NeutralWeight,
+    Predicate,
+    QualifiedBy,
+    register_interface_provider,
+)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def _(x: T) -> T:
@@ -122,8 +126,11 @@ def test_custom_predicate_weight() -> None:
     assert world.get[Route].single(WithPrefix("/assets"), V1) is world.get(Assets)
 
     # qualifiers
-    @_(implements(Route).when(OnPath("/example/dummy"), V1,
-                              qualified_by=[object(), object(), object()]))
+    @_(
+        implements(Route).when(
+            OnPath("/example/dummy"), V1, qualified_by=[object(), object(), object()]
+        )
+    )
     class Example(Route):
         pass
 
@@ -259,11 +266,11 @@ class LocaleIs:
     lang: str
 
     def weight(self) -> Weight:
-        return Weight(1000 if self.lang != 'en' else 500)
+        return Weight(1000 if self.lang != "en" else 500)
 
     def evaluate(self, predicate: Optional[LocaleIs]) -> bool:
         assert predicate is not None
-        return self.lang == predicate.lang or predicate.lang == 'en'
+        return self.lang == predicate.lang or predicate.lang == "en"
 
 
 def test_lang_example() -> None:
@@ -271,11 +278,11 @@ def test_lang_example() -> None:
     class Alert:
         ...
 
-    @_(implements(Alert).when(LocaleIs('fr')))
+    @_(implements(Alert).when(LocaleIs("fr")))
     class FrenchAlert(Alert):
         ...
 
-    @_(implements(Alert).when(LocaleIs('en')))
+    @_(implements(Alert).when(LocaleIs("en")))
     class DefaultAlert(Alert):
         ...
 
@@ -291,7 +298,7 @@ def test_event_subscriber_example() -> None:
     class InitializationEvent(Event):
         ...
 
-    E = TypeVar('E', bound=Event, contravariant=True)
+    E = TypeVar("E", bound=Event, contravariant=True)
 
     @interface  # can be applied on protocols and "standard" classes
     class EventSubscriber(Protocol[E]):
@@ -308,11 +315,13 @@ def test_event_subscriber_example() -> None:
             self.called_with.append(event)
 
     @inject
-    def process_initialization(event: InitializationEvent,
-                               # injects all subscribers qualified by InitializationEvent
-                               subscribers: List[EventSubscriber[InitializationEvent]] = inject.me(
-                                   qualified_by=InitializationEvent)
-                               ) -> None:
+    def process_initialization(
+        event: InitializationEvent,
+        # injects all subscribers qualified by InitializationEvent
+        subscribers: List[EventSubscriber[InitializationEvent]] = inject.me(
+            qualified_by=InitializationEvent
+        ),
+    ) -> None:
         for subscriber in subscribers:
             subscriber.process(event)
 
@@ -326,13 +335,13 @@ def test_event_subscriber_example() -> None:
         # Explicitly retrieving the subscribers
         subscribers=world.get[EventSubscriber[InitializationEvent]].all(
             qualified_by=InitializationEvent
-        )
+        ),
     )
     assert sub.called_with == [event, event]
 
     process_initialization(
         event,
         # Explicitly retrieving the subscribers
-        subscribers=world.get[EventSubscriber[InitializationEvent]].all(qualified_by=object())
+        subscribers=world.get[EventSubscriber[InitializationEvent]].all(qualified_by=object()),
     )
     assert sub.called_with == [event, event]

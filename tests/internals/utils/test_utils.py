@@ -38,37 +38,43 @@ class SubDummy(ValidDummy):
     pass
 
 
-@pytest.mark.parametrize('expectation, obj, tpe', [
-    (does_raise, object(), int),
-    (does_not_raise(), object(), Annotated[ValidDummy, object()]),
-    (does_not_raise(), 1, int),
-    (does_not_raise(), 1, DummyProtocol),
-    (does_raise, 1, DummyRuntimeProtocol),
-    (does_not_raise(), InvalidDummy(), DummyProtocol),
-    (does_raise, InvalidDummy(), DummyRuntimeProtocol),
-    (does_not_raise(), ValidDummy(), DummyProtocol),
-    (does_not_raise(), ValidDummy(), DummyRuntimeProtocol),
-    (does_not_raise(), SubDummy(), DummyProtocol),
-    (does_not_raise(), SubDummy(), DummyRuntimeProtocol),
-    (does_not_raise(), SubDummy(), ValidDummy),
-    (does_raise, InvalidDummy(), ValidDummy),
-])
+@pytest.mark.parametrize(
+    "expectation, obj, tpe",
+    [
+        (does_raise, object(), int),
+        (does_not_raise(), object(), Annotated[ValidDummy, object()]),
+        (does_not_raise(), 1, int),
+        (does_not_raise(), 1, DummyProtocol),
+        (does_raise, 1, DummyRuntimeProtocol),
+        (does_not_raise(), InvalidDummy(), DummyProtocol),
+        (does_raise, InvalidDummy(), DummyRuntimeProtocol),
+        (does_not_raise(), ValidDummy(), DummyProtocol),
+        (does_not_raise(), ValidDummy(), DummyRuntimeProtocol),
+        (does_not_raise(), SubDummy(), DummyProtocol),
+        (does_not_raise(), SubDummy(), DummyRuntimeProtocol),
+        (does_not_raise(), SubDummy(), ValidDummy),
+        (does_raise, InvalidDummy(), ValidDummy),
+    ],
+)
 def test_enforce_type(expectation, obj, tpe):
     with expectation:
         enforce_type_if_possible(obj, tpe)
 
 
-@pytest.mark.parametrize('expectation, sub, tpe', [
-    (does_not_raise(), ValidDummy, DummyProtocol),
-    (does_not_raise(), ValidDummy, DummyRuntimeProtocol),
-    (does_not_raise(), InvalidDummy, DummyProtocol),
-    (does_raise, InvalidDummy, DummyRuntimeProtocol),
-    (does_raise, InvalidDummy, ValidDummy),
-    (does_not_raise(), SubDummy, ValidDummy),
-    (does_not_raise(), 1, 1),
-    (does_not_raise(), 1, int),
-    (does_not_raise(), int, 1)
-])
+@pytest.mark.parametrize(
+    "expectation, sub, tpe",
+    [
+        (does_not_raise(), ValidDummy, DummyProtocol),
+        (does_not_raise(), ValidDummy, DummyRuntimeProtocol),
+        (does_not_raise(), InvalidDummy, DummyProtocol),
+        (does_raise, InvalidDummy, DummyRuntimeProtocol),
+        (does_raise, InvalidDummy, ValidDummy),
+        (does_not_raise(), SubDummy, ValidDummy),
+        (does_not_raise(), 1, 1),
+        (does_not_raise(), 1, int),
+        (does_not_raise(), int, 1),
+    ],
+)
 def test_enforce_subtype(expectation, sub, tpe):
     with expectation:
         enforce_subclass_if_possible(sub, tpe)

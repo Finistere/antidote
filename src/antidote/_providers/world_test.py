@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import (Callable, Dict, Mapping,
-                    Optional,
-                    Tuple)
+from typing import Callable, Dict, Mapping, Optional, Tuple
 
 from .._internal import API
 from .._internal.utils import debug_repr
@@ -14,8 +12,7 @@ class WorldTestProvider(Provider[object]):
     def __init__(self) -> None:
         super().__init__()
         self.__singletons: Dict[object, object] = dict()
-        self.__factories: Dict[object,
-                               Tuple[Callable[[], object], Optional[Scope]]] = dict()
+        self.__factories: Dict[object, Tuple[Callable[[], object], Optional[Scope]]] = dict()
 
     def clone(self, keep_singletons_cache: bool) -> WorldTestProvider:
         p = WorldTestProvider()
@@ -32,14 +29,15 @@ class WorldTestProvider(Provider[object]):
             value = self.__singletons[dependency]
         except KeyError:
             (factory, scope) = self.__factories[dependency]
-            return DependencyDebug(f"Singleton: {debug_repr(dependency)} "
-                                   f"-> {factory}",
-                                   wired=[factory],
-                                   scope=scope)
+            return DependencyDebug(
+                f"Singleton: {debug_repr(dependency)} -> {factory}",
+                wired=[factory],
+                scope=scope,
+            )
         else:
-            return DependencyDebug(f"Singleton: {debug_repr(dependency)} "
-                                   f"-> {value}",
-                                   scope=Scope.singleton())
+            return DependencyDebug(
+                f"Singleton: {debug_repr(dependency)} -> {value}", scope=Scope.singleton()
+            )
 
     def provide(self, dependency: object, container: Container) -> DependencyValue:
         try:
@@ -55,10 +53,8 @@ class WorldTestProvider(Provider[object]):
             self._assert_not_duplicate(k)
         self.__singletons.update(dependencies)
 
-    def add_factory(self,
-                    dependency: object,
-                    *,
-                    factory: Callable[[], object],
-                    scope: Optional[Scope]) -> None:
+    def add_factory(
+        self, dependency: object, *, factory: Callable[[], object], scope: Optional[Scope]
+    ) -> None:
         self._assert_not_duplicate(dependency)
         self.__factories[dependency] = (factory, scope)

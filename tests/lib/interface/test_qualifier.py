@@ -15,20 +15,23 @@ def test_qualified_by_must_have_at_least_one_qualifier() -> None:
         QualifiedBy()
 
 
-@pytest.mark.parametrize('qualifiers', [
-    pytest.param([1], id='int'),
-    pytest.param([1.123], id='float'),
-    pytest.param([complex(1)], id='complex'),
-    pytest.param([True], id='bool'),
-    pytest.param([b''], id='bytes'),
-    pytest.param([bytearray()], id='bytearray'),
-    pytest.param(["hello"], id='str'),
-    pytest.param([[object()]], id='list'),
-    pytest.param([{object(): object()}], id='dict'),
-    pytest.param([{object()}], id='set'),
-    pytest.param([(object(),)], id='tuple'),
-    pytest.param([object(), 2], id='mixed')
-])
+@pytest.mark.parametrize(
+    "qualifiers",
+    [
+        pytest.param([1], id="int"),
+        pytest.param([1.123], id="float"),
+        pytest.param([complex(1)], id="complex"),
+        pytest.param([True], id="bool"),
+        pytest.param([b""], id="bytes"),
+        pytest.param([bytearray()], id="bytearray"),
+        pytest.param(["hello"], id="str"),
+        pytest.param([[object()]], id="list"),
+        pytest.param([{object(): object()}], id="dict"),
+        pytest.param([{object()}], id="set"),
+        pytest.param([(object(),)], id="tuple"),
+        pytest.param([object(), 2], id="mixed"),
+    ],
+)
 def test_qualifier_validation(qualifiers: List[object]) -> None:
     with pytest.raises(TypeError, match="(?i).*qualifier.*"):
         QualifiedBy(*qualifiers)
@@ -102,8 +105,8 @@ def test_only_qualifier_id_matters() -> None:
         def __repr__(self) -> str:
             return f"Dummy({self.name})"  # pragma: no cover
 
-    a = Dummy('a')
-    b = Dummy('b')
+    a = Dummy("a")
+    b = Dummy("b")
     assert a == b
 
     assert QualifiedBy(a) != QualifiedBy(b)

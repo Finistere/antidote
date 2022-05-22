@@ -12,8 +12,8 @@ from antidote.core.exceptions import DependencyInstantiationError, DependencyNot
 from antidote.lib.injectable import register_injectable_provider
 from antidote.lib.interface import QualifiedBy, register_interface_provider
 
-T = TypeVar('T')
-Tco = TypeVar('Tco', covariant=True)
+T = TypeVar("T")
+Tco = TypeVar("Tco", covariant=True)
 
 
 def _(x: T) -> T:
@@ -92,6 +92,7 @@ def test_single_implementation() -> None:
     assert bases[0] is dummy
 
     if sys.version_info >= (3, 9):
+
         @inject
         def all_bases_type_alias(x: list[Base] = inject.me()) -> List[Base]:
             return x
@@ -131,6 +132,7 @@ def test_single_multiple_implementations_failure() -> None:
         world.get[Base].single()
 
     with pytest.raises(DependencyInstantiationError, match=".*Base.*"):
+
         @inject
         def f(x: Base = inject.me()) -> Base:
             return x  # pragma: no cover
@@ -294,6 +296,7 @@ def test_unique_predicate() -> None:
             return None
 
     with pytest.raises(RuntimeError, match="(?i).*unique.*"):
+
         @_(implements(Base).when(MyPred(), MyPred()))
         class BaseImpl(Base):
             pass
@@ -343,6 +346,7 @@ def test_type_enforcement_if_possible() -> None:
         pass
 
     with pytest.raises(TypeError, match="(?i).*subclass.*Base.*"):
+
         @implements(Base)
         class Invalid1:
             pass
@@ -363,6 +367,7 @@ def test_type_enforcement_if_possible() -> None:
             pass  # pragma: no cover
 
     with pytest.raises(TypeError, match="(?i).*protocol.*RuntimeProtocol.*"):
+
         @implements(RuntimeProtocol)
         class Invalid3:
             pass
@@ -440,6 +445,7 @@ def test_override() -> None:
     assert world.get[Base].single() is world.get(Custom)
 
     with pytest.raises(RuntimeError):
+
         @_(implements(Base).overriding(Default))
         class CustomV2(Base):
             ...
@@ -458,6 +464,7 @@ def test_by_default() -> None:
         ...
 
     with pytest.raises(RuntimeError, match="(?i)default dependency"):
+
         @_(implements(Base).by_default)
         class Default2(Base):
             ...

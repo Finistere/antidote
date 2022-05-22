@@ -35,21 +35,24 @@ def dummy() -> A:
     pass
 
 
-@pytest.fixture(params=['function', 'class', 'decorated_class'])
+@pytest.fixture(params=["function", "class", "decorated_class"])
 def build(test_world, request):
-    if request.param == 'function':
+    if request.param == "function":
+
         @factory
         def build(**kwargs) -> A:
             return A(**kwargs)
 
         return build
     elif request.param == "class":
+
         class ServiceFactory(Factory):
             def __call__(self, **kwargs) -> A:
                 return A(**kwargs)
 
         return ServiceFactory
     else:
+
         @factory
         class ServiceFactory:
             def __call__(self, **kwargs) -> A:
@@ -89,7 +92,7 @@ def test_legacy_notation():
 
 
 def test_custom_scope():
-    dummy_scope = world.scopes.new(name='dummy')
+    dummy_scope = world.scopes.new(name="dummy")
 
     class Scoped:
         pass
@@ -119,7 +122,7 @@ def test_parameterized():
     x = object()
 
     class BuildA(Factory):
-        __antidote__ = Factory.Conf(parameters=['x'])
+        __antidote__ = Factory.Conf(parameters=["x"])
 
         def __call__(self, **kwargs) -> A:
             return A(**kwargs)
@@ -131,7 +134,7 @@ def test_parameterized():
         A @ BuildA.parameterized()
 
     with pytest.raises(ValueError, match=".*parameters.*'x'.*"):
-        A @ BuildA.parameterized(unknown='something')
+        A @ BuildA.parameterized(unknown="something")
 
 
 def test_not_parametrized():
@@ -145,10 +148,11 @@ def test_not_parametrized():
 
 def test_invalid_with_default_parameters():
     with pytest.raises(ValueError, match=".*default.*"):
-        class BuildA(Factory):
-            __antidote__ = Factory.Conf(parameters=['x'])
 
-            def __call__(self, x: str = 'default') -> A:
+        class BuildA(Factory):
+            __antidote__ = Factory.Conf(parameters=["x"])
+
+            def __call__(self, x: str = "default") -> A:
                 return A()
 
 
@@ -157,8 +161,9 @@ def test_invalid_with_injected_parameters():
         pass
 
     with pytest.raises(ValueError, match=".*injected.*class.*Dummy.*"):
+
         class BuildA(Factory):
-            __antidote__ = Factory.Conf(parameters=['x'])
+            __antidote__ = Factory.Conf(parameters=["x"])
 
             def __call__(self, x: Provide[Dummy]) -> A:
                 return A()
@@ -166,7 +171,7 @@ def test_invalid_with_injected_parameters():
 
 def test_invalid_parameterized_dependency():
     class BuildA(Factory):
-        __antidote__ = Factory.Conf(parameters=['x'])
+        __antidote__ = Factory.Conf(parameters=["x"])
 
         def __call__(self, x) -> A:
             return A()
@@ -195,13 +200,13 @@ def test_getattr():
     def build() -> A:
         return A()
 
-    build.hello = 'world'
+    build.hello = "world"
 
     build = factory(build)
-    assert build.hello == 'world'
+    assert build.hello == "world"
 
-    build.new_hello = 'new_world'
-    assert build.new_hello == 'new_world'
+    build.new_hello = "new_world"
+    assert build.new_hello == "new_world"
 
 
 def test_wiring():
@@ -263,10 +268,12 @@ def test_wiring_custom():
 
 def test_missing_call():
     with pytest.raises(TypeError, match="__call__"):
+
         class ServiceFactory(Factory):
             pass
 
     with pytest.raises(ValueError, match=".*return type hint.*"):
+
         @factory
         class ServiceFactory2:
             pass
@@ -274,57 +281,70 @@ def test_missing_call():
 
 def test_missing_return_type_hint():
     with pytest.raises(ValueError, match=".*return type hint.*"):
+
         @factory
         def faulty_service_provider():
             return A()
 
     with pytest.raises(TypeError, match=".*return type hint.*"):
+
         @factory
         def faulty_service_provider2() -> Any:
             return A()
 
     with pytest.raises(ValueError, match=".*return type hint.*"):
+
         @factory
         class FaultyServiceFactory:
             def __call__(self):
                 return A()
 
     with pytest.raises(TypeError, match=".*return type hint.*"):
+
         @factory
         class FaultyServiceFactory2:
             def __call__(self) -> Any:
                 return A()
 
     with pytest.raises(ValueError, match=".*return type hint.*"):
+
         class FaultyServiceFactory3(Factory):
             def __call__(self):
                 return A()
 
     with pytest.raises(TypeError, match=".*return type hint.*"):
+
         class FaultyServiceFactory4(Factory):
             def __call__(self) -> Any:
                 return A()
 
 
-@pytest.mark.parametrize('expectation,kwargs,func',
-                         [
-                             pytest.param(pytest.raises(TypeError, match='.*function.*'),
-                                          dict(),
-                                          object(),
-                                          id='function'),
-                             pytest.param(pytest.raises(TypeError, match='.*singleton.*'),
-                                          dict(singleton=object()),
-                                          lambda: None,
-                                          id='singleton'),
-                             pytest.param(pytest.raises(TypeError, match='.*scope.*'),
-                                          dict(scope=object()),
-                                          lambda: None,
-                                          id='scope'),
-                             pytest.param(pytest.raises(TypeError, match='.*wiring.*'),
-                                          dict(wiring=object()),
-                                          lambda: None,
-                                          id='wiring'),
-                         ])
+@pytest.mark.parametrize(
+    "expectation,kwargs,func",
+    [
+        pytest.param(
+            pytest.raises(TypeError, match=".*function.*"), dict(), object(), id="function"
+        ),
+        pytest.param(
+            pytest.raises(TypeError, match=".*singleton.*"),
+            dict(singleton=object()),
+            lambda: None,
+            id="singleton",
+        ),
+        pytest.param(
+            pytest.raises(TypeError, match=".*scope.*"),
+            dict(scope=object()),
+            lambda: None,
+            id="scope",
+        ),
+        pytest.param(
+            pytest.raises(TypeError, match=".*wiring.*"),
+            dict(wiring=object()),
+            lambda: None,
+            id="wiring",
+        ),
+    ],
+)
 def test_invalid_factory_args(expectation, kwargs: dict, func: Callable[..., object]):
     with expectation:
         factory(**kwargs)(func)
@@ -339,6 +359,7 @@ def test_no_subclass_of_service():
             pass
 
     with pytest.raises(TypeError, match=".*abstract.*"):
+
         class SubDummy(Dummy):
             def __call__(self, *args, **kwargs) -> B:
                 pass
@@ -346,6 +367,7 @@ def test_no_subclass_of_service():
 
 def test_invalid_conf():
     with pytest.raises(TypeError, match=".*__antidote__.*"):
+
         class Dummy(Factory):
             __antidote__ = object()
 
@@ -353,16 +375,20 @@ def test_invalid_conf():
                 pass
 
 
-@pytest.mark.parametrize('expectation, parameters', [
-    (pytest.raises(TypeError), "string"),
-    (pytest.raises(TypeError), object()),
-    (pytest.raises(TypeError), [1]),
-    (does_not_raise(), ['x']),
-    (does_not_raise(), []),
-    (does_not_raise(), None),
-])
+@pytest.mark.parametrize(
+    "expectation, parameters",
+    [
+        (pytest.raises(TypeError), "string"),
+        (pytest.raises(TypeError), object()),
+        (pytest.raises(TypeError), [1]),
+        (does_not_raise(), ["x"]),
+        (does_not_raise(), []),
+        (does_not_raise(), None),
+    ],
+)
 def test_conf_parameters(expectation, parameters):
     with expectation:
+
         class Build(Factory):
             __antidote__ = Factory.Conf(parameters=parameters)
 
@@ -370,26 +396,27 @@ def test_conf_parameters(expectation, parameters):
                 pass
 
 
-@pytest.mark.parametrize('expectation, kwargs', [
-    pytest.param(pytest.raises(TypeError, match=f'.*{arg}.*'),
-                 {arg: object()},
-                 id=arg)
-    for arg in ['wiring',
-                'singleton',
-                'scope',
-                'parameters']
-])
+@pytest.mark.parametrize(
+    "expectation, kwargs",
+    [
+        pytest.param(pytest.raises(TypeError, match=f".*{arg}.*"), {arg: object()}, id=arg)
+        for arg in ["wiring", "singleton", "scope", "parameters"]
+    ],
+)
 def test_invalid_conf_args(kwargs, expectation):
     with expectation:
         Factory.Conf(**kwargs)
 
 
-@pytest.mark.parametrize('kwargs', [
-    dict(singleton=False),
-    dict(scope=None),
-    dict(wiring=Wiring(methods=['method'])),
-    dict(parameters=frozenset(['x']))
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(singleton=False),
+        dict(scope=None),
+        dict(wiring=Wiring(methods=["method"])),
+        dict(parameters=frozenset(["x"])),
+    ],
+)
 def test_conf_copy(kwargs):
     conf = Factory.Conf(singleton=True).copy(**kwargs)
     for k, v in kwargs.items():

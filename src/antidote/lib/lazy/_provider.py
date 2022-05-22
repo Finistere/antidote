@@ -31,12 +31,13 @@ class LazyFunction(Lazy, RawMarker):
     scope: Optional[Scope]
 
     @classmethod
-    def of(cls,
-           func: Callable[..., Any],
-           args: Tuple[Any, ...],
-           kwargs: Dict[str, Any],
-           scope: Optional[Scope]
-           ) -> Lazy:
+    def of(
+        cls,
+        func: Callable[..., Any],
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+        scope: Optional[Scope],
+    ) -> Lazy:
         return cls(func=func, args=args, kwargs=kwargs, scope=scope)
 
     def __antidote_debug_repr__(self) -> str:
@@ -51,12 +52,12 @@ class LazyFunction(Lazy, RawMarker):
             out[-1] = ")"
         else:
             out.append(")")
-        return ''.join(out)
+        return "".join(out)
 
     def __antidote_debug_info__(self) -> DependencyDebug:
-        return DependencyDebug(self.__antidote_debug_repr__(),
-                               scope=self.scope,
-                               dependencies=get_injections(self.func))
+        return DependencyDebug(
+            self.__antidote_debug_repr__(), scope=self.scope, dependencies=get_injections(self.func)
+        )
 
     def __antidote_provide__(self, container: Container) -> DependencyValue:
         return DependencyValue(self.func(*self.args, **self.kwargs), scope=self.scope)

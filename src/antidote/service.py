@@ -13,7 +13,7 @@ from .core import Scope, Wiring, WithWiringMixin
 from .core.exceptions import DuplicateDependencyError
 from .utils import validated_scope
 
-C = TypeVar('C', bound=type)
+C = TypeVar("C", bound=type)
 
 
 @API.deprecated
@@ -92,6 +92,7 @@ class Service(metaclass=ServiceMeta, abstract=True):
         True
 
     """
+
     __slots__ = ()
 
     @API.deprecated
@@ -104,23 +105,28 @@ class Service(metaclass=ServiceMeta, abstract=True):
         either method :py:meth:`.copy` or
         :py:meth:`.core.wiring.WithWiringMixin.with_wiring`.
         """
-        __slots__ = ('wiring', 'scope', 'parameters')
+
+        __slots__ = ("wiring", "scope", "parameters")
         wiring: Optional[Wiring]
         scope: Optional[Scope]
         parameters: Optional[FrozenSet[str]]
 
         @property
         def singleton(self) -> bool:
-            warnings.warn("Service class is deprecated, use @injectable decorator instead.",
-                          DeprecationWarning)
+            warnings.warn(
+                "Service class is deprecated, use @injectable decorator instead.",
+                DeprecationWarning,
+            )
             return self.scope is Scope.singleton()
 
-        def __init__(self,
-                     *,
-                     wiring: Optional[Wiring] = Wiring(),
-                     singleton: Optional[bool] = None,
-                     scope: Optional[Scope] = Scope.sentinel(),
-                     parameters: Optional[Iterable[str]] = None):
+        def __init__(
+            self,
+            *,
+            wiring: Optional[Wiring] = Wiring(),
+            singleton: Optional[bool] = None,
+            scope: Optional[Scope] = Scope.sentinel(),
+            parameters: Optional[Iterable[str]] = None,
+        ):
             """
             Args:
                 wiring: Wiring to be applied on the service. By default only
@@ -135,32 +141,37 @@ class Service(metaclass=ServiceMeta, abstract=True):
                     :py:class:`~.core.container.Scope`. Defaults to
                     :py:meth:`~.core.container.Scope.singleton`.
             """
-            warnings.warn("Service class is deprecated, use @injectable decorator instead.",
-                          DeprecationWarning)
+            warnings.warn(
+                "Service class is deprecated, use @injectable decorator instead.",
+                DeprecationWarning,
+            )
             if not (wiring is None or isinstance(wiring, Wiring)):
                 raise TypeError(f"wiring must be a Wiring or None, not {type(wiring)}")
 
-            super().__init__(wiring=wiring,
-                             scope=validated_scope(scope,
-                                                   singleton,
-                                                   default=Scope.singleton()),
-                             parameters=validated_parameters(parameters))
+            super().__init__(
+                wiring=wiring,
+                scope=validated_scope(scope, singleton, default=Scope.singleton()),
+                parameters=validated_parameters(parameters),
+            )
 
-        def copy(self,
-                 *,
-                 wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
-                 singleton: Union[Optional[bool], Copy] = Copy.IDENTICAL,
-                 scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
-                 parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
-                 ) -> Service.Conf:
+        def copy(
+            self,
+            *,
+            wiring: Union[Optional[Wiring], Copy] = Copy.IDENTICAL,
+            singleton: Union[Optional[bool], Copy] = Copy.IDENTICAL,
+            scope: Union[Optional[Scope], Copy] = Copy.IDENTICAL,
+            parameters: Union[Optional[Iterable[str]], Copy] = Copy.IDENTICAL,
+        ) -> Service.Conf:
             """
             .. deprecated:: 1.1
 
             Copies current configuration and overrides only specified arguments.
             Accepts the same arguments as :code:`__init__`
             """
-            warnings.warn("Service class is deprecated, use @injectable decorator instead.",
-                          DeprecationWarning)
+            warnings.warn(
+                "Service class is deprecated, use @injectable decorator instead.",
+                DeprecationWarning,
+            )
             if not (singleton is Copy.IDENTICAL or scope is Copy.IDENTICAL):
                 raise TypeError("Use either singleton or scope argument, not both.")
             if isinstance(singleton, bool):
@@ -175,12 +186,14 @@ class Service(metaclass=ServiceMeta, abstract=True):
     """
 
     def __init__(self) -> None:
-        warnings.warn("Service class is deprecated, use @injectable decorator instead.",
-                      DeprecationWarning)
+        warnings.warn(
+            "Service class is deprecated, use @injectable decorator instead.", DeprecationWarning
+        )
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        warnings.warn("Service class is deprecated, use @injectable decorator instead.",
-                      DeprecationWarning)
+        warnings.warn(
+            "Service class is deprecated, use @injectable decorator instead.", DeprecationWarning
+        )
         super().__init_subclass__(**kwargs)
 
 
@@ -207,35 +220,39 @@ class ABCService(Service, metaclass=ABCServiceMeta, abstract=True):
         >>> world.get[MyService]().hello()
         'world'
     """
+
     __slots__ = ()
 
 
 @overload
-def service(klass: C,
-            *,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring(),
-            ) -> C:
+def service(
+    klass: C,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+) -> C:
     ...
 
 
 @overload
-def service(*,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring(),
-            ) -> Callable[[C], C]:
+def service(
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+) -> Callable[[C], C]:
     ...
 
 
 @API.public
-def service(klass: Optional[C] = None,
-            *,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel(),
-            wiring: Optional[Wiring] = Wiring(),
-            ) -> Union[C, Callable[[C], C]]:
+def service(
+    klass: Optional[C] = None,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+    wiring: Optional[Wiring] = Wiring(),
+) -> Union[C, Callable[[C], C]]:
     """
     .. deprecated:: 1.3
         Use :py:func:`.injectable` instead which is a drop-in replacement.
@@ -292,8 +309,9 @@ def service(klass: Optional[C] = None,
         from ._service import _configure_service
 
         if issubclass(cls, Service):
-            raise DuplicateDependencyError(f"{cls} is already defined as a dependency "
-                                           f"by inheriting {Service}")
+            raise DuplicateDependencyError(
+                f"{cls} is already defined as a dependency by inheriting {Service}"
+            )
 
         if wiring is not None:
             wiring.wire(cls)

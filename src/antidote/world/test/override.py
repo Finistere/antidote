@@ -18,4 +18,4 @@ following:
 """
 from ._override import factory, provider, singleton
 
-__all__ = ['singleton', 'factory', 'provider']
+__all__ = ["singleton", "factory", "provider"]

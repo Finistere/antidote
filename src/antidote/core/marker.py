@@ -12,7 +12,7 @@ from .._internal.utils.meta import Singleton
 if TYPE_CHECKING:
     from .typing import CallableClass, Source
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @API.private
@@ -30,7 +30,7 @@ class InjectClassMarker(Marker, Singleton):
 @final
 @dataclass(frozen=True)
 class InjectFromSourceMarker(Marker):
-    __slots__ = ('source',)
+    __slots__ = ("source",)
     source: Union[Source[Any], Callable[..., Any], Type[CallableClass[Any]]]
 
 
@@ -38,6 +38,6 @@ class InjectFromSourceMarker(Marker):
 @final
 @dataclass(frozen=True)
 class InjectImplMarker(Marker):
-    __slots__ = ('constraints_args', 'constraints_kwargs')
+    __slots__ = ("constraints_args", "constraints_kwargs")
     constraints_args: tuple[Any, ...]
     constraints_kwargs: dict[str, Any]

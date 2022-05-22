@@ -2,7 +2,7 @@ from typing import TypeVar
 
 from typing_extensions import Annotated
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def public(x: T) -> T:

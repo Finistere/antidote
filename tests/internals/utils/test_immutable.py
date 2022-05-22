@@ -10,10 +10,10 @@ def cls(request):
 
 def test_immutable_meta(cls: type):
     class A(cls):
-        __slots__ = ('value',)
+        __slots__ = ("value",)
 
     class B(cls):
-        __slots__ = ('__value',)
+        __slots__ = ("__value",)
 
         def get(self):
             return self.__value
@@ -28,13 +28,14 @@ def test_immutable_meta(cls: type):
 
 def test_invalid_immutable(cls: type):
     with pytest.raises(TypeError, match=".*slots.*"):
+
         class A(cls):
             pass
 
 
 def test_immutability(cls: type):
     class A(cls):
-        __slots__ = ('x', 'y')
+        __slots__ = ("x", "y")
 
         def __init__(self, x, y):
             super().__init__(x=x, y=y)

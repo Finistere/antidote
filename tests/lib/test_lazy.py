@@ -23,14 +23,7 @@ def test_lazy_call_singleton():
     assert world.get(default) is world.get(default)
 
 
-@pytest.mark.parametrize(
-    'args,kwargs',
-    [
-        ((1,), dict(test=2)),
-        ((), dict(x=32)),
-        ((4,), {})
-    ]
-)
+@pytest.mark.parametrize("args,kwargs", [((1,), dict(test=2)), ((), dict(x=32)), ((4,), {})])
 def test_args_kwargs(args, kwargs):
     def func(*args_, **kwargs_):
         return args_, kwargs_
@@ -89,14 +82,7 @@ def test_method_direct_call():
     assert t.A == "Hello"
 
 
-@pytest.mark.parametrize(
-    'args,kwargs',
-    [
-        ((1,), dict(test=2)),
-        ((), dict(x=32)),
-        ((4,), {})
-    ]
-)
+@pytest.mark.parametrize("args,kwargs", [((1,), dict(test=2)), ((), dict(x=32)), ((4,), {})])
 def test_method_args_kwargs(args, kwargs):
     class Test(Service):
         def get(self, *args_, **kwargs_):

@@ -4,7 +4,7 @@ from ._internal import API
 from .core import Scope
 from .core.injection import validate_injection
 
-__all__ = ['is_compiled', 'validate_injection', 'validated_scope']
+__all__ = ["is_compiled", "validate_injection", "validated_scope"]
 
 
 @API.public
@@ -13,14 +13,17 @@ def is_compiled() -> bool:
     Whether current Antidote implementations is the compiled (Cython) version or not
     """
     from ._internal.wrapper import compiled
+
     return compiled
 
 
 @API.public
-def validated_scope(scope: Optional[Scope] = Scope.sentinel(),
-                    singleton: Optional[bool] = None,
-                    *,
-                    default: Optional[Scope]) -> Optional[Scope]:
+def validated_scope(
+    scope: Optional[Scope] = Scope.sentinel(),
+    singleton: Optional[bool] = None,
+    *,
+    default: Optional[Scope],
+) -> Optional[Scope]:
     """
     Validates given arguments and ensures consistency between singleton and scope.
 
@@ -58,7 +61,6 @@ def validated_scope(scope: Optional[Scope] = Scope.sentinel(),
             raise TypeError("Use either singleton or scope argument, not both.")
         return Scope.singleton() if singleton else None
     if singleton is not None:
-        raise TypeError(f"singleton must be a boolean or None, "
-                        f"not {type(singleton)}")
+        raise TypeError(f"singleton must be a boolean or None, not {type(singleton)}")
 
     return default if scope is Scope.sentinel() else scope

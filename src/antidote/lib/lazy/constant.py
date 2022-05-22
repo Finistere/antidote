@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import (Any, Optional, overload, Type,
-                    TypeVar, Union)
+from typing import Any, Optional, overload, Type, TypeVar, Union
 
 from typing_extensions import Protocol
 
@@ -9,17 +8,24 @@ from ..._internal import API
 from ..._internal.utils import Default
 from ...core.annotations import HiddenDependency
 
-__all__ = ['Const', 'Constant', 'ConstantFactory', 'TypedConstantFactory',
-           'ConstantValueProviderFunction',
-           'ConstantValueProviderMethod', 'ConstantValueProvider',
-           'ConstantValueConverter', 'ConstantValueConverterMethod']
+__all__ = [
+    "Const",
+    "Constant",
+    "ConstantFactory",
+    "TypedConstantFactory",
+    "ConstantValueProviderFunction",
+    "ConstantValueProviderMethod",
+    "ConstantValueProvider",
+    "ConstantValueConverter",
+    "ConstantValueConverterMethod",
+]
 
-T = TypeVar('T')
-A = TypeVar('A')
-Arg = TypeVar('Arg', contravariant=True)
-Value = TypeVar('Value')
-ValueCo = TypeVar('ValueCo', covariant=True)
-ValueCt = TypeVar('ValueCt', contravariant=True)
+T = TypeVar("T")
+A = TypeVar("A")
+Arg = TypeVar("Arg", contravariant=True)
+Value = TypeVar("Value")
+ValueCo = TypeVar("ValueCo", covariant=True)
+ValueCt = TypeVar("ValueCt", contravariant=True)
 
 
 @API.public
@@ -45,11 +51,12 @@ class Constant(Protocol[ValueCo]):
 
 @API.public
 class TypedConstantFactory(Protocol[Arg, Value]):
-    def __call__(self,
-                 __arg: Optional[Arg] = None,
-                 *,
-                 default: Union[Value, Default] = Default.sentinel,
-                 ) -> Constant[Value]:
+    def __call__(
+        self,
+        __arg: Optional[Arg] = None,
+        *,
+        default: Union[Value, Default] = Default.sentinel,
+    ) -> Constant[Value]:
         """
         Creates a new constant.
 
@@ -159,9 +166,9 @@ class ConstantValueProvider(Protocol[Arg, Value]):
         ...
 
     @API.experimental
-    def converter(self,
-                  __func: ConstantValueConverter[Value] | ConstantValueConverterMethod[Value]
-                  ) -> ConstantValueConverter[Value]:
+    def converter(
+        self, __func: ConstantValueConverter[Value] | ConstantValueConverterMethod[Value]
+    ) -> ConstantValueConverter[Value]:
         ...
 
 
@@ -243,11 +250,12 @@ class Const(Protocol):
         """
         ...
 
-    def __call__(self,
-                 __value: Optional[Value] = None,
-                 *,
-                 default: API.Deprecated[Union[Value, Default]] = Default.sentinel,
-                 ) -> Constant[Value]:
+    def __call__(
+        self,
+        __value: Optional[Value] = None,
+        *,
+        default: API.Deprecated[Union[Value, Default]] = Default.sentinel,
+    ) -> Constant[Value]:
         """
         Create a static constant with a pre-defined value. :py:class:`.Constants` modifies this
         behavior, but it's deprecated.
@@ -281,9 +289,9 @@ class Const(Protocol):
         """
         ...
 
-    def provider(self,
-                 __func: ConstantValueProviderFunction[Arg, T] | ConstantValueProviderMethod[Arg, T]
-                 ) -> ConstantValueProvider[Arg, T]:
+    def provider(
+        self, __func: ConstantValueProviderFunction[Arg, T] | ConstantValueProviderMethod[Arg, T]
+    ) -> ConstantValueProvider[Arg, T]:
         """
         Creates a custom constant statefull or stateless provider. The wrapped function or method
         must have at least two arguments:

@@ -11,14 +11,21 @@ from ...core import inject
 from ..._internal import API
 from ..._internal.utils.meta import Singleton
 
-__all__ = ['NeutralWeight', 'Predicate', 'PredicateWeight', 'PredicateConstraint',
-           'MergeablePredicateConstraint', 'MergeablePredicate', 'predicate']
+__all__ = [
+    "NeutralWeight",
+    "Predicate",
+    "PredicateWeight",
+    "PredicateConstraint",
+    "MergeablePredicateConstraint",
+    "MergeablePredicate",
+    "predicate",
+]
 
 from ...core.exceptions import DoubleInjectionError
 
-SelfWeight = TypeVar('SelfWeight', bound='PredicateWeight')
-T = TypeVar('T')
-P = ParamSpec('P')
+SelfWeight = TypeVar("SelfWeight", bound="PredicateWeight")
+T = TypeVar("T")
+P = ParamSpec("P")
 
 
 @API.experimental
@@ -120,7 +127,7 @@ class NeutralWeight(Singleton):
         return "NeutralWeight"
 
 
-WeightCo = TypeVar('WeightCo', bound=PredicateWeight, covariant=True)
+WeightCo = TypeVar("WeightCo", bound=PredicateWeight, covariant=True)
 
 
 @API.experimental
@@ -192,7 +199,7 @@ class Predicate(Protocol[WeightCo]):
         ...
 
 
-SelfP = TypeVar('SelfP', bound=Predicate[Any])
+SelfP = TypeVar("SelfP", bound=Predicate[Any])
 
 
 @API.experimental
@@ -226,7 +233,7 @@ class MergeablePredicate(Predicate[WeightCo], Protocol):
         ...
 
 
-Pct = TypeVar('Pct', bound=Predicate[Any], contravariant=True)
+Pct = TypeVar("Pct", bound=Predicate[Any], contravariant=True)
 
 
 @API.experimental
@@ -275,7 +282,7 @@ class PredicateConstraint(Protocol[Pct]):
         ...
 
 
-SelfPC = TypeVar('SelfPC', bound=PredicateConstraint[Any])
+SelfPC = TypeVar("SelfPC", bound=PredicateConstraint[Any])
 
 
 @API.experimental
@@ -315,8 +322,9 @@ def predicate(__func: Callable[P, Optional[WeightCo]]) -> Callable[P, Predicate[
 
 
 @API.experimental
-def predicate(__func: Callable[P, bool] | Callable[P, Optional[WeightCo]]
-              ) -> Callable[P, Predicate[NeutralWeight]] | Callable[P, Predicate[WeightCo]]:
+def predicate(
+    __func: Callable[P, bool] | Callable[P, Optional[WeightCo]]
+) -> Callable[P, Predicate[NeutralWeight]] | Callable[P, Predicate[WeightCo]]:
     """
     Create a new predicate based on the decorated function.
 
@@ -354,13 +362,13 @@ def predicate(__func: Callable[P, bool] | Callable[P, Optional[WeightCo]]
     except DoubleInjectionError:
         pass
 
-    camel_case_name = ''.join(part.title() for part in __func.__name__.split('_'))
-    cls = make_dataclass(f'{camel_case_name}Predicate',
-                         [('_weight', object)],
-                         namespace={
-                             'weight': lambda self: self._weight  # type: ignore
-                         },
-                         frozen=True)
+    camel_case_name = "".join(part.title() for part in __func.__name__.split("_"))
+    cls = make_dataclass(
+        f"{camel_case_name}Predicate",
+        [("_weight", object)],
+        namespace={"weight": lambda self: self._weight},  # type: ignore
+        frozen=True,
+    )
     predicate_cls = cast(Callable[[object], Predicate[Any]], cls)
 
     @functools.wraps(__func)

@@ -75,43 +75,39 @@ def test_get_factory():
     assert world.get(A @ build_a) is world.get(A, source=build_a)
 
 
-@pytest.mark.parametrize('getter', [
-    pytest.param(world.get, id='get'),
-    pytest.param(world.get[A], id='get[A]'),
-    pytest.param(lambda x: world.lazy(x).get(), id='lazy'),
-    pytest.param(lambda x: world.lazy[A](x).get(), id='lazy[A]')
-])
+@pytest.mark.parametrize(
+    "getter",
+    [
+        pytest.param(world.get, id="get"),
+        pytest.param(world.get[A], id="get[A]"),
+        pytest.param(lambda x: world.lazy(x).get(), id="lazy"),
+        pytest.param(lambda x: world.lazy[A](x).get(), id="lazy[A]"),
+    ],
+)
 def test_annotation_support(getter: Callable[[object], object]):
     class Maker:
         def __rmatmul__(self, other):
-            return 'maker'
+            return "maker"
 
-    world.test.singleton({
-        A: A(),
-        'a': A(),
-        'maker': A()
-    })
+    world.test.singleton({A: A(), "a": A(), "maker": A()})
     assert getter(Annotated[A, object()]) is world.get(A)
-    assert getter(Annotated[A, Get('a')]) is world.get('a')  # noqa: F821
-    assert getter(Annotated[A, From(Maker())]) is world.get('maker')
+    assert getter(Annotated[A, Get("a")]) is world.get("a")
+    assert getter(Annotated[A, From(Maker())]) is world.get("maker")
 
     with pytest.raises(TypeError):
-        getter(Annotated[A, Get('a'), Get('a')])  # noqa: F821
+        getter(Annotated[A, Get("a"), Get("a")])
 
     with pytest.raises(TypeError):
-        getter(Annotated[A, FromArg(lambda a: a)])  # noqa: F821
+        getter(Annotated[A, FromArg(lambda a: a)])
 
 
 def test_lazy():
-    world.test.singleton({
-        'x': object(),
-        A: A()
-    })
+    world.test.singleton({"x": object(), A: A()})
 
-    lazy = world.lazy('x')
+    lazy = world.lazy("x")
     assert isinstance(lazy, LazyDependency)
-    assert lazy.unwrapped == 'x'
-    assert lazy.get() == world.get('x')
+    assert lazy.unwrapped == "x"
+    assert lazy.get() == world.get("x")
 
     lazy = world.lazy[A](A)
     assert isinstance(lazy, LazyDependency)
@@ -169,10 +165,13 @@ def test_no_duplicate_provider():
         world.provider(DummyIntProvider)
 
 
-@pytest.mark.parametrize('p, expectation', [
-    (object(), pytest.raises(TypeError, match=".*RawProvider.*")),
-    (A, pytest.raises(TypeError, match=".*RawProvider.*"))
-])
+@pytest.mark.parametrize(
+    "p, expectation",
+    [
+        (object(), pytest.raises(TypeError, match=".*RawProvider.*")),
+        (A, pytest.raises(TypeError, match=".*RawProvider.*")),
+    ],
+)
 def test_invalid_add_provider(p, expectation):
     with expectation:
         world.provider(p)

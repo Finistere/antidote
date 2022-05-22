@@ -9,10 +9,11 @@ from typing_extensions import final
 from .predicate import NeutralWeight, PredicateConstraint
 from ..._internal import API
 
-__all__ = ['QualifiedBy']
+__all__ = ["QualifiedBy"]
 
-_BUILTIN_TYPES = cast(Tuple[type, ...], (int, float, str, list, dict, set,
-                                         tuple, bytes, bytearray, bool, complex))
+_BUILTIN_TYPES = cast(
+    Tuple[type, ...], (int, float, str, list, dict, set, tuple, bytes, bytearray, bool, complex)
+)
 
 
 @API.public
@@ -74,7 +75,8 @@ class QualifiedBy:
 
     All of those constraints can be used together or multiple times without any issues.
     """
-    __slots__ = ('qualifiers',)
+
+    __slots__ = ("qualifiers",)
     qualifiers: list[object]
 
     @classmethod
@@ -119,13 +121,16 @@ class QualifiedBy:
 
         for qualifier in qualifiers:
             if qualifier is None or isinstance(qualifier, _BUILTIN_TYPES):
-                raise TypeError(f"Invalid qualifier: {qualifier!r}. "
-                                f"It cannot be None or an instance of a builtin type")
+                raise TypeError(
+                    f"Invalid qualifier: {qualifier!r}. "
+                    f"It cannot be None or an instance of a builtin type"
+                )
 
-        object.__setattr__(self, 'qualifiers', [
-            next(group)
-            for _, group in itertools.groupby(sorted(qualifiers, key=id), key=id)
-        ])
+        object.__setattr__(
+            self,
+            "qualifiers",
+            [next(group) for _, group in itertools.groupby(sorted(qualifiers, key=id), key=id)],
+        )
 
     def evaluate(self, predicate: Optional[QualifiedBy]) -> bool:
         if predicate is None:
@@ -170,7 +175,7 @@ class QualifiedBy:
 @final
 @dataclass(frozen=True, eq=True, unsafe_hash=True)
 class QualifiedByOneOf:
-    __slots__ = ('__qualified_by',)
+    __slots__ = ("__qualified_by",)
     __qualified_by: QualifiedBy
 
     def evaluate(self, predicate: Optional[QualifiedBy]) -> bool:

@@ -32,7 +32,7 @@ class Bag:
 def test_default() -> None:
     @lazy
     def dummy() -> Dummy:
-        return Dummy(name='test')
+        return Dummy(name="test")
 
     assert isinstance(dummy.call(), Dummy)
 
@@ -41,7 +41,7 @@ def test_default() -> None:
         return x
 
     assert isinstance(f(), Dummy)
-    assert f().name == 'test'
+    assert f().name == "test"
     # singleton by default
     assert f() is f()
 
@@ -55,33 +55,33 @@ def test_single_arg() -> None:
     def named(name: str) -> Dummy:
         return Dummy(name=name)
 
-    assert isinstance(named.call('test'), Dummy)
-    assert named.call(name='test').name == 'test'
+    assert isinstance(named.call("test"), Dummy)
+    assert named.call(name="test").name == "test"
 
     @inject
-    def f(x: Dummy = named(name='f')) -> Dummy:
+    def f(x: Dummy = named(name="f")) -> Dummy:
         return x
 
     @inject
-    def g(x: Dummy = named('g')) -> Dummy:
+    def g(x: Dummy = named("g")) -> Dummy:
         return x
 
     assert isinstance(f(), Dummy)
-    assert f().name == 'f'
+    assert f().name == "f"
     # singleton by default
-    assert f() is world.get[Dummy](named(name='f'))
-    assert f() is world.get[Dummy](named('f'))
+    assert f() is world.get[Dummy](named(name="f"))
+    assert f() is world.get[Dummy](named("f"))
 
     assert isinstance(g(), Dummy)
     assert f() is not g()
-    assert g().name == 'g'
-    assert g() is world.get[Dummy](named(name='g'))
+    assert g().name == "g"
+    assert g() is world.get[Dummy](named(name="g"))
 
 
 def test_not_singleton() -> None:
     @lazy(singleton=False)
     def dummy() -> Dummy:
-        return Dummy(name='test')
+        return Dummy(name="test")
 
     assert isinstance(dummy.call(), Dummy)
 
@@ -90,18 +90,18 @@ def test_not_singleton() -> None:
         return x
 
     assert isinstance(f(), Dummy)
-    assert f().name == 'test'
+    assert f().name == "test"
     assert f() is not f()
     assert world.get[Dummy](dummy()) is not world.get[Dummy](dummy())
-    assert world.get[Dummy](dummy()).name == 'test'
+    assert world.get[Dummy](dummy()).name == "test"
 
 
 def test_scope() -> None:
-    scope = world.scopes.new(name='test')
+    scope = world.scopes.new(name="test")
 
     @lazy(scope=scope)
     def dummy() -> Dummy:
-        return Dummy(name='test')
+        return Dummy(name="test")
 
     @inject
     def f(x: Dummy = dummy()) -> Dummy:
@@ -124,23 +124,19 @@ def test_not_singleton_with_arg() -> None:
         return Dummy(name=name)
 
     @inject
-    def f(x: Dummy = named('test')) -> Dummy:
+    def f(x: Dummy = named("test")) -> Dummy:
         return x
 
     assert isinstance(f(), Dummy)
-    assert f().name == 'test'
+    assert f().name == "test"
     assert f() is not f()
-    assert world.get[Dummy](named(name='test')) is not world.get[Dummy](named('test'))
-    assert world.get[Dummy](named('test')).name == 'test'
+    assert world.get[Dummy](named(name="test")) is not world.get[Dummy](named("test"))
+    assert world.get[Dummy](named("test")).name == "test"
 
 
-@pytest.mark.parametrize('x', [
-    Bag(a=[], b={}),
-    Bag([], {}),
-    Bag([], b={}),
-    Bag(1, 2, 3, {}),
-    Bag(a=1, b=2, c=3, d={})
-])
+@pytest.mark.parametrize(
+    "x", [Bag(a=[], b={}), Bag([], {}), Bag([], b={}), Bag(1, 2, 3, {}), Bag(a=1, b=2, c=3, d={})]
+)
 def test_unhashable_arguments(x: Bag) -> None:
     @lazy
     def bag(*args: object, **kwargs: object) -> Bag:
@@ -150,11 +146,7 @@ def test_unhashable_arguments(x: Bag) -> None:
         world.get[Bag](bag(*x.args, **x.kwargs))
 
 
-@pytest.mark.parametrize('x', [
-    Bag(a="test", b=(1, 2)),
-    Bag("test", (1, 2)),
-    Bag("test", b=(1, 2))
-])
+@pytest.mark.parametrize("x", [Bag(a="test", b=(1, 2)), Bag("test", (1, 2)), Bag("test", b=(1, 2))])
 def test_complex_arguments(x: Bag) -> None:
     @lazy
     def bag(*args: object, **kwargs: object) -> Bag:
@@ -184,7 +176,7 @@ def test_invalid_function() -> None:
 def test_injected() -> None:
     @lazy
     def dummy() -> Dummy:
-        return Dummy(name='dummy')
+        return Dummy(name="dummy")
 
     @lazy
     def bag_of_dummy(d: Dummy = dummy()) -> Bag:
@@ -194,10 +186,10 @@ def test_injected() -> None:
     def f(bag: Bag = bag_of_dummy()) -> Bag:
         return bag
 
-    assert f() == Bag(dummy=Dummy(name='dummy'))
+    assert f() == Bag(dummy=Dummy(name="dummy"))
 
     @lazy
-    @inject({'d': dummy()})
+    @inject({"d": dummy()})
     def injected_bag(d: Dummy) -> Bag:
         return Bag(dummy=d)
 
@@ -205,4 +197,4 @@ def test_injected() -> None:
     def f2(bag: Bag = injected_bag()) -> Bag:
         return bag
 
-    assert f2() == Bag(dummy=Dummy(name='dummy'))
+    assert f2() == Bag(dummy=Dummy(name="dummy"))

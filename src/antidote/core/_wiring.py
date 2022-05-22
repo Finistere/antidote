@@ -10,24 +10,20 @@ from .injection import inject
 from .wiring import Methods, Wiring
 from .._internal import API
 
-C = TypeVar('C', bound=type)
-AnyF: TypeAlias = 'Union[Callable[..., object], staticmethod[Any], classmethod[Any]]'
+C = TypeVar("C", bound=type)
+AnyF: TypeAlias = "Union[Callable[..., object], staticmethod[Any], classmethod[Any]]"
 
 
 @API.private
-def wire_class(*,
-               klass: C,
-               wiring: Wiring,
-               type_hints_locals: Optional[Mapping[str, object]]
-               ) -> C:
+def wire_class(*, klass: C, wiring: Wiring, type_hints_locals: Optional[Mapping[str, object]]) -> C:
     methods: Dict[str, AnyF] = dict()
     if isinstance(wiring.methods, Methods):
         assert wiring.methods is Methods.ALL  # Sanity check
         for name, member in klass.__dict__.items():
-            if (name in {'__call__', '__init__'}
-                    or not (name.startswith("__") and name.endswith("__"))):
-                if (inspect.isfunction(member)
-                        or isinstance(member, (staticmethod, classmethod))):
+            if name in {"__call__", "__init__"} or not (
+                name.startswith("__") and name.endswith("__")
+            ):
+                if inspect.isfunction(member) or isinstance(member, (staticmethod, classmethod)):
                     methods[name] = cast(AnyF, member)
     else:
         for method_name in wiring.methods:
@@ -36,10 +32,10 @@ def wire_class(*,
             except KeyError as e:
                 raise AttributeError(method_name) from e
 
-            if not (callable(attr)
-                    or isinstance(attr, (staticmethod, classmethod))):
-                raise TypeError(f"{method_name} is not a (static/class) method. "
-                                f"Found: {type(attr)}")
+            if not (callable(attr) or isinstance(attr, (staticmethod, classmethod))):
+                raise TypeError(
+                    f"{method_name} is not a (static/class) method. Found: {type(attr)}"
+                )
             methods[method_name] = cast(AnyF, attr)
 
     for name, method in methods.items():
@@ -50,7 +46,7 @@ def wire_class(*,
                 auto_provide=wiring.auto_provide,
                 strict_validation=False,
                 ignore_type_hints=wiring.ignore_type_hints,
-                type_hints_locals=type_hints_locals
+                type_hints_locals=type_hints_locals,
             )
         except DoubleInjectionError:
             if wiring.raise_on_double_injection:

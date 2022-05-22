@@ -7,23 +7,34 @@ from typing_extensions import get_type_hints, TypeAlias
 
 from ._provider import InterfaceProvider
 from ._query import ConstraintsAlias
-from .predicate import (MergeablePredicate, MergeablePredicateConstraint, NeutralWeight, Predicate,
-                        PredicateConstraint, PredicateWeight)
+from .predicate import (
+    MergeablePredicate,
+    MergeablePredicateConstraint,
+    NeutralWeight,
+    Predicate,
+    PredicateConstraint,
+    PredicateWeight,
+)
 from ..._internal import API
 from ..._internal.utils import enforce_subclass_if_possible, extract_optional_value
 from ...core import inject
 from ...core.exceptions import DuplicateDependencyError
 
-__all__ = ['create_constraints', 'register_interface', 'register_implementation',
-           'register_default_implementation', 'override_implementation']
+__all__ = [
+    "create_constraints",
+    "register_interface",
+    "register_implementation",
+    "register_default_implementation",
+    "override_implementation",
+]
 
-T = TypeVar('T')
-C = TypeVar('C', bound=type)
+T = TypeVar("T")
+C = TypeVar("C", bound=type)
 
-P = TypeVar('P', bound=Predicate[Any])
-PC = TypeVar('PC', bound=PredicateConstraint[Any])
-Weight = TypeVar('Weight', bound=PredicateWeight)
-WeightCo = TypeVar('WeightCo', bound=PredicateWeight, covariant=True)
+P = TypeVar("P", bound=Predicate[Any])
+PC = TypeVar("PC", bound=PredicateConstraint[Any])
+Weight = TypeVar("Weight", bound=PredicateWeight)
+WeightCo = TypeVar("WeightCo", bound=PredicateWeight, covariant=True)
 
 AnyP: TypeAlias = Predicate[Any]
 AnyPC: TypeAlias = PredicateConstraint[Any]
@@ -31,9 +42,9 @@ AnyPC: TypeAlias = PredicateConstraint[Any]
 
 @API.private
 def create_constraints(
-        *_constraints: PredicateConstraint[Any],
-        qualified_by: Optional[object | list[object]] = None,
-        qualified_by_one_of: Optional[list[object]] = None
+    *_constraints: PredicateConstraint[Any],
+    qualified_by: Optional[object | list[object]] = None,
+    qualified_by_one_of: Optional[list[object]] = None,
 ) -> ConstraintsAlias:
     from .qualifier import QualifiedBy
 
@@ -52,14 +63,16 @@ def create_constraints(
             constraints.append(QualifiedBy(qualified_by))
 
     if not (qualified_by_one_of is None or isinstance(qualified_by_one_of, list)):
-        raise TypeError(f"qualified_by_one_of should be None or a list, "
-                        f"not {type(qualified_by_one_of)!r}")
+        raise TypeError(
+            f"qualified_by_one_of should be None or a list, not {type(qualified_by_one_of)!r}"
+        )
     if qualified_by_one_of:
         constraints.append(QualifiedBy.one_of(*qualified_by_one_of))
 
     # Remove duplicates and combine constraints when possible
     constraints_groups: dict[
-        Type[PredicateConstraint[Any]], list[PredicateConstraint[Any]]] = dict()
+        Type[PredicateConstraint[Any]], list[PredicateConstraint[Any]]
+    ] = dict()
     for constraint in constraints:
         cls = type(constraint)
         previous = constraints_groups.setdefault(cls, [])
@@ -67,7 +80,7 @@ def create_constraints(
             cls = cast(Type[MergeablePredicateConstraint[Any]], cls)
             previous[0] = cls.merge(
                 cast(MergeablePredicateConstraint[Any], previous[0]),
-                cast(MergeablePredicateConstraint[Any], constraint)
+                cast(MergeablePredicateConstraint[Any], constraint),
             )
         else:
             previous.append(constraint)
@@ -75,7 +88,7 @@ def create_constraints(
     # Extract associated predicate from the type hints
     result: ConstraintsAlias = list()
     for contraint in itertools.chain.from_iterable(constraints_groups.values()):
-        predicate_type_hint = get_type_hints(contraint.evaluate).get('predicate')
+        predicate_type_hint = get_type_hints(contraint.evaluate).get("predicate")
         if predicate_type_hint is None:
             raise TypeError(f"Missing 'predicate' argument on the predicate filter {contraint}")
 
@@ -89,22 +102,22 @@ def create_constraints(
 
 @API.private
 @inject
-def register_interface(__interface: type,
-                       *,
-                       provider: InterfaceProvider = inject.get(InterfaceProvider)
-                       ) -> None:
+def register_interface(
+    __interface: type, *, provider: InterfaceProvider = inject.get(InterfaceProvider)
+) -> None:
     provider.register(__interface)
 
 
 @API.private
 @inject
-def register_implementation(*,
-                            interface: type,
-                            implementation: type,
-                            predicates: List[Union[Predicate[Weight], Predicate[NeutralWeight]]],
-                            type_hints_locals: Optional[Mapping[str, object]],
-                            provider: InterfaceProvider = inject.get(InterfaceProvider)
-                            ) -> None:
+def register_implementation(
+    *,
+    interface: type,
+    implementation: type,
+    predicates: List[Union[Predicate[Weight], Predicate[NeutralWeight]]],
+    type_hints_locals: Optional[Mapping[str, object]],
+    provider: InterfaceProvider = inject.get(InterfaceProvider),
+) -> None:
     from ..injectable import injectable
 
     _validate(interface=interface, implementation=implementation, provider=provider)
@@ -119,12 +132,13 @@ def register_implementation(*,
         previous = distinct_predicates.get(cls)
         if previous is not None:
             if not issubclass(cls, MergeablePredicate):
-                raise RuntimeError(f"Cannot have multiple predicates of type {cls!r} "
-                                   f"without declaring a merge method!")
+                raise RuntimeError(
+                    f"Cannot have multiple predicates of type {cls!r} "
+                    f"without declaring a merge method!"
+                )
             cls = cast(Type[MergeablePredicate[Any]], cls)
             distinct_predicates[cls] = cls.merge(
-                cast(MergeablePredicate[Any], previous),
-                cast(MergeablePredicate[Any], predicate)
+                cast(MergeablePredicate[Any], previous), cast(MergeablePredicate[Any], predicate)
             )
         else:
             distinct_predicates[cls] = predicate
@@ -132,7 +146,7 @@ def register_implementation(*,
     provider.register_implementation(
         interface=interface,
         dependency=implementation,
-        predicates=list(distinct_predicates.values())
+        predicates=list(distinct_predicates.values()),
     )
 
     try:
@@ -143,13 +157,14 @@ def register_implementation(*,
 
 @API.private
 @inject
-def override_implementation(*,
-                            interface: type,
-                            existing_implementation: type,
-                            new_implementation: type,
-                            type_hints_locals: Optional[Mapping[str, object]],
-                            provider: InterfaceProvider = inject.get(InterfaceProvider)
-                            ) -> None:
+def override_implementation(
+    *,
+    interface: type,
+    existing_implementation: type,
+    new_implementation: type,
+    type_hints_locals: Optional[Mapping[str, object]],
+    provider: InterfaceProvider = inject.get(InterfaceProvider),
+) -> None:
     from ..injectable import injectable
 
     _validate(interface=interface, implementation=new_implementation, provider=provider)
@@ -157,7 +172,7 @@ def override_implementation(*,
     overridden = provider.override_implementation(
         interface=interface,
         existing_dependency=existing_implementation,
-        new_dependency=new_implementation
+        new_dependency=new_implementation,
     )
     if not overridden:
         raise RuntimeError(f"Implementation {existing_implementation!r} does not exist.")
@@ -170,18 +185,16 @@ def override_implementation(*,
 
 @API.private
 @inject
-def register_default_implementation(interface: type,
-                                    implementation: type,
-                                    type_hints_locals: Optional[Mapping[str, object]],
-                                    provider: InterfaceProvider = inject.get(InterfaceProvider)
-                                    ) -> None:
+def register_default_implementation(
+    interface: type,
+    implementation: type,
+    type_hints_locals: Optional[Mapping[str, object]],
+    provider: InterfaceProvider = inject.get(InterfaceProvider),
+) -> None:
     from ..injectable import injectable
 
     _validate(interface=interface, implementation=implementation, provider=provider)
-    provider.register_default_implementation(
-        interface=interface,
-        dependency=implementation
-    )
+    provider.register_default_implementation(interface=interface, dependency=implementation)
 
     try:
         injectable(implementation, type_hints_locals=type_hints_locals)
@@ -190,11 +203,7 @@ def register_default_implementation(interface: type,
 
 
 @API.private
-def _validate(*,
-              interface: type,
-              implementation: type,
-              provider: InterfaceProvider
-              ) -> None:
+def _validate(*, interface: type, implementation: type, provider: InterfaceProvider) -> None:
     if not isinstance(interface, type):
         raise TypeError(f"Expected a class for the interface, got a {type(interface)!r}")
     if not provider.has_interface(interface):

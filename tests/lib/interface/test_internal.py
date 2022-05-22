@@ -38,7 +38,7 @@ def test_create_constraint_combination() -> None:
     assert create(QualifiedBy(x), QualifiedBy(y)) == create(QualifiedBy(x, y))
     assert set(create(QualifiedBy.one_of(x), QualifiedBy.one_of(y))) == {
         (QualifiedBy, QualifiedBy.one_of(x)),
-        (QualifiedBy, QualifiedBy.one_of(y))
+        (QualifiedBy, QualifiedBy.one_of(y)),
     }
 
 
@@ -54,13 +54,10 @@ def test_create_constraint_invalid_predicate_class() -> None:
         create(MissingPredicateArgument())  # type: ignore
 
 
-@pytest.mark.parametrize('type_hint', [
-    Any,
-    Union[int, float],
-    Optional[int],
-    Union[None, Predicate[Any], int],
-    Predicate[Any]
-])
+@pytest.mark.parametrize(
+    "type_hint",
+    [Any, Union[int, float], Optional[int], Union[None, Predicate[Any], int], Predicate[Any]],
+)
 def test_create_constraint_invalid_type_hint(type_hint: Any) -> None:
     class InvalidTypeHint:
         def evaluate(self, predicate: type_hint) -> None:
@@ -71,9 +68,10 @@ def test_create_constraint_invalid_type_hint(type_hint: Any) -> None:
 
 
 if sys.version_info >= (3, 10):
+
     def test_python310_support() -> None:
         class NewUnionSyntaxTypeHint:
-            def evaluate(self, predicate: 'QualifiedBy | None') -> bool:
+            def evaluate(self, predicate: "QualifiedBy | None") -> bool:
                 pass  # pragma: no cover
 
         create(NewUnionSyntaxTypeHint())

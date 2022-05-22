@@ -3,10 +3,10 @@ from typing import Any, List, Tuple, Type
 
 from typing_extensions import final, TypeAlias
 
-from .predicate import (Predicate, PredicateConstraint)
+from .predicate import Predicate, PredicateConstraint
 from ..._internal import API
 
-__all__ = ['ConstraintsAlias', 'Query']
+__all__ = ["ConstraintsAlias", "Query"]
 
 ConstraintsAlias: TypeAlias = List[Tuple[Type[Predicate[Any]], PredicateConstraint[Any]]]
 
@@ -15,7 +15,7 @@ ConstraintsAlias: TypeAlias = List[Tuple[Type[Predicate[Any]], PredicateConstrai
 @final
 @dataclass(frozen=True)
 class Query:
-    __slots__ = ('interface', 'constraints', 'all')
+    __slots__ = ("interface", "constraints", "all")
     interface: type
     constraints: ConstraintsAlias
     all: bool

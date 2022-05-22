@@ -7,13 +7,13 @@ from ..._internal import API
 from ..._internal.utils import debug_repr, FinalImmutable
 from ...core import Container, DependencyDebug, DependencyValue, Provider, Scope
 
-C = TypeVar('C', bound=type)
+C = TypeVar("C", bound=type)
 
 
 @API.deprecated
 @API.private
 class Parameterized(FinalImmutable):
-    __slots__ = ('wrapped', 'parameters', '_hash')
+    __slots__ = ("wrapped", "parameters", "_hash")
     wrapped: Any
     parameters: Dict[str, object]
     _hash: int
@@ -40,11 +40,12 @@ class Parameterized(FinalImmutable):
         return f"{debug_repr(self.wrapped)} with parameters={self.parameters}"
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, Parameterized)
-                and self._hash == other._hash
-                and (self.wrapped is other.wrapped
-                     or self.wrapped == other.wrapped)
-                and self.parameters == other.parameters)  # noqa
+        return (
+            isinstance(other, Parameterized)
+            and self._hash == other._hash
+            and (self.wrapped is other.wrapped or self.wrapped == other.wrapped)
+            and self.parameters == other.parameters
+        )  # noqa
 
 
 @API.private
@@ -73,14 +74,9 @@ class InjectableProvider(Provider[Union[Parameterized, type]]):
         else:
             klass = dependency
         scope, factory = self.__services[klass]
-        return DependencyDebug(debug_repr(dependency),
-                               scope=scope,
-                               wired=[factory])
+        return DependencyDebug(debug_repr(dependency), scope=scope, wired=[factory])
 
-    def maybe_provide(self,
-                      dependency: object,
-                      container: Container
-                      ) -> Optional[DependencyValue]:
+    def maybe_provide(self, dependency: object, container: Container) -> Optional[DependencyValue]:
         if isinstance(dependency, Parameterized):
             if not isinstance(dependency.wrapped, type):
                 # Parameterized is deprecated anyway.
@@ -102,13 +98,9 @@ class InjectableProvider(Provider[Union[Parameterized, type]]):
 
         return DependencyValue(instance, scope=scope)
 
-    def register(self,
-                 klass: C,
-                 *,
-                 scope: Optional[Scope],
-                 factory: Optional[Callable[[], C]] = None
-                 ) -> None:
-        assert inspect.isclass(klass) \
-               and (isinstance(scope, Scope) or scope is None)
+    def register(
+        self, klass: C, *, scope: Optional[Scope], factory: Optional[Callable[[], C]] = None
+    ) -> None:
+        assert inspect.isclass(klass) and (isinstance(scope, Scope) or scope is None)
         self._assert_not_duplicate(klass)
         self.__services[klass] = scope, factory or klass

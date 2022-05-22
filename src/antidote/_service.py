@@ -10,22 +10,20 @@ from ._utils import validate_method_parameters
 from .core import inject
 from .lib.injectable._provider import InjectableProvider, Parameterized
 
-_ABSTRACT_FLAG = '__antidote_abstract'
+_ABSTRACT_FLAG = "__antidote_abstract"
 
 
 @API.private
 class ServiceMeta(AbstractMeta):
-    def __new__(mcs: Type[ServiceMeta],
-                name: str,
-                bases: Tuple[type, ...],
-                namespace: Dict[str, object],
-                **kwargs: Any
-                ) -> ServiceMeta:
-        cls = cast(
-            ServiceMeta,
-            super().__new__(mcs, name, bases, namespace, **kwargs)
-        )
-        if not kwargs.get('abstract'):
+    def __new__(
+        mcs: Type[ServiceMeta],
+        name: str,
+        bases: Tuple[type, ...],
+        namespace: Dict[str, object],
+        **kwargs: Any,
+    ) -> ServiceMeta:
+        cls = cast(ServiceMeta, super().__new__(mcs, name, bases, namespace, **kwargs))
+        if not kwargs.get("abstract"):
             _configure_service(cls)
         return cls
 
@@ -66,21 +64,27 @@ class ServiceMeta(AbstractMeta):
         Returns:
             Dependency to be retrieved from Antidote. You cannot use it directly.
         """
-        warnings.warn("Deprecated, parameterized() is too complex and not type-safe",
-                      DeprecationWarning)
+        warnings.warn(
+            "Deprecated, parameterized() is too complex and not type-safe", DeprecationWarning
+        )
 
         from .service import Service
+
         # Guaranteed through _configure_service()
-        conf = cast(Service.Conf, getattr(cls, '__antidote__'))
+        conf = cast(Service.Conf, getattr(cls, "__antidote__"))
         if conf.parameters is None:
-            raise RuntimeError(f"Service {cls} does not accept any parameters. You must "
-                               f"specify them explicitly in the configuration with: "
-                               f"Service.Conf(parameters=...))")
+            raise RuntimeError(
+                f"Service {cls} does not accept any parameters. You must "
+                f"specify them explicitly in the configuration with: "
+                f"Service.Conf(parameters=...))"
+            )
 
         if set(kwargs.keys()) != set(conf.parameters or []):
-            raise ValueError(f"Given parameters do not match expected ones. "
-                             f"Got: ({','.join(map(repr, kwargs.keys()))}) "
-                             f"Expected: ({','.join(map(repr, conf.parameters))})")
+            raise ValueError(
+                f"Given parameters do not match expected ones. "
+                f"Got: ({','.join(map(repr, kwargs.keys()))}) "
+                f"Expected: ({','.join(map(repr, conf.parameters))})"
+            )
 
         return Parameterized(cls, kwargs)
 
@@ -92,15 +96,17 @@ class ABCServiceMeta(ServiceMeta, ABCMeta):
 
 @API.private
 @inject
-def _configure_service(cls: type,
-                       service_provider: InjectableProvider = inject.me(),
-                       conf: object = None) -> None:
+def _configure_service(
+    cls: type, service_provider: InjectableProvider = inject.me(), conf: object = None
+) -> None:
     from .service import Service
 
-    conf = conf or getattr(cls, '__antidote__', None)
+    conf = conf or getattr(cls, "__antidote__", None)
     if not isinstance(conf, Service.Conf):
-        raise TypeError(f"Service configuration (__antidote__) is expected to be a "
-                        f"{Service.Conf}, not a {type(conf)}")
+        raise TypeError(
+            f"Service configuration (__antidote__) is expected to be a "
+            f"{Service.Conf}, not a {type(conf)}"
+        )
 
     wiring = conf.wiring
 

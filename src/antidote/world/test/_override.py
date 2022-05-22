@@ -1,9 +1,9 @@
-from typing import (Any, Callable, Dict, Hashable, Optional, overload, TypeVar, Union)
+from typing import Any, Callable, Dict, Hashable, Optional, overload, TypeVar, Union
 
 from typing_extensions import get_type_hints
 
 from ..._internal import API, state
-from ...core.container import (DependencyValue, Scope)
+from ...core.container import DependencyValue, Scope
 from ...utils import validated_scope
 
 __sentinel = object()
@@ -20,8 +20,9 @@ def singleton(dependency: Dict[Hashable, object]) -> None:
 
 
 @API.public
-def singleton(dependency: Union[Dict[Hashable, object], Hashable],
-              value: object = __sentinel) -> None:
+def singleton(
+    dependency: Union[Dict[Hashable, object], Hashable], value: object = __sentinel
+) -> None:
     """
     Override one or multiple dependencies with one/multiple singletons.
 
@@ -49,23 +50,25 @@ def singleton(dependency: Union[Dict[Hashable, object], Hashable],
         if isinstance(dependency, dict):
             state.current_overridable_container().override_singletons(dependency)
         else:
-            raise TypeError("If only a single argument is provided, "
-                            "it must be a dictionary of singletons.")
+            raise TypeError(
+                "If only a single argument is provided, it must be a dictionary of singletons."
+            )
     else:
         if isinstance(dependency, dict):
             raise TypeError("A dictionary cannot be used as a key.")
         state.current_overridable_container().override_singletons({dependency: value})
 
 
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 @API.public
-def factory(dependency: Hashable = None,
-            *,
-            singleton: Optional[bool] = None,
-            scope: Optional[Scope] = Scope.sentinel()
-            ) -> Callable[[F], F]:
+def factory(
+    dependency: Hashable = None,
+    *,
+    singleton: Optional[bool] = None,
+    scope: Optional[Scope] = Scope.sentinel(),
+) -> Callable[[F], F]:
     """
     Override a dependency with the result of a factory. To be used as a function
     decorator. The result of the underlying function, the factory, will be used as the
@@ -120,20 +123,21 @@ def factory(dependency: Hashable = None,
         if not callable(f):
             raise TypeError(f"factory must be a callable, not a {type(f)}")
         if dependency is None:
-            output = get_type_hints(f).get('return')
+            output = get_type_hints(f).get("return")
             if output is None:
-                raise ValueError("Either the dependency argument or the return type hint "
-                                 "of the factory must be specified")
+                raise ValueError(
+                    "Either the dependency argument or the return type hint "
+                    "of the factory must be specified"
+                )
         else:
             output = dependency
-        state.current_overridable_container() \
-            .override_factory(output, factory=f, scope=scope)
+        state.current_overridable_container().override_factory(output, factory=f, scope=scope)
         return f
 
     return decorate
 
 
-P = TypeVar('P', bound=Callable[[Any], Optional[DependencyValue]])
+P = TypeVar("P", bound=Callable[[Any], Optional[DependencyValue]])
 
 
 @API.public
