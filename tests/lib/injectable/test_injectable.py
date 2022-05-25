@@ -183,7 +183,7 @@ def test_factory(factory_method: str) -> None:
 def test_invalid_arguments(arg: str) -> None:
     with pytest.raises(TypeError, match=".*" + arg + ".*"):
 
-        @injectable(**{arg: object()})
+        @injectable(**{arg: object()})  # type: ignore
         class Dummy:
             ...
 

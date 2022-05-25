@@ -376,8 +376,7 @@ class RawContainer(Container):
                 p_clone = p.clone(keep_singletons_cache=keep_singletons)
                 if p_clone is p or getattr(p_clone, _CONTAINER_REF_ATTR, None) is not None:
                     raise RuntimeError(
-                        "A Provider should always return a new "
-                        "instance when copy() is called."
+                        "A Provider should always return a new " "instance when copy() is called."
                     )
 
                 setattr(p_clone, _CONTAINER_REF_ATTR, ref(clone))
