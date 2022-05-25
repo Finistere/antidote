@@ -84,6 +84,9 @@ reportUnnecessaryCast = "warning"
 [tool.mypy]
 files = [
     "src",
+    "tests/lib/interface",
+    "tests/lib/injectable",
+    "tests/lib/lazy"
 ]
 python_version = "3.7"
 strict = true

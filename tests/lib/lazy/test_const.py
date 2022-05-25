@@ -36,7 +36,7 @@ def setup_tests(monkeypatch: Any) -> Iterator[None]:
         yield
 
 
-def test_static():
+def test_static() -> None:
     class Conf:
         HOST = const("host")
         PORT = const(80)
@@ -112,11 +112,11 @@ def check_conf(Conf: Type[ConfProtocol]) -> None:
 
 def env_converter(value: str, tpe: Type[T]) -> T:
     if issubclass(tpe, (int, str, float, Enum)):
-        return tpe(value)
+        return cast(T, tpe(value))
     raise TypeError()
 
 
-def test_env():
+def test_env() -> None:
     class Conf:
         HOST = const.env()
         HOSTNAME = const.env("HOST")
@@ -127,10 +127,10 @@ def test_env():
         MISSING = const.env()
         MISSING_WITH_DEFAULT = const.env(default="default")
 
-    check_conf(Conf)
+    check_conf(cast(Type[ConfProtocol], Conf))
 
 
-def test_factory_env_external():
+def test_factory_env_external() -> None:
     @const.provider
     def env(name: str, arg: Optional[str]) -> str:
         return os.environ[arg or name]
@@ -166,11 +166,12 @@ def test_factory_env_external():
         MISSING = env2.const()
         MISSING_WITH_DEFAULT = env2.const(default="default")
 
-    check_conf(Conf)
-    check_conf(ConfVariable)
+    # for Mypy
+    check_conf(cast(Type[ConfProtocol], Conf))
+    check_conf(cast(Type[ConfProtocol], ConfVariable))
 
 
-def test_factory_env_method():
+def test_factory_env_method() -> None:
     @injectable
     class Conf:
         @const.provider
@@ -189,14 +190,15 @@ def test_factory_env_method():
         MISSING = env.const()
         MISSING_WITH_DEFAULT = env.const(default="default")
 
-    check_conf(Conf)
+    # for mypy
+    check_conf(cast(Type[ConfProtocol], Conf))
 
     conf = Conf()
     assert conf.env(name="HOST", arg=None) == "localhost"
     assert conf.env(name="XXX", arg="HOST") == "localhost"
 
 
-def test_invalid_factory():
+def test_invalid_factory() -> None:
     with pytest.raises(TypeError, match="provider.*function"):
         const.provider(object())  # type: ignore
 
@@ -213,7 +215,7 @@ def test_invalid_factory():
             ...
 
 
-def test_type_enforcement():
+def test_type_enforcement() -> None:
     @const.provider
     def f(name: str, arg: Optional[object]) -> int:
         if arg is None:
@@ -252,7 +254,7 @@ def test_type_enforcement():
     assert world.get[str](Conf.TYPED_VALID_DEFAULT) == "1"
 
 
-def test_unchecked_type():
+def test_unchecked_type() -> None:
     @const.provider
     def f(name: str, arg: Optional[object]) -> Union[str, int]:
         if arg is None:
@@ -264,7 +266,7 @@ def test_unchecked_type():
     class Conf:
         VALID_UNCHECKED = f.const(x)
         VALID_DEFAULT_UNCHECKED = f.const(default=x)  # type: ignore
-        TYPED_VALID_UNCHECKED = f.const[Union[int, float]](x)
+        TYPED_VALID_UNCHECKED = f.const[Union[int, float]](x)  # type: ignore
         TYPED_VALID_DEFAULT_UNCHECKED = f.const[Union[int, float]](default=x)  # type: ignore
 
     assert Conf().VALID_UNCHECKED is x
@@ -278,7 +280,7 @@ def test_unchecked_type():
     assert world.get[object](Conf.TYPED_VALID_DEFAULT_UNCHECKED) is x
 
 
-def test_converter():
+def test_converter() -> None:
     @const.provider
     def f(name: str, arg: Optional[object]) -> Union[str, int]:
         if arg is None:
@@ -288,7 +290,7 @@ def test_converter():
     @f.converter
     def f_converter(value: Union[str, int], tpe: Type[T]) -> T:
         if issubclass(tpe, str):
-            return tpe(value)
+            return cast(T, tpe(value))
         return cast(T, value)
 
     x = object()
@@ -299,7 +301,7 @@ def test_converter():
         TYPED_CAST = f.const[str](1)
         TYPED_NO_CAST = f.const[int](1)
         TYPED_INVALID_NO_CAST = f.const[int]("1")
-        UNSUPPORTED = f.const[Union[str, int]](1)
+        UNSUPPORTED = f.const[Union[str, int]](1)  # type: ignore
 
     with pytest.raises(TypeError, match="class"):
         _ = Conf().UNSUPPORTED
@@ -318,7 +320,7 @@ def test_converter():
     assert world.get[int](Conf.TYPED_NO_CAST) == 1
 
 
-def test_invalid_converter():
+def test_invalid_converter() -> None:
     @const.provider
     def get(name: str, arg: object) -> object:
         ...
@@ -349,7 +351,7 @@ def test_invalid_converter():
             ...
 
 
-def test_const_repr():
+def test_const_repr() -> None:
     class Conf:
         TEST = const("random-value")
 
@@ -358,7 +360,7 @@ def test_const_repr():
     assert "random-value" in repr(const("random-value"))
 
 
-def test_singleton_dependency():
+def test_singleton_dependency() -> None:
     class Conf:
         @const.provider
         def env(self, name: str, arg: Optional[object]) -> str:

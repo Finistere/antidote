@@ -60,7 +60,7 @@ def test_create_constraint_invalid_predicate_class() -> None:
 )
 def test_create_constraint_invalid_type_hint(type_hint: Any) -> None:
     class InvalidTypeHint:
-        def evaluate(self, predicate: type_hint) -> None:
+        def evaluate(self, predicate: type_hint) -> None:  # type: ignore
             ...
 
     with pytest.raises(TypeError, match="(?i).*Optional.*Predicate.*"):

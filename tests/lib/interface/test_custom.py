@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterator, List, Optional, TypeVar
+from typing import Any, cast, Iterator, List, Optional, Type, TypeVar
 
 import pytest
 from typing_extensions import Protocol
@@ -330,18 +330,17 @@ def test_event_subscriber_example() -> None:
     process_initialization(event)
     assert sub.called_with == [event]
 
+    tpe = cast(Type[EventSubscriber[InitializationEvent]], EventSubscriber[InitializationEvent])
     process_initialization(
         event,
         # Explicitly retrieving the subscribers
-        subscribers=world.get[EventSubscriber[InitializationEvent]].all(
-            qualified_by=InitializationEvent
-        ),
+        subscribers=world.get[tpe].all(qualified_by=InitializationEvent),
     )
     assert sub.called_with == [event, event]
 
     process_initialization(
         event,
         # Explicitly retrieving the subscribers
-        subscribers=world.get[EventSubscriber[InitializationEvent]].all(qualified_by=object()),
+        subscribers=world.get[tpe].all(qualified_by=object()),
     )
     assert sub.called_with == [event, event]

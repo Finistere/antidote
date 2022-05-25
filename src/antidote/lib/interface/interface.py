@@ -263,7 +263,7 @@ class implements(Generic[Itf]):
 
         return register
 
-    def overriding(self, __existing_implementation: Type[Itf]) -> Callable[[C], C]:
+    def overriding(self, __existing_implementation: Itf) -> Callable[[C], C]:
         """
         .. versionadded: 1.4
 

@@ -194,7 +194,7 @@ def test_injected() -> None:
         return Bag(dummy=d)
 
     @inject
-    def f2(bag: Bag = injected_bag()) -> Bag:
+    def f2(bag: Bag = injected_bag()) -> Bag:  # type: ignore
         return bag
 
     assert f2() == Bag(dummy=Dummy(name="dummy"))

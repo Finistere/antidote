@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Any, Generic, Iterable, Iterator, List, Optional, Sequence, TypeVar
+from typing import Any, cast, Generic, Iterable, Iterator, List, Optional, Sequence, Type, TypeVar
 
 import pytest
 from typing_extensions import Protocol, runtime_checkable
@@ -256,7 +256,7 @@ def test_invalid_interface() -> None:
         interface(object())  # type: ignore
 
     with pytest.raises(TypeError, match="(?i).*class.*"):
-        ImplementationsOf(object())
+        ImplementationsOf(object())  # type: ignore
 
     with pytest.raises(ValueError, match="(?i).*decorated.*@interface.*"):
         ImplementationsOf(Qualifier)
@@ -410,9 +410,10 @@ def test_generic_protocol() -> None:
         pass
 
     dummy = world.get(Dummy)
-    assert world.get(GenericProtocolBase) is dummy
-    assert world.get[GenericProtocolBase].single() is dummy
-    assert world.get[GenericProtocolBase].all() == [dummy]
+    tpe = cast(Type[GenericProtocolBase[int]], GenericProtocolBase)
+    assert world.get(tpe) is dummy
+    assert world.get[tpe].single() is dummy
+    assert world.get[tpe].all() == [dummy]
 
     @inject
     def f(x: GenericProtocolBase[int] = inject.me()) -> GenericProtocolBase[int]:

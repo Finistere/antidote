@@ -136,7 +136,7 @@ def test_predicate_already_injected() -> None:
     class Base:
         ...
 
-    @_(implements(Base).when(if_only(True)))
+    @_(implements(Base).when(if_only(True)))  # type: ignore
     class Yes(Base):
         ...
 
