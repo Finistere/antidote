@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import functools
-import inspect
-from dataclasses import make_dataclass
-from typing import Any, Callable, cast, Optional, overload, Type, TypeVar
+from dataclasses import dataclass
+from typing import Any, Optional, Type, TypeVar
 
 from typing_extensions import final, ParamSpec, Protocol, runtime_checkable
 
-from ...core import inject
-from ..._internal import API
-from ..._internal.utils.meta import Singleton
+from ..._internal import API, Singleton
 
 __all__ = [
     "NeutralWeight",
@@ -18,17 +14,17 @@ __all__ = [
     "PredicateConstraint",
     "MergeablePredicateConstraint",
     "MergeablePredicate",
-    "predicate",
 ]
 
-from ...core.exceptions import DoubleInjectionError
+from ...core import AntidoteError
 
 SelfWeight = TypeVar("SelfWeight", bound="PredicateWeight")
 T = TypeVar("T")
 P = ParamSpec("P")
 
 
-@API.experimental
+@API.public
+@runtime_checkable
 class PredicateWeight(Protocol):
     """
     The weight defines the ordering of the implementations. When requesting all implementations,
@@ -52,7 +48,7 @@ class PredicateWeight(Protocol):
         >>> from antidote.lib.interface import Predicate, QualifiedBy
         >>> class Weight:
         ...     def __init__(self, value: int) -> None:
-        ...         self.value = value
+        ...         self.__value = value
         ...
         ...     @classmethod
         ...     def of_neutral(cls, predicate: Optional[Predicate[Any]]) -> 'Weight':
@@ -61,14 +57,18 @@ class PredicateWeight(Protocol):
         ...         return Weight(0)
         ...
         ...     def __lt__(self, other: 'Weight') -> bool:
-        ...         return self.value < other.value
+        ...         return self.__value < other.__value
         ...
         ...     def __add__(self, other: 'Weight') -> 'Weight':
-        ...         return Weight(self.value + other.value)
+        ...         return Weight(self.__value + other.__value)
     """
 
     @classmethod
-    def of_neutral(cls: Type[SelfWeight], predicate: Optional[Predicate[Any]]) -> SelfWeight:
+    def neutral(cls: Type[SelfWeight]) -> SelfWeight:
+        ...
+
+    @classmethod
+    def of_neutral_predicate(cls: Type[SelfWeight], predicate: Predicate[Any]) -> SelfWeight:
         """
         Called when a predicate has a :py:class:`.NeutralWeight` or when an
         implementation has no weight at all. In which case :py:obj:`None` is given as argument.
@@ -102,17 +102,24 @@ class PredicateWeight(Protocol):
         ...
 
 
-@API.experimental
+@API.public
 @final
+@dataclass(frozen=True)
 class NeutralWeight(Singleton):
     """
     Simple :py:class:`.PredicateWeight` implementation where the weight
     always stays the same, neutral. All implementations are treated equally.
     """
 
+    __slots__ = ()
+
     @classmethod
-    def of_neutral(cls, predicate: Optional[Predicate[Any]]) -> NeutralWeight:
-        return cls()
+    def neutral(cls) -> NeutralWeight:
+        return NeutralWeight()
+
+    @classmethod
+    def of_neutral_predicate(cls, predicate: Predicate[Any]) -> NeutralWeight:
+        return NeutralWeight()
 
     def __lt__(self, other: NeutralWeight) -> bool:
         return False
@@ -120,17 +127,14 @@ class NeutralWeight(Singleton):
     def __add__(self, other: NeutralWeight) -> NeutralWeight:
         return self
 
-    def __str__(self) -> str:
-        return "N"
-
     def __repr__(self) -> str:
-        return "NeutralWeight"
+        return type(self).__name__
 
 
 WeightCo = TypeVar("WeightCo", bound=PredicateWeight, covariant=True)
 
 
-@API.experimental
+@API.public
 @runtime_checkable
 class Predicate(Protocol[WeightCo]):
     """
@@ -172,7 +176,7 @@ class Predicate(Protocol[WeightCo]):
         >>> @implements(ObjectStorage).when(InCloud('gcp'))
         ... class GCPStorage(ObjectStorage):
         ...     pass
-        >>> world.get[ObjectStorage].all()
+        >>> world.instance[ObjectStorage].all()
         [<AwsStorage ...>]
 
     .. tip::
@@ -202,7 +206,7 @@ class Predicate(Protocol[WeightCo]):
 SelfP = TypeVar("SelfP", bound=Predicate[Any])
 
 
-@API.experimental
+@API.public
 @runtime_checkable
 class MergeablePredicate(Predicate[WeightCo], Protocol):
     """
@@ -236,7 +240,7 @@ class MergeablePredicate(Predicate[WeightCo], Protocol):
 Pct = TypeVar("Pct", bound=Predicate[Any], contravariant=True)
 
 
-@API.experimental
+@API.public
 @runtime_checkable
 class PredicateConstraint(Protocol[Pct]):
     """
@@ -278,14 +282,14 @@ class PredicateConstraint(Protocol[Pct]):
 
     """
 
-    def evaluate(self, predicate: Optional[Pct]) -> bool:
+    def __call__(self, predicate: Optional[Pct]) -> bool:
         ...
 
 
 SelfPC = TypeVar("SelfPC", bound=PredicateConstraint[Any])
 
 
-@API.experimental
+@API.public
 @runtime_checkable
 class MergeablePredicateConstraint(PredicateConstraint[Pct], Protocol):
     """
@@ -311,71 +315,7 @@ class MergeablePredicateConstraint(PredicateConstraint[Pct], Protocol):
         ...
 
 
-@overload
-def predicate(__func: Callable[P, bool]) -> Callable[P, Predicate[NeutralWeight]]:
-    ...
-
-
-@overload
-def predicate(__func: Callable[P, Optional[WeightCo]]) -> Callable[P, Predicate[WeightCo]]:
-    ...
-
-
-@API.experimental
-def predicate(
-    __func: Callable[P, bool] | Callable[P, Optional[WeightCo]]
-) -> Callable[P, Predicate[NeutralWeight]] | Callable[P, Predicate[WeightCo]]:
-    """
-    Create a new predicate based on the decorated function.
-
-    .. doctest:: lib_interface_predicate_decorator
-
-        >>> from antidote import world
-        >>> from antidote.lib.interface import predicate
-        >>> @predicate
-        ... def use_me(condition: bool) -> bool:
-        ...     return condition
-        >>> from antidote import interface, implements
-        >>> @interface
-        ... class Base:
-        ...     pass
-        >>> @implements(Base).when(use_me(True))
-        ... class BaseImpl(Base):
-        ...     pass
-        >>> world.get(Base)
-        <BaseImpl ...>
-
-
-    Args:
-        __func: **/positional-only/** Function to call defining whether the implementation can
-            be used or not. The function should either return a boolean or an optional weight.
-            The function will be injected if not already.
-
-    Returns:
-        A new function with the same arguments returning a predicate with a constant weight.
-    """
-    if not inspect.isfunction(__func):
-        raise TypeError(f"@predicate can only decorate functions, not a {type(__func)!r}")
-
-    try:
-        __func = inject(__func)
-    except DoubleInjectionError:
-        pass
-
-    camel_case_name = "".join(part.title() for part in __func.__name__.split("_"))
-    cls = make_dataclass(
-        f"{camel_case_name}Predicate",
-        [("_weight", object)],
-        namespace={"weight": lambda self: self._weight},  # type: ignore
-        frozen=True,
-    )
-    predicate_cls = cast(Callable[[object], Predicate[Any]], cls)
-
-    @functools.wraps(__func)
-    def wrapped(*args: P.args, **kwargs: P.kwargs) -> Predicate[Any]:
-        result = __func(*args, **kwargs)
-        if isinstance(result, bool):
-            return predicate_cls(NeutralWeight() if result else None)
-        return predicate_cls(result)
-
-    return wrapped
+@API.public
+class HeterogeneousWeightError(AntidoteError):
+    def __init__(self, a: PredicateWeight, b: PredicateWeight) -> None:
+        super().__init__(f"Heterogeneous weight types found: {type(a)!r} and {type(b)!r}")

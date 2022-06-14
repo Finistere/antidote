@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import inspect
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional, TYPE_CHECKING
 
-from typing_extensions import Literal
-
-from . import API
 from .utils import Default
 
+if TYPE_CHECKING:
+    from ..core import TypeHintsLocals
 
-@API.private
+
 def retrieve_or_validate_injection_locals(
-    type_hints_locals: Union[Mapping[str, object], None, Default, Literal["auto"]]
+    type_hints_locals: TypeHintsLocals,
 ) -> Optional[Mapping[str, object]]:
-    from .._config import config
 
     if type_hints_locals is Default.sentinel:
-        type_hints_locals = "auto" if config.auto_detect_type_hints_locals else None
+        from .config import ConfigImpl
+
+        type_hints_locals = "auto" if ConfigImpl().auto_detect_type_hints_locals else None
 
     if type_hints_locals == "auto":
         frame = inspect.currentframe()

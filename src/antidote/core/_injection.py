@@ -1,281 +1,305 @@
 from __future__ import annotations
 
-import collections.abc as c_abc
 import inspect
 from dataclasses import dataclass
-from typing import (  # noqa: F401
-    Any,
-    Callable,
-    cast,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Set,
-    TYPE_CHECKING,
-)
+from typing import Any, Callable, cast, Dict, Iterable, Iterator, Mapping, Sequence, TYPE_CHECKING
 
-from typing_extensions import final, TypeAlias
+from typing_extensions import Annotated, final, get_origin, get_type_hints, TypeGuard
 
-from .exceptions import DoubleInjectionError, NoInjectionsFoundError
-from .marker import Marker
-from .._internal import API
-from .._internal.argspec import Arguments
-from .._internal.utils import Default
-from .._internal.wrapper import (
-    build_wrapper,
-    get_wrapped,
-    Injection,
-    InjectionBlueprint,
-    is_wrapper,
-)
+from .._internal import API, is_optional, optional_value
+from ._wrapper import is_wrapper, unwrap
+from .data import Dependency, dependencyOf, ParameterDependency
+from .exceptions import CannotInferDependencyError, DoubleInjectionError
 
 if TYPE_CHECKING:
-    from .injection import DEPENDENCIES_TYPE, AUTO_PROVIDE_TYPE
+    pass
 
-AnyF: TypeAlias = "Callable[..., Any] | staticmethod[Any] | classmethod[Any]"
+__all__ = [
+    "Injection",
+    "InjectionBlueprint",
+    "InjectionParameter",
+    "InjectionParameters",
+]
 
 
 @API.private
 @final
-@dataclass(frozen=True, init=False)
-class ArgDependency:
-    __slots__ = ("dependency", "default")
+@dataclass(frozen=True)
+class Injection:
+    """
+    Maps an argument name to its dependency and if the injection is required,
+    which is equivalent to no default argument.
+    """
+
+    __slots__ = ("arg_name", "required", "dependency", "default")
+    arg_name: str
+    required: bool
     dependency: object
     default: object
 
+
+@API.private
+@final
+@dataclass(frozen=True)
+class InjectionBlueprint:
+    """
+    Stores all the injections for a function.
+    """
+
+    __slots__ = ("injections", "positional_arguments_count", "inject_self")
+    injections: tuple[Injection, ...]
+    positional_arguments_count: int
+    inject_self: bool
+
+    def is_empty(self) -> bool:
+        return not self.inject_self and all(
+            injection.dependency is None for injection in self.injections
+        )
+
+    @staticmethod
+    def create(
+        parameters: InjectionParameters,
+        kwargs: Mapping[str, object],
+        fallback: Mapping[str, object],
+        ignore_defaults: bool,
+        inject_self: bool,
+    ) -> InjectionBlueprint:
+        injections: list[Injection] = []
+        for parameter in parameters:
+            has_dependency_as_default = not ignore_defaults and _is_dependency(parameter.default)
+            dep = None
+            if parameter.name in kwargs:
+                dep = kwargs[parameter.name]
+
+            if dep is None:
+                type_hint_with_extras = parameter.type_hint_with_extras
+                while is_optional(type_hint_with_extras):
+                    type_hint_with_extras = optional_value(type_hint_with_extras)
+
+                origin = get_origin(type_hint_with_extras)
+                if origin is Annotated:
+                    __metadata: list[object] = type_hint_with_extras.__metadata__  # pyright: ignore
+                    dependencies: list[object] = [
+                        extra for extra in __metadata if _is_dependency(extra)
+                    ]
+                    if len(dependencies) > 1:
+                        raise CannotInferDependencyError(
+                            f"Multiple Antidote dependencies annotations are not supported. "
+                            f"Found {dependencies}"
+                        )
+                    elif dependencies:
+                        if has_dependency_as_default:
+                            raise CannotInferDependencyError(
+                                "Cannot specify both a default dependency "
+                                "AND a annotated dependency."
+                            )
+                        dep = dependencies[0]
+
+            if dep is None and has_dependency_as_default:
+                dep = parameter.default
+
+            if dep is None and parameter.name in fallback:
+                dep = fallback[parameter.name]
+
+            if isinstance(dep, ParameterDependency):
+                _dependency = dependencyOf[object](
+                    dep.__antidote_parameter_dependency__(
+                        name=parameter.name,
+                        type_hint=parameter.type_hint,
+                        type_hint_with_extras=parameter.type_hint_with_extras,
+                    )
+                )
+            else:
+                _dependency = dependencyOf[object](dep)
+
+            injections.append(
+                Injection(
+                    arg_name=parameter.name,
+                    required=has_dependency_as_default or not parameter.has_default,
+                    dependency=_dependency.wrapped,
+                    default=_dependency.default,
+                )
+            )
+
+        return InjectionBlueprint(
+            injections=tuple(injections),
+            positional_arguments_count=parameters.positional_arguments_count,
+            inject_self=inject_self,
+        )
+
+
+@API.private
+def _is_dependency(x: object) -> TypeGuard[Dependency[object] | ParameterDependency]:
+    return isinstance(x, (Dependency, ParameterDependency))
+
+
+@API.private
+@final
+@dataclass(frozen=True)
+class InjectionParameter:
+    __slots__ = ("name", "default", "type_hint", "type_hint_with_extras", "to_ignore")
+    name: str
+    default: object
+    type_hint: Any
+    type_hint_with_extras: Any
+    to_ignore: bool
+
+    @property
+    def has_default(self) -> bool:
+        return self.default is not inspect.Parameter.empty
+
+
+@API.private
+@final
+@dataclass(frozen=True)
+class InjectionParameters:
+    """Used when generating the injection wrapper"""
+
+    __slots__ = (
+        "positional_arguments_count",
+        "_parameters",
+        "has_self",
+        "_without_self",
+        "_name_to_parameter",
+    )
+    positional_arguments_count: int
+    _parameters: Sequence[InjectionParameter]
+    has_self: bool
+    _name_to_parameter: Dict[str, InjectionParameter]
+    _without_self: InjectionParameters | None
+
+    @property
+    def without_self(self) -> InjectionParameters:
+        if not self.has_self:
+            return self
+
+        if self._without_self is None:
+            object.__setattr__(
+                self,
+                "_without_self",
+                InjectionParameters(
+                    positional_arguments_count=self.positional_arguments_count - 1,
+                    parameters=self._parameters[1:],
+                    has_self=False,
+                ),
+            )
+        return cast(InjectionParameters, self._without_self)
+
     @classmethod
-    def of(cls, x: object) -> ArgDependency:
-        from .annotations import Get
+    def of(
+        cls,
+        __obj: object,
+        *,
+        ignore_type_hints: bool,
+        type_hints_locals: Mapping[str, object] | None = None,
+    ) -> InjectionParameters:
+        func = cast(
+            Callable[..., Any],
+            __obj.__func__ if isinstance(__obj, (staticmethod, classmethod)) else __obj,
+        )
+        func = inspect.unwrap(func, stop=is_wrapper)
+        __unwrapped__ = unwrap(func)
+        if __unwrapped__ is not None:
+            raise DoubleInjectionError(__unwrapped__[0])
 
-        if isinstance(x, ArgDependency):
-            return x
-        if isinstance(x, Get):
-            return ArgDependency(dependency=x.dependency, default=x.default)
+        if not inspect.isfunction(func):
+            raise TypeError(f"Object {func} is neither a function nor a (class/static) method")
 
-        return ArgDependency(x)
-
-    def __init__(self, dependency: object, *, default: object = Default.sentinel) -> None:
-        object.__setattr__(self, "dependency", dependency)
-        object.__setattr__(self, "default", default)
-
-
-@API.private
-def raw_inject(
-    obj: AnyF,
-    *,
-    dependencies: DEPENDENCIES_TYPE,
-    auto_provide: AUTO_PROVIDE_TYPE,
-    strict_validation: bool,
-    ignore_type_hints: bool,
-    type_hints_locals: Optional[Mapping[str, object]],
-) -> AnyF:
-    if not isinstance(ignore_type_hints, bool):
-        raise TypeError(f"ignore_type_hints must be a boolean, not {type(ignore_type_hints)}")
-
-    if not isinstance(strict_validation, bool):
-        raise TypeError(f"strict_validation must be a boolean, not {type(strict_validation)}")
-    if inspect.isclass(obj):
-        # User-friendlier error for classes.
-        raise TypeError("Classes cannot be wrapped with @inject. objectConsider using @wire")
-    if is_wrapper(obj):
-        raise DoubleInjectionError(get_wrapped(obj))
-
-    func = obj.__func__ if isinstance(obj, (classmethod, staticmethod)) else obj
-    if not inspect.isfunction(func):
-        raise TypeError(f"wrapped object {func} is neither a function nor a (class/static) method")
-
-    unwrapped_func = inspect.unwrap(func, stop=lambda f: is_wrapper(f))
-    if is_wrapper(unwrapped_func):
-        raise DoubleInjectionError(get_wrapped(unwrapped_func))
-
-    blueprint = _build_injection_blueprint(
-        arguments=Arguments.from_callable(
-            obj, ignore_type_hints=ignore_type_hints, type_hints_locals=type_hints_locals
-        ),
-        dependencies=dependencies,
-        auto_provide=auto_provide,
-        strict_validation=strict_validation,
-    )
-    # If nothing can be injected, just return the existing function without
-    # any overhead.
-    if blueprint.is_empty():
         if ignore_type_hints:
-            raise NoInjectionsFoundError(
-                f"No dependencies found while ignoring type hints for {obj}"
-            )
-        return obj
+            type_hints = {}
+            extra_type_hints = {}
+        else:
+            localns = dict(type_hints_locals) if type_hints_locals is not None else None
+            type_hints = get_type_hints(func, localns=localns)
+            extra_type_hints = get_type_hints(func, localns=localns, include_extras=True)
 
-    wrapped_func = build_wrapper(blueprint=blueprint, wrapped=func)
-    if isinstance(obj, staticmethod):
-        return staticmethod(wrapped_func)
-    if isinstance(obj, classmethod):
-        return classmethod(wrapped_func)
-    return cast(AnyF, wrapped_func)
+        positional_arguments_count = 0
+        kw_only_arguments = False
+        parameters: list[InjectionParameter] = []
+        for name, parameter in inspect.signature(func, follow_wrapped=False).parameters.items():
+            if parameter.kind in {
+                parameter.VAR_POSITIONAL,
+                parameter.VAR_KEYWORD,
+                parameter.KEYWORD_ONLY,
+            }:
+                kw_only_arguments = True
 
+            if not kw_only_arguments:
+                positional_arguments_count += 1
 
-@API.private
-def _build_injection_blueprint(
-    arguments: Arguments,
-    dependencies: DEPENDENCIES_TYPE,
-    auto_provide: AUTO_PROVIDE_TYPE,
-    strict_validation: bool,
-) -> InjectionBlueprint:
-    """
-    Construct a InjectionBlueprint with all the necessary information about
-    the arguments for dependency injection. Storing it avoids significant
-    execution overhead./
-
-    Used by inject()
-    """
-    annotated = _build_from_annotations(arguments)
-    explicit_dependencies = _build_from_dependencies(arguments, dependencies, strict_validation)
-    auto_provided = _build_auto_provide(arguments, auto_provide, annotated, strict_validation)
-    resolved_dependencies: List[ArgDependency] = [
-        ArgDependency.of(
-            annotated.get(
-                arg.name, explicit_dependencies.get(arg.name, auto_provided.get(arg.name))
-            )
-        )
-        for arg in arguments
-    ]
-
-    return InjectionBlueprint(
-        tuple(
-            Injection(
-                arg_name=arg.name,
-                required=isinstance(arg.default, Marker) or not arg.has_default,
-                dependency=arg_dependency.dependency,
-                default=arg_dependency.default,
-            )
-            for arg, arg_dependency in zip(arguments, resolved_dependencies)
-        )
-    )
-
-
-@API.private
-def _build_from_annotations(arguments: Arguments) -> Dict[str, object]:
-    from ._annotations import extract_annotated_arg_dependency
-
-    arg_to_dependency: Dict[str, object] = {}
-    for arg in arguments:
-        dependency = extract_annotated_arg_dependency(arg)
-        if dependency is not None:
-            arg_to_dependency[arg.name] = dependency
-
-    return arg_to_dependency
-
-
-@API.private
-def _build_from_dependencies(
-    arguments: Arguments, dependencies: DEPENDENCIES_TYPE, strict_validation: bool
-) -> Dict[str, object]:
-    from .injection import Arg
-
-    if dependencies is None:
-        arg_to_dependency: Mapping[str, object] = {}
-    elif callable(dependencies):
-        arg_to_dependency = {
-            arg.name: dependencies(Arg(arg.name, arg.type_hint, arg.type_hint_with_extras))
-            for arg in arguments.without_self
-        }
-    elif isinstance(dependencies, c_abc.Mapping):
-        _check_valid_arg_names("dependencies", dependencies.keys(), arguments, strict_validation)
-        arg_to_dependency = dependencies
-    elif isinstance(dependencies, c_abc.Iterable) and not isinstance(dependencies, str):
-        # convert to Tuple in case we cannot iterate more than once.
-        dependencies = tuple(dependencies)
-        if strict_validation and len(arguments.without_self) < len(dependencies):
-            raise ValueError(
-                f"More dependencies ({dependencies}) were provided than arguments ({arguments})"
-            )
-        arg_to_dependency = {
-            arg.name: dependency for arg, dependency in zip(arguments.without_self, dependencies)
-        }
-    else:
-        raise TypeError(
-            f"Only a mapping or a iterable is supported for "
-            f"dependencies, not {type(dependencies)!r}"
-        )
-
-    # Remove any None as they would hide type_hints.
-    return {k: v for k, v in arg_to_dependency.items() if v is not None}
-
-
-@API.private
-def _build_auto_provide(
-    arguments: Arguments,
-    auto_provide: AUTO_PROVIDE_TYPE,
-    annotated: Dict[str, object],
-    strict_validation: bool,
-) -> Dict[str, object]:
-    from ._annotations import extract_auto_provided_arg_dependency
-
-    auto_provide_set: Set[type] = set()
-    if isinstance(auto_provide, bool):
-        auto_provide_bool = auto_provide
-
-        def is_auto_provided(__cls: type) -> bool:
-            return auto_provide_bool
-
-    elif isinstance(auto_provide, c_abc.Iterable):
-        # convert to set in case we cannot iterate more than once.
-        auto_provide_set = set(auto_provide)
-        for cls in auto_provide_set:
-            if not isinstance(cls, type):
-                raise TypeError(
-                    f"auto_provide must be a boolean or an iterable of "
-                    f"classes, but contains {cls!r} which is not a class."
+            if parameter.kind in {parameter.POSITIONAL_OR_KEYWORD, parameter.KEYWORD_ONLY}:
+                parameters.append(
+                    InjectionParameter(
+                        name=name,
+                        default=parameter.default,
+                        type_hint=type_hints.get(name),
+                        type_hint_with_extras=extra_type_hints.get(name),
+                        to_ignore=False,
+                    )
+                )
+            elif not kw_only_arguments:
+                parameters.append(
+                    InjectionParameter(
+                        name=name,
+                        default=parameter.default,
+                        type_hint=None,
+                        type_hint_with_extras=None,
+                        to_ignore=True,
+                    )
                 )
 
-        def is_auto_provided(__cls: type) -> bool:
-            return __cls in auto_provide_set
-
-    elif callable(auto_provide):
-        # Looks stupid but both pyright & mypy are happy with it.
-        auto_provide_callable = auto_provide
-
-        def is_auto_provided(__cls: type) -> bool:
-            return auto_provide_callable(__cls)
-
-    else:
-        raise TypeError(
-            f"auto_provide must be a boolean, an iterable of classes, "
-            f"or a function not {type(auto_provide)}."
+        return InjectionParameters(
+            positional_arguments_count=positional_arguments_count,
+            parameters=tuple(parameters),
+            has_self=is_unbound_method(cast(Any, __obj)),
         )
 
-    auto_provided: Dict[str, object] = {}
-    for arg in arguments.without_self:
-        dependency = extract_auto_provided_arg_dependency(arg)
-        if dependency is not None and is_auto_provided(dependency):
-            auto_provided[arg.name] = dependency
+    def __init__(
+        self,
+        *,
+        positional_arguments_count: int,
+        parameters: Sequence[InjectionParameter],
+        has_self: bool,
+    ) -> None:
+        object.__setattr__(self, "positional_arguments_count", positional_arguments_count)
+        object.__setattr__(self, "_parameters", parameters)
+        object.__setattr__(self, "has_self", has_self)
+        object.__setattr__(self, "_name_to_parameter", {param.name: param for param in parameters})
+        object.__setattr__(self, "_without_self", None)
 
-    provided_dependencies = set(auto_provided.values()).union(annotated.values())
-    if strict_validation and not auto_provide_set.issubset(provided_dependencies):
-        raise ValueError(
-            f"Some auto_provide dependencies ({auto_provide}) are not "
-            f"present in the function. Found: {provided_dependencies}\n"
-            f"Either ensure that auto_provide matches the function type "
-            f"hints or consider specifying strict_validation=False"
-        )
+    def names(self) -> Iterable[str]:
+        return self._name_to_parameter.keys()
 
-    return auto_provided
+    def __len__(self) -> int:
+        return len(self._parameters)
+
+    def __iter__(self) -> Iterator[InjectionParameter]:
+        return iter(self._parameters)
 
 
-@API.private
-def _check_valid_arg_names(
-    param: str, names: Iterable[str], arguments: Arguments, strict_validation: bool
-) -> None:
-    for name in names:
-        if not isinstance(name, str):
-            raise TypeError(f"{param} expected an argument name (str), not {name!r} ({type(name)})")
-        # TODO: maybe remove this check? it doesn't work well with injection before staticmethod.
-        if arguments.has_self and name == arguments[0].name:
-            raise ValueError(
-                f"Cannot inject first argument in {param} "
-                f"({arguments[0]!r}) of a method / @classmethod."
-            )
+def is_unbound_method(func: Callable[..., object] | staticmethod[Any] | classmethod[Any]) -> bool:
+    """
+    # Methods and nested function will have a different __qualname__ than
+    # __name__ (See PEP-3155).
+    #
+    # >>> class A:
+    # ...     def f(self):
+    # ...         pass
+    # >>> A.f.__qualname__
+    # 'A.f'
+    #
+    # This helps us differentiate method defined in a module and those for a class.
+    """
+    if isinstance(func, staticmethod):
+        return False
 
-        if strict_validation and name not in arguments:
-            raise ValueError(f"Unknown argument in {param}: {name!r}")
+    if isinstance(func, classmethod):
+        return True
+
+    return (
+        func.__qualname__ != func.__name__  # not top level
+        # not a bound method (self/cls already bound)
+        and not inspect.ismethod(func)
+        # not nested function
+        and not func.__qualname__[: -len(func.__name__)].endswith("<locals>.")
+    )

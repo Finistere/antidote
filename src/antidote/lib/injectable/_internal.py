@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Callable, cast, Mapping, Optional, TypeVar
 
-from ._provider import InjectableProvider
 from ..._internal import API
-from ...core import inject, Scope, Wiring
-from ...core.exceptions import DuplicateDependencyError
+from ...core import Catalog, inject, LifeTime, Wiring
+from ._provider import FactoryProvider
 
 C = TypeVar("C", bound=type)
 
@@ -15,21 +14,14 @@ C = TypeVar("C", bound=type)
 def register_injectable(
     *,
     klass: type,
-    scope: Optional[Scope],
+    lifetime: Optional[LifeTime],
     wiring: Optional[Wiring],
     factory_method: Optional[str],
     type_hints_locals: Optional[Mapping[str, object]],
-    provider: InjectableProvider = inject.get(InjectableProvider),
+    catalog: Catalog,
 ) -> None:
-    from ...service import Service
-
-    if issubclass(klass, Service):
-        raise DuplicateDependencyError(
-            f"{klass} is already defined as a dependency by inheriting {Service}"
-        )
-
     if wiring is not None:
-        wiring.wire(klass=klass, type_hints_locals=type_hints_locals)
+        wiring.wire(klass=klass, type_hints_locals=type_hints_locals, catalog=catalog.private)
 
     factory: Callable[[], type]
     if factory_method is not None:
@@ -43,4 +35,6 @@ def register_injectable(
     else:
         factory = cast(Callable[[], type], klass)  # for mypy...
 
-    provider.register(klass=klass, scope=scope, factory=factory)
+    catalog.providers[FactoryProvider].register(
+        dependency=klass, factory=factory, lifetime=lifetime
+    )

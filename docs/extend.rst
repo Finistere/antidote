@@ -104,7 +104,7 @@ them out of the box, we expect someone else to provide the examples:
             dependency = f"random:{kind}"
             # Ensures that no other provider conflicts with the dependency.
             # It roughly checks exists() on all of them.
-            self._assert_not_duplicate(dependency)
+            self._assert_cannot_provide(dependency)
             self._kind_to_values[dependency] = values
 
     # The recommend way is not to expose the provider directly, but to expose utility

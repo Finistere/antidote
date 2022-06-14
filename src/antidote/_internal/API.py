@@ -42,3 +42,4 @@ def private(x: T) -> T:
 
 
 Deprecated = Annotated[T, "deprecated argument"]
+Experimental = Annotated[T, "experimental argument"]

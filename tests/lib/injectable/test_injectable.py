@@ -1,20 +1,17 @@
 # pyright: reportUnusedClass=false
 from __future__ import annotations
 
-from typing import Iterator
-
 import pytest
 
-from antidote import inject, Inject, injectable, Service, Wiring, world
+from antidote import inject, injectable, Wiring, world
+from antidote.core import Inject, PublicCatalog
 from antidote.core.exceptions import DuplicateDependencyError
-from antidote.lib.injectable import register_injectable_provider
+from antidote.lib.injectable import antidote_injectable
 
 
 @pytest.fixture(autouse=True)
-def setup_world() -> Iterator[None]:
-    with world.test.empty():
-        register_injectable_provider()
-        yield
+def setup_world() -> None:
+    world.include(antidote_injectable)
 
 
 def test_simple() -> None:
@@ -22,10 +19,10 @@ def test_simple() -> None:
     class Dummy:
         pass
 
-    dummy = world.get(Dummy)
+    dummy = world[Dummy]
     assert isinstance(dummy, Dummy)
     # Singleton by default
-    assert world.get(Dummy) is dummy
+    assert world[Dummy] is dummy
 
     @inject
     def f(x: Dummy = inject.me()) -> Dummy:
@@ -34,44 +31,26 @@ def test_simple() -> None:
     assert f() is dummy
 
     @inject
-    def f2(x: Dummy = inject.get(Dummy)) -> Dummy:
+    def f2(x: Dummy = inject[Dummy]) -> Dummy:
         return x
 
     assert f2() is dummy
 
 
 def test_singleton() -> None:
-    @injectable(singleton=True)
+    @injectable(lifetime="singleton")
     class Single:
         pass
 
-    @injectable(singleton=False)
+    @injectable(lifetime="transient")
     class Consumable:
         pass
 
-    assert isinstance(world.get(Single), Single)
-    assert world.get(Single) is world.get(Single)
+    assert isinstance(world[Single], Single)
+    assert world[Single] is world[Single]
 
-    assert isinstance(world.get(Consumable), Consumable)
-    assert world.get(Consumable) is not world.get(Consumable)
-
-
-def test_scope() -> None:
-    scope = world.scopes.new(name="dummy")
-
-    @injectable(scope=scope)
-    class Scoped:
-        pass
-
-    scoped = world.get(Scoped)
-    assert isinstance(scoped, Scoped)
-    assert world.get(Scoped) is scoped
-
-    world.scopes.reset(scope)
-
-    new_scoped = world.get(Scoped)
-    assert isinstance(new_scoped, Scoped)
-    assert new_scoped is not scoped
+    assert isinstance(world[Consumable], Consumable)
+    assert world[Consumable] is not world[Consumable]
 
 
 def test_default_wiring() -> None:
@@ -88,7 +67,7 @@ def test_default_wiring() -> None:
             return x
 
         @inject
-        def injected_method(self, x: Dummy = inject.get(Dummy)) -> Dummy:
+        def injected_method(self, x: Dummy = inject[Dummy]) -> Dummy:
             return x
 
     @injectable(wiring=None)
@@ -100,16 +79,16 @@ def test_default_wiring() -> None:
             return x
 
         @inject
-        def injected_method(self, x: Dummy = inject.get(Dummy)) -> Dummy:
+        def injected_method(self, x: Dummy = inject[Dummy]) -> Dummy:
             return x
 
-    dummy = world.get(Dummy)
-    ww: WithWiring = world.get(WithWiring)
+    dummy = world[Dummy]
+    ww: WithWiring = world[WithWiring]
     assert ww.dummy is dummy
     assert ww.method() is dummy
     assert ww.injected_method() is dummy
 
-    nw: NoWiring = world.get(NoWiring)
+    nw: NoWiring = world[NoWiring]
     assert nw.dummy is not dummy
     assert nw.method() is not dummy
     assert nw.injected_method() is dummy
@@ -128,12 +107,12 @@ def test_no_wiring() -> None:
         def method(self, x: Inject[Dummy]) -> Dummy:
             ...
 
-    service: MyService = world.get(MyService)
+    service: MyService = world[MyService]
     assert isinstance(service, MyService)
     assert not isinstance(service.dummy, Dummy)
 
     with pytest.raises(TypeError):
-        service.method()  # type: ignore
+        service.method()  # pyright: ignore
 
 
 def test_custom_wiring() -> None:
@@ -141,7 +120,7 @@ def test_custom_wiring() -> None:
     class Dummy:
         pass
 
-    @injectable(wiring=Wiring(dependencies={"x": Dummy}))
+    @injectable(wiring=Wiring(fallback={"x": Dummy}))
     class MyService:
         def __init__(self, x: Dummy) -> None:
             self.dummy = x
@@ -149,9 +128,9 @@ def test_custom_wiring() -> None:
         def method(self, x: Dummy) -> Dummy:
             return x
 
-    service: MyService = world.get(MyService)
+    service: MyService = world[MyService]
     assert isinstance(service, MyService)
-    assert service.method() is world.get(Dummy)  # type: ignore
+    assert service.method() is world[Dummy]  # type: ignore
 
 
 @pytest.mark.parametrize("factory_method", ["static_method", "class_method"])
@@ -171,21 +150,16 @@ def test_factory(factory_method: str) -> None:
         def static_method() -> Dummy:
             return Dummy(sentinel)
 
-    dummy: Dummy = world.get(Dummy)
+    dummy: Dummy = world[Dummy]
     assert isinstance(dummy, Dummy)
-    assert dummy is world.get(Dummy)
+    assert dummy is world[Dummy]
     assert dummy.x is sentinel
 
 
-@pytest.mark.parametrize(
-    "arg", ["singleton", "scope", "wiring", "factory_method", "type_hints_locals"]
-)
+@pytest.mark.parametrize("arg", ["lifetime", "wiring", "factory_method", "type_hints_locals"])
 def test_invalid_arguments(arg: str) -> None:
     with pytest.raises(TypeError, match=".*" + arg + ".*"):
-
-        @injectable(**{arg: object()})  # type: ignore
-        class Dummy:
-            ...
+        injectable(**{arg: object()})  # type: ignore
 
 
 def test_invalid_class() -> None:
@@ -217,14 +191,6 @@ def test_invalid_factory_method() -> None:
                 ...
 
 
-def test_forbid_inheriting_service_class() -> None:
-    with pytest.raises(DuplicateDependencyError, match=".*Service.*"):
-
-        @injectable
-        class Dummy(Service):
-            ...
-
-
 def test_duplicate_declaration() -> None:
     with pytest.raises(DuplicateDependencyError, match=".*Dummy.*"):
 
@@ -232,3 +198,39 @@ def test_duplicate_declaration() -> None:
         @injectable
         class Dummy:
             ...
+
+
+def test_catalog(catalog: PublicCatalog) -> None:
+    catalog.include(antidote_injectable)
+
+    @injectable(catalog=catalog)
+    class Dummy:
+        ...
+
+    assert Dummy not in world
+    assert Dummy in catalog
+
+    with pytest.raises(TypeError, match="catalog"):
+        injectable(catalog=object())  # type: ignore
+
+
+def test_private_accessible(catalog: PublicCatalog) -> None:
+    catalog.include(antidote_injectable)
+
+    @injectable(catalog=catalog.private)
+    class Private:
+        ...
+
+    @injectable(catalog=catalog)
+    class Dummy:
+        def __init__(self, private: Private = inject.me()) -> None:
+            self.private = private
+
+    @injectable(catalog=catalog)
+    class Dummy2:
+        @inject
+        def __init__(self, private: Private = inject.me()) -> None:
+            self.private = private
+
+    assert catalog[Dummy].private is catalog.private[Private]
+    assert catalog[Dummy2].private is catalog.private[Private]

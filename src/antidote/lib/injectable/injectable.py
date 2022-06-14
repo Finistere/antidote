@@ -4,29 +4,26 @@ from typing import Callable, Mapping, Optional, overload, TypeVar, Union
 
 from typing_extensions import Literal
 
+from ..._internal import API, Default, retrieve_or_validate_injection_locals
+from ...core import Catalog, LifeTime, LifetimeType, TypeHintsLocals, Wiring, world
 from ._internal import register_injectable
-from ..._internal import API
-from ..._internal.localns import retrieve_or_validate_injection_locals
-from ..._internal.utils import Default
-from ...core import Scope, Wiring
-from ...utils import validated_scope
 
 __all__ = ["injectable"]
+
+from ...core.utils import is_catalog
 
 C = TypeVar("C", bound=type)
 
 
 @overload
 def injectable(
-    klass: C,
+    __klass: C,
     *,
-    singleton: Optional[bool] = None,
-    scope: Optional[Scope] = Scope.sentinel(),
-    wiring: Optional[Wiring] = Wiring(),
-    factory_method: Optional[str] = None,
-    type_hints_locals: Union[
-        Mapping[str, object], Literal["auto"], Default, None
-    ] = Default.sentinel,
+    lifetime: LifetimeType = ...,
+    wiring: Wiring | None = ...,
+    factory_method: str = ...,
+    type_hints_locals: TypeHintsLocals = ...,
+    catalog: Catalog = ...,
 ) -> C:
     ...
 
@@ -34,33 +31,31 @@ def injectable(
 @overload
 def injectable(
     *,
-    singleton: Optional[bool] = None,
-    scope: Optional[Scope] = Scope.sentinel(),
-    wiring: Optional[Wiring] = Wiring(),
-    factory_method: Optional[str] = None,
-    type_hints_locals: Union[
-        Mapping[str, object], Literal["auto"], Default, None
-    ] = Default.sentinel,
+    lifetime: LifetimeType = ...,
+    wiring: Wiring | None = ...,
+    factory_method: str = ...,
+    type_hints_locals: TypeHintsLocals = ...,
+    catalog: Catalog = ...,
 ) -> Callable[[C], C]:
     ...
 
 
 @API.public
 def injectable(
-    klass: Optional[C] = None,
+    __klass: Optional[C] = None,
     *,
-    singleton: Optional[bool] = None,
-    scope: Optional[Scope] = Scope.sentinel(),
+    lifetime: LifetimeType = "singleton",
     wiring: Optional[Wiring] = Wiring(),
     factory_method: Optional[str] = None,
     type_hints_locals: Union[
         Mapping[str, object], Literal["auto"], Default, None
     ] = Default.sentinel,
+    catalog: Catalog = world,
 ) -> Union[C, Callable[[C], C]]:
     """
     .. versionadded:: 1.3
 
-    Defines the decorated class as an injectable.
+    Defines the decorated class as a dependency. The class will now point to an instance of it.
 
     .. doctest:: lib_injectable
 
@@ -78,58 +73,52 @@ def injectable(
         ... class MyService:
         ...     def __init__(self, dummy: Dummy = inject.me()):
         ...         self.dummy = dummy
-        >>> world.get(MyService).dummy
+        >>> world[MyService].dummy
         <Dummy object at ...>
 
-    By default all injectables are declared as singleton, meaning only one instances will be used
-    during the application lifetime. But you can configure it however you need it:
+    By default, the singleton :py:class:`.Scope` is used, at most only one instance is created:
 
     .. doctest:: lib_injectable
 
-        >>> world.get(MyService) is world.get(MyService)
+        >>> world[MyService] is world[MyService]
         True
-        >>> @injectable(singleton=False)
+        >>> @injectable(lifetime='transient')
         ... class ThrowAwayService:
         ...     pass
-        >>> world.get(ThrowAwayService) is world.get(ThrowAwayService)
+        >>> world[ThrowAwayService] is world[ThrowAwayService]
         False
 
-    One can also specify a :code:`factory_method` instead of relying only on :code:`__init__`.
+    It is also possible to use a class or static method instead for the intstantiation:
 
     .. doctest:: lib_injectable
 
         >>> @injectable(factory_method='build')
         ... class ComplexService:
         ...     def __init__(self, name: str, dummy: Dummy) -> None:
-        ...         self.name = name
+        ...         self.env = name
         ...         self.dummy = dummy
         ...
         ...     @classmethod
         ...     def build(cls, dummy: Dummy = inject.me()) -> 'ComplexService':
         ...         return ComplexService('Greetings from build!', dummy)
-        >>> world.get(ComplexService).name
+        >>> world.get(ComplexService).env
         'Greetings from build!'
 
     .. note::
 
         If your wish to declare to register an external class to Antidote, prefer using
-        a factory with :py:func:`~.factory.factory`.
+        defining a factory with :py:func:`.lazy`.
 
     Args:
-        klass: Class to register as a dependency. It will be instantiated  only when
-            requested.
-        singleton: Whether the injectable is a singleton or not. A singleton is instantiated only
-            once. Mutually exclusive with :code:`scope`. Defaults to :py:obj:`True`
-        scope: Scope of the service. Mutually exclusive with :code:`singleton`.  The scope defines
-            if and how long the service will be cached. See :py:class:`~.core.container.Scope`.
-            Defaults to :py:meth:`~.core.container.Scope.singleton`.
+        __klass: **/positional-only/** Class to register as a dependency. It will be instantiated
+            only when necessary.
+        lifetime: :py:class:`.Scope`, or its lowercase name, if any of the dependency. Defaults to
+            :code:`'singleton'`.
         wiring: :py:class:`.Wiring` to be used on the class. By defaults will apply
-            a simple :py:func:`.inject` on all methods, so only annotated type hints are
-            taken into account. Can be deactivated by specifying :py:obj:`None`.
+            a simple :py:func:`.inject` on all methods. But it won't replace any :py:func:`.inject`
+            that has been explicitly applied. Specifying :py:obj:`None` will prevent any wiring.
         factory_method: Class or static method to use to build the class. Defaults to
             :py:obj:`None`.
-
-            .. versionadded:: 1.3
         type_hints_locals: Local variables to use for :py:func:`typing.get_type_hints`. They
             can be explicitly defined by passing a dictionary or automatically detected with
             :py:mod:`inspect` and frame manipulation by specifying :code:`'auto'`. Specifying
@@ -138,14 +127,11 @@ def injectable(
             :py:data:`.config` value of :py:attr:`~.Config.auto_detect_type_hints_locals`. If
             :py:obj:`True` the default value is equivalent to specifying :code:`'auto'`,
             otherwise to :py:obj:`None`.
-
-            .. versionadded:: 1.3
-
-    Returns:
-        The decorated class, unmodified, if specified or the class decorator.
+        catalog: :py:class:`.Catalog` in which the dependency should be registered. Defaults to
+            :py:obj:`.world`
 
     """
-    scope = validated_scope(scope, singleton, default=Scope.singleton())
+    valid_lifetime = LifeTime.of(lifetime)
     if wiring is not None and not isinstance(wiring, Wiring):
         raise TypeError(f"wiring must be a Wiring or None, not a {type(wiring)!r}")
     if not (isinstance(factory_method, str) or factory_method is None):
@@ -153,8 +139,10 @@ def injectable(
             f"factory_method must be a class/staticmethod name or None, "
             f"not a {type(factory_method)}"
         )
+    if not is_catalog(catalog):
+        raise TypeError(f"catalog must be a Catalog, not a {type(catalog)!r}")
 
-    localns = retrieve_or_validate_injection_locals(type_hints_locals)
+    tp_locals = retrieve_or_validate_injection_locals(type_hints_locals)
 
     def reg(cls: C) -> C:
         if not isinstance(cls, type):
@@ -162,11 +150,12 @@ def injectable(
 
         register_injectable(
             klass=cls,
-            scope=scope,
+            lifetime=valid_lifetime,
             wiring=wiring,
             factory_method=factory_method,
-            type_hints_locals=localns,
+            type_hints_locals=tp_locals,
+            catalog=catalog,
         )
         return cls
 
-    return klass and reg(klass) or reg
+    return __klass and reg(__klass) or reg

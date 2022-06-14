@@ -1,13 +1,15 @@
-from .injectable import injectable
+from __future__ import annotations
 
 from ..._internal import API
+from ...core import Catalog
+from .injectable import injectable
 
-__all__ = ["register_injectable_provider", "injectable"]
+__all__ = ["antidote_injectable", "injectable"]
 
 
-@API.experimental
-def register_injectable_provider() -> None:
-    from ... import world
-    from ._provider import InjectableProvider
+@API.public
+def antidote_injectable(catalog: Catalog) -> None:
+    from ._provider import FactoryProvider
 
-    world.provider(InjectableProvider)
+    if FactoryProvider not in catalog.providers:
+        catalog.include(FactoryProvider)

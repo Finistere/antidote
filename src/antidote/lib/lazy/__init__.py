@@ -1,42 +1,31 @@
-from .constant import (
-    Const,
-    Constant,
-    ConstantFactory,
-    ConstantValueProviderFunction,
-    TypedConstantFactory,
-    ConstantValueProvider,
-)
-from .lazy import lazy, LazyWrappedFunction
+from __future__ import annotations
 
 from ..._internal import API
+from ...core import Catalog
+from ._constant import ConstImpl
+from ._lazy import LazyImpl
+from .constant import Const, is_const_factory
+from .lazy import is_lazy, Lazy, LazyFunction, LazyMethod, LazyProperty
 
 __all__ = [
-    "ConstantFactory",
-    "TypedConstantFactory",
-    "ConstantValueProviderFunction",
-    "ConstantValueProvider",
     "const",
     "lazy",
-    "LazyWrappedFunction",
-    "register_lazy_provider",
-    "Constant",
+    "Lazy",
+    "is_lazy",
+    "is_const_factory",
+    "antidote_lazy",
+    "LazyFunction",
+    "LazyProperty",
+    "LazyMethod",
 ]
 
-
-@API.private
-def __const() -> Const:
-    from ._constant_factory import ConstImpl
-
-    return ConstImpl()
+const: Const = ConstImpl()
+lazy: Lazy = LazyImpl()
 
 
-# Singleton instance of Const.
-const: Const = __const()
-
-
-@API.experimental
-def register_lazy_provider() -> None:
-    from ... import world
+@API.public
+def antidote_lazy(catalog: Catalog) -> None:
     from ._provider import LazyProvider
 
-    world.provider(LazyProvider)
+    if LazyProvider not in catalog.providers:
+        catalog.include(LazyProvider)

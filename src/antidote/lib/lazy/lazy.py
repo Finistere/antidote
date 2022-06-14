@@ -1,201 +1,309 @@
 from __future__ import annotations
 
-import inspect
-from typing import Callable, cast, Optional, overload, TypeVar, Union
+from typing import Any, Callable, overload, TypeVar
 
-from typing_extensions import ParamSpec, Protocol
+from typing_extensions import Concatenate, ParamSpec, Protocol
 
-from ._lazy import LazyWrapper, LazyWrapperWithoutScope
-from ..._internal import API
-from ...core import inject, Scope
-from ...core.annotations import HiddenDependency
-from ...core.exceptions import DoubleInjectionError
-from ...utils import validated_scope
+from ..._internal import API, Default
+from ...core import Catalog, Dependency, LifetimeType, TypeHintsLocals, world
 
-__all__ = ["LazyWrappedFunction", "lazy"]
+__all__ = ["is_lazy", "Lazy", "LazyMethod", "LazyFunction"]
 
 P = ParamSpec("P")
 T = TypeVar("T")
+F = TypeVar("F", bound=Callable[..., Any])
 Out = TypeVar("Out", covariant=True)
 
 
 @API.public
-class LazyWrappedFunction(Protocol[P, Out]):
-    """
-    .. versionadded:: 1.4
-
-    Wrapper protocol of a wrapped :py:func:`.lazy` function. The underlying function can be
-    accessed directly through :py:attr:`~.LazyWrappedFunction.__wrapped__` and can be called
-    directly with :py:meth:`~.LazyWrappedFunction.call` for convenience.
-    """
-
+class LazyFunction(Protocol[P, Out]):
     @property
     def __wrapped__(self) -> Callable[P, Out]:
-        """
-        Actual function wrapped by :py:func:`.lazy`.
-        """
         ...
 
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> HiddenDependency[Out]:
-        """
-        Creates a dependency which will execute the wrapped function with the given arguments
-        only when needed.
-
-        .. doctest:: lib_lazy_lazy_wrapped_function__call__
-
-            >>> from antidote import lazy, inject
-            >>> @lazy
-            ... def hello(name: str) -> str:
-            ...     print("Executing...")
-            ...     return f"Hello {name}!"
-            >>> @inject
-            ... def f(msg: str = hello("John")) -> str:
-            ...     return msg
-            >>> f()
-            Executing...
-            'Hello John!'
-        """
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Dependency[Out]:
         ...
-
-    def call(self, *args: P.args, **kwargs: P.kwargs) -> Out:
-        """
-        Provides a convenient method to call the underlying function directly:
-
-        .. doctest:: lib_lazy_lazy_wrapped_function_call
-
-            >>> from antidote import lazy, inject
-            >>> @lazy
-            ... def hello(name: str) -> str:
-            ...     print("Executing...")
-            ...     return f"Hello {name}!"
-            >>> hello.call("John")
-            Executing...
-            'Hello John!'
-
-        """
-        ...
-
-
-@overload
-def lazy(
-    *, singleton: Optional[bool] = None, scope: Optional[Scope] = Scope.sentinel()
-) -> Callable[[Callable[P, T]], LazyWrappedFunction[P, T]]:
-    ...
-
-
-@overload
-def lazy(
-    __func: Callable[P, T],
-    *,
-    singleton: Optional[bool] = None,
-    scope: Optional[Scope] = Scope.sentinel(),
-) -> LazyWrappedFunction[P, T]:
-    ...
 
 
 @API.public
-def lazy(
-    __func: Optional[Callable[P, T]] = None,
-    *,
-    singleton: Optional[bool] = None,
-    scope: Optional[Scope] = Scope.sentinel(),
-) -> Union[LazyWrappedFunction[P, T], Callable[[Callable[P, T]], LazyWrappedFunction[P, T]]]:
-    """
-    .. versionadded:: 1.4
+class LazyMethod(Protocol[P, Out]):
+    # Have to copy-paste LazyFunction for Mypy... error: ParamSpec "P" is unbound
+    @property
+    def __wrapped__(self) -> Callable[Concatenate[Any, P], Out]:
+        ...
 
-    Decorated function will now return a dependency allowing lazy execution with :py:obj:`.inject`.
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Dependency[Out]:
+        ...
 
-    .. doctest:: lib_lazy_lazy
+    def __get__(self, instance: object, owner: type) -> LazyMethod[P, Out]:
+        ...
 
-        >>> import os
-        >>> from antidote import inject, lazy, world
-        >>> class Template:
-        ...     pass
-        >>> @lazy
-        ... def main_template() -> Template:
-        ...     print("*Called main_template.*")
-        ...     return Template()
-        >>> @inject
-        ... def f(t: Template = main_template()) -> Template:
-        ...     return t
-        >>> f()
-        *Called main_template.*
-        <Template ...>
-        >>> world.get(main_template())
-        <Template ...>
 
-    The original function is still accessible through :py:attr:`~.LazyWrappedFunction.__wrapped__`
-    and for convenience :py:meth:`~.LazyWrappedFunction.call` can be used to call it.
+@API.public
+class LazyProperty(Dependency[Out], Protocol[Out]):
+    @property
+    def __wrapped__(self) -> Callable[[Any], Out]:
+        ...
 
-    .. doctest:: lib_lazy_lazy
 
-        >>> main_template.call()
-        *Called main_template.*
-        <Template ...>
-        >>> main_template.__wrapped__
-        <function main_template ...>
+@API.public
+class LazyValue(Dependency[Out], Protocol[Out]):
+    @property
+    def __wrapped__(self) -> Callable[[], Out]:
+        ...
 
-    By default the function returns a singleton:
 
-    .. doctest:: lib_lazy_lazy
+@API.public
+class Lazy(Protocol):
+    @overload
+    def __call__(
+        self,
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None | Default = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> DecoratorLazyFunction:
+        ...
 
-        >>> @lazy
-        ... def root() -> Template:
-        ...     return Template()
-        >>> world.get[Template](root()) is world.get[Template](root())
-        True
-        >>> @lazy(singleton=False)
-        ... def tmp() -> Template:
-        ...     return Template()
-        >>> world.get[Template](tmp()) is world.get[Template](tmp())
-        False
+    @overload
+    def __call__(
+        self,
+        __func: staticmethod[Callable[P, T]],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None | Default = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> staticmethod[LazyFunction[P, T]]:
+        ...
 
-    Arguments are also taken into account. The same instance is returned if arguments are equal.
-    The arguments MUST be hashable.
+    @overload
+    def __call__(
+        self,
+        __func: Callable[P, T],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None | Default = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> LazyFunction[P, T]:
+        ...
 
-    .. doctest:: lib_lazy_lazy
+    def __call__(
+        self,
+        __func: object = None,
+        *,
+        lifetime: LifetimeType = "transient",
+        inject: None | Default = Default.sentinel,
+        type_hints_locals: TypeHintsLocals = Default.sentinel,
+        catalog: Catalog = world,
+    ) -> object:
+        """
+        As the name implies, a lazy function executes lazily. The new function now returns a dependency
+        which will only be executed when retrieving it through a catalog such as :py:obj:`.world` or
+        at injection.
 
-        >>> from dataclasses import dataclass
-        >>> @dataclass
-        ... class Template:
-        ...     name: str
-        >>> @lazy
-        ... def template(name: str) -> Template:
-        ...     return Template(name=name)
-        >>> @inject
-        ... def f(x: Template = template(name='test')) -> Template:
-        ...     return x
-        >>> f() is f()
-        True
+        .. doctest:: lib_lazy_lazy
 
-    Args:
-        __func: **/positional-only/** Function to wrap, which will be called lazily for
-            dependencies.
-        singleton: Whether the injectable is a singleton or not. A singleton is instantiated only
-            once. Mutually exclusive with :code:`scope`. Defaults to :py:obj:`True`
-        scope: Scope of the service. Mutually exclusive with :code:`singleton`.  The scope defines
-            if and how long the service will be cached. See :py:class:`~.core.container.Scope`.
-            Defaults to :py:meth:`~.core.container.Scope.singleton`.
+            >>> from dataclasses import dataclass
+            >>> from antidote import inject, lazy, world
+            >>> @dataclass
+            ... class Template:
+            ...     name: str
+            >>> @lazy
+            ... def main_template() -> Template:
+            ...     print("# Called main_template()")
+            ...     return Template("main")
+            >>> @inject
+            ... def f(t: Template = inject[main_template()]) -> Template:
+            ...     return t
+            >>> f()
+            # Called main_template()
+            Template(name='main')
 
-    Returns:
-        A :py:class:`.LazyWrappedFunction` or a function decorator to create it.
-    """
-    scope = validated_scope(scope, singleton, default=Scope.singleton())
+        By default, the dependency does not have any :py:class:`.Scope`. So it's re-computed on each
+        access:
 
-    def decorate(func: Callable[P, T]) -> LazyWrappedFunction[P, T]:
-        if not (callable(func) and inspect.isfunction(func)):
-            raise TypeError("lazy can only be applied on a function.")
+        .. doctest:: lib_lazy_lazy
 
-        # for PyRight because we use the inspect.isfunction type guard.
-        func = cast(Callable[P, T], func)
+            >>> world[main_template()]
+            Template(name='main')
+            >>> f() is world[main_template()]
+            False
 
-        try:
-            func = inject(func)
-        except DoubleInjectionError:
-            pass
+        It is also possible to call the function with arguments:
 
-        if scope is None:
-            return LazyWrapperWithoutScope[P, T](func=func)
-        return LazyWrapper[P, T](func=func, scope=scope)
+        .. doctest:: lib_lazy_lazy
 
-    return __func and decorate(__func) or decorate
+            >>> @lazy
+            ... def template(name: str) -> Template:
+            ...     return Template(name=name)
+            >>> @inject
+            ... def f(t: Template = inject[template(name='test')]) -> Template:
+            ...     return t
+            >>> f()
+            Template(name='test')
+
+        When using it with a :py:class:`.Scope` arguments are taken into account. Hence, they must be
+        hashable.
+
+        .. doctest:: lib_lazy_lazy
+
+            >>> @lazy(lifetime='singleton')
+            ... def template(name: str) -> Template:
+            ...     return Template(name=name)
+            >>> world[template(name='hello')] is world[template(name='hello')]
+            True
+
+        .. note::
+
+            The original function is still accessible through :code:`__wrapped__`. Unfortunately this
+            cannot be typed properly without leading to issues when wrapping methods typically.
+
+        Args:
+            __func: **/positional-only/** Function to wrap, which will be called lazily for
+                dependencies.
+            lifetime: :py:class:`.Scope`, or its lowercase name, if any of the dependency. Defaults to
+                :py:obj:`None`, the dependency value is re-computed each time.
+            inject: Can be used to prevent any injection by specifying :py:obj:`None`. Otherwise, the
+                function will be injected if not yet already.
+            type_hints_locals: Local variables to use for :py:func:`typing.get_type_hints`. They
+                can be explicitly defined by passing a dictionary or automatically detected with
+                :py:mod:`inspect` and frame manipulation by specifying :code:`'auto'`. Specifying
+                :py:obj:`None` will deactivate the use of locals. When :code:`ignore_type_hints` is
+                :py:obj:`True`, this features cannot be used. The default behavior depends on the
+                :py:data:`.config` value of :py:attr:`~.Config.auto_detect_type_hints_locals`. If
+                :py:obj:`True` the default value is equivalent to specifying :code:`'auto'`,
+                otherwise to :py:obj:`None`.
+            catalog: :py:class:`.Catalog` in which the dependency should be registered. Defaults to
+                :py:obj:`.world`
+
+        Returns:
+            A :py:class:`.LazyWrappedFunction` or a function decorator to create it.
+        """
+        ...
+
+    @overload
+    def method(
+        self,
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> Callable[[Callable[Concatenate[Any, P], T]], LazyMethod[P, T]]:
+        ...
+
+    @overload
+    def method(
+        self,
+        __func: Callable[Concatenate[Any, P], T],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> LazyMethod[P, T]:
+        ...
+
+    def method(
+        self,
+        __func: object = None,
+        *,
+        lifetime: LifetimeType = "transient",
+        inject: None | Default = Default.sentinel,
+        type_hints_locals: TypeHintsLocals = Default.sentinel,
+        catalog: Catalog = world,
+    ) -> object:
+        ...
+
+    @overload
+    def property(
+        self,
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> Callable[[Callable[[Any], T]], LazyProperty[T]]:
+        ...
+
+    @overload
+    def property(
+        self,
+        __func: Callable[[Any], T],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> LazyProperty[T]:
+        ...
+
+    def property(
+        self,
+        __func: object = None,
+        *,
+        lifetime: LifetimeType = "transient",
+        inject: None | Default = Default.sentinel,
+        type_hints_locals: TypeHintsLocals = Default.sentinel,
+        catalog: Catalog = world,
+    ) -> object:
+        ...
+
+    @overload
+    def value(
+        self,
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> Callable[[Callable[[], T] | staticmethod[Callable[[], T]]], LazyProperty[T]]:
+        ...
+
+    @overload
+    def value(
+        self,
+        __func: Callable[[], T] | staticmethod[Callable[[], T]],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> LazyValue[T]:
+        ...
+
+    def value(
+        self,
+        __func: object = None,
+        *,
+        lifetime: LifetimeType = "transient",
+        inject: None | Default = Default.sentinel,
+        type_hints_locals: TypeHintsLocals = Default.sentinel,
+        catalog: Catalog = world,
+    ) -> object:
+        ...
+
+
+@API.public
+def is_lazy(__obj: object) -> bool:
+    from ._lazy import LazyWrapper
+
+    return isinstance(__obj, LazyWrapper)
+
+
+# Used for typing purposes, the protocol itself is not part of the public API.
+@API.private
+class DecoratorLazyFunction(Protocol):
+    @overload
+    def __call__(self, __func: staticmethod[Callable[P, T]]) -> staticmethod[LazyFunction[P, T]]:
+        ...
+
+    @overload
+    def __call__(self, __func: Callable[P, T]) -> LazyFunction[P, T]:
+        ...
+
+    def __call__(self, __func: object) -> object:
+        ...

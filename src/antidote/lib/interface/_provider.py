@@ -1,237 +1,366 @@
 from __future__ import annotations
 
 import bisect
-from dataclasses import dataclass, field
-from typing import Any, cast, Generic, Iterator, List, Optional, Sequence, TypeVar, Union
+import dataclasses
+import threading
+from dataclasses import dataclass
+from typing import Any, cast, Generic, Iterable, List, Sequence, Type, TypeVar, Union
 
 from typing_extensions import final
 
-from ._query import ConstraintsAlias, Query
-from .predicate import NeutralWeight, Predicate, PredicateWeight
-from ..._internal import API
-from ..._internal.utils import debug_repr
-from ...core import Container, DependencyDebug, DependencyValue, does_not_freeze, Provider
-from ...core.utils import DebugInfoPrefix
+from ..._internal import API, debug_repr
+from ...core import (
+    DependencyDebug,
+    DuplicateDependencyError,
+    ProvidedDependency,
+    Provider,
+    ReadOnlyCatalog,
+)
+from ...core.data import DebugInfoPrefix, LifeTime
+from ._internal import Constraint, ImplementationQuery, ImplementationsRegistryDependency
+from .predicate import HeterogeneousWeightError, NeutralWeight, Predicate, PredicateWeight
 
-__all__ = ["InterfaceProvider"]
+__all__ = ["InterfaceProvider", "ImplementationsRegistry"]
 
 T = TypeVar("T")
 Weight = TypeVar("Weight", bound=PredicateWeight)
+W = TypeVar("W", bound=PredicateWeight)
 
 
-class InterfaceProvider(Provider[Query]):
-    def __init__(self) -> None:
-        super().__init__()
-        self.__implementations: dict[type, Implementations] = dict()
+class InterfaceProvider(Provider):
+    def __init__(
+        self,
+        *,
+        catalog: ReadOnlyCatalog,
+        implementations: dict[object, ImplementationsRegistry] | None = None,
+    ) -> None:
+        super().__init__(catalog=catalog)
+        self.__implementations: dict[object, ImplementationsRegistry] = implementations or dict()
 
-    def clone(self: InterfaceProvider, keep_singletons_cache: bool) -> InterfaceProvider:
-        provider = InterfaceProvider()
-        provider.__implementations = {
-            key: value.copy() for key, value in self.__implementations.items()
-        }
-
-        return provider
-
-    @does_not_freeze
-    def has_interface(self, tpe: type) -> bool:
-        return tpe in self.__implementations
-
-    def exists(self, dependency: object) -> bool:
-        return dependency in self.__implementations or (
-            isinstance(dependency, Query) and dependency.interface in self.__implementations
+    def unsafe_copy(self) -> InterfaceProvider:
+        return InterfaceProvider(
+            catalog=self._catalog,
+            implementations={key: value.copy() for key, value in self.__implementations.items()},
         )
 
-    def maybe_provide(self, dependency: object, container: Container) -> Optional[DependencyValue]:
-        if not isinstance(dependency, Query):
-            if not isinstance(dependency, type):
-                return None
-            dependency = Query(interface=dependency, constraints=[], all=False)
+    def can_provide(self, dependency: object) -> bool:
+        if isinstance(dependency, (ImplementationQuery, ImplementationsRegistryDependency)):
+            return dependency.interface in self.__implementations
+        return dependency in self.__implementations
+
+    def unsafe_maybe_provide(self, dependency: object, out: ProvidedDependency) -> None:
+        if isinstance(dependency, ImplementationQuery):
+            query: ImplementationQuery[object] = dependency
+            try:
+                implementations = self.__implementations[query.interface]
+            except KeyError:
+                return
+        else:
+            if isinstance(dependency, ImplementationsRegistryDependency):
+                try:
+                    out.set_value(
+                        self.__implementations[dependency.interface], lifetime=LifeTime.SINGLETON
+                    )
+                except KeyError:
+                    pass
+                return
+
+            try:
+                implementations = self.__implementations[dependency]
+            except KeyError:
+                return
+
+            query = ImplementationQuery[object](dependency)
+
+        get = self._catalog.__getitem__
+
+        if query.all:
+            values: list[object] = []
+            for candidate in reversed(implementations.candidates_ordered_asc):
+                if candidate.match(query.constraints):
+                    values.append(get(candidate.implementation.dependency))
+            if implementations.default_implementation is not None and not values:
+                values.append(get(implementations.default_implementation.dependency))
+            out.set_value(values, lifetime=LifeTime.TRANSIENT)
+        else:
+            candidates = reversed(implementations.candidates_ordered_asc)
+            for candidate in candidates:
+                if candidate.match(query.constraints):
+                    left_impl = candidate
+                    while left_impl.same_weight_as_left:
+                        left_impl = next(candidates)
+                        if left_impl.match(query.constraints):
+                            raise DuplicateDependencyError(
+                                f"Multiple implementations match the interface "
+                                f"{query.interface!r} for the constraints "
+                                f"{query.constraints}: "
+                                f"{candidate.implementation.identifier!r} and "
+                                f"{left_impl.implementation.identifier!r}"
+                            )
+
+                    out.set_value(
+                        get(candidate.implementation.dependency), lifetime=LifeTime.TRANSIENT
+                    )
+                    return
+            if implementations.default_implementation is not None:
+                # TODO: can be more efficient by using container.provide() when frozen for caching.
+                out.set_value(
+                    get(implementations.default_implementation.dependency),
+                    lifetime=LifeTime.TRANSIENT,
+                )
+
+    def maybe_debug(self, dependency: object) -> DependencyDebug | None:
+        if not isinstance(dependency, ImplementationQuery):
+            dependency = ImplementationQuery[object](dependency)
 
         try:
             implementations = self.__implementations[dependency.interface]
         except KeyError:
             return None
 
-        if dependency.all:
-            values: list[object] = []
-            for impl in implementations.candidates:
-                if impl.match(dependency.constraints):
-                    values.append(container.get(impl.dependency))
-            if implementations.default_dependency is not None:
-                values.append(container.get(implementations.default_dependency))
-            return DependencyValue(values)
-        else:
-            candidates = implementations.candidates
-            for impl in candidates:
-                if impl.match(dependency.constraints):
-                    left_impl = impl
-                    while left_impl.same_weight_as_left:
-                        left_impl = next(candidates)
-                        if left_impl.match(dependency.constraints):
-                            raise RuntimeError(
-                                f"Multiple implementations match the interface "
-                                f"{dependency.interface!r} for the constraints "
-                                f"{dependency.constraints}: "
-                                f"{impl.dependency!r} and {left_impl.dependency!r}"
-                            )
+        values: list[CandidateImplementation[Any]] = [
+            impl
+            for impl in reversed(implementations.candidates_ordered_asc)
+            if impl.match(dependency.constraints)
+        ]
 
-                    return DependencyValue(container.get(impl.dependency))
-            if implementations.default_dependency is not None:
-                # TODO: can be more efficient by using container.provide() when frozen.
-                return DependencyValue(container.get(implementations.default_dependency))
-
-        return None
-
-    def debug(self, dependency: Query) -> DependencyDebug:
-        if not isinstance(dependency, Query):
-            assert isinstance(dependency, type)
-            dependency = Query(interface=dependency, constraints=[], all=False)
-
-        implementations = self.__implementations[dependency.interface]
-        values: list[Implementation[Any]] = []
-        for impl in implementations.candidates:
-            if impl.match(dependency.constraints):
-                values.append(impl)
-
-        if not dependency.all and len(values) > 0:
-            heaviest = values[0]
-            values = [impl for impl in values if not (impl < heaviest)]
-
-        return DependencyDebug(
-            f"Interface {debug_repr(dependency.interface)}",
-            dependencies=[
+        dependencies: list[DebugInfoPrefix] = []
+        for impl in values:
+            dependencies.append(
                 DebugInfoPrefix(
                     prefix=f"[{impl.weight}] " if len(values) > 1 else "",
-                    dependency=impl.dependency,
+                    dependency=impl.implementation.dependency,
                 )
-                for impl in values
-            ],
-        )
-
-    def register(self, interface: type) -> None:
-        self.__implementations[interface] = Implementations()
-
-    def override_implementation(
-        self, *, interface: type, existing_dependency: object, new_dependency: object
-    ) -> bool:
-        overridden = False
-        implementations = self.__implementations[interface]
-        for impl in implementations.candidates:
-            if impl.dependency == existing_dependency:
-                impl.dependency = new_dependency
-                overridden = True
-        if implementations.default_dependency is existing_dependency:
-            implementations.default_dependency = new_dependency
-            overridden = True
-        return overridden
-
-    def register_default_implementation(self, interface: type, dependency: type) -> None:
-        implementations = self.__implementations[interface]
-        if implementations.default_dependency is not None:
-            raise RuntimeError(
-                f"Default dependency already defined as {implementations.default_dependency!r}"
             )
-        self.__implementations[interface].default_dependency = dependency
 
-    def register_implementation(
-        self, *, interface: type, dependency: object, predicates: list[Predicate[Any]]
-    ) -> None:
-        weight: PredicateWeight = NeutralWeight()
-        if len(predicates) > 0:
-            maybe_weights = [p.weight() for p in predicates]
-            if any(w is None for w in maybe_weights):
-                return
+        if not dependencies and implementations.default_implementation is not None:
+            dependencies.append(
+                DebugInfoPrefix(
+                    prefix="[Default] ",
+                    dependency=implementations.default_implementation.dependency,
+                )
+            )
 
-            weights = cast(List[PredicateWeight], maybe_weights)
-            start = 0
-            for i, w in enumerate(weights):
-                if not isinstance(w, NeutralWeight):
-                    start = i
-                    break
-
-            weight = weights[start]
-            for i in range(1, len(weights)):
-                pos = (start + i) % len(weights)
-                w = weights[pos]
-                if isinstance(w, NeutralWeight):
-                    weight += weight.of_neutral(predicates[pos])
-                else:
-                    weight += w
-
-        self.__implementations[interface].add_candidate(
-            Implementation(dependency=dependency, predicates=predicates, weight=weight)
+        return DependencyDebug(
+            description=debug_repr(cast(object, dependency)),
+            lifetime="transient",
+            dependencies=dependencies,
         )
 
-
-@API.private
-@final
-@dataclass
-class Implementations:
-    __candidates: list[Implementation[Any]] = field(default_factory=list)
-    default_dependency: Optional[object] = field(default=None)
-
-    def add_candidate(self, impl: Implementation[Any]) -> None:
-        pos = bisect.bisect_right(self.__candidates, impl)
-        impl.same_weight_as_left = pos > 0 and not (self.__candidates[pos - 1] < impl)
-        self.__candidates.insert(pos, impl)
-
-    @property
-    def candidates(self) -> Iterator[Implementation[Any]]:
-        return reversed(self.__candidates)
-
-    def copy(self) -> Implementations:
-        return Implementations(self.__candidates.copy(), self.default_dependency)
+    def register(self, interface: object) -> ImplementationsRegistry:
+        implementations = ImplementationsRegistry()
+        if self.__implementations.setdefault(interface, implementations) is not implementations:
+            raise DuplicateDependencyError(f"Interface {interface!r} was already defined.")
+        return implementations
 
 
 @API.private
 @final
-@dataclass(init=False)
-class Implementation(Generic[Weight]):
-    __slots__ = ("dependency", "predicates", "weight", "same_weight_as_left")
-    dependency: object
-    predicates: Sequence[Union[Predicate[Weight], Predicate[NeutralWeight]]]
-    weight: Weight | NeutralWeight
-    same_weight_as_left: bool
+@dataclass(frozen=True, eq=False)
+class ImplementationsRegistry:
+    __slots__ = ("lock", "candidates_ordered_asc", "default_implementation")
+    lock: threading.RLock
+    candidates_ordered_asc: tuple[CandidateImplementation[Any]]
+    default_implementation: Implementation | None
 
     def __init__(
         self,
         *,
-        dependency: object,
-        predicates: list[Predicate[Weight]],
-        weight: Weight | NeutralWeight,
+        candidates: tuple[CandidateImplementation[Any]] = cast(Any, tuple()),
+        default_implementation: Implementation | None = None,
+        lock: threading.RLock | None = None,
     ) -> None:
-        self.dependency = dependency
-        self.predicates = predicates
-        self.weight = weight
+        object.__setattr__(self, "lock", lock or threading.RLock())
+        object.__setattr__(self, "candidates_ordered_asc", candidates)
+        object.__setattr__(self, "default_implementation", default_implementation)
 
-    def __lt__(self, other: Implementation[Weight]) -> bool:
-        if isinstance(self.weight, NeutralWeight) ^ isinstance(other.weight, NeutralWeight):
-            if not isinstance(self.weight, NeutralWeight):
-                real_weight: Weight = self.weight
-                neutral_impl = other
-            else:
-                # Helping pyright
-                assert not isinstance(other.weight, NeutralWeight)
-                neutral_impl = self
-                real_weight = other.weight
-            if len(neutral_impl.predicates) > 0:
-                weight: Weight = real_weight.of_neutral(neutral_impl.predicates[0])
-                for p in neutral_impl.predicates[1:]:
-                    weight += real_weight.of_neutral(p)
-                neutral_impl.weight = weight
-            else:
-                neutral_impl.weight = real_weight.of_neutral(None)
-        return cast(Weight, self.weight) < cast(Weight, other.weight)
+    def copy(self) -> ImplementationsRegistry:
+        return ImplementationsRegistry(
+            candidates=self.candidates_ordered_asc,
+            default_implementation=self.default_implementation,
+            lock=self.lock,
+        )
 
-    def match(self, constraints: ConstraintsAlias) -> bool:
-        for tpe, constraint in constraints:
+    def set_default(self, *, identifier: object, dependency: object) -> None:
+        with self.lock:
+            if self.default_implementation is not None:
+                raise RuntimeError(
+                    f"Default dependency already defined as "
+                    f"{self.default_implementation.identifier!r}"
+                )
+            object.__setattr__(
+                self,
+                "default_implementation",
+                Implementation(identifier=identifier, dependency=dependency),
+            )
+
+    def add(
+        self,
+        *,
+        identifier: object,
+        dependency: object,
+        predicates: Sequence[Predicate[Weight] | Predicate[NeutralWeight]],
+        weights: Sequence[Weight],
+    ) -> None:
+        maybe_candidate = CandidateImplementation.create(
+            identifier=identifier, dependency=dependency, predicates=predicates, weights=weights
+        )
+
+        if maybe_candidate is not None:
+            with self.lock:
+                self.__unsafe_add_candidate(maybe_candidate)
+
+    def replace(
+        self, *, current_identifier: object, new_identifier: object, new_dependency: object
+    ) -> bool:
+        with self.lock:
+            new_implementation = Implementation(
+                identifier=new_identifier, dependency=new_dependency
+            )
+            for pos, candidate in enumerate(self.candidates_ordered_asc):
+                if candidate.implementation.identifier == current_identifier:
+                    candidates = list(self.candidates_ordered_asc)
+                    candidates[pos] = dataclasses.replace(
+                        candidate, implementation=new_implementation
+                    )
+                    object.__setattr__(self, "candidates_ordered_asc", tuple(candidates))
+                    return True
+            if (
+                self.default_implementation is not None
+                and self.default_implementation.identifier == current_identifier
+            ):
+                object.__setattr__(self, "default_implementation", new_implementation)
+                return True
+        return False
+
+    def __unsafe_add_candidate(self, candidate: CandidateImplementation[Any]) -> None:
+        if not self.candidates_ordered_asc:
+            object.__setattr__(self, "candidates_ordered_asc", (candidate,))
+            return
+
+        first = self.candidates_ordered_asc[0]
+        if isinstance(first.weight, NeutralWeight) and not isinstance(
+            candidate.weight, NeutralWeight
+        ):
+            # Fix all weights at once.
+            w_type: Type[PredicateWeight] = type(candidate.weight)
+            candidates = [
+                c.with_weight_type(weight_type=w_type) for c in self.candidates_ordered_asc
+            ]
+        else:
+            candidates = list(self.candidates_ordered_asc)
+            if not isinstance(first.weight, NeutralWeight) and isinstance(
+                candidate.weight, NeutralWeight
+            ):
+                candidate = candidate.with_weight_type(type(first.weight))
+            elif type(candidate.weight) != type(first.weight):  # noqa: E721
+                raise HeterogeneousWeightError(candidate.weight, first.weight)
+
+        pos = bisect.bisect_right(candidates, candidate)
+        if pos > 0 and not (candidates[pos - 1] < candidate):
+            candidate = dataclasses.replace(candidate, same_weight_as_left=True)
+        candidates.insert(pos, candidate)
+        object.__setattr__(self, "candidates_ordered_asc", tuple(candidates))
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class Implementation:
+    __slots__ = ("identifier", "dependency")
+    identifier: object
+    dependency: object
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class CandidateImplementation(Generic[Weight]):
+    __slots__ = ("implementation", "predicates", "weight", "same_weight_as_left")
+    implementation: Implementation
+    predicates: Sequence[Predicate[Weight] | Predicate[NeutralWeight]]
+    weight: Weight
+    same_weight_as_left: bool
+
+    def with_weight_type(self, weight_type: Type[W]) -> CandidateImplementation[W]:
+        assert isinstance(self.weight, NeutralWeight)
+        return cast(
+            CandidateImplementation[W],
+            dataclasses.replace(
+                self,
+                weight=sum(
+                    (weight_type.of_neutral_predicate(p) for p in self.predicates),
+                    weight_type.neutral(),
+                ),
+            ),
+        )
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        identifier: object,
+        dependency: object,
+        predicates: Sequence[Predicate[Weight] | Predicate[NeutralWeight]],
+        weights: Sequence[Weight],
+    ) -> CandidateImplementation[Weight] | None:
+        maybe_predicate_weights = [p.weight() for p in predicates]
+        if any(w is None for w in maybe_predicate_weights):
+            return None
+
+        predicate_weights = cast(List[Union[Weight, NeutralWeight]], maybe_predicate_weights)
+        # if current weight is neutral, search for a non-neutral weight
+        start = -1
+        for i, w in enumerate(predicate_weights):
+            if not isinstance(w, NeutralWeight):
+                start = i
+                break
+
+        iter_weights = iter(weights)
+        # If we found any non-neutral weight, add them:
+        if start >= 0:
+            n = len(predicate_weights) - 1
+            weight = cast(Weight, predicate_weights[start])
+        else:
+            n = len(predicate_weights)
+            weight = cast(Weight, next(iter_weights) if weights else NeutralWeight())
+
+        for i in range(1, n + 1):
+            pos = (start + i) % len(predicate_weights)
+            w = predicate_weights[pos]
+            if isinstance(w, NeutralWeight):
+                weight += weight.of_neutral_predicate(predicates[pos])
+            elif type(w) != type(weight):
+                raise HeterogeneousWeightError(w, weight)
+            else:
+                weight += w
+
+        for w in iter_weights:
+            assert not isinstance(w, NeutralWeight)
+            if type(w) != type(weight):
+                raise HeterogeneousWeightError(w, weight)
+            else:
+                weight += w
+
+        return cls(
+            implementation=Implementation(identifier=identifier, dependency=dependency),
+            predicates=predicates,
+            weight=weight,
+            same_weight_as_left=False,
+        )
+
+    def __lt__(self, other: CandidateImplementation[Weight]) -> bool:
+        return self.weight < other.weight
+
+    def match(self, constraints: Iterable[Constraint[Any]]) -> bool:
+        for contraint in constraints:
             at_least_one = False
             for predicate in self.predicates:
-                if isinstance(predicate, tpe):
+                if isinstance(predicate, contraint.predicate_type):
                     at_least_one = True
-                    if not constraint.evaluate(predicate):
+                    if not contraint.callback(predicate):
                         return False
             if not at_least_one:
-                if not constraint.evaluate(None):
+                if not contraint.callback(None):
                     return False
         return True

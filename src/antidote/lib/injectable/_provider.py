@@ -1,106 +1,59 @@
 from __future__ import annotations
 
-import inspect
-from typing import Any, Callable, Dict, Hashable, Optional, TypeVar, Union
+from dataclasses import dataclass
+from typing import Callable, TypeVar
 
-from ..._internal import API
-from ..._internal.utils import debug_repr, FinalImmutable
-from ...core import Container, DependencyDebug, DependencyValue, Provider, Scope
+from ... import DuplicateDependencyError
+from ..._internal import API, debug_repr
+from ...core import DependencyDebug, LifeTime, ProvidedDependency, Provider, ReadOnlyCatalog
 
 C = TypeVar("C", bound=type)
 
 
-@API.deprecated
 @API.private
-class Parameterized(FinalImmutable):
-    __slots__ = ("wrapped", "parameters", "_hash")
-    wrapped: Any
-    parameters: Dict[str, object]
-    _hash: int
+@dataclass(frozen=True, eq=False)
+class FactoryProvider(Provider):
+    __slots__ = ("__factories",)
+    __factories: dict[object, tuple[LifeTime | None, Callable[[], object]]]
 
-    def __init__(self, dependency: Hashable, parameters: Dict[str, object]) -> None:
-        assert isinstance(parameters, dict) and parameters
+    def __init__(
+        self,
+        *,
+        catalog: ReadOnlyCatalog,
+        factories: dict[object, tuple[LifeTime | None, Callable[[], object]]] | None = None,
+    ) -> None:
+        super().__init__(catalog=catalog)
+        object.__setattr__(self, f"_{type(self).__name__}__factories", factories or dict())
 
+    def can_provide(self, dependency: object) -> bool:
+        return dependency in self.__factories
+
+    def unsafe_copy(self) -> FactoryProvider:
+        return FactoryProvider(catalog=self._catalog, factories=self.__factories.copy())
+
+    def maybe_debug(self, dependency: object) -> DependencyDebug | None:
         try:
-            # Try most precise hash first
-            _hash = hash((dependency, tuple(parameters.items())))
-        except TypeError:
-            # If type error, use the best error-free hash possible
-            _hash = hash((dependency, tuple(parameters.keys())))
-
-        super().__init__(dependency, parameters, _hash)
-
-    def __hash__(self) -> int:
-        return self._hash
-
-    def __repr__(self) -> str:
-        return f"Parameterized(dependency={self.wrapped}, parameters={self.parameters})"
-
-    def __antidote_debug_repr__(self) -> str:
-        return f"{debug_repr(self.wrapped)} with parameters={self.parameters}"
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, Parameterized)
-            and self._hash == other._hash
-            and (self.wrapped is other.wrapped or self.wrapped == other.wrapped)
-            and self.parameters == other.parameters
-        )  # noqa
-
-
-@API.private
-class InjectableProvider(Provider[Union[Parameterized, type]]):
-    def __init__(self) -> None:
-        super().__init__()
-        self.__services: dict[type, tuple[Optional[Scope], Callable[..., object]]] = dict()
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}(services={list(self.__services.items())!r})"
-
-    def exists(self, dependency: object) -> bool:
-        if isinstance(dependency, Parameterized):
-            return isinstance(dependency.wrapped, type) and dependency.wrapped in self.__services
-        return dependency in self.__services
-
-    def clone(self, keep_singletons_cache: bool) -> InjectableProvider:
-        p = InjectableProvider()
-        p.__services = self.__services.copy()
-        return p
-
-    def debug(self, dependency: Union[Parameterized, type]) -> DependencyDebug:
-        if isinstance(dependency, Parameterized):
-            assert isinstance(dependency.wrapped, type)
-            klass = dependency.wrapped
-        else:
-            klass = dependency
-        scope, factory = self.__services[klass]
-        return DependencyDebug(debug_repr(dependency), scope=scope, wired=[factory])
-
-    def maybe_provide(self, dependency: object, container: Container) -> Optional[DependencyValue]:
-        if isinstance(dependency, Parameterized):
-            if not isinstance(dependency.wrapped, type):
-                # Parameterized is deprecated anyway.
-                return None  # pragma: no cover
-            klass: type = dependency.wrapped
-        elif isinstance(dependency, type):
-            klass = dependency
-        else:
-            return None
-        try:
-            scope, factory = self.__services[klass]
+            lifetime, factory = self.__factories[dependency]
         except KeyError:
             return None
+        return DependencyDebug(
+            description=debug_repr(dependency), lifetime=lifetime, wired=[factory]
+        )
 
-        if isinstance(dependency, Parameterized):
-            instance = factory(**dependency.parameters)
-        else:
-            instance = factory()
+    def unsafe_maybe_provide(self, dependency: object, out: ProvidedDependency) -> None:
+        try:
+            lifetime, factory = self.__factories[dependency]
+        except KeyError:
+            return
 
-        return DependencyValue(instance, scope=scope)
+        out.set_value(factory(), lifetime=lifetime, callback=factory)
 
     def register(
-        self, klass: C, *, scope: Optional[Scope], factory: Optional[Callable[[], C]] = None
+        self, *, dependency: object, lifetime: LifeTime | None, factory: Callable[[], object]
     ) -> None:
-        assert inspect.isclass(klass) and (isinstance(scope, Scope) or scope is None)
-        self._assert_not_duplicate(klass)
-        self.__services[klass] = scope, factory or klass
+        registration = (lifetime, factory)
+        if self.__factories.setdefault(dependency, registration) is not registration:
+            raise DuplicateDependencyError(f"Dependency {dependency!r} was already registered.")
+
+    def pop(self, dependency: object) -> tuple[LifeTime | None, Callable[[], object]] | None:
+        return self.__factories.pop(dependency, None)
