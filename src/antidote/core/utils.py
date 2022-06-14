@@ -1,57 +1,73 @@
-from dataclasses import dataclass
-from typing import Optional, Sequence
+from __future__ import annotations
 
-from typing_extensions import final
+from typing import Callable, Iterable, Type, TYPE_CHECKING
 
-from .container import Scope
-from .._internal import API
-from .._internal.utils import FinalImmutable
+from typing_extensions import TypeGuard
 
+from .._internal import API, auto_detect_var_name, Default, enforce_valid_name
+from .provider import Provider
 
-@API.private
-@dataclass
-class DebugInfoPrefix:
-    prefix: str
-    dependency: object
+if TYPE_CHECKING:
+    from . import Catalog, PublicCatalog, ReadOnlyCatalog
+
+__all__ = ["is_catalog", "is_compiled", "new_catalog", "is_readonly_catalog"]
 
 
 @API.public
-@final
-class DependencyDebug(FinalImmutable):
+def is_compiled() -> bool:
     """
-    Debug information on a dependency. Used by :py:mod:`.world.debug` to provide runtime
-    information for debugging.
+    Whether current Antidote implementations is the compiled (Cython) version or not
     """
+    return False
 
-    __slots__ = ("info", "scope", "wired", "dependencies")
-    info: str
-    scope: Optional[Scope]
-    wired: Sequence[object]
-    dependencies: Sequence[object]
 
-    def __init__(
-        self,
-        __info: str,
-        *,
-        scope: Optional[Scope] = None,
-        wired: Sequence[object] = tuple(),
-        dependencies: Sequence[object] = tuple(),
-    ):
-        """
-        Args:
-            __info: Short and concise information on the dependency, just enough to
-                identify clearly which one it is.
-            scope: Scope of the dependency.
-            wired: Every class or function that may have been wired for this dependency.
-            dependencies: Dependencies of the dependency itself. Ordering is kept.
-        """
-        super().__init__(__info, scope, wired, dependencies)
+@API.experimental
+def new_catalog(
+    *,
+    name: str | Default = Default.sentinel,
+    include: Iterable[Callable[[Catalog], object] | PublicCatalog | Type[Provider]]
+    | Default = Default.sentinel,
+) -> PublicCatalog:
+    """
+    Creates a new :py:class:`.PublicCatalog`. It's recommended to provide a name to the catalog to
+    better differentiate it from others. It's possible to provide an iterable of functions or
+    public catalogs to :py:class:`~.Catalog.include`.
+    """
+    from .._internal import auto_detect_origin_frame
+    from ._catalog import CatalogImpl
 
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, DependencyDebug)
-            and self.info == other.info
-            and self.scope == other.scope
-            and self.wired == other.wired
-            and self.dependencies == other.dependencies
-        )  # noqa: E126
+    if isinstance(name, Default):
+        name, origin = auto_detect_var_name().rsplit("@", 1)
+    else:
+        enforce_valid_name(name)
+        origin = auto_detect_origin_frame()
+
+    catalog = CatalogImpl.create_public(name=name, origin=origin)
+    if isinstance(include, Default):
+        from ..lib import antidote_lib
+
+        catalog.include(antidote_lib)
+    else:
+        for x in include:
+            catalog.include(x)
+    return catalog
+
+
+@API.public
+def is_catalog(catalog: object) -> TypeGuard[Catalog]:
+    """
+    Returns whether the specified object is a :py:class:`.Catalog` or not.
+    """
+    from ._catalog import CatalogImpl
+
+    return isinstance(catalog, CatalogImpl)
+
+
+@API.public
+def is_readonly_catalog(catalog: object) -> TypeGuard[ReadOnlyCatalog]:
+    """
+    Returns whether the specified object is a :py:class:`.ReadOnlyCatalog` or not.
+    """
+    from ._catalog import AppCatalog, ReadOnlyCatalogImpl
+
+    return isinstance(catalog, (AppCatalog, ReadOnlyCatalogImpl))

@@ -16,6 +16,41 @@ Most, if not all, the API is annotated with decorators such as :code:`@API.publi
 the given functionality can be relied upon.
 
 
+
+2.0.0 (2022-07/8-XX)
+====================
+
+
+Deprecation
+-----------
+
+- rename :code:`DependencyInstantiationError` to :py:exc:`DependencyProviderError`
+
+
+Breaking Changes
+----------------
+
+*Important*:
+
+- :py:func:`.lazy` is NOT a singleton by default anymore.
+
+
+
+- rename :py:method:`.Wiring.wire` argument :code:`class_in_localns` to `class_in_locals`.
+- rename parameters `dependencies` to `fallback` for :py:class:`.Wiring` and :py:func:`.wire`
+- :py:class:`.QualifiedBy` relies on equality now, not the id anymore.
+- removed :code:`__getitem__()` from const.
+- Providers are not part of the Catalog anymore.
+
+
+Features
+--------
+
+*Major*:
+
+- AEP1: :
+
+
 1.4.2 (2022-06-26)
 ==================
 

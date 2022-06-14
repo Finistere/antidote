@@ -33,6 +33,46 @@ any existing dependency, but their value will be different.
 .. doctest:: how_to_test
 
     >>> from antidote import world
+            >>> real_db = world.get[Database]()
+            >>> with world.test.copy():
+            ...     world.get[Database]() is real_db
+            False
+
+        You can also override them easily with:
+
+        - :py
+        >>> real_db = world.get[Database]()
+        >>> with world.test.copy():
+        ...     world.get[Database]() is real_db
+        False
+
+    You can also override them easily with:
+
+    - :py
+            >>> real_db = world.get[Database]()
+            >>> with world.test.copy():
+            ...     world.get[Database]() is real_db
+            False
+
+        You can also override them easily with:
+
+        - :py
+        >>> real_db = world.get[Database]()
+        >>> with world.test.copy():
+        ...     world.get[Database]() is real_db
+        False
+
+    You can also override them easily with:
+
+    - :py
+        >>> real_db = world.get[Database]()
+        >>> with world.test.copy():
+        ...     world.get[Database]() is real_db
+        False
+
+    You can also override them easily with:
+
+    - :py
     >>> real_db = world.get[Database]()
     >>> with world.test.clone():
     ...     world.get[Database]() is real_db
@@ -44,7 +84,12 @@ You can also override them easily with:
 
     .. doctest:: how_to_test
 
-        >>> with world.test.clone():
+        >>> with world.test.copy():
+                ...     world.test.override.singleton(Database, "fake database")
+                ...     world.get(Database)
+                'fake database'
+
+        - :py
         ...     world.test.override.singleton(Database, "fake database")
         ...     world.get(Database)
         'fake database'
@@ -53,7 +98,19 @@ You can also override them easily with:
 
     .. doctest:: how_to_test
 
-        >>> with world.test.clone():
+        >>> with world.test.copy():
+                ...     @world.test.override.factory()
+                ...     def local_db() -> Database:
+                ...         return "fake database"
+                ...     # Or
+                ...     @world.test.override.factory(Database)
+                ...     def local_db():
+                ...         return "fake database"
+                ...
+                ...     world.get(Database)
+                'fake database'
+
+        You can override as many times as you want:
         ...     @world.test.override.factory()
         ...     def local_db() -> Database:
         ...         return "fake database"
@@ -69,7 +126,15 @@ You can override as many times as you want:
 
 .. doctest:: how_to_test
 
-    >>> with world.test.clone():
+    >>> with world.test.copy():
+        ...     world.test.override.singleton(Database, "fake database 1 ")
+        ...     @world.test.override.factory(Database)
+        ...     def local_db():
+        ...         return "fake database 2"
+        ...
+        ...     world.test.override.singleton(Database, "fake database 3")
+        ...     world.get(Database)
+        'fake database 3'
     ...     world.test.override.singleton(Database, "fake database 1 ")
     ...     @world.test.override.factory(Database)
     ...     def local_db():

@@ -1,241 +1,66 @@
-from contextlib import contextmanager
-from typing import Hashable, Optional
+# pyright: reportUnusedClass=false
+from __future__ import annotations
+
+from typing import ClassVar
 
 import pytest
 
 from antidote import world
-from antidote.core import (
-    Container,
-    DependencyDebug,
-    DependencyValue,
-    does_not_freeze,
-    Provider,
-    StatelessProvider,
-)
-from antidote.core.exceptions import DuplicateDependencyError
-from antidote.exceptions import FrozenWorldError
+from antidote.core import DependencyDebug, ProvidedDependency, Provider
+from tests.utils import Obj
 
 
-@contextmanager
-def does_not_raise():
-    yield
-
-
-def test_freeze_world():
+def test_abstract_provider_base_implementations() -> None:
+    @world.include
     class DummyProvider(Provider):
-        def provide(self, dependency: Hashable, container: Container) -> Optional[DependencyValue]:
-            return None
+        def can_provide(self, dependency: object) -> bool:
+            return super().can_provide(dependency)
 
-        def clone(self, keep_singletons_cache: bool) -> "DummyProvider":
-            return self
+        def unsafe_maybe_provide(self, dependency: object, out: ProvidedDependency) -> None:
+            return super().unsafe_maybe_provide(dependency, out)
 
-        def register(self):
-            return "register"
-
-        @does_not_freeze
-        def method(self):
-            return "method"
-
-        @staticmethod
-        def static():
-            return "static"
-
-        @classmethod
-        def klass(cls):
-            return "klass"
-
-    provider = DummyProvider()
-    assert provider.register() == "register"
-    assert provider.method() == "method"
-    assert provider.static() == "static"
-    assert provider.klass() == "klass"
-
-    with world.test.empty():
-        world.provider(DummyProvider)
-        provider = world.get[DummyProvider]()
-        assert provider.register() == "register"
-        assert provider.method() == "method"
-        assert provider.static() == "static"
-        assert provider.klass() == "klass"
-
-        world.freeze()
-        assert provider.method() == "method"
-        assert provider.static() == "static"
-        assert provider.klass() == "klass"
-        provider.clone(False)
-        provider.provide(None, None)
-        with pytest.raises(FrozenWorldError):
-            provider.register()
-
-
-def test_stateless():
-    class DummyProvider(StatelessProvider):
-        def provide(self, dependency: Hashable, container: Container) -> Optional[DependencyValue]:
-            return None
-
-    p = DummyProvider()
-    assert p.clone(True) is not p
-    assert isinstance(p.clone(False), DummyProvider)
-
-
-def test_no_default_implementation():
-    class Dummy(Provider):
-        pass
+    provider = world.providers[DummyProvider]
+    assert isinstance(provider, DummyProvider)
 
     with pytest.raises(NotImplementedError):
-        Dummy().maybe_provide(object(), object())
+        provider.can_provide(object())
 
     with pytest.raises(NotImplementedError):
-        Dummy().exists(object())
+        provider.unsafe_maybe_provide(object(), object())  # type: ignore
 
-    with pytest.raises(NotImplementedError):
-        Dummy().clone(False)
+    with world.test.clone():
+        assert world.providers[DummyProvider] is not provider
 
-    with pytest.raises(RuntimeError):
-        Dummy().provide(object(), object())
-
-    with pytest.raises(NotImplementedError):
-        Dummy().exists(False)
+    with world.test.copy():
+        assert world.providers[DummyProvider] is not provider
 
 
-def test_debug():
-    x = object()
+def test_abstract_provider() -> None:
+    @world.include
+    class DummyProvider(Provider):
+        known: ClassVar[set[object]] = set()
 
-    class Dummy(Provider):
-        def exists(self, dependency: Hashable) -> bool:
-            return dependency is x
+        def can_provide(self, dependency: object) -> bool:
+            return dependency in self.known
 
-    Dummy().maybe_debug(object())  # should no fail
-    with pytest.warns(UserWarning, match="(?i).*debug.*"):
-        Dummy().maybe_debug(x)
+        def unsafe_maybe_provide(self, dependency: object, out: ProvidedDependency) -> None:
+            ...
 
+    provider = world.providers[DummyProvider]
+    public = Obj()
+    unknown = Obj()
+    DummyProvider.known.add(public)
 
-def test_provide():
-    x = object()
+    assert provider.can_provide(public)
+    assert not provider.can_provide(unknown)
 
-    class Dummy(Provider):
-        def exists(self, dependency: Hashable) -> bool:
-            return dependency is x
-
-        def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
-            assert dependency is x
-            return DependencyValue(None)
-
-    dummy = Dummy()
-    assert world.test.maybe_provide_from(dummy, 1) is None
-    assert world.test.maybe_provide_from(dummy, x) is not None
+    assert isinstance(provider.maybe_debug(public), DependencyDebug)
+    assert provider.maybe_debug(unknown) is None
 
 
-def test_container_lock():
-    from ..test_thread_safety import ThreadSafetyTest
+def test_missing_methods() -> None:
+    with pytest.raises(TypeError):
 
-    with world.test.empty():
-        failures = []
-
-        @world.provider
-        class A(Provider):
-            def exists(self, dependency: Hashable) -> bool:
-                return dependency == "a"
-
-            def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
-                ThreadSafetyTest.check_locked(failures)
-                return DependencyValue("a")
-
-            def change_state(self):
-                with self._container_lock():
-                    ThreadSafetyTest.check_locked(failures)
-
-        @world.provider
-        class B(Provider):
-            def exists(self, dependency: Hashable) -> bool:
-                return dependency == "b"
-
-            def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
-                ThreadSafetyTest.check_locked(failures)
-                return DependencyValue("b")
-
-            def change_state(self):
-                with self._container_lock():
-                    ThreadSafetyTest.check_locked(failures)
-
-        a = world.get[A]()
-        b = world.get[B]()
-        actions = [
-            lambda: a.change_state(),
-            lambda: world.get("a"),
-            lambda: b.change_state(),
-            lambda: world.get("b"),
-        ]
-
-        def worker():
-            import random
-
-            for f in random.choices(actions, k=20):
-                f()
-
-        ThreadSafetyTest.run(worker, n_threads=5)
-        assert not failures
-
-    with world.test.empty():
-
-        class C(Provider):
-            def change_state(self):
-                with self._container_lock():
-                    pass
-
-        # Should not raise any error if not bound to any container yet
-        C().change_state()
-
-
-def test_assert_not_duplicate():
-    x = object()
-
-    class A(Provider[Hashable]):
-        def __init__(self):
-            super().__init__()
-            self.registered = dict()
-
-        def exists(self, dependency: Hashable) -> bool:
-            return dependency in self.registered
-
-        def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
-            return DependencyValue(self.registered[dependency])
-
-        def add(self, dependency: Hashable, value: object):
-            self._assert_not_duplicate(dependency)
-            self.registered[dependency] = value
-
-    with world.test.empty():
-        a = A()
-        a.add(x, 1)
-
-        with pytest.raises(DuplicateDependencyError):
-            with pytest.warns(UserWarning, match="(?i).*debug.*"):
-                a.add(x, 1)
-
-    with world.test.empty():
-        world.provider(A)
-
-        @world.provider
-        class B(Provider[Hashable]):
-            def __init__(self):
-                super().__init__()
-                self.registered = dict()
-
-            def debug(self, dependency: Hashable) -> DependencyDebug:
-                return DependencyDebug("DebugInfo")
-
-            def exists(self, dependency: Hashable) -> bool:
-                return dependency in self.registered
-
-            def provide(self, dependency: Hashable, container: Container) -> DependencyValue:
-                return DependencyValue(self.registered[dependency])
-
-            def add(self, dependency: Hashable, value: object):
-                self._assert_not_duplicate(dependency)
-                self.registered[dependency] = value
-
-        world.get[B]().add(x, 1)
-
-        with pytest.raises(DuplicateDependencyError, match=".*DebugInfo.*"):
-            world.get[A]().add(x, 1)
+        @world.include  # type: ignore
+        class InvalidProvider(Provider):
+            ...

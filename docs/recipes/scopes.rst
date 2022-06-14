@@ -30,6 +30,188 @@ it with :py:func:`.world.scopes.reset`:
 .. doctest:: recipes_scope
 
     >>> current = world.get(Dummy)
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+        >>> current is world.get(Dummy)
+        True
+        >>> world.scopes.update(REQUEST_SCOPE)
+        >>> current is world.get(Dummy)
+        False
+
+    In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+                >>> current is world.get(Dummy)
+                True
+                >>> world.scopes.update(REQUEST_SCOPE)
+                >>> current is world.get(Dummy)
+                False
+
+            In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+        >>> current is world.get(Dummy)
+        True
+        >>> world.scopes.update(REQUEST_SCOPE)
+        >>> current is world.get(Dummy)
+        False
+
+    In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+        >>> current is world.get(Dummy)
+        True
+        >>> world.scopes.update(REQUEST_SCOPE)
+        >>> current is world.get(Dummy)
+        False
+
+    In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+            >>> current is world.get(Dummy)
+            True
+            >>> world.scopes.update(REQUEST_SCOPE)
+            >>> current is world.get(Dummy)
+            False
+
+        In a Flask app for example you would then just reset the scope after each request:
+        >>> current is world.get(Dummy)
+        True
+        >>> world.scopes.update(REQUEST_SCOPE)
+        >>> current is world.get(Dummy)
+        False
+
+    In a Flask app for example you would then just reset the scope after each request:
+        >>> current is world.get(Dummy)
+        True
+        >>> world.scopes.update(REQUEST_SCOPE)
+        >>> current is world.get(Dummy)
+        False
+
+    In a Flask app for example you would then just reset the scope after each request:
+        >>> current is world.get(Dummy)
+        True
+        >>> world.scopes.update(REQUEST_SCOPE)
+        >>> current is world.get(Dummy)
+        False
+
+    In a Flask app for example you would then just reset the scope after each request:
     >>> current is world.get(Dummy)
     True
     >>> world.scopes.reset(REQUEST_SCOPE)

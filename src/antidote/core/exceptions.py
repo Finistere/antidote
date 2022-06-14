@@ -1,6 +1,25 @@
-from typing import Hashable, Iterable, List, Optional
+from __future__ import annotations
 
-from .._internal import API
+from typing import Type, TYPE_CHECKING
+
+from .._internal import API, debug_repr
+
+if TYPE_CHECKING:
+    from . import Provider, ReadOnlyCatalog
+    from ._internal_catalog import InternalCatalog
+
+__all__ = [
+    "AntidoteError",
+    "DependencyDefinitionError",
+    "DependencyNotFoundError",
+    "DuplicateDependencyError",
+    "FrozenCatalogError",
+    "DoubleInjectionError",
+    "CannotInferDependencyError",
+    "MissingProviderError",
+    "UndefinedScopeVarError",
+    "DuplicateProviderError",
+]
 
 
 @API.public
@@ -17,95 +36,85 @@ class DoubleInjectionError(AntidoteError):
     Raised when injecting a function/method that already has been injected.
     """
 
+    @API.private
     def __init__(self, func: object) -> None:
         super().__init__(f"Object {func} has already been injected by Antidote.")
 
 
-# Inheriting RuntimeError, as it used to be one before using a custom exception.
-# Do not rely on it being a RuntimeError. It will be removed in the future.
 @API.public
-class NoInjectionsFoundError(AntidoteError, RuntimeError):
+class CannotInferDependencyError(AntidoteError):
     """
-    Raised when no injection could be found for a given function, even though parameters like
-    :code:`ignore_type_hints` were explicitly specified. Usually this implies that
-    :py:func:`.inject` was supposed to find injection, but just not in the type hints.
+    Raised by :py:meth:`.Inject.me` when the dependency could not be inferred from the type hints.
     """
 
 
 @API.public
 class DuplicateDependencyError(AntidoteError):
     """
-    A dependency already exists with the same id.
-    *May* be raised by _providers.
+    Raised when a dependency can already be provided.
     """
 
 
 @API.public
-class DependencyInstantiationError(AntidoteError):
+class DependencyDefinitionError(AntidoteError):
     """
-    The dependency could not be instantiated.
+    Raised when a dependency was not correctly defined by a :py:class:`.Provider`.
     """
-
-    def __init__(self, dependency: Hashable, stack: Optional[List[Hashable]] = None) -> None:
-        from .._internal.utils import debug_repr
-
-        msg = f"Could not instantiate {debug_repr(dependency)}"
-        stack = stack or []
-        if stack:  # first and last dependency will raise their own errors.
-            stack.append(dependency)
-            msg += f"\nFull dependency stack:\n{_stack_repr(stack)}\n"
-
-        super().__init__(msg)
 
 
 @API.public
-class DependencyCycleError(AntidoteError):
+class DependencyNotFoundError(AntidoteError, KeyError):
     """
-    A dependency cycle is found.
+    Raised when the dependency could not be found in the catalog.
     """
 
-    def __init__(self, stack: List[Hashable]) -> None:
-        super().__init__(f"Cycle:\n{_stack_repr(stack)}\n")
+    @API.private
+    def __init__(self, dependency: object, *, catalog: ReadOnlyCatalog | InternalCatalog) -> None:
+        super().__init__(f"{catalog} cannot provide {dependency!r}")
 
 
 @API.public
-class DependencyNotFoundError(AntidoteError):
+class MissingProviderError(AntidoteError, KeyError):
     """
-    The dependency could not be found.
+    Raised when the provider is not included in the catalog.
     """
 
-    def __init__(self, dependency: Hashable) -> None:
-        from .._internal.utils import debug_repr
-
-        super().__init__(debug_repr(dependency))
+    @API.private
+    def __init__(self, provider: type) -> None:
+        super().__init__(debug_repr(provider))
 
 
 @API.public
-class FrozenWorldError(AntidoteError):
+class DuplicateProviderError(AntidoteError):
     """
-    An action failed because the world is frozen. Typically happens when trying
-    to register a dependency after having called freeze() on the world.
-    """
-
-
-@API.private
-class DebugNotAvailableError(AntidoteError):
-    """
-    Currently provider do not have to implement the debug behavior. If not, this error
-    will be raised and discarded (a warning may be emitted).
+    Raised when the provider was already included in the catalog
     """
 
+    @API.private
+    def __init__(self, *, catalog: InternalCatalog, provider_class: Type[Provider]) -> None:
+        super().__init__(f"{catalog} already has the provider: {provider_class.__name__}")
 
-@API.private
-def _stack_repr(stack: Iterable[object]) -> str:
-    from .._internal.utils import debug_repr
-    import textwrap
 
-    text: List[str] = []
-    for depth, dependency in enumerate(stack):
-        indent = "    " * (depth - 1) if depth > 1 else ""
-        first_line, *rest = debug_repr(dependency).split("\n", 1)
-        text.append(f"{indent}{'└── ' if depth else ''}{first_line}")
-        if rest:
-            text.append(textwrap.indent(rest[0], indent + ("    " if depth > 1 else "")))
-    return "\n".join(text)
+@API.public
+class FrozenCatalogError(AntidoteError):
+    """
+    Raised by methods that cannot be used with a frozen catalog.
+    """
+
+    @API.private
+    def __init__(self, catalog: ReadOnlyCatalog | InternalCatalog) -> None:
+        super().__init__(f"{catalog} is already frozen.")
+
+
+@API.public
+class UndefinedScopeVarError(AntidoteError, RuntimeError):
+    """
+    Raised when accessing the value of scope var for which it wasn't defined yet.
+    """
+
+    @API.private
+    def __init__(self, dependency: object) -> None:
+        super().__init__(
+            f"ScopeVar {dependency!r} does not have any value associated."
+            f"Use set() to define it first."
+        )

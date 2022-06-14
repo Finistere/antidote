@@ -3,9 +3,6 @@ requires = [
     "setuptools>=42",
     "wheel",
     "setuptools_scm>=3.4",
-    # Ideally those would be optional...
-    "cython>=0.29,<0.30",
-    "fastrlock>=0.7,<0.9"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -21,6 +18,7 @@ ignore = ["src/antidote/_internal/scm_version.py"]
 # Pytest #
 ##########
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 markers = ["compiled_only"]
 
 
@@ -29,6 +27,7 @@ markers = ["compiled_only"]
 ############
 [tool.coverage.run]
 branch = true
+source = ["antidote", "src"]
 
 [tool.coverage.paths]
 source = [
@@ -40,7 +39,7 @@ source = [
 [tool.coverage.report]
 exclude_lines = [
     "# pragma: no cover",
-    "if TYPE_CHECKING:$",
+    "^if TYPE_CHECKING:$",
     "^\\s*\\.\\.\\.$"
 ]
 
@@ -51,14 +50,7 @@ exclude_lines = [
 [tool.pyright]
 include = [
     "src",
-    "tests/lib",
-]
-exclude = [
-    "tests/lib/test_constants.py",
-    "tests/lib/test_lazy.py",
-    "tests/lib/test_factory.py",
-    "tests/lib/test_implementation.py",
-    "tests/lib/test_service.py",
+    "tests",
 ]
 pythonVersion = "3.7"
 pythonPlatform = "All"
@@ -66,13 +58,8 @@ typeCheckingMode = "strict"
 
 # Python code is doing a lot of isinstance to actually verify typing
 reportUnnecessaryIsInstance = false
-# Doesn't work well with metaclasses
-# FIXME: to be removed ones no metaclasses are used ??
-reportSelfClsParameterName = false
 # Yes we have cycles, it's not great but if tests are passing it means it works.
 reportImportCycles = false
-# We're using our own internal APIs which we're trying to hide as much as possible
-reportPrivateUsage = false
 # some cast / ignores are for MyPy.
 reportUnnecessaryTypeIgnoreComment = "warning"
 reportUnnecessaryCast = "warning"
@@ -84,9 +71,7 @@ reportUnnecessaryCast = "warning"
 [tool.mypy]
 files = [
     "src",
-    "tests/lib/interface",
-    "tests/lib/injectable",
-    "tests/lib/lazy"
+    "tests",
 ]
 python_version = "3.7"
 strict = true
@@ -99,3 +84,15 @@ strict = true
 line-length = 100
 target-version = ['py37']
 
+
+#########
+# isort #
+#########
+[tool.isort]
+profile = "black"
+py_version=37
+line_length=100
+balanced_wrapping=true
+combine_as_imports=true
+force_alphabetical_sort_within_sections=true
+sort_relative_in_force_sorted_sections=true

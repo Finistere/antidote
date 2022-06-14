@@ -1,127 +1,406 @@
 from __future__ import annotations
 
-import functools
+import enum
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, cast, Generic, Tuple, TypeVar
+from typing import Any, Callable, cast, Generic, overload, TypeVar
 
-from typing_extensions import final, ParamSpec, Protocol
+from typing_extensions import final, ParamSpec
 
-from ._provider import LazyFunction
-from ..._internal import API
-from ...core import Scope
+from ..._internal import (
+    API,
+    debug_repr,
+    Default,
+    EMPTY_DICT,
+    EMPTY_TUPLE,
+    prepare_injection,
+    retrieve_or_validate_injection_locals,
+    short_id,
+    Singleton,
+    wraps_frozen,
+)
+from ...core import (
+    CatalogId,
+    DuplicateDependencyError,
+    InjectedMethod,
+    is_catalog,
+    LifetimeType,
+    TypeHintsLocals,
+    world,
+)
+from ._provider import lazy_call
+from .lazy import DecoratorLazyFunction, is_lazy, LazyFunction
 
-__all__ = ["DependencyKey", "LazyWrapperWithoutScope", "LazyWrapper"]
+__all__ = [
+    "LazyImpl",
+    "LazyWrapper",
+]
+
+from ..._internal.typing import Function
+from ...core import Catalog, Dependency, LifeTime
 
 T = TypeVar("T")
 P = ParamSpec("P")
-Tco = TypeVar("Tco", covariant=True)
+Out = TypeVar("Out", covariant=True)
 
 
-# See https://github.com/python/mypy/issues/6910
-# API.private
-class Function(Protocol[P, Tco]):
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Tco:
+@API.private
+@final
+class FunctionKind(enum.Enum):
+    FUNCTION = 1
+    METHOD = 2
+    PROPERTY = 3
+    VALUE = 4
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class LazyImpl(Singleton):
+    __slots__ = ("method", "property", "value")
+    method: Any
+    property: Any
+    value: Any
+
+    def __init__(self) -> None:
+        def method(*args: Any, **kwargs: Any) -> Any:
+            kwargs["_kind"] = FunctionKind.METHOD
+            kwargs["type_hints_locals"] = retrieve_or_validate_injection_locals(
+                kwargs.get("type_hints_locals", Default.sentinel)
+            )
+            return self(*args, **kwargs)
+
+        def property(*args: Any, **kwargs: Any) -> Any:
+            kwargs["_kind"] = FunctionKind.PROPERTY
+            kwargs["type_hints_locals"] = retrieve_or_validate_injection_locals(
+                kwargs.get("type_hints_locals", Default.sentinel)
+            )
+            return self(*args, **kwargs)
+
+        def value(*args: Any, **kwargs: Any) -> Any:
+            kwargs["_kind"] = FunctionKind.VALUE
+            kwargs["type_hints_locals"] = retrieve_or_validate_injection_locals(
+                kwargs.get("type_hints_locals", Default.sentinel)
+            )
+            return self(*args, **kwargs)
+
+        object.__setattr__(self, "method", method)
+        object.__setattr__(self, "property", property)
+        object.__setattr__(self, "value", value)
+
+    @overload
+    def __call__(
+        self,
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None | Default = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> DecoratorLazyFunction:
         ...
 
+    @overload
+    def __call__(
+        self,
+        __func: staticmethod[Callable[P, T]],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None | Default = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> staticmethod[LazyFunction[P, T]]:
+        ...
 
-@API.private
-@final
-class LazyWrapperWithoutScope(Generic[P, T]):
-    """placeholder to avoid dataclass using __signature__"""
+    @overload
+    def __call__(
+        self,
+        __func: Callable[P, T],
+        *,
+        lifetime: LifetimeType = ...,
+        inject: None | Default = ...,
+        type_hints_locals: TypeHintsLocals = ...,
+        catalog: Catalog = ...,
+    ) -> LazyFunction[P, T]:
+        ...
 
-    __wrapped__: Function[P, T]
-    __signature__: inspect.Signature
+    def __call__(
+        self,
+        __func: object = None,
+        *,
+        lifetime: LifetimeType = "transient",
+        inject: None | Default = Default.sentinel,
+        type_hints_locals: TypeHintsLocals = Default.sentinel,
+        catalog: Catalog = world,
+        _kind: FunctionKind = FunctionKind.FUNCTION,
+    ) -> object:
+        if not is_catalog(catalog):
+            raise TypeError(f"catalog must be a Catalog, not a {type(catalog)!r}")
 
-    def __init__(self, *, func: Callable[P, T]) -> None:
-        self.__wrapped__ = func
-        self.__signature__ = inspect.signature(func)
-        functools.wraps(func)(self)
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
-        if args or kwargs:
-            bound = self.__signature__.bind(*args, **kwargs)
-            args = cast(Any, bound.args)
-            kwargs = cast(Any, bound.kwargs)
-        dependency = LazyFunction.of(
-            func=self.__wrapped__, args=cast(Any, args), kwargs=cast(Any, kwargs), scope=None
-        )
-        return cast(T, dependency)
-
-    def call(self, *args: P.args, **kwargs: P.kwargs) -> T:
-        return self.__wrapped__(*args, **kwargs)
-
-
-@API.private
-@final
-class LazyWrapper(Generic[P, T]):
-    """placeholder to avoid dataclass using __signature__"""
-
-    __wrapped__: Function[P, T]
-    __scope: Scope
-    __signature__: inspect.Signature
-    __dependency_cache: dict[DependencyKey, object]
-
-    def __init__(self, *, func: Callable[P, T], scope: Scope) -> None:
-        self.__wrapped__ = func
-        self.__signature__ = inspect.signature(func)
-        self.__scope = scope
-        self.__dependency_cache = dict()
-        functools.wraps(func)(self)
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
-        if not args and not kwargs:
-            key = _empty_key
-        else:
-            bound = self.__signature__.bind(*args, **kwargs)
-            key = DependencyKey.of(bound.args, bound.kwargs)
-            args = cast(Any, bound.args)
-            kwargs = cast(Any, bound.kwargs)
-        try:
-            dependency = self.__dependency_cache[key]
-        except KeyError:
-            lazy = LazyFunction.of(
-                func=self.__wrapped__,
-                args=cast(Any, args),
-                kwargs=cast(Any, kwargs),
-                scope=self.__scope,
-            )
-            dependency = self.__dependency_cache.setdefault(key, lazy)
-        return cast(T, dependency)
-
-    def call(self, *args: P.args, **kwargs: P.kwargs) -> T:
-        return self.__wrapped__(*args, **kwargs)
-
-
-@API.private
-@final
-@dataclass(frozen=True)
-class DependencyKey:
-    __slots__ = ("args", "kwargs", "hash")
-    args: tuple[object, ...]
-    kwargs: dict[str, object]
-    hash: int
-
-    @classmethod
-    def of(cls, args: tuple[object, ...], kwargs: dict[str, object]) -> DependencyKey:
-        # Ensuring a pre-computed hash is always created and as precise as possible.
-        args = args or _empty_tuple
-        kwargs = kwargs or _empty_dict
-        return cls(args=args, kwargs=kwargs, hash=hash((args, tuple(sorted(kwargs.items())))))
-
-    def __hash__(self) -> int:
-        return self.hash
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, DependencyKey)
-            and self.hash == other.hash
-            and (self.args is other.args or self.args == other.args)
-            and (self.kwargs is other.kwargs or self.kwargs == other.kwargs)
+        inject_ = prepare_injection(
+            inject=inject,
+            catalog=catalog.private,
+            type_hints_locals=retrieve_or_validate_injection_locals(type_hints_locals),
+            method=_kind in {FunctionKind.METHOD, FunctionKind.PROPERTY},
         )
 
+        def decorate(func: Any, lifetime: LifeTime = LifeTime.of(lifetime)) -> Any:
+            if isinstance(func, staticmethod):
+                if _kind is not FunctionKind.FUNCTION:
+                    raise TypeError("Use @lazy for a staticmethod.")
+                wrapped: Callable[..., object] = func.__func__
+            elif isinstance(func, classmethod):
+                raise TypeError("Cannot decorate a classmethod.")
+            else:
+                wrapped = func
 
-# For speed and space efficiency
-_empty_tuple: tuple[object, ...] = cast(Tuple[object, ...], tuple())
-_empty_dict: dict[str, object] = dict()
-_empty_key = DependencyKey.of(_empty_tuple, _empty_dict)
+            if is_lazy(wrapped):
+                raise DuplicateDependencyError(
+                    f"Cannot apply @lazy to an existing lazy function: {func}"
+                )
+
+            if not (callable(wrapped) and inspect.isfunction(wrapped)):
+                raise TypeError("lazy can only be applied on a function.")
+
+            # for PyRight because we use inspect.isfunction type guard.
+            injected = inject_(cast(Callable[..., object], wrapped))
+
+            if _kind is FunctionKind.METHOD:
+                wrapper: Any = LazyMethodImpl(
+                    wrapped=wrapped,
+                    injected_method=injected,  # type: ignore
+                    lifetime=lifetime,
+                    catalog_id=catalog.id,
+                )
+            elif _kind is FunctionKind.PROPERTY:
+                return LazyPropertyImpl(
+                    wrapped=wrapped,
+                    injected_method=injected,  # type: ignore
+                    lifetime=lifetime,
+                    catalog_id=catalog.id,
+                )
+            elif _kind is FunctionKind.FUNCTION:
+                wrapper = LazyFunctionImpl(
+                    wrapped=wrapped,
+                    injected=injected,
+                    lifetime=lifetime,
+                    catalog_id=catalog.id,
+                )
+            else:
+                assert _kind is FunctionKind.VALUE
+                return LazyValue(
+                    wrapped=wrapped,
+                    injected=injected,
+                    lifetime=lifetime,
+                    catalog_id=catalog.id,
+                )
+
+            if isinstance(func, staticmethod):
+                return staticmethod(wrapper)
+            return wrapper
+
+        return __func and decorate(__func) or decorate
+
+
+@API.private
+class LazyWrapper:
+    __slots__ = ()
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class LazyValue(LazyWrapper, Generic[Out]):
+    __slots__ = ("__dependency", "__injected", "__catalog_id", "__dict__")
+    __dependency: Dependency[Out]
+    __injected: Function[[], Out]
+    __catalog_id: CatalogId
+
+    def __init__(
+        self,
+        *,
+        wrapped: Callable[..., object],
+        injected: Callable[[], Out],
+        catalog_id: CatalogId,
+        lifetime: LifeTime,
+    ) -> None:
+        object.__setattr__(self, f"_{type(self).__name__}__injected", injected)
+        object.__setattr__(self, f"_{type(self).__name__}__catalog_id", catalog_id)
+        object.__setattr__(
+            self,
+            f"_{type(self).__name__}__dependency",
+            lazy_call(
+                func=injected,
+                args=EMPTY_TUPLE,
+                kwargs=EMPTY_DICT,
+                lifetime=lifetime,
+                catalog_id=catalog_id,
+            ),
+        )
+        wraps_frozen(wrapped)(self)
+
+    def __antidote_debug_repr__(self) -> str:
+        return f"<lazy value {debug_repr(self.__injected)} #{short_id(self)}>"
+
+    def __antidote_dependency_hint__(self) -> Out:
+        return cast(Out, self.__dependency)
+
+    def __repr__(self) -> str:
+        return f"LazyValue({self.__injected}, catalog_id={self.__catalog_id})"
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class LazyPropertyImpl(LazyWrapper, Generic[P, Out]):
+    __slots__ = (
+        "__catalog_id",
+        "__lifetime",
+        "__injected_method",
+        "__auto_self_dependency",
+        "__dict__",
+    )
+    __catalog_id: CatalogId
+    __lifetime: LifeTime
+    __injected_method: InjectedMethod[[], Out]
+    __auto_self_dependency: Dependency[Out]
+
+    def __init__(
+        self,
+        *,
+        wrapped: Callable[..., object],
+        injected_method: InjectedMethod[[], Out],
+        lifetime: LifeTime,
+        catalog_id: CatalogId,
+    ) -> None:
+        object.__setattr__(self, f"_{type(self).__name__}__lifetime", lifetime)
+        object.__setattr__(self, f"_{type(self).__name__}__injected_method", injected_method)
+        object.__setattr__(self, f"_{type(self).__name__}__catalog_id", catalog_id)
+        wraps_frozen(wrapped)(self)
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        injected_method: InjectedMethod[[], Out] = cast(Any, self.__injected_method)
+        injected_method.__set_name__(owner, name)
+
+        object.__setattr__(
+            self,
+            f"_{type(self).__name__}__auto_self_dependency",
+            lazy_call(
+                func=injected_method,
+                args=EMPTY_TUPLE,
+                kwargs=EMPTY_DICT,
+                lifetime=self.__lifetime,
+                catalog_id=self.__catalog_id,
+            ),
+        )
+
+    def __antidote_debug_repr__(self) -> str:
+        return f"<lazy property {debug_repr(self.__injected_method)} #{short_id(self)}>"
+
+    def __antidote_dependency_hint__(self) -> Out:
+        return cast(Out, self.__auto_self_dependency)
+
+    def __repr__(self) -> str:
+        return f"TransientLazyProperty(wrapped={self.__injected_method}, catalog_id={self.__catalog_id})"
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class LazyMethodImpl(LazyWrapper, Generic[P, Out]):
+    __slots__ = (
+        "__catalog_id",
+        "__injected_method",
+        "__cache",
+        "__lifetime",
+        "__signature",
+        "__lazy_auto_self",
+        "__dict__",
+    )
+    __signature: inspect.Signature
+    __injected_method: InjectedMethod[P, Out]
+    __lifetime: LifeTime
+    __catalog_id: CatalogId
+
+    def __init__(
+        self,
+        *,
+        wrapped: Callable[..., object],
+        injected_method: InjectedMethod[P, Out],
+        lifetime: LifeTime,
+        catalog_id: CatalogId,
+    ) -> None:
+        signature: inspect.Signature = inspect.signature(wrapped)
+        signature = signature.replace(parameters=list(signature.parameters.values())[1:])
+        object.__setattr__(self, f"_{type(self).__name__}__signature", signature)
+        object.__setattr__(self, f"_{type(self).__name__}__injected_method", injected_method)
+        object.__setattr__(self, f"_{type(self).__name__}__lifetime", lifetime)
+        object.__setattr__(self, f"_{type(self).__name__}__catalog_id", catalog_id)
+        wraps_frozen(wrapped, signature=signature)(self)
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        injected_method: InjectedMethod[[], Out] = cast(Any, self.__injected_method)
+        injected_method.__set_name__(owner, name)
+
+    def __antidote_debug_repr__(self) -> str:
+        return f"<lazy method {debug_repr(self.__injected_method)} #{short_id(self)}>"
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Dependency[Out]:
+        bound = self.__signature.bind(*args, **kwargs)
+        return lazy_call(
+            func=self.__injected_method,
+            args=bound.args or EMPTY_TUPLE,
+            kwargs=bound.kwargs or EMPTY_DICT,
+            lifetime=self.__lifetime,
+            catalog_id=self.__catalog_id,
+        )
+
+    def __repr__(self) -> str:
+        return f"LazyMethod(wrapped={self.__injected_method}, catalog_id={self.__catalog_id})"
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class LazyFunctionImpl(LazyWrapper, Generic[P, Out]):
+    __slots__ = (
+        "__catalog_id",
+        "__injected",
+        "__dependency_cache",
+        "__lifetime",
+        "__signature",
+        "__dict__",
+    )
+    __signature: inspect.Signature
+    __lifetime: LifeTime
+    __catalog_id: CatalogId
+    __injected: Function[P, Out]
+
+    def __init__(
+        self,
+        *,
+        wrapped: Callable[..., object],
+        injected: Callable[P, Out],
+        lifetime: LifeTime,
+        catalog_id: CatalogId,
+    ) -> None:
+        object.__setattr__(self, f"_{type(self).__name__}__signature", inspect.signature(wrapped))
+        object.__setattr__(self, f"_{type(self).__name__}__injected", injected)
+        object.__setattr__(self, f"_{type(self).__name__}__lifetime", lifetime)
+        object.__setattr__(self, f"_{type(self).__name__}__catalog_id", catalog_id)
+        wraps_frozen(wrapped, signature=self.__signature)(self)
+
+    def __antidote_debug_repr__(self) -> str:
+        return f"<lazy function {debug_repr(self.__injected)} #{short_id(self)}>"
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Dependency[Out]:
+        bound = self.__signature.bind(*args, **kwargs)
+        return lazy_call(
+            func=self.__injected,
+            args=bound.args or EMPTY_TUPLE,
+            kwargs=bound.kwargs or EMPTY_DICT,
+            lifetime=self.__lifetime,
+            catalog_id=self.__catalog_id,
+        )
+
+    def __repr__(self) -> str:
+        return f"LazyFunction(wrapped={self.__injected}, catalog_id={self.__catalog_id})"

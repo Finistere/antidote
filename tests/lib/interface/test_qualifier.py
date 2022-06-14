@@ -1,43 +1,26 @@
+# pyright: reportUnusedClass=false
+from __future__ import annotations
+
 import itertools
-from typing import List
 
 import pytest
 
-from antidote import QualifiedBy
+from antidote import antidote_interface, implements, instanceOf, interface, QualifiedBy, world
+from tests.lib.interface.common import _
 
 x = object()
 y = object()
 z = object()
 
 
+@pytest.fixture(autouse=True)
+def setup_world() -> None:
+    world.include(antidote_interface)
+
+
 def test_qualified_by_must_have_at_least_one_qualifier() -> None:
     with pytest.raises(ValueError, match="(?i).*at least one qualifier.*"):
         QualifiedBy()
-
-
-@pytest.mark.parametrize(
-    "qualifiers",
-    [
-        pytest.param([1], id="int"),
-        pytest.param([1.123], id="float"),
-        pytest.param([complex(1)], id="complex"),
-        pytest.param([True], id="bool"),
-        pytest.param([b""], id="bytes"),
-        pytest.param([bytearray()], id="bytearray"),
-        pytest.param(["hello"], id="str"),
-        pytest.param([[object()]], id="list"),
-        pytest.param([{object(): object()}], id="dict"),
-        pytest.param([{object()}], id="set"),
-        pytest.param([(object(),)], id="tuple"),
-        pytest.param([object(), 2], id="mixed"),
-    ],
-)
-def test_qualifier_validation(qualifiers: List[object]) -> None:
-    with pytest.raises(TypeError, match="(?i).*qualifier.*"):
-        QualifiedBy(*qualifiers)
-
-    with pytest.raises(TypeError, match="(?i).*qualifier.*"):
-        QualifiedBy.one_of(*qualifiers)
 
 
 def test_qualified_by_eq_hash() -> None:
@@ -57,61 +40,56 @@ def test_qualified_by_predicate() -> None:
 
 
 def test_qualified_by_predicate_constraint() -> None:
-    assert QualifiedBy(x).evaluate(QualifiedBy(x))
-    assert QualifiedBy(x, y).evaluate(QualifiedBy(x, y))
-    assert QualifiedBy(x, y).evaluate(QualifiedBy(y, x))
-    assert QualifiedBy(x).evaluate(QualifiedBy(x, y))
-    assert QualifiedBy(y).evaluate(QualifiedBy(x, y))
+    assert QualifiedBy(x)(QualifiedBy(x))
+    assert QualifiedBy(x, y)(QualifiedBy(x, y))
+    assert QualifiedBy(x, y)(QualifiedBy(y, x))
+    assert QualifiedBy(x)(QualifiedBy(x, y))
+    assert QualifiedBy(y)(QualifiedBy(x, y))
 
-    assert not QualifiedBy(x).evaluate(QualifiedBy(y))
-    assert not QualifiedBy(x, y).evaluate(QualifiedBy(x))
+    assert not QualifiedBy(x)(QualifiedBy(y))
+    assert not QualifiedBy(x, y)(QualifiedBy(x))
 
     # on missing QualifiedBy
-    assert not QualifiedBy(x).evaluate(None)
+    assert not QualifiedBy(x)(None)
 
 
 def test_qualified_by_one_of() -> None:
-    assert QualifiedBy.one_of(x).evaluate(QualifiedBy(x))
-    assert QualifiedBy.one_of(x).evaluate(QualifiedBy(x, y))
+    assert QualifiedBy.one_of(x)(QualifiedBy(x))
+    assert QualifiedBy.one_of(x)(QualifiedBy(x, y))
 
-    assert QualifiedBy.one_of(x, y).evaluate(QualifiedBy(x))
-    assert QualifiedBy.one_of(x, y).evaluate(QualifiedBy(x, y))
-    assert QualifiedBy.one_of(x, y).evaluate(QualifiedBy(y))
+    assert QualifiedBy.one_of(x, y)(QualifiedBy(x))
+    assert QualifiedBy.one_of(x, y)(QualifiedBy(x, y))
+    assert QualifiedBy.one_of(x, y)(QualifiedBy(y))
 
     # Ensuring (roughly) we have all cases of ordering with id()
     for left in itertools.permutations([x, y, z]):
         for right in [x, y, z]:
-            QualifiedBy.one_of(*left).evaluate(QualifiedBy(object(), right, object()))
+            QualifiedBy.one_of(*left)(QualifiedBy(object(), right, object()))
 
-    assert not QualifiedBy.one_of(x).evaluate(QualifiedBy(y))
+    assert not QualifiedBy.one_of(x)(QualifiedBy(y))
 
     # on missing QualifiedBy
-    assert not QualifiedBy.one_of(x).evaluate(None)
+    assert not QualifiedBy.one_of(x)(None)
 
 
-def test_only_qualifier_id_matters() -> None:
-    assert QualifiedBy(x, x) == QualifiedBy(x)
+def test_only_qualifier_equality_matters() -> None:
+    assert QualifiedBy("a")(QualifiedBy("a"))
+    assert not QualifiedBy("a")(QualifiedBy("b"))
+    assert QualifiedBy.one_of("a")(QualifiedBy("a", "b"))
+    assert not QualifiedBy.one_of("a")(QualifiedBy("c", "b"))
 
-    class Dummy:
-        def __init__(self, name: str) -> None:
-            self.name = name
 
-        def __eq__(self, other: object) -> bool:
-            return isinstance(other, Dummy)
+def test_nothing() -> None:
+    @interface
+    class Base:
+        ...
 
-        def __hash__(self) -> int:
-            return hash(Dummy)  # pragma: no cover
+    @_(implements(Base).when(qualified_by="a"))
+    class A(Base):
+        ...
 
-        def __repr__(self) -> str:
-            return f"Dummy({self.name})"  # pragma: no cover
+    @_(implements(Base))
+    class B(Base):
+        ...
 
-    a = Dummy("a")
-    b = Dummy("b")
-    assert a == b
-
-    assert QualifiedBy(a) != QualifiedBy(b)
-    assert QualifiedBy(a, b) != QualifiedBy(a)
-    assert QualifiedBy(a, b) != QualifiedBy(b)
-
-    assert not QualifiedBy(b).evaluate(QualifiedBy(a))
-    assert not QualifiedBy.one_of(b).evaluate(QualifiedBy(a))
+    assert isinstance(world[instanceOf[Base]().single(QualifiedBy.nothing)], B)

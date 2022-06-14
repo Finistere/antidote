@@ -1,68 +1,165 @@
 from __future__ import annotations
 
+import inspect
 import itertools
-from typing import Any, cast, List, Mapping, Optional, Type, TypeVar, Union
+from dataclasses import dataclass
+from typing import (
+    Any,
+    cast,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Type,
+    TYPE_CHECKING,
+    TypeVar,
+)
 
-from typing_extensions import get_type_hints, TypeAlias
+from typing_extensions import final, get_type_hints, ParamSpec
 
-from ._provider import InterfaceProvider
-from ._query import ConstraintsAlias
+from ..._internal import API, debug_repr, extract_optional_value
+from ..._internal.utils import CachedMeta
 from .predicate import (
-    MergeablePredicate,
     MergeablePredicateConstraint,
     NeutralWeight,
     Predicate,
     PredicateConstraint,
     PredicateWeight,
 )
-from ..._internal import API
-from ..._internal.utils import enforce_subclass_if_possible, extract_optional_value
-from ...core import inject
-from ...core.exceptions import DuplicateDependencyError
+from .qualifier import QualifiedBy
+
+if TYPE_CHECKING:
+    from ._provider import ImplementationsRegistry
 
 __all__ = [
+    "ImplementationQuery",
+    "Constraint",
+    "ImplementationsRegistryDependency",
     "create_constraints",
-    "register_interface",
-    "register_implementation",
-    "register_default_implementation",
-    "override_implementation",
+    "create_conditions",
 ]
 
+F = TypeVar("F")
 T = TypeVar("T")
-C = TypeVar("C", bound=type)
-
-P = TypeVar("P", bound=Predicate[Any])
-PC = TypeVar("PC", bound=PredicateConstraint[Any])
+P = ParamSpec("P")
 Weight = TypeVar("Weight", bound=PredicateWeight)
-WeightCo = TypeVar("WeightCo", bound=PredicateWeight, covariant=True)
+AnyPredicate = TypeVar("AnyPredicate", bound=Predicate[Any])
+Out = TypeVar("Out", covariant=True)
 
-AnyP: TypeAlias = Predicate[Any]
-AnyPC: TypeAlias = PredicateConstraint[Any]
+
+@API.private
+@dataclass(frozen=True)
+class Constraint(Generic[AnyPredicate]):
+    __slots__ = ("predicate_type", "callback")
+    predicate_type: Type[AnyPredicate]
+    callback: PredicateConstraint[AnyPredicate]
+
+    def __hash__(self) -> int:
+        try:
+            return hash(self.callback)
+        except TypeError:
+            return object.__hash__(self)
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Constraint)
+            and other.callback == self.callback  # pyright: ignore[reportUnknownMemberType]
+        )
+
+    def __repr__(self) -> str:
+        return repr(self.callback)
+
+
+@API.private
+@dataclass(frozen=True)
+class ImplementationQuery(Generic[Out], metaclass=CachedMeta):
+    __slots__ = ("interface", "constraints", "all", "__weakref__")
+    interface: object
+    constraints: Sequence[Constraint[Any]]
+    all: bool
+
+    def __init__(
+        self,
+        interface: object,
+        *,
+        constraints: Iterable[Constraint[Any]] = tuple(),
+        all: bool = False,
+    ) -> None:
+        object.__setattr__(self, "interface", interface)
+        object.__setattr__(self, "constraints", tuple(constraints))
+        object.__setattr__(self, "all", all)
+
+    def __repr__(self) -> str:
+        out = "AllOf" if self.all else "SingleOf"
+        out += f"({self.interface}"
+        if self.constraints:
+            out += f", constraints={self.constraints}"
+        return out + ")"
+
+    def __antidote_debug_repr__(self) -> str:
+        out = f"<{'all' if self.all else 'single'}> {debug_repr(self.interface)}"
+        if self.constraints:
+            out += f" // {', '.join(debug_repr(c.callback) for c in self.constraints)}"
+        return out
+
+    def __antidote_dependency_hint__(self) -> Out:
+        return cast(Out, self)
+
+
+@API.private
+@final
+@dataclass(frozen=True, eq=False)
+class ImplementationsRegistryDependency:
+    __slots__ = ("interface",)
+    interface: object
+
+    def __antidote_dependency_hint__(self) -> ImplementationsRegistry:
+        return self  # type: ignore
+
+
+@API.private
+def create_conditions(
+    *conditions: Predicate[Weight]
+    | Predicate[NeutralWeight]
+    | Weight
+    | NeutralWeight
+    | None
+    | bool,
+    qualified_by: Optional[object | list[object]] = None,
+) -> Sequence[Predicate[Weight] | Predicate[NeutralWeight] | Weight | NeutralWeight | None | bool]:
+    result: list[
+        Predicate[Weight] | Predicate[NeutralWeight] | Weight | NeutralWeight | None | bool
+    ] = list(conditions)
+    if qualified_by is not None:
+        if isinstance(qualified_by, (list, tuple)):
+            result.append(QualifiedBy(*cast(List[object], qualified_by)))
+        else:
+            result.append(QualifiedBy(qualified_by))
+    return result
 
 
 @API.private
 def create_constraints(
     *_constraints: PredicateConstraint[Any],
-    qualified_by: Optional[object | list[object]] = None,
-    qualified_by_one_of: Optional[list[object]] = None,
-) -> ConstraintsAlias:
-    from .qualifier import QualifiedBy
-
+    qualified_by: Optional[object | list[object] | tuple[object, ...]] = None,
+    qualified_by_one_of: Optional[list[object] | tuple[object, ...]] = None,
+) -> Sequence[Constraint[Any]]:
     # Validate constraints
     constraints: list[PredicateConstraint[Any]] = []
     for constraint in _constraints:
-        if not isinstance(constraint, PredicateConstraint):
+        if not (callable(constraint) and isinstance(constraint, PredicateConstraint)):
             raise TypeError(f"Expected a PredicateConstraint, not a {type(constraint)}")
         constraints.append(constraint)
 
     # Create constraints from kwargs
     if qualified_by is not None:
-        if isinstance(qualified_by, list):
+        if isinstance(qualified_by, (list, tuple)):
             constraints.append(QualifiedBy(*cast(List[object], qualified_by)))
         else:
             constraints.append(QualifiedBy(qualified_by))
 
-    if not (qualified_by_one_of is None or isinstance(qualified_by_one_of, list)):
+    if not (qualified_by_one_of is None or isinstance(qualified_by_one_of, (tuple, list))):
         raise TypeError(
             f"qualified_by_one_of should be None or a list, not {type(qualified_by_one_of)!r}"
         )
@@ -77,7 +174,7 @@ def create_constraints(
         cls = type(constraint)
         previous = constraints_groups.setdefault(cls, [])
         if issubclass(cls, MergeablePredicateConstraint) and len(previous) > 0:
-            cls = cast(Type[MergeablePredicateConstraint[Any]], cls)
+            cls = cast(Type[MergeablePredicateConstraint[Any]], cls)  # type: ignore
             previous[0] = cls.merge(
                 cast(MergeablePredicateConstraint[Any], previous[0]),
                 cast(MergeablePredicateConstraint[Any], constraint),
@@ -86,128 +183,32 @@ def create_constraints(
             previous.append(constraint)
 
     # Extract associated predicate from the type hints
-    result: ConstraintsAlias = list()
-    for contraint in itertools.chain.from_iterable(constraints_groups.values()):
-        predicate_type_hint = get_type_hints(contraint.evaluate).get("predicate")
-        if predicate_type_hint is None:
-            raise TypeError(f"Missing 'predicate' argument on the predicate filter {contraint}")
-
-        predicate_type = extract_optional_value(predicate_type_hint)
-        if not (isinstance(predicate_type, type) and issubclass(predicate_type, Predicate)):
-            raise TypeError("Predicate type hint must be Optional[P] with P being a Predicate")
-        result.append((cast(Type[Predicate[Any]], predicate_type), contraint))
-
-    return result
+    return [
+        Constraint(predicate_type=extract_predicate_type(constraint), callback=constraint)
+        for constraint in itertools.chain.from_iterable(constraints_groups.values())
+    ]
 
 
 @API.private
-@inject
-def register_interface(
-    __interface: type, *, provider: InterfaceProvider = inject.get(InterfaceProvider)
-) -> None:
-    provider.register(__interface)
+def extract_predicate_type(constraint: PredicateConstraint[AnyPredicate]) -> Type[AnyPredicate]:
+    func: Any = constraint if inspect.isfunction(constraint) else constraint.__call__
+    parameters = list(inspect.signature(func).parameters.values())
+    if not parameters:
+        raise TypeError(f"Missing an argument for the predicate on {constraint}")
+    first_arg_name = parameters[0].name
+    predicate_type_hint = get_type_hints(func).get(first_arg_name)
+    if predicate_type_hint is None:
+        raise TypeError(
+            f"First argument of {constraint} must have "
+            f"an optional Predicate type hint. It defines which predicate will be "
+            f"injected"
+        )
 
-
-@API.private
-@inject
-def register_implementation(
-    *,
-    interface: type,
-    implementation: type,
-    predicates: List[Union[Predicate[Weight], Predicate[NeutralWeight]]],
-    type_hints_locals: Optional[Mapping[str, object]],
-    provider: InterfaceProvider = inject.get(InterfaceProvider),
-) -> None:
-    from ..injectable import injectable
-
-    _validate(interface=interface, implementation=implementation, provider=provider)
-
-    # Remove duplicates and combine predicates when possible
-    distinct_predicates: dict[Type[Predicate[Any]], Predicate[Any]] = dict()
-    for predicate in predicates:
-        if not isinstance(predicate, Predicate):
-            raise TypeError(f"Expected an instance of Predicate, not a {type(predicate)!r}")
-
-        cls = type(predicate)
-        previous = distinct_predicates.get(cls)
-        if previous is not None:
-            if not issubclass(cls, MergeablePredicate):
-                raise RuntimeError(
-                    f"Cannot have multiple predicates of type {cls!r} "
-                    f"without declaring a merge method!"
-                )
-            cls = cast(Type[MergeablePredicate[Any]], cls)
-            distinct_predicates[cls] = cls.merge(
-                cast(MergeablePredicate[Any], previous), cast(MergeablePredicate[Any], predicate)
-            )
-        else:
-            distinct_predicates[cls] = predicate
-
-    provider.register_implementation(
-        interface=interface,
-        dependency=implementation,
-        predicates=list(distinct_predicates.values()),
-    )
-
-    try:
-        injectable(implementation, type_hints_locals=type_hints_locals)
-    except DuplicateDependencyError:
-        pass
-
-
-@API.private
-@inject
-def override_implementation(
-    *,
-    interface: type,
-    existing_implementation: type,
-    new_implementation: type,
-    type_hints_locals: Optional[Mapping[str, object]],
-    provider: InterfaceProvider = inject.get(InterfaceProvider),
-) -> None:
-    from ..injectable import injectable
-
-    _validate(interface=interface, implementation=new_implementation, provider=provider)
-
-    overridden = provider.override_implementation(
-        interface=interface,
-        existing_dependency=existing_implementation,
-        new_dependency=new_implementation,
-    )
-    if not overridden:
-        raise RuntimeError(f"Implementation {existing_implementation!r} does not exist.")
-
-    try:
-        injectable(new_implementation, type_hints_locals=type_hints_locals)
-    except DuplicateDependencyError:
-        pass
-
-
-@API.private
-@inject
-def register_default_implementation(
-    interface: type,
-    implementation: type,
-    type_hints_locals: Optional[Mapping[str, object]],
-    provider: InterfaceProvider = inject.get(InterfaceProvider),
-) -> None:
-    from ..injectable import injectable
-
-    _validate(interface=interface, implementation=implementation, provider=provider)
-    provider.register_default_implementation(interface=interface, dependency=implementation)
-
-    try:
-        injectable(implementation, type_hints_locals=type_hints_locals)
-    except DuplicateDependencyError:
-        pass
-
-
-@API.private
-def _validate(*, interface: type, implementation: type, provider: InterfaceProvider) -> None:
-    if not isinstance(interface, type):
-        raise TypeError(f"Expected a class for the interface, got a {type(interface)!r}")
-    if not provider.has_interface(interface):
-        raise ValueError(f"Interface {interface!r} has not been decorated with @interface.")
-    if not isinstance(implementation, type):
-        raise TypeError(f"Expected a class for the implementation, got a {type(implementation)!r}")
-    enforce_subclass_if_possible(implementation, interface)
+    predicate_type = extract_optional_value(predicate_type_hint)
+    if not (isinstance(predicate_type, type) and issubclass(predicate_type, Predicate)):
+        raise TypeError(
+            f"First argument of {constraint} must have "
+            f"an optional Predicate type hint. It defines which predicate will be "
+            f"injected"
+        )
+    return cast(Type[AnyPredicate], predicate_type)

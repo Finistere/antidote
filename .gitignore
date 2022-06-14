@@ -22,8 +22,9 @@ cython_debug/
 _build/
 
 # PyCharm
-.idea
-.venv
+/.idea
+/.nodejs
+/.venv*
 
 # Annotated Cython
 /src/**/*.html

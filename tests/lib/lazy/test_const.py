@@ -1,17 +1,20 @@
-# pyright: reportUnusedFunction=false
-import os
+# pyright: reportUnusedFunction=false, reportUnusedClass=false
+from __future__ import annotations
+
 from enum import Enum
-from typing import Any, cast, ClassVar, Iterator, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Iterator, Tuple, TypeVar
 
 import pytest
-from typing_extensions import Protocol
 
-from antidote import const, inject, injectable, world
-from antidote.core.exceptions import DependencyInstantiationError
-from antidote.lib.injectable import register_injectable_provider
-from antidote.lib.lazy import Constant, register_lazy_provider
+from antidote import antidote_injectable, const, Dependency, inject, injectable, new_catalog, world
+from antidote.lib.lazy import antidote_lazy
+from antidote.lib.lazy.constant import ConstFactory
+from tests.utils import Box, expected_debug, Obj
 
 T = TypeVar("T")
+
+x = Obj()
+y = Obj()
 
 
 class Choice(Enum):
@@ -25,363 +28,621 @@ class Unknown:
 
 @pytest.fixture(autouse=True)
 def setup_tests(monkeypatch: Any) -> Iterator[None]:
-    monkeypatch.setenv("HOST", "localhost")
+    monkeypatch.setenv("HOST", "host")
     monkeypatch.setenv("PORT", "80")
     monkeypatch.setenv("CHOICE", "YES")
     monkeypatch.delenv("MISSING", raising=False)
 
     with world.test.empty():
-        register_lazy_provider()
-        register_injectable_provider()
+        world.include(antidote_lazy)
         yield
 
 
-def test_static() -> None:
+def test_debug() -> None:
+    world.include(antidote_injectable)
+
+    @const.factory
+    def fun(key: str) -> Box[str]:
+        return Box(key)
+
+    @injectable
+    class Conf:
+        @const.factory.method
+        def method(self, key: str) -> Box[str]:
+            return Box(key)
+
+        @const.factory
+        @staticmethod
+        def static(key: str) -> Box[str]:
+            return Box(key)
+
+        C = method("C")
+
+    class OtherConf:
+        C = Conf.method("C")
+        D = Conf.static("D")
+
+    HOST: Dependency[Box[str]] = const.env(cast=Box)
+    A = const("Hello world!")
+    B = fun("B")
+    C = Conf.method("C")
+    D = Conf.static("D")
+
+    line_number = 65
+    namespace = "tests.lib.lazy.test_const.test_debug.<locals>"
+    assert world.debug(HOST) == expected_debug(
+        f"""
+    🟉 <const> HOST@tests.lib.lazy.test_const:{line_number}
+    """
+    )
+    assert world.debug(A) == expected_debug(
+        """
+    🟉 <const> 'Hello world!'
+    """
+    )
+    assert world.debug(B) == expected_debug(
+        f"""
+    🟉 <const> B@tests.lib.lazy.test_const:{line_number + 2}
+    """
+    )
+    assert world.debug(C) == expected_debug(
+        f"""
+    🟉 <const> C@tests.lib.lazy.test_const:{line_number + 3}
+    └── 🟉 tests.lib.lazy.test_const.test_debug.<locals>.Conf
+    """
+    )
+    assert world.debug(D) == expected_debug(
+        f"""
+    🟉 <const> D@tests.lib.lazy.test_const:{line_number + 4}
+    """
+    )
+    assert world.debug(Conf.C) == expected_debug(
+        f"""
+    🟉 <const> {namespace}.Conf.C
+    └── 🟉 tests.lib.lazy.test_const.test_debug.<locals>.Conf
+    """
+    )
+    assert world.debug(OtherConf.C) == expected_debug(
+        f"""
+    🟉 <const> {namespace}.OtherConf.C
+    └── 🟉 tests.lib.lazy.test_const.test_debug.<locals>.Conf
+    """
+    )
+    assert world.debug(OtherConf.D) == expected_debug(
+        f"""
+    🟉 <const> {namespace}.OtherConf.D
+    """
+    )
+
+
+def test_simple_const() -> None:
+    catalog = new_catalog(include=[antidote_lazy])
+
+    constant = const(x)
+    # const may carry mutable objects, so they cannot be the same.
+    assert constant != const(x)
+    assert constant != const(y)
+    assert constant != object()
+
+    assert world[constant] is x
+    assert constant not in catalog
+
+    assert str(world.id) in repr(constant)
+    assert repr(x) in world.debug(constant)
+    assert repr(x) in repr(constant)
+
+    dep2 = const(x, catalog=catalog)
+    assert dep2 in catalog
+    assert dep2 not in world
+
+    with pytest.raises(TypeError, match="catalog_id"):
+        const(x, catalog_id=object())  # type: ignore
+
+    @inject
+    def f(a: object = inject[constant]) -> object:
+        return a
+
+    assert f() is x
+
+
+def test_simple_class_const() -> None:
     class Conf:
         HOST = const("host")
         PORT = const(80)
 
-    assert world.get[str](Conf.HOST) == "host"
-    assert world.get[int](Conf.PORT) == 80
+    assert world[Conf.HOST] == "host"
+    assert world[Conf.PORT] == 80
+    assert str(world.id) in repr(Conf.HOST)
+    assert "host" in repr(Conf.HOST)
+    assert "host" in world.debug(Conf.HOST)
+    assert "80" in repr(Conf.PORT)
+    assert "80" in world.debug(Conf.PORT)
 
     @inject
-    def f(host: str = Conf.HOST, port: int = Conf.PORT) -> Tuple[str, int]:
+    def f(host: str = inject[Conf.HOST], port: int = inject[Conf.PORT]) -> Tuple[str, int]:
         return host, port
 
     assert f() == ("host", 80)
 
     conf = Conf()
-    assert conf.HOST == "host"
-    assert conf.PORT == 80
-
-
-class ConfProtocol(Protocol):
-    HOST: ClassVar[Constant[str]]
-    HOSTNAME: ClassVar[Constant[str]]
-    PORT: ClassVar[Constant[int]]
-    PORT_NUMBER: ClassVar[Constant[int]]
-    CHOICE: ClassVar[Constant[Choice]]
-    UNSUPPORTED_TYPE: ClassVar[Constant[Unknown]]
-    MISSING: ClassVar[Constant[str]]
-    MISSING_WITH_DEFAULT: ClassVar[Constant[str]]
-
-
-def check_conf(Conf: Type[ConfProtocol]) -> None:
-    assert world.get[str](Conf.HOST) == "localhost"
-    assert world.get[str](Conf.HOSTNAME) == "localhost"
-    assert world.get[int](Conf.PORT) == 80
-    assert world.get[int](Conf.PORT_NUMBER) == 80
-    assert world.get[Choice](Conf.CHOICE) == Choice.YES
-    assert world.get[str](Conf.MISSING_WITH_DEFAULT) == "default"
-
-    with pytest.raises(DependencyInstantiationError):
-        world.get[object](Conf.UNSUPPORTED_TYPE)
-
-    with pytest.raises(TypeError):
-        _ = Conf().UNSUPPORTED_TYPE
-
-    with pytest.raises(DependencyInstantiationError):
-        world.get[object](Conf.MISSING)
-
-    @inject
-    def check(
-        host: str = Conf.HOST,
-        hostname: str = Conf.HOSTNAME,
-        port: int = Conf.PORT,
-        port_number: int = Conf.PORT_NUMBER,
-        choice: Choice = Conf.CHOICE,
-        missing_with_default: str = Conf.MISSING_WITH_DEFAULT,
-    ) -> None:
-        assert host == "localhost"
-        assert hostname == "localhost"
-        assert port == 80
-        assert port_number == 80
-        assert choice == Choice.YES
-        assert missing_with_default == "default"
-
-    check()
-
-    conf = Conf()
-    assert conf.HOST == "localhost"
-    assert conf.HOSTNAME == "localhost"
-    assert conf.PORT == 80
-    assert conf.PORT_NUMBER == 80
-    assert conf.CHOICE == Choice.YES
-    assert conf.MISSING_WITH_DEFAULT == "default"
-
-
-def env_converter(value: str, tpe: Type[T]) -> T:
-    if issubclass(tpe, (int, str, float, Enum)):
-        return cast(T, tpe(value))
-    raise TypeError()
+    assert world[conf.HOST] == "host"
+    assert world[conf.PORT] == 80
 
 
 def test_env() -> None:
-    class Conf:
-        HOST = const.env()
-        HOSTNAME = const.env("HOST")
-        PORT = const.env[int]()
-        PORT_NUMBER = const.env[int]("PORT")
-        CHOICE = const.env[Choice]()
-        UNSUPPORTED_TYPE = const.env[Unknown]("HOST")
-        MISSING = const.env()
-        MISSING_WITH_DEFAULT = const.env(default="default")
+    HOST: Dependency[str] = const.env()
+    PORT: Dependency[int] = const.env(cast=int)
+    CHOICE: Dependency[Choice] = const.env(cast=Choice)
+    MISSING: Dependency[int] = const.env(default=99)
+    NOT_FOUND = const.env("MISSING")
 
-    check_conf(cast(Type[ConfProtocol], Conf))
-
-
-def test_factory_env_external() -> None:
-    @const.provider
-    def env(name: str, arg: Optional[str]) -> str:
-        return os.environ[arg or name]
-
-    env.converter(env_converter)
-
-    assert env(name="HOST", arg=None) == "localhost"
-    assert env(name="XXX", arg="HOST") == "localhost"
+    assert world[HOST] == "host"
+    assert world[PORT] == 80
+    assert world[CHOICE] == Choice.YES
+    assert world[MISSING] == 99
+    assert str(world.id) in repr(HOST)
+    assert "HOST" in repr(HOST)
+    assert "HOST" in world.debug(HOST)
+    assert "MISSING" in repr(NOT_FOUND)
+    assert "NOT_FOUND" in repr(NOT_FOUND)
+    assert "NOT_FOUND" in world.debug(NOT_FOUND)
 
     class Conf:
-        HOST = env.const()
-        HOSTNAME = env.const("HOST")
-        PORT = env.const[int]()
-        PORT_NUMBER = env.const[int]("PORT")
-        CHOICE = env.const[Choice]()
-        UNSUPPORTED_TYPE = env.const[Unknown]("HOST")
-        MISSING = env.const()
-        MISSING_WITH_DEFAULT = env.const(default="default")
+        HOST: Dependency[str] = const.env()
+        PORT: Dependency[int] = const.env(cast=int)
+        CHOICE: Dependency[Choice] = const.env(cast=Choice)
+        MISSING: Dependency[int] = const.env(default=99)
+        NOT_FOUND = const.env("MISSING")
 
-    def _env(name: str, arg: Optional[str]) -> str:
-        return os.environ[arg or name]
+    assert world[Conf.HOST] == "host"
+    assert world[Conf.PORT] == 80
+    assert world[Conf.CHOICE] == Choice.YES
+    assert world[Conf.MISSING] == 99
+    assert "HOST" in repr(Conf.HOST)
+    assert "HOST" in world.debug(Conf.HOST)
+    assert "MISSING" in repr(Conf.NOT_FOUND)
+    assert "NOT_FOUND" in repr(Conf.NOT_FOUND)
+    assert "NOT_FOUND" in world.debug(Conf.NOT_FOUND)
 
-    env2 = const.provider(_env)
-    env2.converter(env_converter)
+    with pytest.raises(LookupError, match="MISSING"):
+        _ = world[NOT_FOUND]
 
-    class ConfVariable:
-        HOST = env2.const()
-        HOSTNAME = env2.const("HOST")
-        PORT = env2.const[int]()
-        PORT_NUMBER = env2.const[int]("PORT")
-        CHOICE = env2.const[Choice]()
-        UNSUPPORTED_TYPE = env2.const[Unknown]("HOST")
-        MISSING = env2.const()
-        MISSING_WITH_DEFAULT = env2.const(default="default")
+    const.env(default=90, cast=int)  # should not fail
+    with pytest.raises(TypeError, match="default.*cast"):
+        const.env(default=90, cast=str)
 
-    # for Mypy
-    check_conf(cast(Type[ConfProtocol], Conf))
-    check_conf(cast(Type[ConfProtocol], ConfVariable))
+    with pytest.raises(TypeError, match="first argument"):
+        const.env(object())  # type: ignore
 
 
-def test_factory_env_method() -> None:
+def test_const_factory() -> None:
+    @const.factory
+    def square(a: int) -> int:
+        return a**2
+
+    BIG: Dependency[int] = square(12)
+    SMALL: Dependency[int] = square(a=2)
+
+    assert world[BIG] == 144
+    assert world[SMALL] == 4
+    assert str(world.id) in repr(SMALL)
+    assert "SMALL" in repr(SMALL)
+    assert "SMALL" in world.debug(SMALL)
+
+    @const.factory
+    def box_square(a: int) -> Box[int]:
+        return Box(a**2)
+
+    class Conf:
+        FIRST: Dependency[Box[int]] = box_square(3)
+        SECOND: Dependency[Box[int]] = box_square(3)
+
+    first = world[Conf.FIRST]
+    second = world[Conf.SECOND]
+    assert first == Box(9)
+    assert second == Box(9)
+    assert first is not second
+    assert world[Conf.FIRST] is first
+    assert world[Conf.SECOND] is second
+    assert str(world.id) in repr(Conf.FIRST)
+    assert "FIRST" in repr(Conf.FIRST)
+    assert "FIRST" in world.debug(Conf.FIRST)
+
+    assert square.__wrapped__(7) == 49
+
+    with pytest.raises(TypeError):
+        square(1, 2)  # type: ignore
+
+    with pytest.raises(TypeError):
+        square(a=1, b=2)  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        pytest.param(const.factory, id="const.factory"),
+        pytest.param(const.factory.method, id="const.factory.method"),
+    ],
+)
+def test_invalid_factory(func: ConstFactory) -> None:
+    with pytest.raises(TypeError, match="catalog"):
+        func(catalog=object())  # type: ignore
+
+    with pytest.raises(TypeError, match="inject"):
+        func(inject=object())  # type: ignore
+
+    with pytest.raises(TypeError, match="type_hints_locals"):
+        func(type_hints_locals=object())  # type: ignore
+
+    with pytest.raises(TypeError, match="function"):
+        func(object())  # type: ignore
+
+
+def test_duplicate_factory() -> None:
+    with pytest.raises(TypeError, match="existing const factory"):
+
+        @const.factory
+        @const.factory
+        def f() -> int:
+            ...
+
+    class Dummy:
+        with pytest.raises(TypeError, match="existing const factory"):
+
+            @const.factory.method  # type: ignore
+            @const.factory.method
+            def f(self) -> int:
+                ...
+
+
+def test_const_method() -> None:
+    world.include(antidote_injectable)
+
     @injectable
     class Conf:
-        @const.provider
-        def env(self, name: str, arg: Optional[str]) -> str:
-            assert isinstance(self, Conf)
-            return os.environ[arg or name]
+        def __init__(self, **kwargs: object) -> None:
+            self.data = kwargs or {"test": object()}
 
-        env.converter(env_converter)
+        @const.factory.method
+        def get(self, key: str) -> Box[object]:
+            return Box(self.data[key])
 
-        HOST = env.const()
-        HOSTNAME = env.const("HOST")
-        PORT = env.const[int]()
-        PORT_NUMBER = env.const[int]("PORT")
-        CHOICE = env.const[Choice]()
-        UNSUPPORTED_TYPE = env.const[Unknown]("HOST")
-        MISSING = env.const()
-        MISSING_WITH_DEFAULT = env.const(default="default")
+        @const.factory.method
+        def get2(self, key: str) -> Box[object]:
+            return Box(self.data[key])
 
-    # for mypy
-    check_conf(cast(Type[ConfProtocol], Conf))
+        A: Dependency[Box[object]] = get("test")
+        DIFFERENT_ORIGIN = get2("test")
 
-    conf = Conf()
-    assert conf.env(name="HOST", arg=None) == "localhost"
-    assert conf.env(name="XXX", arg="HOST") == "localhost"
+        with pytest.raises(TypeError):
+            get("y", 2)  # type: ignore
+
+    with pytest.raises(TypeError):
+        Conf.get(key="y", b=2)  # type: ignore
+
+    B: Dependency[Box[object]] = Conf.get("test")
+
+    a = world[Conf.A]
+    assert a == Box(world[Conf].data["test"])
+    # singleton
+    assert a is world[Conf.A]
+
+    # Using the same Conf instance
+    assert world[B] == a
+    assert world[B] is world[B]
+    assert world[Conf.DIFFERENT_ORIGIN] == a
+
+    assert Conf.get.__wrapped__(Conf(test=x), "test") == Box(x)
+
+    assert "DIFFERENT_ORIGIN" in repr(Conf.DIFFERENT_ORIGIN)
+    assert "DIFFERENT_ORIGIN" in world.debug(Conf.DIFFERENT_ORIGIN)
+
+    with world.test.clone() as overrides:
+        overrides[Conf] = Conf(test="hello")
+        a = world[Conf.A]
+        # use existing Conf
+        assert a == Box("hello")
+
+        # while same const.factory.method, different value
+        b = world[B]
+        assert b == a
+        assert b is not a
+        assert b is world[B]
 
 
-def test_invalid_factory() -> None:
-    with pytest.raises(TypeError, match="provider.*function"):
-        const.provider(object())  # type: ignore
+def test_private_const_method() -> None:
+    world.include(antidote_injectable)
 
-    with pytest.raises(TypeError, match="name"):
-
-        @const.provider  # type: ignore
-        def f(arg: Optional[object]) -> None:
-            ...
-
-    with pytest.raises(TypeError, match="arg"):
-
-        @const.provider  # type: ignore
-        def f2(name: str) -> None:
-            ...
-
-
-def test_type_enforcement() -> None:
-    @const.provider
-    def f(name: str, arg: Optional[object]) -> int:
-        if arg is None:
-            raise LookupError()
-        return arg  # type: ignore
-
+    @injectable(catalog=world.private)
     class Conf:
-        VALID = f.const(1)
-        VALID_DEFAULT = f.const(default=1)
-        INVALID = f.const("1")
+        def __init__(self, **kwargs: object) -> None:
+            self.data = kwargs or {"test": object()}
 
-        TYPED_VALID = f.const[str]("1")
-        TYPED_VALID_DEFAULT = f.const[str](default="1")
-        TYPED_INVALID = f.const[str](1)
+        @const.factory.method
+        def get(self, key: str) -> Box[object]:
+            return Box(self.data[key])
 
-    with pytest.raises(TypeError):
-        f.const(default="1")  # type: ignore
+        @const.factory.method
+        def get2(self, key: str) -> Box[object]:
+            return Box(self.data[key])
 
-    with pytest.raises(TypeError):
-        _ = Conf().INVALID
+        A: Dependency[Box[object]] = get("test")
+        DIFFERENT_ORIGIN = get2("test")
 
-    with pytest.raises(TypeError):
-        f.const[str](default=1)  # type: ignore
+    B: Dependency[Box[object]] = Conf.get("test")
 
-    with pytest.raises(TypeError):
-        _ = Conf().TYPED_INVALID
+    a = world[Conf.A]
+    assert a == Box(world.private[Conf].data["test"])
+    # singleton
+    assert a is world[Conf.A]
 
-    assert Conf().VALID == 1
-    assert Conf().VALID_DEFAULT == 1
-    assert Conf().TYPED_VALID == "1"
-    assert Conf().TYPED_VALID_DEFAULT == "1"
+    # Using the same Conf instance
+    assert world[B] == a
+    assert world[Conf.DIFFERENT_ORIGIN] == a
 
-    assert world.get[int](Conf.VALID) == 1
-    assert world.get[int](Conf.VALID_DEFAULT) == 1
-    assert world.get[str](Conf.TYPED_VALID) == "1"
-    assert world.get[str](Conf.TYPED_VALID_DEFAULT) == "1"
+    with world.test.clone() as overrides:
+        overrides.of(world.private)[Conf] = Conf(test="hello")
+        a = world[Conf.A]
+        # use existing Conf
+        assert a == Box("hello")
 
 
-def test_unchecked_type() -> None:
-    @const.provider
-    def f(name: str, arg: Optional[object]) -> Union[str, int]:
-        if arg is None:
-            raise LookupError()
-        return arg  # type: ignore
-
-    x = object()
-
+def test_const_static_method() -> None:
     class Conf:
-        VALID_UNCHECKED = f.const(x)
-        VALID_DEFAULT_UNCHECKED = f.const(default=x)  # type: ignore
-        TYPED_VALID_UNCHECKED = f.const[Union[int, float]](x)  # type: ignore
-        TYPED_VALID_DEFAULT_UNCHECKED = f.const[Union[int, float]](default=x)  # type: ignore
+        with pytest.raises(TypeError, match="staticmethod"):
 
-    assert Conf().VALID_UNCHECKED is x
-    assert Conf().VALID_DEFAULT_UNCHECKED is x
-    assert Conf().TYPED_VALID_UNCHECKED is x
-    assert Conf().TYPED_VALID_DEFAULT_UNCHECKED is x
+            @const.factory.method
+            @staticmethod
+            def failure(key: str) -> Box[str]:
+                ...
 
-    assert world.get[object](Conf.VALID_UNCHECKED) is x
-    assert world.get[object](Conf.VALID_DEFAULT_UNCHECKED) is x
-    assert world.get[object](Conf.TYPED_VALID_UNCHECKED) is x
-    assert world.get[object](Conf.TYPED_VALID_DEFAULT_UNCHECKED) is x
+        @staticmethod
+        @const.factory
+        def before(key: str) -> Box[str]:
+            return Box(key)
 
+        @const.factory
+        @staticmethod
+        def after(key: str) -> Box[str]:
+            return Box(key)
 
-def test_converter() -> None:
-    @const.provider
-    def f(name: str, arg: Optional[object]) -> Union[str, int]:
-        if arg is None:
-            raise LookupError()
-        return arg  # type: ignore
+        # staticmethod not callable in Python 3.8
+        if callable(before):
+            A: Dependency[Box[str]] = before("test")
+            C: Dependency[Box[str]] = after("test")
+        else:
+            A: Dependency[Box[str]] = before.__func__("test")  # type: ignore
+            C: Dependency[Box[str]] = after.__func__("test")  # type: ignore
 
-    @f.converter
-    def f_converter(value: Union[str, int], tpe: Type[T]) -> T:
-        if issubclass(tpe, str):
-            return cast(T, tpe(value))
-        return cast(T, value)
+        with pytest.raises(TypeError):
+            after("y", 2)  # type: ignore
 
-    x = object()
-
-    class Conf:
-        VALID_UNCHECKED = f.const(x)
-        VALID_DEFAULT_UNCHECKED = f.const(default=x)  # type: ignore
-        TYPED_CAST = f.const[str](1)
-        TYPED_NO_CAST = f.const[int](1)
-        TYPED_INVALID_NO_CAST = f.const[int]("1")
-        UNSUPPORTED = f.const[Union[str, int]](1)  # type: ignore
-
-    with pytest.raises(TypeError, match="class"):
-        _ = Conf().UNSUPPORTED
-
-    assert Conf().VALID_UNCHECKED is x
-    assert Conf().VALID_DEFAULT_UNCHECKED is x
-    assert Conf().TYPED_CAST == "1"
-    assert Conf().TYPED_NO_CAST == 1
+        with pytest.raises(TypeError):
+            before("y", 2)  # type: ignore
 
     with pytest.raises(TypeError):
-        _ = Conf().TYPED_INVALID_NO_CAST
+        Conf.after(key="y", b=2)  # type: ignore
 
-    assert world.get[object](Conf.VALID_UNCHECKED) is x
-    assert world.get[object](Conf.VALID_DEFAULT_UNCHECKED) is x
-    assert world.get[str](Conf.TYPED_CAST) == "1"
-    assert world.get[int](Conf.TYPED_NO_CAST) == 1
+    with pytest.raises(TypeError):
+        Conf.before(key="y", b=2)  # type: ignore
+
+    B: Dependency[Box[str]] = Conf.before("test")
+    D: Dependency[Box[str]] = Conf.after("test")
+
+    a = world[Conf.A]
+    b = world[B]
+    c = world[Conf.C]
+    d = world[D]
+    assert a == Box("test")
+    # singleton
+    assert a is world[Conf.A]
+    assert len({a, b, c, d}) == 1
+    assert len({id(a), id(b), id(c), id(d)}) == 4
 
 
-def test_invalid_converter() -> None:
-    @const.provider
-    def get(name: str, arg: object) -> object:
+def test_const_class_method() -> None:
+    class Failure:
+        with pytest.raises(TypeError, match="classmethod"):
+
+            @const.factory
+            @classmethod
+            def failure(cls) -> Box[str]:
+                ...
+
+        with pytest.raises(TypeError, match="classmethod"):
+
+            @const.factory.method
+            @classmethod
+            def failure2(cls) -> Box[str]:
+                ...
+
+
+def test_injection_and_type_hints() -> None:
+    world.include(antidote_injectable)
+
+    @injectable(catalog=world.private)
+    class Dummy:
+        pass
+
+    with pytest.raises(NameError, match="Dummy"):
+
+        @const.factory(type_hints_locals=None)
+        def error(dummy: Dummy = inject.me()) -> object:
+            return dummy
+
+    @const.factory
+    def fun(dummy: Dummy = inject.me()) -> Box[Dummy]:
+        return Box(dummy)
+
+    @const.factory
+    @inject(dict(dummy=Dummy))
+    def fun2(dummy: object = None) -> Box[object]:
+        return Box(dummy)
+
+    @const.factory(inject=None)
+    def fun3(dummy: Dummy = inject.me()) -> Box[Dummy]:
+        return Box(dummy)
+
+    @injectable
+    class Conf:
+        @const.factory.method
+        def method(self, dummy: Dummy = inject.me()) -> Box[Dummy]:
+            return Box(dummy)
+
+        @const.factory.method
+        @inject(dict(dummy=Dummy))
+        def method2(self, dummy: object = None) -> Box[object]:
+            return Box(dummy)
+
+        @const.factory.method(inject=None)
+        def method3(self, dummy: Dummy = inject.me()) -> Box[Dummy]:
+            return Box(dummy)
+
+        @const.factory
+        @staticmethod
+        def static(dummy: Dummy = inject.me()) -> Box[Dummy]:
+            return Box(dummy)
+
+        @const.factory
+        @staticmethod
+        @inject(dict(dummy=Dummy))
+        def static2(dummy: object = None) -> Box[object]:
+            return Box(dummy)
+
+        @const.factory(inject=None)
+        @staticmethod
+        def static3(dummy: Dummy = inject.me()) -> Box[Dummy]:
+            return Box(dummy)
+
+    A = fun()
+    B = Conf.method()
+    C = Conf.static()
+    injected = Box(world.private[Dummy])
+    not_injected = Box(inject.me())
+    assert world[A] == injected
+    assert world[B] == injected
+    assert world[C] == injected
+
+    A2 = fun2()
+    B2 = Conf.method2()
+    C2 = Conf.static2()
+    assert world[A2] == injected
+    assert world[B2] == injected
+    assert world[C2] == injected
+
+    A3 = fun3()
+    B3 = Conf.method3()
+    C3 = Conf.static3()
+    assert world[A3] == not_injected
+    assert world[B3] == not_injected
+    assert world[C3] == not_injected
+
+
+def test_catalog() -> None:
+    catalog = new_catalog(include=[antidote_lazy, antidote_injectable])
+
+    @const.factory(catalog=catalog)
+    def fun(key: str) -> Box[str]:
         ...
 
-    with pytest.raises(TypeError, match="converter"):
-        get.converter(object())  # type: ignore
-
-    with pytest.raises(TypeError, match="value"):
-
-        @get.converter  # type: ignore
-        def f(tpe: Type[T]) -> T:
-            ...
-
-    with pytest.raises(TypeError, match="tpe"):
-
-        @get.converter  # type: ignore
-        def f2(value: object) -> None:
-            ...
-
-    @get.converter
-    def f3(value: object, tpe: Type[T]) -> T:
-        ...
-
-    with pytest.raises(RuntimeError, match="Converter was already defined"):
-
-        @get.converter
-        def f4(value: object, tpe: Type[T]) -> T:
-            ...
-
-
-def test_const_repr() -> None:
+    @injectable(catalog=catalog.private)
     class Conf:
-        TEST = const("random-value")
+        @const.factory.method(catalog=catalog)
+        def method(self, key: str) -> Box[str]:
+            ...
 
-    assert "random-value" in repr(Conf.__dict__["TEST"])
-    # if a failure happens before __set_name__() was called.
-    assert "random-value" in repr(const("random-value"))
+        @const.factory(catalog=catalog)
+        @staticmethod
+        def static(key: str) -> Box[str]:
+            ...
+
+    HOST = const.env(catalog=catalog)
+    A = const("A", catalog=catalog)
+    B = fun("B")
+    C = Conf.method("C")
+    D = Conf.static("D")
+
+    assert HOST not in world
+    assert A not in world
+    assert B not in world
+    assert C not in world
+    assert D not in world
+
+    assert HOST in catalog
+    assert A in catalog
+    assert B in catalog
+    assert C in catalog
+    assert D in catalog
 
 
-def test_singleton_dependency() -> None:
+def test_test_env() -> None:
+    world.include(antidote_injectable)
+
+    @const.factory
+    def fun(key: str) -> Box[str]:
+        return Box(key)
+
+    @injectable
     class Conf:
-        @const.provider
-        def env(self, name: str, arg: Optional[object]) -> str:
-            return name
+        @const.factory.method
+        def method(self, key: str) -> Box[str]:
+            return Box(key)
 
-        TEST = env.const()
+        @const.factory
+        @staticmethod
+        def static(key: str) -> Box[str]:
+            return Box(key)
 
-    assert Conf().TEST == "TEST"
+    HOST: Dependency[Box[str]] = const.env(cast=Box)
+    A = const(object())
+    B = fun("B")
+    C = Conf.method("C")
+    D = Conf.static("D")
 
-    with pytest.raises(DependencyInstantiationError):
-        world.get[object](Conf.TEST)
+    host = world[HOST]
+    a = world[A]
+    b = world[B]
+    c = world[C]
+    d = world[D]
 
-    @injectable(singleton=False)
-    class NotASingleton:
-        @const.provider
-        def env(self, name: str, arg: Optional[object]) -> str:
-            return name
+    with world.test.empty():
+        assert HOST not in world
+        assert A not in world
+        assert B not in world
+        assert C not in world
+        assert D not in world
 
-        TEST = env.const()
+    with world.test.new():
+        assert HOST not in world
+        assert A not in world
+        assert B not in world
+        assert C not in world
+        assert D not in world
 
-    assert NotASingleton().TEST == "TEST"
+    with world.test.clone():
+        assert HOST in world
+        assert A in world
+        assert B in world
+        assert C in world
+        assert D in world
+        assert world[HOST] == host
+        assert world[HOST] is not host
+        assert world[A] is a
+        assert world[B] == b
+        assert world[B] is not b
+        assert world[C] == c
+        assert world[C] is not c
+        assert world[D] == d
+        assert world[D] is not d
 
-    with pytest.raises(DependencyInstantiationError):
-        world.get[object](NotASingleton.TEST)
+    with world.test.copy():
+        assert HOST in world
+        assert A in world
+        assert B in world
+        assert C in world
+        assert D in world
+        assert world[HOST] is host
+        assert world[A] is a
+        assert world[B] is b
+        assert world[C] is c
+        assert world[D] is d
