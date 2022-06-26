@@ -359,11 +359,6 @@ can be overridden:
         pass
 
 
-    @implements(Task).by_default
-    class Default(Task):
-        pass
-
-
     @implements(Task)
     class Custom(Task):
         pass
