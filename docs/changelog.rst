@@ -16,6 +16,17 @@ Most, if not all, the API is annotated with decorators such as :code:`@API.publi
 the given functionality can be relied upon.
 
 
+1.4.2 (2022-06-26)
+==================
+
+
+Bug fix
+-------
+
+- Fix injection error for some union type hints such as :code:`str | List[str]`.
+
+
+
 1.4.1 (2022-06-01)
 ==================
 

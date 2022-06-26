@@ -1,6 +1,6 @@
 import functools
 import itertools
-from typing import Iterator, Optional, Sequence, Union
+from typing import Iterator, List, Optional, Sequence, Union
 
 import pytest
 from typing_extensions import Annotated
@@ -398,9 +398,7 @@ def test_with_provide(injector, expected, kwargs):
     # builtins
     [str, int, float, set, list, dict, complex, type, tuple, bytes, bytearray]
     # typing
-    + [Optional, Sequence]
-    # not a class / weird stuff
-    + [1, lambda x: x, object()],
+    + [Optional[int], Sequence[int]]
 )
 def test_ignored_type_hints(injector, type_hint):
     @injector(auto_provide=True)
@@ -1009,3 +1007,10 @@ def test_wrapped_injection():
         inject(g)
 
     assert g() is world.get[MyService]()
+
+
+# https://github.com/Finistere/antidote/issues/56
+def test_problematic_type_hints() -> None:
+    @inject
+    def static(actions: Union[str, List[str]]) -> None:
+        ...
