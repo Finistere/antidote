@@ -34,6 +34,8 @@ Im = TypeVar("Im", bound=Immutable)
 _T = TypeVar("_T")
 _Tp = TypeVar("_Tp", bound=type)
 
+NoneType = type(None)
+
 
 @API.private
 class Default(enum.Enum):
@@ -107,7 +109,7 @@ def is_optional(type_hint: object) -> bool:
     return (
         is_union(type_hint)
         and len(args) == 2
-        and (isinstance(None, args[1]) or isinstance(None, args[0]))
+        and (args[1] is NoneType or args[0] is NoneType)
     )
 
 
