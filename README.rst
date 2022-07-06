@@ -131,49 +131,25 @@ Simple, right ? And you can still use it like a normal function, typically when 
 
     f(Database())
 
-:code:`@inject` here used the marker :code:`inject.me()` with the help of the type hint to determine
-the dependency. But it also supports the following ways to express the dependency wiring:
+The actual dependency is inferred by the type hints and it also supports optional dependencies:
 
-- annotated type hints:
-    .. code-block:: python
+.. code-block:: python
 
-        from antidote import Inject
+    from typing import Optional
 
-        @inject
-        def f(db: Inject[Database]):
-            pass
+    class Dummy:
+        pass
 
-- list (matching argument position):
-    .. code-block:: python
+    # When the type_hint is optional and a marker like `inject.me()` is used, None will be
+    # provided if the dependency does not exists.
+    @inject
+    def f(dummy: Optional[Dummy] = inject.me()):
+        return dummy
 
-        @inject([Database])
-        def f(db):
-            pass
+    assert f() is None
 
-- mapping:
-    .. code-block:: python
-
-        @inject({'db': Database})
-        def f(db):
-            pass
-
-- optional dependencies:
-    .. code-block:: python
-
-        from typing import Optional
-
-        class Dummy:
-            pass
-
-        # When the type_hint is optional and a marker like `inject.me()` is used, None will be
-        # provided if the dependency does not exists.
-        @inject
-        def f(dummy: Optional[Dummy] = inject.me()):
-            return dummy
-
-        assert f() is None
-
-You can also retrieve the dependency by hand with :code:`world.get`:
+There are several other alternatives to specify dependencies, however they don't work as well with
+static typing. You can also retrieve dependencies by hand with :code:`world.get`:
 
 .. code-block:: python
 
