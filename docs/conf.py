@@ -33,12 +33,12 @@ import antidote
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.napoleon",
+    "sphinx_autodoc_typehints",
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
     "sphinx.ext.coverage",
     "sphinx.ext.githubpages",
-    "sphinx.ext.napoleon",
-    # 'sphinx_autodoc_typehints',
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.intersphinx",
 ]
@@ -46,16 +46,20 @@ extensions = [
 # Python code that is treated like it were put in a testcleanup directive for
 # every file that is tested, and for every group.
 doctest_global_setup = """
-from antidote._internal import state
-state.init()
+from antidote import world
+__test_context = world.test.new()
+__test_context.__enter__()
 """
 doctest_global_cleanup = """
-from antidote._internal import state
-state.reset()
+__test_context.__exit__(None, None, None)
 """
 
-autodoc_member_order = "bysource"
+# autodoc_member_order = "bysource"
 autoclass_content = "both"
+autodoc_type_aliases = {
+    "TypeHintsLocals": "antidote.core.TypeHintsLocals",
+    "LifetimeType": "antidote.core.LifetimeType",
+}
 
 # This config value contains the locations and names of other projects
 # that should be linked to in this documentation.
@@ -64,6 +68,17 @@ intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 # Prefix each section label with the name of the document it is in.
 autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 2
+autodoc_typehints = "none"
+autodoc_preserve_defaults = True
+always_document_param_types = False
+typehints_document_rtype = False
+typehints_fully_qualified = False
+typehints_defaults = None
+
+
+def remove_signature(app, what, name, obj, options, signature, return_annotation):
+    return "()", return_annotation
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -79,7 +94,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "Antidote"
-copyright = "2017, Benjamin Rabier"
+copyright = "2017-2022, Benjamin Rabier"
 author = "Benjamin Rabier"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -96,7 +111,7 @@ version = release.rsplit(".", 1)[0]
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -129,6 +144,8 @@ html_theme = "pydata_sphinx_theme"
 # documentation.
 #
 html_theme_options = {
+    "show_nav_level": 4,
+    "pygment_light_style": "lovelace",
     "icon_links": [
         {
             # Label for this link
@@ -140,7 +157,7 @@ html_theme_options = {
             # The type of image to be used (see below for details)
             "type": "fontawesome",
         }
-    ]
+    ],
 }
 
 html_context = {"default_mode": "auto"}
@@ -203,12 +220,7 @@ texinfo_documents = [
 ]
 
 
-# def do_not_skip_antidote(app, what, name, obj, skip, options):
-#     return (name != "__antidote__") and skip
-
-
 def setup(app):
-    # Fix image path
     with open("../README.rst", "r") as readme, open("_build/README.rst", "w") as build_readme:
         build_readme.write(
             readme.read()
@@ -216,4 +228,5 @@ def setup(app):
             .replace(".. code-block:: python", ".. testcode:: readme")
         )
 
+    app.connect("autodoc-process-signature", remove_signature)
     app.add_css_file("css/style.css")  # may also be an URL

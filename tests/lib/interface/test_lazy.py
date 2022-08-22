@@ -6,8 +6,9 @@ from typing import Sequence
 import pytest
 
 from antidote import (
-    DependencyNotFoundError,
+    antidote_lib_interface,
     DuplicateDependencyError,
+    FrozenCatalogError,
     implements,
     inject,
     injectable,
@@ -15,18 +16,16 @@ from antidote import (
     is_lazy,
     lazy,
     new_catalog,
-    overridable,
     world,
 )
 from antidote._internal import short_id
-from antidote.lib.interface import antidote_interface
 from tests.lib.interface.common import _, weighted
 from tests.utils import Box, expected_debug
 
 
 @pytest.fixture(autouse=True)
 def setup_world() -> None:
-    world.include(antidote_interface)
+    world.include(antidote_lib_interface)
 
 
 def test_interface_lazy() -> None:
@@ -42,9 +41,9 @@ def test_interface_lazy() -> None:
         return Box(x * 2)
 
     assert world[double_me(7)] == Box(14)
-    assert world[double_me(7)] is not world[double_me(7)]
+    assert world[double_me(7)] is world[double_me(7)]
     assert world[double_me.single()(7)] == Box(14)
-    assert world[double_me.single()(7)] is not world[double_me.single()(7)]
+    assert world[double_me.single()(7)] is world[double_me.single()(7)]
     assert world[double_me.all()(7)] == [Box(14)]
     assert world[double_me.all()(7)] is not world[double_me.all()(7)]
 
@@ -104,13 +103,13 @@ def test_interface_lazy() -> None:
 
 
 def test_overridable_lazy() -> None:
-    @overridable.lazy
+    @interface.lazy.as_default
     def double_me(x: int) -> Box[int]:
         return Box(x * 2)
 
     assert double_me.__wrapped__(6) == Box(12)
     assert world[double_me(7)] == Box(14)
-    assert world[double_me(7)] is not world[double_me(7)]
+    assert world[double_me(7)] is world[double_me(7)]
 
     @inject
     def f(x: Box[int] = inject[double_me(9)]) -> Box[int]:
@@ -123,9 +122,9 @@ def test_overridable_lazy() -> None:
         return Box(x * 4)
 
     assert world[double_me(7)] == Box(28)
-    assert world[double_me(7)] is not world[double_me(7)]
+    assert world[double_me(7)] is world[double_me(7)]
 
-    @overridable.lazy
+    @interface.lazy.as_default
     @lazy(lifetime="singleton")
     def box_me(x: int) -> Box[int]:
         return Box(x * 2)
@@ -135,7 +134,7 @@ def test_overridable_lazy() -> None:
     assert world[box_me(7)] is result
 
     with pytest.raises(TypeError, match="function"):
-        overridable.lazy(object())  # type: ignore
+        interface.lazy.as_default(object())  # type: ignore
 
 
 def test_lazy_predicates() -> None:
@@ -162,12 +161,12 @@ def test_lazy_default() -> None:
     def double_me(x: int) -> Box[int]:
         ...
 
-    @_(implements.lazy(double_me).by_default)
+    @_(implements.lazy(double_me).as_default)
     def default(x: int) -> Box[int]:
         return Box(x * 2)
 
     assert world[double_me(3)] == Box(6)
-    assert world[double_me(3)] is not world[double_me(3)]
+    assert world[double_me(3)] is world[double_me(3)]
 
     assert is_lazy(default)
     assert default not in world
@@ -179,13 +178,13 @@ def test_lazy_default() -> None:
         return Box(x * 3)
 
     assert world[double_me(3)] == Box(9)
-    assert world[double_me(3)] is not world[double_me(3)]
+    assert world[double_me(3)] is world[double_me(3)]
 
     @interface.lazy
     def double_me2(x: int) -> Box[int]:
         ...
 
-    @_(implements.lazy(double_me2).by_default)
+    @_(implements.lazy(double_me2).as_default)
     @lazy(lifetime="singleton")
     def default2(x: int) -> Box[int]:
         return Box(x * 2)
@@ -198,7 +197,7 @@ def test_lazy_default() -> None:
     assert world[double_me2(3)] is result
 
     with pytest.raises(TypeError, match="function"):
-        implements.lazy(double_me).by_default(object())  # type: ignore
+        implements.lazy(double_me).as_default(object())  # type: ignore
 
 
 def test_lazy_overriding() -> None:
@@ -206,7 +205,7 @@ def test_lazy_overriding() -> None:
     def double_me(x: int) -> Box[int]:
         ...
 
-    @_(implements.lazy(double_me).by_default)
+    @_(implements.lazy(double_me).as_default)
     def default(x: int) -> Box[int]:
         return Box(x * 2)
 
@@ -217,7 +216,7 @@ def test_lazy_overriding() -> None:
         return Box(x * 3)
 
     assert world[double_me(3)] == Box(9)
-    assert world[double_me(3)] is not world[double_me(3)]
+    assert world[double_me(3)] is world[double_me(3)]
 
     assert is_lazy(default_override)
     assert default_override not in world
@@ -235,7 +234,7 @@ def test_lazy_overriding() -> None:
         return Box(x * 5)
 
     assert world[double_me(3)] == Box(15)
-    assert world[double_me(3)] is not world[double_me(3)]
+    assert world[double_me(3)] is world[double_me(3)]
 
     assert is_lazy(impl_override)
     assert impl_override not in world
@@ -254,7 +253,7 @@ def test_lazy_overriding_lazy() -> None:
     def double_me(x: int) -> Box[int]:
         ...
 
-    @_(implements.lazy(double_me).by_default)
+    @_(implements.lazy(double_me).as_default)
     @lazy  # ensures overriding works on lazy
     def default(x: int) -> Box[int]:
         return Box(x * 2)
@@ -303,27 +302,27 @@ def test_injection_and_type_hints() -> None:
 
     with pytest.raises(NameError, match="Dep"):
 
-        @overridable.lazy(type_hints_locals=None)
+        @interface.lazy.as_default(type_hints_locals=None)
         def error(dep: Dep = inject.me()) -> object:
             ...
 
     injected = world.private[Dep]
     not_injected = inject.me()
 
-    @overridable.lazy
+    @interface.lazy.as_default
     def dummy(dep: Dep = inject.me()) -> object:
         return dep
 
-    @overridable.lazy
-    @inject(dict(dep=Dep))
+    @interface.lazy.as_default
+    @inject(kwargs=dict(dep=Dep))
     def dummy_custom(dep: object = None) -> object:
         return dep
 
-    @overridable.lazy(inject=None)
+    @interface.lazy.as_default(inject=None)
     def dummy_none(dep: Dep = inject.me()) -> object:
         return dep
 
-    @overridable.lazy
+    @interface.lazy.as_default
     @lazy(inject=None)
     def dummy_lazy_none(dep: Dep = inject.me()) -> object:
         return dep
@@ -342,7 +341,7 @@ def test_injection_and_type_hints() -> None:
         return "impl", dep
 
     @implements.lazy(dummy_custom)
-    @inject(dict(dep=Dep))
+    @inject(kwargs=dict(dep=Dep))
     def dummy_custom_impl(dep: object = None) -> object:
         return "impl", dep
 
@@ -373,7 +372,7 @@ def test_injection_and_type_hints() -> None:
         return "overriding", dep
 
     @_(implements.lazy(dummy_custom).overriding(dummy_custom_impl))
-    @inject(dict(dep=Dep))
+    @inject(kwargs=dict(dep=Dep))
     def dummy_custom_override(dep: object = None) -> object:
         return "overriding", dep
 
@@ -404,7 +403,7 @@ def test_injection_and_type_hints() -> None:
         return "when", dep
 
     @_(implements.lazy(dummy_custom).when(weighted(12)))
-    @inject(dict(dep=Dep))
+    @inject(kwargs=dict(dep=Dep))
     def dummy_custom_when(dep: object = None) -> object:
         return "when", dep
 
@@ -458,7 +457,7 @@ def test_implementation_arguments_validation() -> None:
 
 
 def test_catalog() -> None:
-    catalog = new_catalog(include=[antidote_interface])
+    catalog = new_catalog(include=[antidote_lib_interface])
 
     @interface.lazy(catalog=catalog)
     def dummy() -> str:
@@ -467,7 +466,7 @@ def test_catalog() -> None:
     assert dummy() in catalog
     assert dummy() not in world
 
-    @_(implements.lazy(dummy).by_default)
+    @_(implements.lazy(dummy).as_default)
     def dummy_default() -> str:
         return "default"
 
@@ -502,7 +501,7 @@ def test_catalog() -> None:
     assert catalog[dummy.single(qualified_by="a")()] == "a"
     assert dummy() not in world
 
-    @overridable.lazy(catalog=catalog)
+    @interface.lazy.as_default(catalog=catalog)
     def dummy2() -> str:
         return "dummy2"
 
@@ -516,7 +515,7 @@ def test_test_env() -> None:
     def dummy() -> Box[str]:
         ...
 
-    @_(implements.lazy(dummy).by_default)
+    @_(implements.lazy(dummy).as_default)
     @lazy(lifetime="singleton")
     def dummy_default() -> Box[str]:
         return Box("default")
@@ -529,12 +528,25 @@ def test_test_env() -> None:
     assert world[dummy()] is original_default
 
     with world.test.new():
-        with pytest.raises(DependencyNotFoundError):
-            __: object = world[dummy()]
+        assert dummy() not in world
 
     assert world[dummy()] is original_default
 
     with world.test.clone():
+        assert dummy() in world
+        result = world[dummy()]
+        assert result == original_default
+        assert result is not original_default
+
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements.lazy(dummy).overriding(dummy_default))
+            def failure1() -> Box[str]:
+                return Box("super")
+
+    assert world[dummy()] is original_default
+
+    with world.test.clone(frozen=False):
         assert dummy() in world
         result = world[dummy()]
         assert result == original_default
@@ -549,6 +561,19 @@ def test_test_env() -> None:
     assert world[dummy()] is original_default
 
     with world.test.copy():
+        assert dummy() in world
+        result = world[dummy()]
+        assert result is original_default
+
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements.lazy(dummy).overriding(dummy_default))
+            def failure2() -> Box[str]:
+                return Box("super")
+
+    assert world[dummy()] is original_default
+
+    with world.test.copy(frozen=False):
         assert dummy() in world
         result = world[dummy()]
         assert result is original_default
@@ -574,12 +599,25 @@ def test_test_env() -> None:
     assert world[dummy()] is original
 
     with world.test.new():
-        with pytest.raises(DependencyNotFoundError):
-            __ = world[dummy()]  # noqa: F841
+        assert dummy() not in world
 
     assert world[dummy()] is original
 
     with world.test.clone():
+        assert dummy() in world
+        result = world[dummy()]
+        assert result == original
+        assert result is not original
+
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements.lazy(dummy).when(weighted(10)))
+            def failure3() -> Box[str]:
+                return Box("super")
+
+    assert world[dummy()] is original
+
+    with world.test.clone(frozen=False):
         assert dummy() in world
         result = world[dummy()]
         assert result == original
@@ -594,6 +632,19 @@ def test_test_env() -> None:
     assert world[dummy()] is original
 
     with world.test.copy():
+        assert dummy() in world
+        result = world[dummy()]
+        assert result is original
+
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements.lazy(dummy).when(weighted(10)))
+            def failure4() -> Box[str]:
+                return Box("super")
+
+    assert world[dummy()] is original
+
+    with world.test.copy(frozen=False):
         assert dummy() in world
         result = world[dummy()]
         assert result is original
@@ -614,7 +665,7 @@ def test_debug() -> None:
     def dummy(a: int = 0, *, b: str = "") -> str:
         ...
 
-    @_(implements.lazy(dummy).by_default)
+    @_(implements.lazy(dummy).as_default)
     def dummy_default(a: int = 0, *, b: str = "") -> str:
         ...
 
@@ -733,7 +784,7 @@ def test_duplicate_interface() -> None:
         interface.lazy(dummy)
 
     with pytest.raises(DuplicateDependencyError, match="dummy"):
-        overridable.lazy(dummy)
+        interface.lazy.as_default(dummy)
 
     with pytest.raises(DuplicateDependencyError, match="dummy"):
-        overridable.lazy(lazy(dummy))
+        interface.lazy.as_default(lazy(dummy))

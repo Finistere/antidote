@@ -21,25 +21,18 @@ __all__ = [
     "DebugInfoPrefix",
     "ParameterDependency",
     "LifeTime",
-    "TestEnvKind",
-    "TestEnv",
+    "TestContextKind",
+    "TestContextId",
     "CatalogId",
-    "Missing",
 ]
 
 T = TypeVar("T")
 Out = TypeVar("Out", covariant=True)
 
 
-@API.public
-@final
-class Missing(enum.Enum):
-    SENTINEL = enum.auto()
-
-
 @API.experimental
 @final
-class TestEnvKind(enum.Enum):
+class TestContextKind(enum.Enum):
     EMPTY = 1
     NEW = 2
     CLONE = 3
@@ -47,9 +40,9 @@ class TestEnvKind(enum.Enum):
 
 
 @API.experimental
-class TestEnv(Protocol):
+class TestContextId(Protocol):
     @property
-    def kind(self) -> TestEnvKind:
+    def kind(self) -> TestContextKind:
         ...
 
 
@@ -57,27 +50,18 @@ class TestEnv(Protocol):
 @final
 @dataclass(frozen=True)
 class CatalogId:
-    """
-    Unique identifier of a catalog. :code:`name` stays the same across test environments such as
-    :py:meth:`~.TestCatalogBuilder.clone`. :code:`test_env` will contain information related to
-    the test environment used on the catalog.
-    """
-
-    __slots__ = ("name", "test_env")
+    __slots__ = ("name", "test_context_ids")
     name: str
-    test_env: tuple[TestEnv, ...]
+    test_context_ids: API.Experimental[tuple[TestContextId, ...]]
 
-    def __init__(self, name: str, test_env: tuple[TestEnv, ...] = tuple()) -> None:
-        object.__setattr__(self, "name", name)
-        object.__setattr__(self, "test_env", test_env)
+    def __hash__(self) -> int:
+        return object.__hash__(self)
 
-    @API.private
-    def within_env(self, env: TestEnv) -> CatalogId:
-        return CatalogId(name=self.name, test_env=self.test_env + (env,))
+    def __eq__(self, other: object) -> bool:
+        return self is other
 
-    @API.private  # no guarantees are made on the content except to be exhaustive.
-    def __str__(self) -> str:
-        return f"{self.name}[{', '.join(map(str, self.test_env))}]"
+    def __repr__(self) -> str:
+        return f"{self.name}[{', '.join(map(str, self.test_context_ids))}]"
 
 
 @API.public
@@ -86,11 +70,10 @@ class LifeTime(Enum):
     """
     The lifetime of a dependency defines how long its value is kept by the :py:class:`.Catalog`:
 
-    - 'bound': The value is kept until any :py:func:`.state` dependency is updated. All direct and
-        transitive :py:func:`.state` dependencies are taken into account.
-    - 'singleton': The value is computed only once.
-
-    If the lifetime is :py:obj:`None`, the value will never be kept and re-computed each time.
+    - :code:`transient`: The value is never kept and re-computed at each request.
+    - :code:`singleton`: The value is computed at most once.
+    - :code:`scoped`: When depending on one or multiple :py:class:`.ScopeGlobalVar`, the value is
+      re-computed if any of those change. As long as they do not, the value is cached.
     """
 
     TRANSIENT = 1
@@ -114,10 +97,37 @@ class LifeTime(Enum):
 @runtime_checkable
 class Dependency(Protocol[Out]):
     """
-    Wraps a dependency and defines the actual type of the dependency value to expect. Both
-    :py:class:`.Catalog` and :py:obj:`.inject` support custom subclasses. By default, the object
-    itself is the dependency. Subclassing it in this case has the only purpose of specifying the
-    actual dependency value type.
+    Protocol to be used to be used to add support for new dependencies on :py:class:`.Catalog`
+    and :py:obj:`.inject`.
+
+    A single method :py:meth:`~.Dependency.__antidote_dependency_hint__` must be defined. The
+    return type hint is used to infer the type of the dependency value which will be provided.
+    However, the returned object should be the dependency itself. This allows any object to wrap
+    a dependency. The dependency can also be another :py:class:`.Dependency`, it will be unwrapped
+    as many times as necessary.
+
+    As the type of the dependency is rarely the same as its dependency value, you should use
+    :py:func:`typing.cast` to avoid static typing errors.
+
+    .. doctest:: core_data_dependency
+
+        >>> from typing import Generic, TypeVar, cast
+        >>> from dataclasses import dataclass
+        >>> from antidote import world
+        >>> T = TypeVar('T')
+        >>> @dataclass
+        ... class MyDependencyWrapper(Generic[T]):
+        ...     wrapped: object
+        ...     #                                         ⯆ Defines the type of the dependency value
+        ...     def __antidote_dependency_hint__(self) -> T:
+        ...         # actual dependency to be used by the catalog
+        ...         return cast(T, self.wrapped)
+
+    .. tip::
+
+        If you only need to wrap a value and provide a type for the dependency value, consider
+        simply using :py:class:`.dependencyOf` instead.
+
     """
 
     def __antidote_dependency_hint__(self) -> Out:
@@ -128,7 +138,31 @@ class Dependency(Protocol[Out]):
 class ParameterDependency(ABC):
     """
     Defines the dependency to inject based on the argument name and type hints when using
-    :py:obj:`.inject`. This is how :py:meth:`~.Injector.me` and :py:obj:`.Inject` work underneath.
+    :py:obj:`.inject`. This is how :py:meth:`~.Inject.me` and :py:obj:`.Inject` work underneath.
+
+    .. doctest:: core_data_parameter_dependency
+
+        >>> from typing import Any
+        >>> from antidote import Dependency, dependencyOf, inject, injectable, ParameterDependency, world
+        >>> class Auto(ParameterDependency):
+        ...     def __antidote_parameter_dependency__(self, *,
+        ...                                           name: str,
+        ...                                           type_hint: object,
+        ...                                           type_hint_with_extras: object
+        ...                                           ) -> Dependency[Any]:
+        ...         if isinstance(type_hint, type):
+        ...             return dependencyOf(type_hint)
+        ...         raise RuntimeError()
+        >>> def auto() -> Any:  # for static typing, wrapper that returns Any
+        ...     return Auto()
+        >>> @injectable
+        ... class Service:
+        ...     pass
+        >>> @inject
+        ... def f(service: Service = auto()) -> Service:
+        ...     return service
+        >>> assert f() is world[Service]
+
     """
 
     __slots__ = ()
@@ -161,21 +195,25 @@ class dependencyOf(Dependency[T]):
         *,
         default: object = Default.sentinel,
     ) -> None:
+        from ._raw import NotFoundSentinel
+
+        if default is Default.sentinel:
+            default = NotFoundSentinel
+
         while True:
             if isinstance(__dependency, dependencyOf):
-                default = __dependency.default if default is Default.sentinel else default
+                if __dependency.default is not NotFoundSentinel:
+                    default = __dependency.default
                 __dependency = __dependency.wrapped
                 break
-            elif isinstance(__dependency, Dependency):
+            elif hasattr(__dependency, "__antidote_dependency_hint__"):
                 real_dependency: object = __dependency.__antidote_dependency_hint__()
-                if isinstance(real_dependency, Dependency) and real_dependency is not __dependency:
-                    __dependency = real_dependency
-                else:
-                    __dependency = real_dependency
+                if real_dependency is __dependency:
                     break
+                __dependency = real_dependency
             # it's a type alias
             elif not isinstance(__dependency, type) and isinstance(get_origin(__dependency), type):
-                from ..lib.interface import instanceOf
+                from ..lib.interface_ext import instanceOf
 
                 origin = cast(Optional[type], get_origin(__dependency))
                 if origin is not None and issubclass(origin, instanceOf):
@@ -203,7 +241,7 @@ class DependencyDebug:
     __slots__ = ("description", "wired", "dependencies", "lifetime")
     description: str
     lifetime: LifeTime | None
-    wired: Sequence[object]
+    wired: Callable[..., Any] | Sequence[Callable[..., Any]]
     dependencies: Sequence[object]
 
     def __init__(
@@ -211,15 +249,17 @@ class DependencyDebug:
         *,
         description: str,
         lifetime: LifetimeType | None,
-        wired: Callable[..., Any] | Sequence[object] = tuple(),
+        wired: Callable[..., Any] | Sequence[Callable[..., Any]] = tuple(),
         dependencies: Sequence[object] = tuple(),
     ) -> None:
         """
         Args:
             description: Concise description of the dependency.
             lifetime: Scope of the dependency
-            wired: All objects wired for this dependency. All of those will be treated as child
-                dependencies in the tree and their injected dependencies will appear underneath.
+            wired: All objects wired for this dependency. If it's a sequence, all of those will be
+                treated as child dependencies in the tree and their injected dependencies will
+                appear underneath. If it's a single callable, the callable itself won't appear and
+                all of its injections will appear as direct dependencies.
             dependencies: All direct dependencies.
         """
         if lifetime is not None:

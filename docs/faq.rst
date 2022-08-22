@@ -190,14 +190,14 @@ requires a container with all its dependencies to be explicitly created. Afterwa
 .. code-block:: python
 
     # my_service.py
-    # Dependency Injector
+    # Dependency Inject
     class MyService:
         pass
 
 .. code-block:: python
 
     # services.py
-    # Dependency Injector
+    # Dependency Inject
     import sys
     from dependency_injector import containers, providers
 
@@ -207,7 +207,7 @@ requires a container with all its dependencies to be explicitly created. Afterwa
 .. code-block:: python
 
     # app.py
-    # Dependency Injector
+    # Dependency Inject
     from dependency_injector.wiring import inject, Provide
     from services import Container
     from my_service import MyService
@@ -277,7 +277,7 @@ Let's see how the same example looks with Antidote:
 
     # app.py
     # Antidote
-    from antidote import Provide, inject
+    from antidote import inject
     # from my_service import MyService
 
     @inject

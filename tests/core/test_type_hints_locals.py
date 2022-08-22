@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from antidote import config
-from antidote.core import app_catalog, CannotInferDependencyError, inject, wire, Wiring, world
+from antidote import app_catalog, CannotInferDependencyError, config, inject, wire, Wiring, world
 
 
 def test_locals() -> None:
@@ -98,7 +97,7 @@ def test_invalid_locals() -> None:
         pass
 
     with pytest.raises(TypeError, match="type_hints_locals"):
-        Wiring().wire(klass=Dummy, catalog=app_catalog, type_hints_locals=object())  # type: ignore
+        Wiring().wire(klass=Dummy, app_catalog=app_catalog, type_hints_locals=object())  # type: ignore
 
 
 def test_explicit_locals() -> None:

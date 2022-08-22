@@ -8,15 +8,25 @@ from typing import Any, cast, Optional, Sequence, Type, TypeVar, Union
 import pytest
 from typing_extensions import Protocol
 
-from antidote import implements, inject, injectable, instanceOf, interface, Predicate, world
-from antidote.lib.injectable import antidote_injectable
-from antidote.lib.interface import antidote_interface, NeutralWeight, QualifiedBy
+from antidote import (
+    antidote_lib_injectable,
+    antidote_lib_interface,
+    implements,
+    inject,
+    injectable,
+    instanceOf,
+    interface,
+    NeutralWeight,
+    Predicate,
+    QualifiedBy,
+    world,
+)
 from tests.lib.interface.common import _, Weight
 
 
 @pytest.fixture(autouse=True)
 def setup_world() -> None:
-    world.include(antidote_interface)
+    world.include(antidote_lib_interface)
 
 
 class OnPath:
@@ -242,7 +252,7 @@ def test_lang_example() -> None:
 
 
 def test_event_subscriber_example() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     class Event:
         ...

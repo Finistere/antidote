@@ -5,7 +5,7 @@ import itertools
 
 import pytest
 
-from antidote import antidote_interface, implements, instanceOf, interface, QualifiedBy, world
+from antidote import antidote_lib_interface, implements, instanceOf, interface, QualifiedBy, world
 from tests.lib.interface.common import _
 
 x = object()
@@ -15,7 +15,7 @@ z = object()
 
 @pytest.fixture(autouse=True)
 def setup_world() -> None:
-    world.include(antidote_interface)
+    world.include(antidote_lib_interface)
 
 
 def test_qualified_by_must_have_at_least_one_qualifier() -> None:

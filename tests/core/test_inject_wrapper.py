@@ -387,8 +387,7 @@ def test_wrapped_attributes(original: Any, wrapped: Any, strict_is: Any) -> None
             wrapped.__func__
         assert original is wrapped.__wrapped__
     else:
-        # Either method or class/static-method
-        assert original == wrapped.__wrapped__ or func is wrapped.__func__.__wrapped__
+        assert func is wrapped.__wrapped__
 
     try:
         assert original.__self__ is wrapped.__self__
@@ -440,7 +439,7 @@ def test_attributes() -> None:
 
     f.a = a  # type: ignore
 
-    injected_f = inject(dict(a=a))(f)
+    injected_f = inject(kwargs=dict(a=a))(f)
     assert injected_f.a is a  # type: ignore
 
     injected_f.b = b  # type: ignore

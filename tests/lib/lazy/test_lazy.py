@@ -8,7 +8,8 @@ from typing import Dict, Optional
 import pytest
 
 from antidote import (
-    antidote_injectable,
+    antidote_lib_injectable,
+    antidote_lib_lazy,
     Dependency,
     DuplicateDependencyError,
     inject,
@@ -16,11 +17,11 @@ from antidote import (
     lazy,
     LifeTime,
     new_catalog,
-    ScopeVar,
+    ScopeGlobalVar,
     world,
 )
 from antidote._internal import debug_repr
-from antidote.lib.lazy import antidote_lazy, Lazy
+from antidote.lib.lazy_ext import Lazy
 from tests.utils import Box, expected_debug, Obj
 
 w = Obj()
@@ -31,7 +32,7 @@ z = Obj()
 
 @pytest.fixture(autouse=True)
 def setup_tests() -> None:
-    world.include(antidote_lazy)
+    world.include(antidote_lib_lazy)
 
 
 def test_function() -> None:
@@ -45,9 +46,9 @@ def test_function() -> None:
     assert dependency in world
 
     d: Box[str] = world[dependency]
-    # Transient by default
-    assert d is not world[dependency]
-    assert d is not world[dummy()]
+    # Singleton by default
+    assert d is world[dependency]
+    assert d is world[dummy()]
     assert d == Box("test")
 
     @inject
@@ -56,7 +57,7 @@ def test_function() -> None:
 
     assert isinstance(f(), Box)
     assert f() == Box("test")
-    assert f() is not f()
+    assert f() is f()
 
     assert dummy.__wrapped__() == Box("test")
 
@@ -79,9 +80,9 @@ def test_value() -> None:
     assert dependency in world
 
     d: Box[str] = world[dependency]
-    # Transient by default
-    assert d is not world[dependency]
-    assert d is not world[dummy]
+    # Singleton by default
+    assert d is world[dependency]
+    assert d is world[dummy]
     assert d == Box("test")
 
     @inject
@@ -90,7 +91,7 @@ def test_value() -> None:
 
     assert isinstance(f(), Box)
     assert f() == Box("test")
-    assert f() is not f()
+    assert f() is f()
 
     assert dummy.__wrapped__() == Box("test")
 
@@ -127,10 +128,10 @@ def test_static_method() -> None:
 
     b: Box[str] = world[dependency_before]
     a: Box[str] = world[dependency_after]
-    # Transient by default
-    assert b is not world[dependency_before]
+    # Singleton by default
+    assert b is world[dependency_before]
     assert b == Box("b")
-    assert a is not world[dependency_after]
+    assert a is world[dependency_after]
     assert a == Box("a")
 
     @inject
@@ -159,7 +160,7 @@ def test_static_method() -> None:
 
 
 def test_method() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @injectable
     @dataclass
@@ -176,9 +177,9 @@ def test_method() -> None:
     assert dependency in world
 
     d: Box[object] = world[dependency]
-    # Transient by default
-    assert d is not world[dependency]
-    assert d is not world[Dummy.get("key")]
+    # Singleton by default
+    assert d is world[dependency]
+    assert d is world[Dummy.get("key")]
     assert d == Box(None)
 
     @inject
@@ -186,7 +187,7 @@ def test_method() -> None:
         return a
 
     assert f() == Box(None)
-    assert f() is not f()
+    assert f() is f()
 
     assert Dummy.get.__wrapped__(Dummy({"key": x}), "key") == Box(x)
     assert "Dummy.get" in repr(Dummy.get)
@@ -199,7 +200,7 @@ def test_method() -> None:
 
 
 def test_property() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @injectable
     @dataclass
@@ -214,9 +215,9 @@ def test_property() -> None:
     assert dependency in world
 
     d: Box[object] = world[dependency]
-    # Transient by default
-    assert d is not world[dependency]
-    assert d is not world[Dummy.key]
+    # Singleton by default
+    assert d is world[dependency]
+    assert d is world[Dummy.key]
     assert d == Box(None)
 
     @inject
@@ -224,7 +225,7 @@ def test_property() -> None:
         return a
 
     assert f() == Box(None)
-    assert f() is not f()
+    assert f() is f()
 
     assert Dummy.key.__wrapped__(Dummy({"key": x})) == Box(x)
     assert repr(Dummy.key.__wrapped__) in repr(Dummy.key)
@@ -235,18 +236,18 @@ def test_property() -> None:
 
 
 def test_private_class_dependency() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @injectable(catalog=world.private)
     @dataclass
     class Dummy:
         data: Dict[str, object] = field(default_factory=lambda: {"key": object()})
 
-        @lazy.method
+        @lazy.method(lifetime="transient")
         def get(self, key: str) -> Box[object]:
             return Box(self.data.get(key))
 
-        @lazy.property
+        @lazy.property(lifetime="transient")
         def key(self) -> Box[object]:
             return Box(self.data.get("key"))
 
@@ -324,56 +325,69 @@ def test_duplicate_lazy() -> None:
                 ...
 
 
-def test_singleton() -> None:
-    world.include(antidote_injectable)
+def test_transient() -> None:
+    world.include(antidote_lib_injectable)
 
-    @lazy(lifetime="singleton")
+    @lazy(lifetime="transient")
     def func() -> Box[str]:
         return Box("x")
 
-    @lazy.value(lifetime="singleton")
+    @lazy.value(lifetime="transient")
     def value() -> Box[str]:
         return Box("x")
 
     @injectable
     class Dummy:
-        @lazy.method(lifetime="singleton")
+        @lazy.method(lifetime="transient")
         def method(self) -> Box[str]:
             return Box("x")
 
-        @lazy.property(lifetime="singleton")
+        @lazy.property(lifetime="transient")
         def prop(self) -> Box[str]:
             return Box("x")
 
-        @lazy(lifetime="singleton")
+        @lazy(lifetime="transient")
         @staticmethod
         def static_before() -> Box[str]:
             return Box("x")
 
         @staticmethod
-        @lazy(lifetime="singleton")
+        @lazy(lifetime="transient")
         def static_after() -> Box[str]:
             return Box("x")
 
+    f = world[func()]
+    v = world[value]
+    m = world[Dummy.method()]
+    p = world[Dummy.prop]
+    sb = world[Dummy.static_before()]
+    sa = world[Dummy.static_after()]
     expected = Box("x")
-    assert world[func()] == expected
-    assert world[value] == expected
-    assert world[Dummy.method()] == expected
-    assert world[Dummy.prop] == expected
-    assert world[Dummy.static_before()] == expected
-    assert world[Dummy.static_after()] == expected
+    assert f == expected
+    assert v == expected
+    assert m == expected
+    assert p == expected
+    assert sb == expected
+    assert sa == expected
 
-    assert world[func()] is world[func()]
-    assert world[value] is world[value]
-    assert world[Dummy.method()] is world[Dummy.method()]
-    assert world[Dummy.prop] is world[Dummy.prop]
-    assert world[Dummy.static_before()] is world[Dummy.static_before()]
-    assert world[Dummy.static_after()] is world[Dummy.static_after()]
+    assert world[func()] == f
+    assert world[value] == v
+    assert world[Dummy.method()] == m
+    assert world[Dummy.prop] == p
+    assert world[Dummy.static_before()] == sb
+    assert world[Dummy.static_after()] == sa
+
+    assert world[func()] is not f
+    assert world[value] is not v
+    assert world[Dummy.method()] is not m
+    assert world[Dummy.prop] is not p
+    assert world[Dummy.static_before()] is not sb
+    assert world[Dummy.static_after()] is not sa
 
 
 @pytest.mark.parametrize("lifetime", [LifeTime.SINGLETON, LifeTime.TRANSIENT])
 def test_arguments(lifetime: LifeTime) -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @lazy(lifetime=lifetime)
     def func(first: str, *, second: str = "") -> Box[str]:
@@ -462,23 +476,10 @@ def test_arguments(lifetime: LifeTime) -> None:
     with pytest.raises(TypeError):
         Dummy.static_after("1", "2")  # type: ignore
 
-    # Missing arguments
-    with pytest.raises(TypeError):
-        func()  # type: ignore
-
-    with pytest.raises(TypeError):
-        Dummy.method()  # type: ignore
-
-    with pytest.raises(TypeError):
-        Dummy.static_before()  # type: ignore
-
-    with pytest.raises(TypeError):
-        Dummy.static_after()  # type: ignore
-
 
 @pytest.mark.parametrize("lifetime", [LifeTime.SINGLETON, LifeTime.TRANSIENT])
 def test_unhashable_arguments(lifetime: LifeTime) -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @lazy(lifetime=lifetime)
     def func(a: object) -> Box[object]:
@@ -520,7 +521,7 @@ def test_unhashable_arguments(lifetime: LifeTime) -> None:
 
 
 def test_injection_and_type_hints() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @injectable(catalog=world.private)
     class Dummy:
@@ -530,14 +531,14 @@ def test_injection_and_type_hints() -> None:
 
         @lazy(type_hints_locals=None)
         def error(dummy: Dummy = inject.me()) -> object:
-            return dummy
+            ...
 
     @lazy
     def func1(dummy: Dummy = inject.me()) -> Dummy:
         return dummy
 
     @lazy
-    @inject({"dummy": Dummy})
+    @inject(kwargs={"dummy": Dummy})
     def func2(dummy: object = None) -> object:
         return dummy
 
@@ -550,7 +551,7 @@ def test_injection_and_type_hints() -> None:
         return dummy
 
     @lazy.value
-    @inject({"dummy": Dummy})
+    @inject(kwargs={"dummy": Dummy})
     def value2(dummy: object = None) -> object:
         return dummy
 
@@ -565,7 +566,7 @@ def test_injection_and_type_hints() -> None:
             return dummy
 
         @lazy.method
-        @inject({"dummy": Dummy})
+        @inject(kwargs={"dummy": Dummy})
         def method2(self, dummy: object = None) -> object:
             return dummy
 
@@ -578,7 +579,7 @@ def test_injection_and_type_hints() -> None:
             return dummy
 
         @lazy.property
-        @inject({"dummy": Dummy})
+        @inject(kwargs={"dummy": Dummy})
         def prop2(self, dummy: object = None) -> object:
             return dummy
 
@@ -593,7 +594,7 @@ def test_injection_and_type_hints() -> None:
 
         @lazy
         @staticmethod
-        @inject({"dummy": Dummy})
+        @inject(kwargs={"dummy": Dummy})
         def static_before2(dummy: object = None) -> object:
             return dummy
 
@@ -609,7 +610,7 @@ def test_injection_and_type_hints() -> None:
 
         @staticmethod
         @lazy
-        @inject({"dummy": Dummy})
+        @inject(kwargs={"dummy": Dummy})
         def static_after2(dummy: object = None) -> object:
             return dummy
 
@@ -651,7 +652,7 @@ def test_injection_and_type_hints() -> None:
 
 
 def test_catalog() -> None:
-    catalog = new_catalog(include=[antidote_lazy, antidote_injectable])
+    catalog = new_catalog(include=[antidote_lib_lazy, antidote_lib_injectable])
 
     @lazy(catalog=catalog)
     def func() -> Box[str]:
@@ -698,7 +699,7 @@ def test_catalog() -> None:
 
 @pytest.mark.parametrize("lifetime", [LifeTime.SINGLETON, LifeTime.TRANSIENT])
 def test_test_env(lifetime: LifeTime) -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @lazy(lifetime=lifetime)
     def func() -> Box[str]:
@@ -838,7 +839,7 @@ def test_require_lazy_on_staticmethod() -> None:
 
 
 def test_debug() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @lazy
     def func(a: str = "a") -> Box[str]:
@@ -868,58 +869,66 @@ def test_debug() -> None:
         def static_after(a: str = "a") -> Box[str]:
             ...
 
+        CONST = method("test")
+
     namespace = "tests.lib.lazy.test_lazy.test_debug.<locals>"
+    assert world.debug(Dummy.CONST) == expected_debug(
+        f"""
+    🟉 <lazy> {namespace}.Dummy.CONST // {namespace}.Dummy.method('test')
+    └── 🟉 {namespace}.Dummy
+    """
+    )
     assert world.debug(func()) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.func()
+    🟉 <lazy> {namespace}.func()
     """
     )
     assert world.debug(value) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.value()
+    🟉 <lazy> {namespace}.value()
     """
     )
     assert world.debug(Dummy.method()) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.method()
-    └── 🟉 tests.lib.lazy.test_lazy.test_debug.<locals>.Dummy
+    🟉 <lazy> {namespace}.Dummy.method()
+    └── 🟉 {namespace}.Dummy
     """
     )
     assert world.debug(Dummy.prop) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.prop()
-    └── 🟉 tests.lib.lazy.test_lazy.test_debug.<locals>.Dummy
+    🟉 <lazy> {namespace}.Dummy.prop()
+    └── 🟉 {namespace}.Dummy
     """
     )
     assert world.debug(Dummy.static_before()) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.static_before()
+    🟉 <lazy> {namespace}.Dummy.static_before()
     """
     )
     assert world.debug(Dummy.static_after()) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.static_after()
+    🟉 <lazy> {namespace}.Dummy.static_after()
     """
     )
     assert world.debug(func(a="1")) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.func('1')
+    🟉 <lazy> {namespace}.func('1')
     """
     )
     assert world.debug(Dummy.method(a="1")) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.method('1')
-    └── 🟉 tests.lib.lazy.test_lazy.test_debug.<locals>.Dummy
+    🟉 <lazy> {namespace}.Dummy.method('1')
+    └── 🟉 {namespace}.Dummy
     """
     )
     assert world.debug(Dummy.static_before(a="1")) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.static_before('1')
+    🟉 <lazy> {namespace}.Dummy.static_before('1')
     """
     )
     assert world.debug(Dummy.static_after(a="1")) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.Dummy.static_after('1')
+    🟉 <lazy> {namespace}.Dummy.static_after('1')
     """
     )
 
@@ -931,21 +940,21 @@ def test_debug() -> None:
     assert "Unknown" in world.debug(x)
     assert world.debug(f()) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.f()
-    └── ∅ <lazy> {namespace}.func()
+    🟉 <lazy> {namespace}.f()
+    └── 🟉 <lazy> {namespace}.func()
     """
     )
     assert world.debug(f(d=None)) == expected_debug(
         f"""
-    ∅ <lazy> {namespace}.f(d=None)
-    └── ∅ <lazy> {namespace}.func()
+    🟉 <lazy> {namespace}.f(d=None)
+    └── 🟉 <lazy> {namespace}.func()
     """
     )
 
 
 def test_scoped() -> None:
-    world.include(antidote_injectable)
-    version = ScopeVar[int](default=0)
+    world.include(antidote_lib_injectable)
+    version = ScopeGlobalVar[int](default=0)
 
     @lazy(lifetime="scoped")
     def func(v: int = inject[version]) -> Box[int]:
@@ -1110,3 +1119,26 @@ def test_scoped() -> None:
     assert world[Dummy.prop] is original_prop
     assert world[Dummy.static_before()] is original_static_before
     assert world[Dummy.static_after()] is original_static_after
+
+
+def test_inject_signature() -> None:
+    world.include(antidote_lib_injectable)
+
+    @injectable
+    class Service:
+        pass
+
+    @lazy
+    @inject(kwargs=dict(service=Service))
+    def f(service: object) -> object:
+        return service
+
+    @injectable
+    class Dummy:
+        @lazy.method
+        @inject(kwargs=dict(service=Service))
+        def method(self, service: object) -> object:
+            return service
+
+    assert world[f()] is world[Service]  # type: ignore
+    assert world[Dummy.method()] is world[Service]  # type: ignore

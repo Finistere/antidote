@@ -1,7 +1,9 @@
 FROM ubuntu:22.04
 
-RUN apt-get update &&\
-    apt-get install --no-install-recommends -y python3 python3-dev python3-dbg python3-virtualenv git wget gcc g++ gdb
+ENV TZ=Etc/UTC
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends ca-certificates build-essential libreadline-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev git wget gcc g++ gdb libc++-dev
+
 
 ARG USER_NAME
 ARG USER_ID
@@ -23,4 +25,10 @@ RUN if getent group $GROUP_ID ; then \
 USER $USER_NAME
 
 RUN wget -P ~ https://git.io/.gdbinit &&\
-    git config --global --add safe.directory /antidote
+    git config --global --add safe.directory /antidote &&\
+    wget -P /tmp https://www.python.org/ftp/python/3.10.6/Python-3.10.6.tar.xz &&\
+    cd /tmp && tar -Jxf Python-3.10.6.tar.xz
+
+RUN cd /tmp/Python-3.10.6 &&\
+    ./configure --prefix /tmp/Python --with-trace-refs --with-pydebug &&\
+    make install -j16

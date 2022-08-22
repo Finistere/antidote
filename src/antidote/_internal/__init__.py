@@ -10,6 +10,7 @@ from .typing import (
 from .utils import (
     auto_detect_origin_frame,
     auto_detect_var_name,
+    CachedMeta,
     Copy,
     debug_repr,
     debug_repr_call,
@@ -25,6 +26,7 @@ from .utils import (
 
 __all__ = [
     "API",
+    "CachedMeta",
     "config",
     "retrieve_or_validate_injection_locals",
     "Singleton",

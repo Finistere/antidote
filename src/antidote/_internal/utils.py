@@ -38,7 +38,7 @@ class Singleton:
     __slots__ = ()
     __instance: ClassVar[Optional[Any]] = None
 
-    def __new__(cls) -> Any:
+    def __new__(cls, *args: Any, **kwargs: Any) -> Any:
         if cls.__instance is None:
             cls.__instance = super().__new__(cls)
         return cls.__instance
@@ -109,10 +109,10 @@ def auto_detect_var_name(*, depth: int = 2, root: types.FrameType | None = None)
         frame = frame.f_back
         n -= 1
 
-    module_name = frame.f_globals["__name__"]
+    module_name = frame.f_globals.get("__name__", "__main__")
     lineno = frame.f_lineno
 
-    # Happens with generics such as ScopeVar[T]()
+    # Happens with generics such as ScopeGlobalVar[T]()
     if module_name == "typing":
         return auto_detect_var_name(depth=depth + 1, root=root)
 
@@ -143,7 +143,8 @@ def auto_detect_origin_frame(*, depth: int = 2) -> str:
         frame = frame.f_back
         depth -= 1
 
-    module_name = frame.f_globals["__name__"]
+    # Happens in doctest that '__name__' isn't defined
+    module_name = frame.f_globals.get("__name__", "__main__")
     lineno = frame.f_lineno
     return f"{module_name}:{lineno}"
 
@@ -155,35 +156,33 @@ def prepare_injection(
     type_hints_locals: Mapping[str, object] | None,
     method: bool = False,
 ) -> Callable[[F], F]:
-    from ..core import _objects, DoubleInjectionError  # pyright: ignore [reportPrivateUsage]
-
     if not (isinstance(inject, Default) or inject is None):
         raise TypeError(f"inject can only be None if specified, not a {type(inject)!r}")
 
-    def inject_(wrapped: Any) -> Any:
+    def prepare(wrapped: Any, do_injection: bool = inject is not None) -> Any:
+        from ..core import DoubleInjectionError, inject
+
         try:
             if method:
-                if inject is None:
-                    wrapped = _objects.inject.method(
-                        wrapped, catalog=catalog, ignore_defaults=True, ignore_type_hints=True
-                    )
-                else:
-                    wrapped = _objects.inject.method(
+                if do_injection:
+                    wrapped = inject.method(
                         wrapped,
-                        catalog=catalog,
+                        app_catalog=catalog,
                         type_hints_locals=type_hints_locals,
                     )
+                else:
+                    wrapped = inject.method(
+                        wrapped, app_catalog=catalog, ignore_defaults=True, ignore_type_hints=True
+                    )
 
-            elif inject is not None:
-                wrapped = _objects.inject(
-                    wrapped, catalog=catalog, type_hints_locals=type_hints_locals
-                )
+            elif do_injection:
+                wrapped = inject(wrapped, app_catalog=catalog, type_hints_locals=type_hints_locals)
         except DoubleInjectionError:
-            _objects.inject.rewire(wrapped, catalog=catalog, method=method)
+            inject.rewire(wrapped, app_catalog=catalog, method=method)
 
         return wrapped
 
-    return inject_
+    return prepare
 
 
 def enforce_valid_name(name: str) -> None:
@@ -197,7 +196,7 @@ def enforce_valid_name(name: str) -> None:
 # Imitates @functools.wraps
 def wraps_frozen(__wrapped: object, signature: inspect.Signature | None = None) -> Callable[[T], T]:
     def f(wrapper: T) -> T:
-        from ..core._wrapper import is_wrapper
+        from ..core._raw import is_wrapper
 
         object.__setattr__(
             wrapper, "__wrapped__", __wrapped.__wrapped__ if is_wrapper(__wrapped) else __wrapped

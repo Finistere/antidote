@@ -12,12 +12,20 @@ __all__ = [
     "is_optional",
     "optional_value",
     "Function",
+    "T",
+    "C",
+    "F",
+    "P",
+    "Out",
+    "In",
 ]
 
 T = TypeVar("T")
-Tp = TypeVar("Tp", bound=type)
+C = TypeVar("C", bound=type)
 P = ParamSpec("P")
+F = TypeVar("F", bound=Callable[..., Any])
 Out = TypeVar("Out", covariant=True)
+In = TypeVar("In", contravariant=True)
 
 if sys.version_info >= (3, 10):
     from types import UnionType
@@ -42,7 +50,7 @@ else:
         return isinstance(obj, ProtocolMeta) and getattr(obj, "_is_protocol", False)
 
 
-def enforce_subclass_if_possible(child: type, mother: Tp) -> TypeGuard[Tp]:
+def enforce_subclass_if_possible(child: type, mother: C) -> TypeGuard[C]:
     if isinstance(mother, type) and isinstance(child, type):
         _enforce(child, mother, issubclass)
     return True

@@ -7,27 +7,30 @@ from typing import Callable
 
 import pytest
 
-from antidote.core import (
+from antidote import (
     Catalog,
-    CatalogId,
-    DependencyDebug,
-    DependencyDefinitionError,
     DependencyNotFoundError,
     FrozenCatalogError,
     LifeTime,
-    MissingProviderError,
     new_catalog,
+    PublicCatalog,
+)
+from antidote.core import (
+    CatalogId,
+    DependencyDebug,
+    DependencyDefinitionError,
+    DuplicateProviderError,
+    MissingProviderError,
     ProvidedDependency,
     Provider,
-    PublicCatalog,
-    ReadOnlyCatalog,
+    ProviderCatalog,
 )
-from antidote.core.exceptions import DuplicateProviderError
 from tests.core.dummy_providers import DummyFactoryProvider, DummyProvider
+from tests.utils import Obj
 
-x = object()
-y = object()
-z = object()
+x = Obj()
+y = Obj()
+z = Obj()
 
 
 class A:
@@ -67,7 +70,7 @@ def test_empty(catalog: PublicCatalog) -> None:
 
     assert x not in catalog
 
-    with pytest.raises(DependencyNotFoundError, match=str(x)):
+    with pytest.raises(DependencyNotFoundError, match=re.escape(str(x))):
         _ = catalog[x]
 
     assert catalog.get(x) is None
@@ -165,7 +168,7 @@ def test_freeze(catalog: PublicCatalog) -> None:
     catalog.include(DummyFactoryProvider)
     catalogs = [catalog, private_catalog]
 
-    with pytest.raises(AttributeError, match="freeze"):
+    with pytest.raises(RuntimeError, match="private"):
         private_catalog.freeze()  # type: ignore
 
     for c in catalogs:
@@ -249,7 +252,7 @@ def test_debug(catalog: PublicCatalog, dummy_provider: DummyProvider) -> None:
     # y
     assert str(y) in catalog.debug(y)
 
-    # error
+    # silently ignored
     @catalog.include
     class DebugErrorProvider(Provider, ABC):
         def can_provide(self, dependency: object) -> bool:
@@ -261,8 +264,7 @@ def test_debug(catalog: PublicCatalog, dummy_provider: DummyProvider) -> None:
         def maybe_debug(self, dependency: object) -> DependencyDebug | None:
             return object()  # type: ignore
 
-    with pytest.raises(TypeError, match="maybe_debug.*" + DebugErrorProvider.__name__):
-        catalog.debug(object())
+    assert "Unknown" in catalog.debug(object())
 
 
 def test_id(catalog: PublicCatalog, dummy_provider: DummyProvider) -> None:
@@ -323,9 +325,10 @@ def test_nested_catalog(catalog: PublicCatalog, nested_catalog: PublicCatalog) -
     # Unknown still works
     assert z not in nested_catalog
     assert z not in catalog
-    with pytest.raises(DependencyNotFoundError, match=str(z)):
+    assert z not in catalog.private
+    with pytest.raises(DependencyNotFoundError, match=re.escape(str(z))):
         nested_catalog[z]
-    with pytest.raises(DependencyNotFoundError, match=str(z)):
+    with pytest.raises(DependencyNotFoundError, match=re.escape(str(z))):
         catalog[z]
     assert "Unknown" in catalog.debug(z)
 
@@ -340,6 +343,14 @@ def test_nested_catalog(catalog: PublicCatalog, nested_catalog: PublicCatalog) -
     # cannot be added to a different catalog
     with pytest.raises(ValueError):
         catalog2.include(nested_catalog)
+
+    # multiple children
+    catalog.include(catalog2)
+    assert z not in catalog
+    assert catalog.get(z) is None
+    catalog2.include(DummyProvider)
+    catalog2.providers[DummyProvider].data[z] = z
+    assert catalog.get(z) is z
 
 
 def test_include(catalog: PublicCatalog) -> None:
@@ -362,11 +373,11 @@ def test_include(catalog: PublicCatalog) -> None:
     assert x in c1
     assert x in catalog
     assert catalog[x] is x
-    assert "DummyProvider" in catalog.debug(x)
+    assert "DummyProvider" in repr(catalog)
 
     c2 = new_catalog(include=[])
 
-    with pytest.raises(ValueError, match=f"parent.*{re.escape(str(catalog.id))}"):
+    with pytest.raises(ValueError, match=f"included in.*{re.escape(str(catalog.id))}"):
         c2.include(c1)
 
     with pytest.raises(ValueError, match="(?i)private catalog"):
@@ -396,7 +407,7 @@ def test_callback(catalog: PublicCatalog) -> None:
         data: dict[object, Callable[[], object]]
         calls: list[tuple[str, object]]
 
-        def __init__(self, *, catalog: ReadOnlyCatalog) -> None:
+        def __init__(self, *, catalog: ProviderCatalog) -> None:
             super().__init__(catalog=catalog)
             self.data = {}
             self.calls = []
@@ -442,6 +453,12 @@ def test_catalog_providers(catalog: PublicCatalog) -> None:
     assert catalog.providers[DummyProvider] is catalog.providers[DummyProvider]
     assert list(catalog.providers) == [DummyProvider]
 
+    assert DummyProvider in catalog.private.providers
+
+    catalog.private.include(DummyFactoryProvider)
+    assert len(catalog.private.providers) == 2
+    assert len(catalog.providers) == 1
+
     catalog.include(DummyFactoryProvider)
     assert len(catalog.providers) == 2
 
@@ -453,16 +470,16 @@ def test_invalid_provider() -> None:
     provider = catalog.providers[DummyFactoryProvider]
 
     @provider.add_raw()
-    def double_definition(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def double_definition(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(x, lifetime=LifeTime.SINGLETON)
         out.set_value(x, lifetime=LifeTime.SINGLETON)
 
     @provider.add_raw()
-    def deterministic_without_callback(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def deterministic_without_callback(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(x, lifetime=LifeTime.SCOPED)
 
     @provider.add_raw()
-    def unknown_scope(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def unknown_scope(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(x, lifetime="singleton")  # type: ignore
 
     with pytest.raises(DependencyDefinitionError, match="twice.*dependency value"):

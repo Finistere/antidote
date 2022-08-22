@@ -8,19 +8,13 @@ cd "$project_dir"
 if [[ "${INSIDE_DOCKER:-}" == "yes" ]]; then
   export ANTIDOTE_COMPILED=true
   export ANTIDOTE_CYTHON_OPTIONS=all
-  venv_dir="$project_dir/.cygdb-venv"
-  if [[ ! -d "$venv_dir" ]]; then
-    virtualenv "$venv_dir"
-    source "$venv_dir/venv/bin/activate"
-    pip install -U pip setuptools wheel
-    pip install cython pygments
-    pip install -e "$project_dir"
-    pip install -r "$project_dir/requirements/tests.txt"
-  else
-    source "$venv_dir/venv/bin/activate"
-  fi
+  export PATH="/tmp/Python/bin:$PATH"
+  pip3 install -U pip setuptools wheel
+  pip3 install cython pygments
+  pip3 install --no-binary :all: fastrlock
+  pip3 install -r "$project_dir/requirements/tests.txt"
 
-  bash --init-file <(printf "printf '\n%%bcygdb . -- --args python -m pytest tests%%b\n' '\e[32m' '\e[0m' ")
+  bash --init-file <(printf "printf '\n%%bcygdb . -- --args python3 -m pytest tests%%b\n' '\e[32m' '\e[0m' ")
 else
   docker build \
 		--build-arg USER_ID="$(id -u)" \

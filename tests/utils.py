@@ -19,7 +19,7 @@ T = TypeVar("T")
 class Box(Generic[T]):
     value: T
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"Box({self.value!r})@{short_id(self)}"
 
 
@@ -29,19 +29,22 @@ class Obj:
     The goal is just
     """
 
-    def __init__(self) -> None:
-        frame: types.FrameType = inspect.currentframe().f_back  # type: ignore
-        instructions = iter(dis.get_instructions(frame.f_code))
-        for instruction in instructions:
-            if instruction.offset == frame.f_lasti:
-                break
-        self.__name = next(instructions).argval
+    def __init__(self, name: str | None = None) -> None:
+        if name is None:
+            frame: types.FrameType = inspect.currentframe().f_back  # type: ignore
+            instructions = iter(dis.get_instructions(frame.f_code))
+            for instruction in instructions:
+                if instruction.offset == frame.f_lasti:
+                    break
+            self.__name = next(instructions).argval
+        else:
+            self.__name = name
 
     def __repr__(self) -> str:
         return f"{self.__name}@{short_id(self)}"
 
 
-def expected_debug(__value: str, *, legend: bool = True) -> str:
+def expected_debug(__value: str, *, legend: bool = True) -> str:  # pragma: no cover
     if __value.startswith("\n"):
         __value = textwrap.dedent(__value[1:])
     lines = __value.splitlines(keepends=True)

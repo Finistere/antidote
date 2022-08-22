@@ -5,46 +5,95 @@ Lib
 Injectable
 ----------
 
-.. automodule:: antidote.lib.injectable
+.. automodule:: antidote.lib.injectable_ext
     :members:
 
 
 Interface
 ---------
 
-.. automodule:: antidote.lib.interface.interface
+.. py:currentmodule:: antidote.lib.interface_ext
+
+.. autofunction:: antidote_lib_interface
+
+.. py:data:: interface
+    :canonical: antidote.lib.interface_ext.interface
+    :type: antidote.lib.interface_ext.Interface
+
+    Singleton instance of :py:class:`~.Interface`
+
+.. autoclass:: Interface
+    :special-members: __call__
+
+    .. autoproperty:: lazy
+        :noindex:
+
+.. autoclass:: InterfaceLazy
+    :members:
+    :special-members: __call__
+
+.. autoclass:: implements
     :members:
 
-.. automodule:: antidote.lib.interface.qualifier
+.. autofunction:: is_interface
+
+.. autoclass:: instanceOf
     :members:
 
+.. autoclass:: FunctionInterface
+    :members:
+    :special-members: __wrapped__
 
-Predicate (experimental)
-^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: LazyInterface
+    :members:
+    :special-members: __wrapped__
 
-.. automodule:: antidote.lib.interface.predicate
+
+.. autoexception:: AmbiguousImplementationChoiceError
+
+.. automodule:: antidote.lib.interface_ext.predicate
+    :members:
+
+.. automodule:: antidote.lib.interface_ext.qualifier
     :members:
 
 Lazy
 ----
 
-.. automodule:: antidote.lib.lazy.lazy
-    :members: lazy
+.. py:currentmodule:: antidote.lib.lazy_ext
 
-.. autoclass:: antidote.lib.lazy.lazy.LazyWrappedFunction
-    :members: __call__, call, __wrapped__
+.. autofunction:: antidote_lib_lazy
 
+.. py:data:: lazy
+    :canonical: antidote.lib.lazy_ext.lazy
+    :type: antidote.lib.lazy_ext.Lazy
 
-Constant
---------
+    Singleton instance of :py:class:`~.Lazy`
 
-
-.. automodule:: antidote.lib.lazy
-
-    .. py:data:: const
-
-        Singleton instance of :py:class:`.Const`
-
-.. automodule:: antidote.lib.lazy.constant
+.. autoclass:: Lazy
     :members:
-    :special-members: __call__, __getitem__
+    :special-members: __call__
+
+.. autofunction:: is_lazy
+
+.. py:data:: const
+    :canonical: antidote.lib.lazy_ext.const
+    :type: antidote.lib.lazy_ext.Const
+
+    Singleton instance of :py:class:`~.Const`
+
+.. autoclass:: Const
+    :members:
+    :special-members: __call__
+
+.. autoclass:: LazyFunction
+    :members: __wrapped__
+
+.. autoclass:: LazyMethod
+    :members: __wrapped__
+
+.. autoclass:: LazyProperty
+    :members: __wrapped__
+
+.. autoclass:: LazyValue
+    :members: __wrapped__

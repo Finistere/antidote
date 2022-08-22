@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from antidote import inject, injectable, world
-from antidote.core.exceptions import DependencyNotFoundError
-from antidote.lib.injectable import antidote_injectable
+from antidote import antidote_lib_injectable, DependencyNotFoundError, inject, injectable, world
 from tests.utils import expected_debug
 
 
 def test_clone() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @injectable
     class Dummy:
@@ -38,7 +36,7 @@ def test_clone() -> None:
 
 
 def test_debug() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
     @injectable
     class Dummy:

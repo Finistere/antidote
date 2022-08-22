@@ -3,9 +3,15 @@ from typing import Generic, TypeVar
 
 import pytest
 
-from antidote._internal import Default
-from antidote.core import Dependency, DependencyDebug, dependencyOf
-from antidote.core.data import DebugInfoPrefix, LifeTime, ParameterDependency
+from antidote import (
+    Dependency,
+    DependencyNotFoundError,
+    dependencyOf,
+    LifeTime,
+    ParameterDependency,
+    world,
+)
+from antidote.core import DebugInfoPrefix, DependencyDebug
 
 T = TypeVar("T")
 
@@ -33,21 +39,27 @@ def test_dependency_debug() -> None:
     assert not dd.wired
     assert not dd.dependencies
 
-    ref = DependencyDebug(description="info", lifetime="transient", wired=[1], dependencies=[2])
+    def f() -> None:
+        pass
+
+    def g() -> None:
+        pass
+
+    ref = DependencyDebug(description="info", lifetime="transient", wired=[f], dependencies=[2])
     assert ref == DependencyDebug(
-        description="info", lifetime="transient", wired=[1], dependencies=[2]
+        description="info", lifetime="transient", wired=[f], dependencies=[2]
     )
     assert ref != DependencyDebug(
-        description="info2", lifetime="transient", wired=[1], dependencies=[2]
+        description="info2", lifetime="transient", wired=[f], dependencies=[2]
     )
     assert ref != DependencyDebug(
-        description="info", lifetime=LifeTime.SINGLETON, wired=[1], dependencies=[2]
+        description="info", lifetime=LifeTime.SINGLETON, wired=[f], dependencies=[2]
     )
     assert ref != DependencyDebug(
-        description="info", lifetime="transient", wired=[10], dependencies=[2]
+        description="info", lifetime="transient", wired=[g], dependencies=[2]
     )
     assert ref != DependencyDebug(
-        description="info", lifetime="transient", wired=[1], dependencies=[20]
+        description="info", lifetime="transient", wired=[f], dependencies=[20]
     )
 
     with pytest.raises(TypeError, match="description"):
@@ -97,12 +109,23 @@ def test_get() -> None:
 
     dep = dependencyOf[object](x)
     assert dep.wrapped is x
-    assert dep.default is Default.sentinel
+    assert dependencyOf(x, default=y).default is y
+
     assert dep == dependencyOf(x)
     assert dep != dependencyOf(y)
     assert dep != dependencyOf(x, default=y)
     assert dependencyOf(x, default=y) == dependencyOf(x, default=y)
     assert dependencyOf(x, default=y) != dependencyOf(x, default=z)
+
+    with world.test.empty() as overrides:
+        overrides[x] = x
+
+        assert world[dependencyOf[object](x)] is x
+        assert world[dependencyOf[object](x, default=y)] is x
+        assert world[dependencyOf[object](object(), default=y)] is y
+
+        with pytest.raises(DependencyNotFoundError):
+            _ = world[dependencyOf[object](object())]
 
 
 simple = Simple()
@@ -144,7 +167,7 @@ class DummyGeneric(Generic[T]):
             id="default-1",
         ),
         pytest.param(
-            dependencyOf[object](x, default=z),
+            dependencyOf[object](x, default=y),
             dependencyOf[object](dependencyOf[object](x, default=y), default=z),
             id="default-2",
         ),
@@ -154,7 +177,7 @@ class DummyGeneric(Generic[T]):
             id="default-3",
         ),
         pytest.param(
-            dependencyOf[object](x, default=z),
+            dependencyOf[object](x, default=y),
             dependencyOf[object](Nested(dependencyOf[object](x, default=y)), default=z),
             id="default-4",
         ),

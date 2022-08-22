@@ -5,12 +5,12 @@ from typing import Iterator, Optional, Union
 import pytest
 from typing_extensions import Annotated
 
-from antidote.core import (
+from antidote import (
     CannotInferDependencyError,
     DependencyNotFoundError,
     dependencyOf,
     inject,
-    Inject,
+    InjectMe,
     world,
 )
 from tests.utils import Obj
@@ -35,7 +35,7 @@ def setup_world() -> Iterator[None]:
 
 def test_annotations_inject() -> None:
     @inject
-    def f(a: Inject[A]) -> A:
+    def f(a: InjectMe[A]) -> A:
         return a
 
     assert f() is world[A]  # type: ignore
@@ -43,7 +43,7 @@ def test_annotations_inject() -> None:
 
 def test_annotations_inject_dependency_not_found() -> None:
     @inject
-    def f(a: Inject[B]) -> object:
+    def f(a: InjectMe[B]) -> object:
         ...
 
     with pytest.raises(DependencyNotFoundError):
@@ -52,7 +52,7 @@ def test_annotations_inject_dependency_not_found() -> None:
 
 def test_annotations_inject_optional() -> None:
     @inject
-    def f(a: Inject[Optional[A]] = None) -> Optional[A]:
+    def f(a: InjectMe[Optional[A]] = None) -> Optional[A]:
         return a
 
     assert f() is world[A]
@@ -60,7 +60,7 @@ def test_annotations_inject_optional() -> None:
         assert f() is None
 
     @inject
-    def f2(a: Inject[Union[A, None]] = None) -> Union[A, None]:
+    def f2(a: InjectMe[Union[A, None]] = None) -> Union[A, None]:
         return a
 
     assert f2() is world[A]
@@ -68,7 +68,7 @@ def test_annotations_inject_optional() -> None:
         assert f2() is None
 
     @inject
-    def f2b(a: Inject[Union[None, A]] = None) -> Union[None, A]:
+    def f2b(a: InjectMe[Union[None, A]] = None) -> Union[None, A]:
         return a
 
     assert f2b() is world[A]
@@ -78,7 +78,7 @@ def test_annotations_inject_optional() -> None:
     if sys.version_info >= (3, 10):
 
         @inject
-        def f3(a: "Inject[A | None]" = None) -> "A | None":
+        def f3(a: "InjectMe[A | None]" = None) -> "A | None":
             return a
 
         assert f3() is world[A]
@@ -86,7 +86,7 @@ def test_annotations_inject_optional() -> None:
             assert f3() is None
 
         @inject
-        def f3b(a: "Inject[None | A]" = None) -> "None | A":
+        def f3b(a: "InjectMe[None | A]" = None) -> "None | A":
             return a
 
         assert f3b() is world[A]
@@ -165,7 +165,7 @@ def test_implicit_optional() -> None:
     assert f2() is world[A]
 
     @inject
-    def f3(a: Inject[A] = None) -> object:  # type: ignore
+    def f3(a: InjectMe[A] = None) -> object:  # type: ignore
         return a
 
     assert f3() is world[A]

@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional, TypeVar
 
-from antidote import Predicate, QualifiedBy
-from antidote.lib.interface import NeutralWeight
+from antidote import NeutralWeight, Predicate, QualifiedBy
 
 T = TypeVar("T")
 
@@ -38,7 +37,7 @@ class Weight:
     def __add__(self, other: Weight) -> Weight:
         return Weight(self.value + other.value)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.value}"
 
 
@@ -107,24 +106,20 @@ class WeightAlt:
 
     @classmethod
     def neutral(cls) -> WeightAlt:
-        return WeightAlt(0)
+        raise NotImplementedError()
 
     @classmethod
     def of_neutral_predicate(cls, predicate: Predicate[Any]) -> WeightAlt:
-        if isinstance(predicate, QualifiedBy):
-            return WeightAlt(len(predicate.qualifiers))
-        if isinstance(predicate, OnlyIf):
-            return WeightAlt(10)
-        return WeightAlt(1)
+        raise NotImplementedError()
 
     def __lt__(self, other: WeightAlt) -> bool:
-        return self.value < other.value
+        raise NotImplementedError()
 
     def __add__(self, other: WeightAlt) -> WeightAlt:
-        return WeightAlt(self.value + other.value)
+        raise NotImplementedError()
 
     def __str__(self) -> str:
-        return f"{self.value}"
+        raise NotImplementedError()
 
 
 def weighted_alt(value: Optional[WeightAlt | float] = None) -> Optional[WeightAlt]:

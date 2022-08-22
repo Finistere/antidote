@@ -3,6 +3,9 @@ requires = [
     "setuptools>=42",
     "wheel",
     "setuptools_scm>=3.4",
+    # Ideally those would be optional...
+    "cython>=0.29,<0.30",
+    "fastrlock>=0.7,<0.9"
 ]
 build-backend = "setuptools.build_meta"
 

@@ -4,9 +4,7 @@ from typing import Any, Iterator, Optional
 import pytest
 from typing_extensions import Annotated
 
-from antidote import inject, world
-from antidote.core import Dependency
-from antidote.core.data import dependencyOf, ParameterDependency
+from antidote import Dependency, dependencyOf, inject, ParameterDependency, world
 from tests.utils import Obj
 
 x = Obj()

@@ -6,14 +6,14 @@ from typing import Any, Callable, cast, ClassVar, Iterable, Iterator, Mapping, T
 import pytest
 from typing_extensions import Protocol
 
-from antidote import new_catalog
-from antidote.core import (
+from antidote import (
     app_catalog,
     CannotInferDependencyError,
     DoubleInjectionError,
     inject,
-    Inject,
+    InjectMe,
     Methods,
+    new_catalog,
     ReadOnlyCatalog,
     TypeHintsLocals,
     Wiring,
@@ -36,7 +36,7 @@ class Wire(Protocol):
     def __call__(
         self,
         *,
-        catalog: ReadOnlyCatalog | None = None,
+        app_catalog: ReadOnlyCatalog | None = None,
         methods: Methods | Iterable[str] = Methods.ALL,
         fallback: Mapping[str, object] | None = None,
         raise_on_double_injection: bool = False,
@@ -53,14 +53,14 @@ def wire_(request: Any) -> Wire:
 
         def wiring(**kwargs: Any) -> Any:
             type_hints_locals = kwargs.pop("type_hints_locals", None)
-            catalog = kwargs.pop("catalog", None)
+            app_catalog = kwargs.pop("app_catalog", None)
             wiring = Wiring(**kwargs)
 
             def decorator(cls: type) -> type:
                 wiring.wire(
                     klass=cls,
                     type_hints_locals=type_hints_locals,
-                    catalog=catalog,
+                    app_catalog=app_catalog,
                 )
                 return cls
 
@@ -222,7 +222,7 @@ def test_fallback(wire_: Wire) -> None:
         def f1(self, a: A = inject.me()) -> A:
             return a
 
-        def f2(self, a: Inject[Union[A, None]] = None) -> Union[A, None]:
+        def f2(self, a: InjectMe[Union[A, None]] = None) -> Union[A, None]:
             return a
 
         def f3(self, a: object = None) -> object:
@@ -331,10 +331,10 @@ def test_wiring_copy() -> None:
 
 def test_wiring_wire_klass() -> None:
     with pytest.raises(TypeError, match="class"):
-        Wiring().wire(klass=object(), catalog=world)  # type: ignore
+        Wiring().wire(klass=object(), app_catalog=world)  # type: ignore
 
     with pytest.raises(TypeError, match="catalog"):
-        Wiring().wire(klass=A, catalog=object())  # type: ignore
+        Wiring().wire(klass=A, app_catalog=object())  # type: ignore
 
 
 @pytest.mark.usefixtures("clean_config")
@@ -349,20 +349,20 @@ def test_wiring_wire_class_in_locals() -> None:
         overrides[Dummy] = dummy
 
         with pytest.raises(NameError, match="Dummy"):
-            Wiring().wire(klass=Dummy, class_in_locals=False, catalog=app_catalog)
+            Wiring().wire(klass=Dummy, class_in_locals=False, app_catalog=app_catalog)
 
         with pytest.raises(CannotInferDependencyError):
-            Wiring(ignore_type_hints=True).wire(klass=Dummy, catalog=app_catalog)
+            Wiring(ignore_type_hints=True).wire(klass=Dummy, app_catalog=app_catalog)
 
         with pytest.raises(ValueError, match="class_in_locals"):
             Wiring(ignore_type_hints=True).wire(
-                klass=Dummy, class_in_locals=True, catalog=app_catalog
+                klass=Dummy, class_in_locals=True, app_catalog=app_catalog
             )
 
         assert dummy.f() is not dummy
         assert not isinstance(dummy.f(), Dummy)
 
-        Wiring().wire(klass=Dummy, class_in_locals=True, catalog=app_catalog)
+        Wiring().wire(klass=Dummy, class_in_locals=True, app_catalog=app_catalog)
         assert dummy.f() is dummy
 
     with world.test.empty() as overrides:
@@ -379,18 +379,18 @@ def test_wiring_wire_class_in_locals() -> None:
         overrides[Local] = Local()
 
         with pytest.raises(NameError, match="Local"):
-            Wiring().wire(klass=Dummy2, catalog=app_catalog)
+            Wiring().wire(klass=Dummy2, app_catalog=app_catalog)
 
-        Wiring().wire(klass=Dummy2, type_hints_locals=dict(Local=Local), catalog=app_catalog)
+        Wiring().wire(klass=Dummy2, type_hints_locals=dict(Local=Local), app_catalog=app_catalog)
         assert dummy2.f() == (dummy2, world[Local])
 
     with pytest.raises(TypeError, match="class_in_locals"):
-        Wiring().wire(klass=Local, class_in_locals=object(), catalog=app_catalog)  # type: ignore
+        Wiring().wire(klass=Local, class_in_locals=object(), app_catalog=app_catalog)  # type: ignore
 
 
 def test_catalog(wire_: Wire) -> None:
     class Dummy:
-        @inject([x])
+        @inject(args=[x])
         def f(self, a: object = None) -> object:
             return a
 
@@ -400,18 +400,18 @@ def test_catalog(wire_: Wire) -> None:
     with catalog.test.empty() as overrides:
         overrides[x] = x
 
-        wire_(catalog=catalog)(Dummy)
+        wire_(app_catalog=catalog)(Dummy)
         assert Dummy().f() is x
 
     assert Dummy().f() is None
 
     class Dummy2:
-        @inject([x])
+        @inject(args=[x])
         def f(self, a: object = None) -> object:
             return a
 
     with world.test.empty() as overrides:
         overrides[x] = y
 
-        wire_(catalog=None)(Dummy2)
+        wire_(app_catalog=None)(Dummy2)
         assert Dummy2().f() is y

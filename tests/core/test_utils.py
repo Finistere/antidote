@@ -3,8 +3,17 @@ import os
 
 import pytest
 
-from antidote import antidote_injectable, injectable, interface, is_compiled, lazy, new_catalog
-from antidote.core import is_catalog, MissingProviderError, world
+from antidote import (
+    antidote_lib_injectable,
+    injectable,
+    interface,
+    is_catalog,
+    is_compiled,
+    lazy,
+    MissingProviderError,
+    new_catalog,
+    world,
+)
 
 
 def test_create_catalog() -> None:
@@ -29,7 +38,7 @@ def test_create_catalog() -> None:
     assert "empty" in str(emtpy_catalog)
     assert "empty" in emtpy_catalog.id.name
 
-    injectable_catalog = new_catalog(include=[antidote_injectable])
+    injectable_catalog = new_catalog(include=[antidote_lib_injectable])
     assert len(injectable_catalog.providers) == 1
 
     # should work

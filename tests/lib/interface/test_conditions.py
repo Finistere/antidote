@@ -6,9 +6,15 @@ from typing import Any, Iterable, Sequence, TypeVar
 
 import pytest
 
-from antidote import implements, instanceOf, interface, world
-from antidote.lib.interface import antidote_interface, NeutralWeight
-from antidote.lib.interface.predicate import HeterogeneousWeightError
+from antidote import (
+    antidote_lib_interface,
+    HeterogeneousWeightError,
+    implements,
+    instanceOf,
+    interface,
+    NeutralWeight,
+    world,
+)
 from tests.lib.interface.common import (
     _,
     only_if,
@@ -26,7 +32,7 @@ T = TypeVar("T")
 
 @pytest.fixture(autouse=True)
 def setup_world() -> None:
-    world.include(antidote_interface)
+    world.include(antidote_lib_interface)
 
 
 def test_neutral_weight() -> None:

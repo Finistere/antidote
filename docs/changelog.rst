@@ -6,49 +6,377 @@ Changelog
 For any given version :code:`N`, all releases :code:`N.X.X` guarantee:
 
 - API stability: Python code that used to work will continue work.
-- Namespace stability for :code:`antidote`, :code:`antidote.core`, :code:`antidote.exceptions` and
-  :code:`antidote.lib.*`.
-  All other namespaces have no guarantees.
+- Namespace stability for :code:`antidote` and :code:`antidote.core`. Other namespaces are susceptible to changes.
 - *best effort* for static type hints stability. Meaning that code relying on Antidote that used to pass MyPy
-  or any other static type checker should continue working, but it's not guaranteed.
+  or any other static type checker should continue working, but it's best effort.
 
-Most, if not all, the API is annotated with decorators such as :code:`@API.public` specifying whether
+Most, if not all, of the API is annotated with decorators such as :code:`@API.public` specifying whether
 the given functionality can be relied upon.
 
 
 
-2.0.0 (2022-07/8-XX)
+2.0.0 (2022-08-31)
 ====================
 
-
-Deprecation
------------
-
-- rename :code:`DependencyInstantiationError` to :py:exc:`DependencyProviderError`
+Antidote core has been entirely reworked to be simpler and provide better static typing in addition
+of several features. The cython had to be dropped though for now by lack of time. It may eventually
+come back.
 
 
 Breaking Changes
 ----------------
 
-*Important*:
+Important
+^^^^^^^^^
+- All previously deprecated changes have been removed.
+- The previous :code:`Scope` concept has been replaced by :py:class:`.LifeTime` and :py:class:`.ScopeGlobalVar`.
+- :code:`world.test` environments API have been reworked. Creating one has a similar API and guarantees, but :code:`world.test.factory`, :code:`world.test.singleton` and all of :code:`world.test.override` have been replaced by a better alternative. See :py:class:`.TestContextBuilder`.
+- Dependencies cannot be specified through :code:`inject({...})` and :code:`inject([...])` anymore.
+- :py:class:`.QualifiedBy`/:code:`qualified_by` for interface/implementation now relies on equality instead of the :code:`id()`.
+- :py:obj:`.const` API has been reworked. :code:`const()` and :code:`cont.env()` have API changes and :code:`const.provider` has been removed.
+- Thread-safety guarantees from Antidote are now simplified. It now only ensures lifetime consistency and some decorators such as :py:func:`.injectable` & :py:obj:`.interface` provide some thread-safety guarantees.
+- :py:class:`.Provider` has been entirely reworked. It keeps the same name and purpose but has a different API and guarantees.
 
-- :py:func:`.lazy` is NOT a singleton by default anymore.
+Core
+^^^^
+- :py:obj:`.inject`
+    - removed :code:`dependencies`, :code:`strict_validation` and :code:`auto_provide` parameters.
+    - removed :code:`source` parameter from :py:meth:`.Inject.me`
+- :py:class:`.Wiring`
+    - removed :code:`dependencies` parameter.
+    - renamed :code:`class_in_localns` parameter to :code:`class_in_locals` in :py:meth:`.Wiring.wire`.
+- :py:func:`.wire`: removed :code:`dependencies` parameter 
+- renamed :code:`Get` to :code:`dependencyOf`. Usage of :code:`inject[]`/:code:`inject.get` is recommended instead for annotations.
+- :py:obj:`.world`
+    - Providers are not dependencies anymore. Use :py:attr:`.Catalog.providers`.
+    - Providers do not check anymore that a dependency wasn't defined by another one before. They're expected to be independent.
+    - Exception during dependency retrieval are not wrapped in :code:`DependencyInstantiationError` anymore
+    - :code:`FrozenWorldError` has been renamed :code:`FrozenCatalogError`.
+    - :code:`world.test.new()` now generates a test environment equivalent to a freshly created Catalog with :code:`new_catalog`. It only impacts those using a custom :code:`Provider`.
+    - Removed dependency cycle detection and :code:`DependencyCycleError`. It wasn't perfectly accurate and it's not really worth it. :code:`world.debug` does a better job at detecting and presenting those cycles.
+- :code:`validate_injection()` and :code:`validated_scope()` functions have been removed.
+- :code:`DependencyGetter`, :code:`TypedDependencyGetter` are not part of the API anymore.
 
+Injectable
+^^^^^^^^^^
+- The first argument :code:`klass` of :py:func:`.injectable` is now positional-only.
+- :code:`singleton` and :code:`scope` parameters have been replaced by :code:`lifetime`.
 
+Interface
+^^^^^^^^^
+- :code:`ImplementationsOf` has been renamed to :py:class:`.instanceOf`.
+- :py:class:`.PredicateConstraint` protocol is now a callable instead of having an :code:`evaluate()` method.
+- Classes wrapped by :py:class:`.implements` are now part of the private catalog by default, if you want them to be available, you'll need to apply :py:func:`.injectable` explicitly.
+- :py:meth:`.implements.overriding` raises a :py:exc:`ValueError` instead of :py:exc:`RuntimeError` if the implementation does not exist.
+- The default implementation is now only provided if no other implementations matched. It wasn't the case with :code:`all()` before.
+- :code:`implements.by_default` has been renamed to :py:meth:`.implements.as_default` to be symmetrical with :py:obj:`.interface`.
 
-- rename :py:method:`.Wiring.wire` argument :code:`class_in_localns` to `class_in_locals`.
-- rename parameters `dependencies` to `fallback` for :py:class:`.Wiring` and :py:func:`.wire`
-- :py:class:`.QualifiedBy` relies on equality now, not the id anymore.
-- removed :code:`__getitem__()` from const.
-- Providers are not part of the Catalog anymore.
+Lazy
+^^^^
+- :code:`singleton` and :code:`scope` parameters have been replaced by :code:`lifetime`.
+- :code:`call()` function was removed from lazy functions, use the :code:`__wrapped__` attribute instead.
+- In test contexts such as :code:`world.test.empty()` and :code:`world.test.new()`, previously defined lazy/const dependencies will not be available anymore.
+
+Const
+^^^^^
+- To specify a type for :py:meth:`.Const.env` use the :code:`convert` argument.
+- When defining static constant values such as :code:`HOST = const('localhost')`, it's NOT possible to:
+
+    - define the type (:code:`const[str]('localhost)`)
+    - define a default value
+    - not provide value at all anymore
+
+- :code:`const.provider` has been removed. Use :py:meth:`.Lazy.method` instead. The only difference is that the const provider would return different objects even with the same arguments, while the lazy method won't.
 
 
 Features
 --------
 
-*Major*:
+Core
+^^^^
+-   AEP1: Instead of hack of module/functions :py:obj:`.world` is now a proper instance of  :py:obj:`.PublicCatalog`. Alternative catalogs can be created and included in one another. Dependencies can also now be private or public. The main goal is for now to expose a whole group of dependencies through a custom catalog.
 
-- AEP1: :
+    .. code-block:: python
+
+        from antidote import new_catalog, inject, injectable, world
+
+        # Includes by default all of Antidote
+        catalog = new_catalog()
+
+
+        # Only accessible from providers by default.
+        @injectable(catalog=catalog.private)
+        class PrivateDummy:
+            ...
+
+
+        @injectable(catalog=catalog)  # if catalog is not specified, world is used.
+        class Dummy:
+            def __init__(self, private_dummy: PrivateDummy = inject.me()) -> None:
+                self.private_dummy = private_dummy
+
+
+        # Not directly accessible
+        assert PrivateDummy not in catalog
+        assert isinstance(catalog[Dummy], Dummy)
+
+
+        # app_catalog is propagated downwards for all @inject that don't specify it.
+        @inject(app_catalog=catalog)
+        def f(dummy: Dummy = inject.me()) -> Dummy:
+            return dummy
+
+
+        assert f() is catalog[Dummy]
+
+        # Not inside world yet
+        assert Dummy not in world
+        world.include(catalog)
+        assert world[Dummy] is catalog[Dummy]
+
+-   AEP2 (reworked): Antidote now defines a :py:class:`.ScopeGlobalVar` which has a similar interface to :py:class:`ContextVar` and three kind of lifetimes to replace scopes:
+
+        - :code:`'singleton'`: instantiated only once
+        - :code:`'transient'`: instantiated on every request
+        - :code:`'scoped'`: used by dependencies depending on one or multiple :py:class:`.ScopeGlobalVar`. When any of them changes, the value is re-computed otherwise it's cached.
+
+    :py:class:`.ScopeGlobalVar` isn't a :py:class:`ContextVar` though, it's a global variable. It's planned to add a :py:class:`.ScopeContextVar`.
+
+    .. code-block:: python
+
+        from antidote import inject, lazy, ScopeGlobalVar, world
+
+        counter = ScopeGlobalVar(default=0)
+
+        # Until update, the value stays the same.
+        assert world[counter] == 0
+        assert world[counter] == 0
+        token = counter.set(1)
+        assert world[counter] == 1
+
+
+        @lazy(lifetime='scoped')
+        def dummy(count: int = inject[counter]) -> str:
+            return f"Version {count}"
+
+
+        # dummy will not be re-computed until counter changes.
+        assert world[dummy()] == 'Version 1'
+        assert world[dummy()] == 'Version 1'
+        counter.reset(token)  # same interface as ContextVar
+        assert world[dummy()] == 'Version 0'
+
+-   Catalogs, such as :py:obj:`.world` and :py:obj:`.inject`, expose a dict-like read-only API. Typing has also been improved:
+
+    .. code-block:: python
+
+        from typing import Optional
+
+        from antidote import const, inject, injectable, world
+
+
+        class Conf:
+            HOST = const('localhost')
+            STATIC = 1
+
+
+        assert Conf.HOST in world
+        assert Conf.STATIC not in world
+        assert world[Conf.HOST] == 'localhost'
+        assert world.get(Conf.HOST) == 'localhost'
+        assert world.get(Conf.STATIC) is None
+        assert world.get(Conf.STATIC, default=12) == 12
+
+        try:
+            world[Conf.STATIC]
+        except KeyError:
+            pass
+
+
+        @injectable
+        class Dummy:
+            pass
+
+
+        assert isinstance(world[Dummy], Dummy)
+        assert isinstance(world.get(Dummy), Dummy)
+
+
+        @inject
+        def f(host: str = inject[Conf.HOST]) -> str:
+            return host
+
+
+        @inject
+        def g(host: Optional[int] = inject.get(Conf.STATIC)) -> Optional[int]:
+            return host
+
+
+        assert f() == 'localhost'
+        assert g() is None
+
+-   Testing has a simplified dict-like write-only API:
+
+    .. code-block:: python
+
+        from antidote import world
+
+        with world.test.new() as overrides:
+            # add a singleton / override existing dependency
+            overrides['hello'] = 'world'
+            # add multiple singletons
+            overrides.update({'second': object()})
+            # delete a dependency
+            del overrides['x']
+
+
+            # add a factory
+            @overrides.factory('greeting')
+            def build() -> str:
+                return "Hello!"
+
+-   Added :py:meth:`.Inject.method` which will inject the first argument, commonly :code:`self` of a method with the dependency defined by the class. It won't inject when used as instance method though.
+
+    .. code-block:: python
+
+        from antidote import inject, injectable, world
+
+
+        @injectable
+        class Dummy:
+            @inject.method
+            def method(self) -> 'Dummy':
+                return self
+
+
+        assert Dummy.method() is world[Dummy]
+        dummy = Dummy()
+        assert dummy.method() is dummy
+
+-   :py:obj:`.inject` now supports wrapping function with :code:`*args`.
+-   :py:obj:`.inject` has now :code:`kwargs` and :code:`fallback` keywords to replace the old :code:`dependencies`. :code:`kwargs` takes priority over alternative injections styles and :code:`fallback` is used in the same way as :code:`dependencies`, after defaults and type hints.
+
+
+Interface
+^^^^^^^^^
+-   :py:obj:`.interface` now supports function and :py:obj:`.lazy` calls. It also supports defining the interface as the default function with :py:meth:`.Interface.as_default`:
+
+    .. code-block:: python
+
+        from antidote import interface, world, implements
+
+
+        @interface
+        def callback(x: int) -> int:
+            ...
+
+
+        @implements(callback)
+        def callback_impl(x: int) -> int:
+            return x * 2
+
+
+        assert world[callback] is callback_impl
+        assert world[callback.single()] is callback_impl
+
+
+        @interface.lazy.as_default
+        def template(name: str) -> str:
+            return f"Template {name!r}"
+
+
+        assert world[template(name='test')] == "Template 'test'"
+
+
+        @implements.lazy(template)
+        def template_impl(name: str) -> str:
+            return f"Alternative template {name!r}"
+
+
+        assert world[template.all()(name='root')] == ["Alternative template 'root'"]
+
+-   Better API for :py:class:`~typing.Protocol` static typing:
+
+    .. code-block:: python
+
+        from typing import Protocol
+
+        from antidote import implements, instanceOf, interface, world
+
+
+        @interface
+        class Dummy(Protocol):
+            ...
+
+
+        @implements.protocol[Dummy]()
+        class MyDummy:
+            ...
+
+
+        assert isinstance(world[instanceOf[Dummy]()], MyDummy)
+        assert isinstance(world[instanceOf[Dummy]().single()], MyDummy)
+
+-   :py:class:`.QualifiedBy` relies on equality instead of the id of the objects now. Limitations on the type of qualifiers has also been removed.
+
+    .. code-block:: python
+
+        from antidote import implements, interface
+
+
+        @interface
+        class Dummy:
+            ...
+
+
+        @implements(Dummy).when(qualified_by='a')
+        class A(Dummy):
+            ...
+
+
+        @implements(Dummy).when(qualified_by='b')
+        class B(Dummy):
+            ...
+
+-   :py:class:`.implements` has a :code:`wiring` argument to prevent any wiring.
+
+Lazy
+^^^^
+- :py:obj:`.lazy` can now wrap (static-)methods and define values/properties:
+
+    .. code-block:: python
+
+        from antidote import injectable, lazy, world
+
+
+        @lazy.value
+        def name() -> str:
+            return "John"
+
+
+        @injectable  # required for lazy.property & lazy.method
+        class Templates:
+            @lazy.property
+            def main(self) -> str:
+                return "Lazy Main Template"
+
+            @lazy.method
+            def load(self, name: str) -> name:  # has access to self
+                return f"Lazy Method Template {name}"
+
+            @staticmethod
+            @lazy
+            def static_load(name: str) -> str:
+                return f"Lazy Static Template {name}"
+
+
+        world[name]
+        world[Templates.main]
+        world[Templates.load(name='Alice')]
+        world[Templates.static_load(name='Bob')]
+
+-   :py:obj:`.lazy` has now an :code:`inject` argument which can be used to prevent any injection.
+
 
 
 1.4.2 (2022-06-26)

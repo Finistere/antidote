@@ -1,31 +1,31 @@
 import pytest
 
 from antidote import (
-    antidote_injectable,
-    antidote_interface,
-    antidote_lazy,
     antidote_lib,
+    antidote_lib_injectable,
+    antidote_lib_interface,
+    antidote_lib_lazy,
     DependencyNotFoundError,
     world,
 )
 
 
 def test_double_antidote_lazy() -> None:
-    world.include(antidote_lazy)
+    world.include(antidote_lib_lazy)
     # Should not fail
-    world.include(antidote_lazy)
+    world.include(antidote_lib_lazy)
 
 
 def test_double_antidote_injectable() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
     # Should not fail
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
 
 def test_double_antidote_interface() -> None:
-    world.include(antidote_interface)
+    world.include(antidote_lib_interface)
     # Should not fail
-    world.include(antidote_interface)
+    world.include(antidote_lib_interface)
 
 
 def test_double_antidote_lib() -> None:
