@@ -11,8 +11,17 @@ from typing import Callable, Sequence, Tuple, TypeVar
 import pytest
 from typing_extensions import ParamSpec, TypeAlias
 
-from antidote import antidote_lib, injectable, lazy, ScopeVar
-from antidote.core import inject, LifeTime, new_catalog, ProvidedDependency, Provider, PublicCatalog
+from antidote import (
+    antidote_lib,
+    inject,
+    injectable,
+    lazy,
+    LifeTime,
+    new_catalog,
+    PublicCatalog,
+    ScopeGlobalVar,
+)
+from antidote.core import ProvidedDependency, Provider
 from tests.conftest import TestContextOf
 from tests.utils import Box
 
@@ -23,7 +32,7 @@ Tid: TypeAlias = Tuple[int, float]
 
 class ThreadSafetyBench:
     n_threads = 10
-    __state = None
+    __state: object = None
 
     @classmethod
     def run(cls, target: Callable[[], object], n_threads: int | None = None) -> None:
@@ -90,39 +99,55 @@ def test_catalog_provide_safety(catalog: PublicCatalog) -> None:
 @pytest.mark.timeout(3)
 def test_catalog_scope_consistency(catalog: PublicCatalog) -> None:
     catalog.include(antidote_lib)
-    version = ScopeVar(default=ThreadSafetyBench.unique_id(), catalog=catalog)
+    version = ScopeGlobalVar(default=ThreadSafetyBench.unique_id(), catalog=catalog)
 
     @delayed
     def update() -> None:
         version.set(ThreadSafetyBench.unique_id())
         return None
 
-    @lazy(catalog=catalog)
-    def f() -> Box[Tuple[Tid, Tid]]:
+    @lazy(catalog=catalog, lifetime="transient")
+    def f() -> Box[Tuple[str, Tid, Tid]]:
         v1 = catalog[version]
         ThreadSafetyBench.random_delay()
         v2 = catalog[version]
-        return Box((v1, v2))
+        return Box(("lazy", v1, v2))
 
-    actions: list[Callable[[], Box[Tuple[Tid, Tid]] | None]] = [update, lambda: catalog[f()]]
-    results: list[Box[Tuple[Tid, Tid]]] = []
+    @lazy.value(lifetime="transient", catalog=catalog)
+    def delay() -> None:
+        ThreadSafetyBench.random_delay()
+        return
+
+    @inject(app_catalog=catalog)
+    def g(
+        v1: Tid = inject[version], x: object = inject[delay], v2: Tid = inject[version]
+    ) -> Box[Tuple[str, Tid, Tid]]:
+        return Box(("inject", v1, v2))
+
+    actions: list[Callable[[], Box[Tuple[str, Tid, Tid]] | None]] = [
+        update,
+        lambda: catalog[f()],
+        g,
+    ]
+    results: list[Box[Tuple[str, Tid, Tid]]] = []
 
     def worker() -> None:
-        for f in random.choices(actions, k=30):
-            result = f()
+        for func in random.choices(actions, k=30):
+            result = func()
             if result is not None:
                 results.append(result)
 
     ThreadSafetyBench.run(worker, n_threads=5)
+    assert len(results) > 0
     for box in results:
-        v1, v2 = box.value
-        assert v1 is v2
+        name, v1, v2 = box.value
+        assert v1 is v2, name
 
 
 @pytest.mark.timeout(3)
 def test_catalog_scoped(catalog: PublicCatalog) -> None:
     catalog.include(antidote_lib)
-    version = ScopeVar(default=ThreadSafetyBench.unique_id(), catalog=catalog)
+    version = ScopeGlobalVar(default=ThreadSafetyBench.unique_id(), catalog=catalog)
 
     @delayed
     def update() -> None:
@@ -135,7 +160,7 @@ def test_catalog_scoped(catalog: PublicCatalog) -> None:
 
     dependency = scoped()
 
-    @lazy(catalog=catalog)
+    @lazy(catalog=catalog, lifetime="transient")
     def f() -> Tuple[Box[Tid], Box[Tid]]:
         b1 = catalog[dependency]
         ThreadSafetyBench.random_delay()
@@ -152,6 +177,7 @@ def test_catalog_scoped(catalog: PublicCatalog) -> None:
                 results.append(result)
 
     ThreadSafetyBench.run(worker, n_threads=5)
+    assert len(results) > 0
     for b1, b2 in results:
         assert b1 is b2
 
@@ -162,7 +188,7 @@ def test_catalog_scoped(catalog: PublicCatalog) -> None:
 @pytest.mark.timeout(4)
 def test_inject_scoped_consistency(catalog: PublicCatalog) -> None:
     catalog.include(antidote_lib)
-    version = ScopeVar(default=ThreadSafetyBench.unique_id(), catalog=catalog)
+    version = ScopeGlobalVar(default=ThreadSafetyBench.unique_id(), catalog=catalog)
 
     @delayed
     def update() -> None:
@@ -184,7 +210,7 @@ def test_inject_scoped_consistency(catalog: PublicCatalog) -> None:
     def f3() -> Box[Tuple[str, Tid]]:
         return Box(("f3", catalog[version]))
 
-    @inject(catalog=catalog)
+    @inject(app_catalog=catalog)
     def func(
         a: Box[Tuple[str, Tid]] = inject[f1()],
         b: Box[Tuple[str, Tid]] = inject[f2()],
@@ -208,6 +234,7 @@ def test_inject_scoped_consistency(catalog: PublicCatalog) -> None:
                 results.append(result)
 
     ThreadSafetyBench.run(worker, n_threads=5)
+    assert len(results) > 0
     for boxes in results:
         assert len(set(boxes)) == 3
         assert len({id(box) for box in boxes}) == 3

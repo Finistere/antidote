@@ -1,64 +1,126 @@
 Core
 ====
 
+.. py:currentmodule:: antidote.core
+
 
 Injection
 ---------
 
-Inject
-^^^^^^
+.. py:data:: inject
+    :canonical: antidote.core.inject
+    :type: antidote.core.Inject
 
-.. automodule:: antidote.core.injection
-    :members: Arg
+    Singleton instance of :py:class:`.Inject`
 
-    .. py:function:: inject
+.. autoclass:: antidote.core.Inject
+    :members:
+    :special-members: __call__
 
-        Singleton instance of :py:class:`~.core.injection.Injector`
+.. autodata:: antidote.core.InjectMe
 
-.. autoclass:: antidote.core.injection.Injector
+.. autoclass:: ParameterDependency
+    :members:
 
-    .. automethod:: __call__
-    .. automethod:: me
-    .. py:attribute:: get
-        :type: antidote.core.getter.DependencyGetter
+.. autoclass:: Wiring
+    :members:
 
-        :py:class:`.DependencyGetter` to explicit state the dependencies to be retrieved.
-        It follows the same API as :py:obj:`.world.get`.
-
-
-.. autoclass:: antidote.core.getter.DependencyGetter
-    :members: __call__, __getitem__
-
-.. autoclass:: antidote.core.getter.TypedDependencyGetter
-    :members: single, all, __call__
+.. autofunction:: wire
 
 
-Annotations
-^^^^^^^^^^^
-.. automodule:: antidote.core.annotations
-    :members: Get, From, FromArg
+Catalog
+-------
 
-    .. py:data:: Provide
+.. py:data:: world
+    :canonical: antidote.core.world
+    :type: antidote.core.PublicCatalog
 
-        .. deprecated:: 1.1
-            Prefer using :py:obj:`.Inject`
+    Default catalog for all dependencies
 
-    .. autodata:: Inject
+.. py:data:: app_catalog
+    :canonical: antidote.core.app_catalog
+    :type: antidote.core.ReadOnlyCatalog
 
-Wiring
-^^^^^^
-.. automodule:: antidote.core.wiring
-    :members: Wiring, wire
+    Current catalog used as defined by :py:obj:`.inject`
+
+.. autofunction:: new_catalog
+
+.. autoclass:: CatalogId
+    :members:
+
+.. autoclass:: PublicCatalog
+    :members:
+
+.. autoclass:: Catalog
+    :members:
+
+.. autoclass:: ReadOnlyCatalog
+    :members:
+    :inherited-members:
+    :special-members: __getitem__, __contains__
+
+.. autofunction:: is_catalog
+
+.. autofunction:: is_readonly_catalog
+
+
+Test Context
+------------
+
+.. autoclass:: TestContextBuilder
+    :members:
+
+.. autoclass:: CatalogOverrides
+    :members:
+
+.. autoclass:: CatalogOverride
+    :members:
+    :special-members: __setitem__, __delitem__
+
+
+Scopes
+------
+
+.. autoclass:: ScopeGlobalVar
+    :members:
+
+.. autoclass:: ScopeVarToken
+    :members:
+
+.. autoclass:: Missing
+    :members:
 
 
 Provider
 --------
 
-.. automodule:: antidote.core.provider
+.. autoclass:: Provider
     :members:
 
-.. automodule:: antidote.core.container
-    :members: Scope, DependencyValue, Container
+.. autoclass:: ProvidedDependency
+    :members:
 
-.. automodule:: antidote.core.utils
+.. autoclass:: ProviderCatalog
+    :members:
+
+.. autoclass:: LifeTime
+    :members:
+
+.. autoclass:: Dependency
+    :members:
+
+.. autoclass:: dependencyOf
+    :members:
+
+.. autoclass:: DependencyDebug
+    :members:
+
+.. autoclass:: DebugInfoPrefix
+    :members:
+
+
+Exceptions
+----------
+
+.. automodule:: antidote.core.exceptions
     :members:

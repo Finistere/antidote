@@ -1,10 +1,10 @@
 from ..core import Catalog
-from .injectable import antidote_injectable
-from .interface import antidote_interface
-from .lazy import antidote_lazy
+from .injectable_ext import antidote_lib_injectable
+from .interface_ext import antidote_lib_interface
+from .lazy_ext import antidote_lib_lazy
 
 
 def antidote_lib(catalog: Catalog) -> None:
-    catalog.include(antidote_lazy)
-    catalog.include(antidote_injectable)
-    catalog.include(antidote_interface)
+    catalog.include(antidote_lib_lazy)
+    catalog.include(antidote_lib_injectable)
+    catalog.include(antidote_lib_interface)

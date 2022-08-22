@@ -1,15 +1,16 @@
+from typing import cast
+
 import pytest
 
 from antidote import DuplicateDependencyError, new_catalog
-from antidote.core._internal_catalog import InternalCatalog
+from antidote.core._catalog import CatalogImpl
 
 
 # TODO: testing internal stuff that will be used for future APIs.
 def test_register_duplicate_scope_var() -> None:
-    catalog = new_catalog(include=[])
-    internal: InternalCatalog = catalog.internal  # type: ignore
+    catalog = cast(CatalogImpl, new_catalog(include=[]))
     x = object()
-    internal.register_scope_var(x)
+    catalog.onion.layer.register_scope_var(x)
 
     with pytest.raises(DuplicateDependencyError):
-        internal.register_scope_var(x)
+        catalog.onion.layer.register_scope_var(x)

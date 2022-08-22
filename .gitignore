@@ -6,7 +6,7 @@
 *.pyc
 *.egg-info
 *.so
-*.cpp
+src/antidote/*.cpp
 *.ipynb
 *.nix
 .gdb_history
@@ -20,11 +20,13 @@
 /.ipynb_checkpoints/
 cython_debug/
 _build/
+/profile.json
 
 # PyCharm
 /.idea
 /.nodejs
 /.venv*
+/.ignore
 
 # Annotated Cython
 /src/**/*.html

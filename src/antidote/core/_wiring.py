@@ -54,13 +54,13 @@ def wire_class(
                 fallback=wiring.fallback,
                 ignore_type_hints=wiring.ignore_type_hints,
                 type_hints_locals=type_hints_locals,
-                catalog=catalog,
+                app_catalog=catalog,
             )
         except DoubleInjectionError:
             if wiring.raise_on_double_injection:
                 raise
             if catalog is not None:
-                inject.rewire(method, catalog=catalog)
+                inject.rewire(method, app_catalog=catalog)
         else:
             if injected_method is not method:  # If something has changed
                 setattr(klass, name, injected_method)
@@ -68,7 +68,8 @@ def wire_class(
 
 @API.private
 def _methods_all_match(attr: object, *, name: str) -> TypeGuard[AnyF]:
-    from .. import is_const_factory, is_interface, is_lazy
+    from .. import is_lazy
+    from ..lib.interface_ext import is_interface
 
     # Do not inject Python dunder methods except __call__ and __init__
     if name.startswith("__") and name.endswith("__") and name != "__call__" and name != "__init__":
@@ -80,7 +81,7 @@ def _methods_all_match(attr: object, *, name: str) -> TypeGuard[AnyF]:
 
     # Not already wrapped
     func: Any = attr.__func__ if isinstance(attr, staticmethod) else attr
-    if is_interface(func) or is_const_factory(func) or is_lazy(func):
+    if is_interface(func) or is_lazy(func):
         return False
 
     return True

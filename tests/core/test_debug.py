@@ -5,16 +5,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from antidote.core import (
-    DependencyDebug,
-    inject,
-    LifeTime,
-    ProvidedDependency,
-    Provider,
-    PublicCatalog,
-    ReadOnlyCatalog,
-    world,
-)
+from antidote import inject, LifeTime, PublicCatalog, world
+from antidote.core import DependencyDebug, ProvidedDependency, Provider, ProviderCatalog
 from tests.utils import expected_debug, Obj
 
 x = Obj()
@@ -51,7 +43,7 @@ def dummy_func() -> None:
 
 
 class DebugProvider(Provider):
-    def __init__(self, *, catalog: ReadOnlyCatalog) -> None:
+    def __init__(self, *, catalog: ProviderCatalog) -> None:
         super().__init__(catalog=catalog)
         self.data: dict[object, DependencyDebug] = {}
 
@@ -87,7 +79,7 @@ def test_debug_repr(obj: object, expected: str) -> None:
 
 
 def test_newline_in_debug_repr() -> None:
-    @inject(dict(x=DummyWithRepr("Hello\nWorld!")))
+    @inject(kwargs=dict(x=DummyWithRepr("Hello\nWorld!")))
     def f(x: object) -> None:
         ...
 
@@ -115,11 +107,11 @@ def test_cyclic_dependency(catalog: PublicCatalog) -> None:
 
 def test_basic_nested_debug(catalog: PublicCatalog) -> None:
     class D:
-        @inject(dict(a=x))
+        @inject(kwargs=dict(a=x))
         def __init__(self, a: object) -> None:
             ...
 
-    @inject(dict(b=y))
+    @inject(kwargs=dict(b=y))
     def func(b: object) -> object:
         ...
 

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import cast, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 
-from ._catalog import AppCatalog, CatalogImpl
-from ._inject import InjectorImpl
-from ._wrapper import current_catalog_context
+from ._catalog import AppCatalogProxy
+from ._inject import InjectImpl
+from ._raw import current_catalog_onion
 from .utils import new_catalog
 
 if TYPE_CHECKING:
-    from . import Injector, PublicCatalog, ReadOnlyCatalog
+    from . import Inject, PublicCatalog, ReadOnlyCatalog
 
 world: PublicCatalog = new_catalog(name="world", include=[])  # antidote_lib included later
-inject: Injector = InjectorImpl()
-app_catalog: ReadOnlyCatalog = AppCatalog()
-current_catalog_context.set(cast(CatalogImpl, world).internal)
+inject: Inject = InjectImpl()
+app_catalog: ReadOnlyCatalog = AppCatalogProxy()
+current_catalog_onion.set(cast(Any, world).onion)

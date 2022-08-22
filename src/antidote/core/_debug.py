@@ -5,12 +5,16 @@ import inspect
 import textwrap
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, cast, Deque, List, Sequence, Tuple
+from typing import Any, cast, Deque, List, Sequence, Tuple, TYPE_CHECKING
+
+from typing_extensions import final
 
 from .._internal import API, debug_repr
-from ._internal_catalog import InternalCatalog
-from ._wrapper import is_wrapper, unwrap
+from ._raw import is_wrapper, unwrap
 from .data import DebugInfoPrefix, dependencyOf, LifeTime
+
+if TYPE_CHECKING:
+    from ._catalog import CatalogOnion
 
 
 @API.private
@@ -47,13 +51,14 @@ def scope_repr(lifetime: LifeTime | None) -> str:
 
 
 _LEGEND = f"""
-{scope_repr(LifeTime.TRANSIENT)}= transient
-{scope_repr(LifeTime.SCOPED)}= bound
-{scope_repr(LifeTime.SINGLETON)}= singleton
+{scope_repr(LifeTime.TRANSIENT).strip()} = transient
+{scope_repr(LifeTime.SCOPED).strip()} = bound
+{scope_repr(LifeTime.SINGLETON).strip()} = singleton
 """
 
 
 @API.private
+@final
 @dataclass(frozen=True)
 class DebugTreeNode:
     description: str
@@ -73,7 +78,7 @@ class DebugTreeNode:
 
 
 @API.private
-def tree_debug_info(catalog: InternalCatalog, origin: object, max_depth: int = -1) -> str:
+def debug_str(*, onion: CatalogOnion, origin: object, max_depth: int = -1) -> str:
     origin = dependencyOf[object](origin).wrapped
 
     if max_depth < 0:
@@ -86,9 +91,9 @@ def tree_debug_info(catalog: InternalCatalog, origin: object, max_depth: int = -
 
     while tasks:
         task = tasks.popleft()
-        debug = catalog.maybe_debug(task.dependency)
+        debug = onion.layer.maybe_debug(task.dependency)
         # Using the private catalog after the first one.
-        catalog = catalog.private
+        onion = onion.private or onion
         if debug is None:
             injections = (
                 get_injections(origin)

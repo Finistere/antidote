@@ -10,7 +10,7 @@ def test_positional_arguments() -> None:
     with world.test.empty() as overrides:
         overrides[x] = x
 
-        @inject(dict(a=x))
+        @inject(kwargs=dict(a=x))
         def f1(
             x: object = 0, /, a: object = None, **kwargs: object  # pyright: ignore
         ) -> Tuple[object, object, Dict[str, object]]:

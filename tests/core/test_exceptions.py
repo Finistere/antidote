@@ -1,12 +1,12 @@
-from typing import Callable, cast, List
+from typing import Any, Callable, cast, List
 
-from antidote import new_catalog
-from antidote.core import (
+from antidote import (
     AntidoteError,
     DependencyNotFoundError,
     DoubleInjectionError,
     DuplicateDependencyError,
     FrozenCatalogError,
+    new_catalog,
     PublicCatalog,
 )
 
@@ -15,7 +15,7 @@ to_str = cast(List[Callable[[object], str]], [str, repr])
 
 def test_dependency_not_found(catalog: PublicCatalog) -> None:
     o = object()
-    error = DependencyNotFoundError(o, catalog=catalog)
+    error = DependencyNotFoundError(o, catalog=cast(Any, catalog))
     assert isinstance(error, AntidoteError)
 
     for f in to_str:

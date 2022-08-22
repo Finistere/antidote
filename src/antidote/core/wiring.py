@@ -33,6 +33,11 @@ _empty_set: FrozenSet[str] = frozenset()
 @API.public
 @final
 class Methods(enum.Enum):
+    """
+    Enumeration used by :py:class:`.Wiring` and :py:func:`.wire` to define which kind of methods
+    to wire. Only one value exists currently, code:`ALL`, which implies injecting all methods.
+    """
+
     ALL = enum.auto()
 
 
@@ -156,7 +161,7 @@ class Wiring:
         self,
         *,
         klass: type,
-        catalog: ReadOnlyCatalog | None = None,
+        app_catalog: ReadOnlyCatalog | None = None,
         type_hints_locals: Optional[Mapping[str, object]] = None,
         class_in_locals: bool | Default = Default.sentinel,
     ) -> None:
@@ -167,7 +172,7 @@ class Wiring:
         Args:
             klass: Class to wire.
             type_hints_locals: Propagated for every method to :py:obj:`.inject`.
-            catalog: Propagated for every method to :py:obj:`.inject`.
+            app_catalog: Propagated for every method to :py:obj:`.inject`.
             class_in_locals: Whether to add the current class as a local variable. This
                 is typically helpful when the class uses itself as a type hint as during the
                 wiring, the class has not yet been defined in the globals/locals. The default
@@ -177,9 +182,9 @@ class Wiring:
         """
         from ._wiring import wire_class
 
-        if not (catalog is None or is_readonly_catalog(catalog)):
+        if not (app_catalog is None or is_readonly_catalog(app_catalog)):
             raise TypeError(
-                f"catalog must be a ReadOnlyCatalog or None, " f"not a {type(catalog)!r}"
+                f"catalog must be a ReadOnlyCatalog or None, " f"not a {type(app_catalog)!r}"
             )
 
         if not isinstance(klass, type):
@@ -203,7 +208,9 @@ class Wiring:
             type_hints_locals = dict(type_hints_locals or {})
             type_hints_locals.setdefault(klass.__name__, klass)
 
-        wire_class(klass=klass, wiring=self, type_hints_locals=type_hints_locals, catalog=catalog)
+        wire_class(
+            klass=klass, wiring=self, type_hints_locals=type_hints_locals, catalog=app_catalog
+        )
 
 
 @overload
@@ -215,7 +222,7 @@ def wire(
     raise_on_double_injection: bool = ...,
     ignore_type_hints: bool = ...,
     type_hints_locals: TypeHintsLocals = ...,
-    catalog: ReadOnlyCatalog | None = ...,
+    app_catalog: ReadOnlyCatalog | None = ...,
 ) -> C:
     ...
 
@@ -228,7 +235,7 @@ def wire(
     raise_on_double_injection: bool = ...,
     ignore_type_hints: bool = ...,
     type_hints_locals: TypeHintsLocals = ...,
-    catalog: ReadOnlyCatalog | None = ...,
+    app_catalog: ReadOnlyCatalog | None = ...,
 ) -> Callable[[C], C]:
     ...
 
@@ -244,7 +251,7 @@ def wire(
     type_hints_locals: Union[
         Mapping[str, object], Literal["auto"], Default, None
     ] = Default.sentinel,
-    catalog: ReadOnlyCatalog | None = None,
+    app_catalog: ReadOnlyCatalog | None = None,
 ) -> Union[C, Callable[[C], C]]:
     """
     Wire a class by injected specified methods. Methods are only replaced if any dependencies were
@@ -271,7 +278,7 @@ def wire(
         fallback: Propagated for every method to :py:obj:`.inject`.
         ignore_type_hints: Propagated for every method to :py:obj:`.inject`.
         type_hints_locals: Propagated for every method to :py:obj:`.inject`.
-        catalog: Propagated for every method to :py:obj:`.inject`.
+        app_catalog: Propagated for every method to :py:obj:`.inject`.
 
     Returns:
         Wired class or a class decorator.
@@ -290,7 +297,7 @@ def wire(
         w_locals = retrieve_or_validate_injection_locals(type_hints_locals)
 
     def wire_methods(cls: C) -> C:
-        wiring.wire(klass=cls, type_hints_locals=w_locals, catalog=catalog)
+        wiring.wire(klass=cls, type_hints_locals=w_locals, app_catalog=app_catalog)
         return cls
 
     return __klass and wire_methods(__klass) or wire_methods

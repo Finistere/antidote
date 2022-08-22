@@ -1,23 +1,19 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, overload, Type, TYPE_CHECKING, TypeVar
+from typing import Any, Callable, overload, Type, TypeVar
 
 from typing_extensions import Protocol
 
 from .._internal import API, debug_repr
-from .data import DependencyDebug, LifeTime
+from .data import CatalogId, DependencyDebug, LifeTime
 
-if TYPE_CHECKING:
-    from . import ReadOnlyCatalog
-
-__all__ = ["Provider", "ProvidedDependency"]
+__all__ = ["Provider", "ProvidedDependency", "ProviderCatalog"]
 
 P = TypeVar("P", bound="Provider")
 Result = TypeVar("Result")
 
 
-# TODO: overload per enum value?
 @API.public
 class ProvidedDependency(Protocol):
     """
@@ -27,27 +23,64 @@ class ProvidedDependency(Protocol):
 
     @overload
     def set_value(
-        self, value: Result, *, lifetime: LifeTime | None, callback: Callable[[], Result]
+        self, value: Result, *, lifetime: LifeTime, callback: Callable[[], Result]
     ) -> None:
         ...
 
     @overload
-    def set_value(self, value: object, *, lifetime: LifeTime | None) -> None:
+    def set_value(self, value: object, *, lifetime: LifeTime) -> None:
         ...
 
     def set_value(
         self,
         value: Result,
         *,
-        lifetime: LifeTime | None,
+        lifetime: LifeTime,
         callback: Callable[..., Result] | None = None,
     ) -> None:
         """
         Defines the value and the lifetime of a dependency. If a callback function is provided it
-        will be used to generate the dependency value next time it's needed for the :code:`call`
-        and :code:`bound` scopes instead traversing the whole catalog again. For the
-        :code:`singleton` lifetime it's silently ignored.
+        will be used to generate the dependency value next time it's needed. For a singleton, it's
+        silently ignored.
+
+        .. warning::
+
+            Beware that defining a callback for a transient dependency, will force Antidote to keep
+            the dependency object inside its cache and as such hold a strong reference to it.
+
         """
+        ...
+
+
+@API.public
+class ProviderCatalog(Protocol):
+    """
+    Similar interface to :py:class:`.ReadOnlyCatalog`. However, it won't use
+    :py:class:`.dependencyOf` to unwrap dependencies and hence does not provide any typing. You
+    should use the raw dependencies directly.
+    """
+
+    @property
+    def id(self) -> CatalogId:
+        ...
+
+    def __contains__(self, dependency: object) -> bool:
+        ...
+
+    def __getitem__(self, dependency: object) -> Any:
+        ...
+
+    def get(self, dependency: object, default: object = None) -> Any:
+        ...
+
+    @property
+    def is_frozen(self) -> bool:
+        ...
+
+    def raise_if_frozen(self) -> None:
+        ...
+
+    def debug(self, __obj: object, *, depth: int = -1) -> str:
         ...
 
 
@@ -85,7 +118,7 @@ class Provider(ABC):
 
         >>> from dataclasses import dataclass
         >>> from antidote.core import Provider, ProvidedDependency, world, LifeTime, Dependency
-        >>> @dataclass
+        >>> @dataclass(unsafe_hash=True)  # a dependency must be hashable
         ... class SquareOf(Dependency[int]):  # Dependency ensures proper typing with world & inject
         ...     number: int
         >>> @world.include
@@ -96,7 +129,7 @@ class Provider(ABC):
         ...     def unsafe_maybe_provide(self, dependency: object, out: ProvidedDependency) -> None:
         ...         # Checking whether we can provide the dependency
         ...         if isinstance(dependency, SquareOf):
-        ...             out.set_value(dependency.number ** 2, lifetime='transient')
+        ...             out.set_value(dependency.number ** 2, lifetime=LifeTime.TRANSIENT)
         >>> world[SquareOf(12)]
         144
 
@@ -104,28 +137,21 @@ class Provider(ABC):
     implementation:
 
     - :py:meth:`~.Provider.create` used when including the :py:class:`.Provider` in a catalog.
-    - :py:meth:`~.Provider.copy` used for the :py:meth:`~.TestCatalogBuilder.copy` and
+    - :py:meth:`~.Provider.copy` used by :py:meth:`~.TestCatalogBuilder.copy` and
       :py:meth:`~.TestCatalogBuilder.clone` test environments.
-    - :py:meth:`~.Provider.maybe_debug` use for :py:meth:`.Catalog.debug`.
+    - :py:meth:`~.Provider.maybe_debug` used by :py:meth:`.Catalog.debug`.
 
     """
 
     __slots__ = ("_catalog",)
-    _catalog: ReadOnlyCatalog
+    _catalog: ProviderCatalog
 
     @classmethod
-    def create(cls: Type[P], catalog: ReadOnlyCatalog) -> P:
+    def create(cls: Type[P], catalog: ProviderCatalog) -> P:
         """
         Used by the catalog to create an instance when using :py:meth:`.Catalog.include`.
         """
         return cls(catalog=catalog)
-
-    def __init__(self, *, catalog: ReadOnlyCatalog) -> None:
-        """
-        The catalog only relies on :py:meth:`~.Provider.create` and :py:meth:`~.Provider.copy` for
-        instantiation, so feel free to change :code:`__init__()` however you wish.
-        """
-        object.__setattr__(self, "_catalog", catalog)
 
     def unsafe_copy(self: P) -> P:
         """
@@ -134,6 +160,13 @@ class Provider(ABC):
         not affect the original one.
         """
         return self.create(catalog=self._catalog)
+
+    def __init__(self, *, catalog: ProviderCatalog) -> None:
+        """
+        The catalog only relies on :py:meth:`~.Provider.create` and :py:meth:`~.Provider.copy` for
+        instantiation, so feel free to change :code:`__init__()` however you wish.
+        """
+        object.__setattr__(self, "_catalog", catalog)
 
     def maybe_debug(self, dependency: object) -> DependencyDebug | None:
         """
@@ -147,7 +180,8 @@ class Provider(ABC):
         """
         if self.can_provide(dependency):
             return DependencyDebug(
-                description=f"No debug provided by {debug_repr(type(self))}", lifetime="transient"
+                description=f"No debug provided by {debug_repr(type(self))}",
+                lifetime=LifeTime.TRANSIENT,
             )
         return None
 

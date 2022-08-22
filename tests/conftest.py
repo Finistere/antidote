@@ -5,17 +5,11 @@ from typing import Any, Callable, ContextManager, Iterator
 import pytest
 from typing_extensions import TypeAlias
 
-from antidote import config, is_compiled, world
+from antidote import config, world
 from antidote.core import CatalogOverrides, new_catalog, PublicCatalog
 
 TestContextOf: TypeAlias = Callable[[PublicCatalog], ContextManager[CatalogOverrides]]
 config.auto_detect_type_hints_locals = True
-
-
-def pytest_runtest_setup(item: Any) -> None:
-    if any(mark.name == "compiled_only" for mark in item.iter_markers()):
-        if not is_compiled():
-            pytest.skip("Compiled only test.")
 
 
 @pytest.fixture(autouse=True)

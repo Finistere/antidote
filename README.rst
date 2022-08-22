@@ -1,6 +1,6 @@
-********
+########
 Antidote
-********
+########
 
 .. image:: https://img.shields.io/pypi/v/antidote.svg
   :target: https://pypi.python.org/pypi/antidote
@@ -21,58 +21,17 @@ Antidote
   :target: http://antidote.readthedocs.io/en/latest/?badge=latest
 
 
-Antidotes is a dependency injection micro-framework for Python 3.7+. It is built on the
-idea of ensuring best **maintainability** of your code while being as **easy to use** as possible.
-It also provides the **fastest** injection with :code:`@inject` allowing you to use it virtually anywhere
-and **fast full isolation of your tests**.
+Antidote is a dependency injection micro-framework for Python 3.7+.
 
-Antidote provides the following features:
+It is built on the idea of having a **declarative**, **explicit** and **decentralized** definitions of dependencies at the type / function / variable definition which can be easily tracked down.
 
-- Ease of use
-    - Injection anywhere you need through a decorator :code:`@inject`
-    - No :code:`**kwargs` arguments hiding actual arguments and fully mypy typed, helping you and your IDE.
-    - `Documented <https://antidote.readthedocs.io/en/latest>`_, everything has tested examples.
-    - No need for any custom setup, just use your injected function as usual. You just don't have to specify
-      injected arguments anymore. Allowing you to gradually migrate an existing project.
-- Flexibility
-    - Most common dependencies out of the box: services, configuration, factories, interface/implementation.
-    - All of those are implemented on top of the core implementation. If Antidote doesn't provide what you need, there's
-      a good chance you can implement it yourself.
-    - Scope support
-    - Async injection
-- Maintainability
-    - All dependencies can be tracked back to their declaration/implementation easily.
-    - Mypy compatibility and usage of type hints as much as possible.
-    - Overriding dependencies will raise an error outside of tests.
-    - Dependencies can be frozen, which blocks any new declarations.
-    - No double injection.
-    - Everything is as explicit as possible, :code:`@inject` does not inject anything implicitly.
-    - Type checks when a type is explicitly defined with :code:`world.get` and constants.
-    - Thread-safe, cycle detection.
-    - Immutable whenever possible.
-- Testability
-    - :code:`@inject` lets you override any injections by passing explicitly the arguments.
-    - Fully isolate each test with :code:`world.test.clone`. They will work on separate objects.
-    - Override globally any dependency locally in a test.
-    - When encountering issues you can retrieve the full dependency tree, nicely formatted, with :code:`world.debug`.
-- Performance\*
-    - Fastest :code:`@inject` with heavily tuned Cython.
-    - As much as possible is done at import time.
-    - Testing utilities are tuned to ensure that even with full isolation it stays fast.
-    - Benchmarks:
-      `comparison <https://github.com/Finistere/antidote/blob/master/comparison.ipynb>`_,
-      `injection <https://github.com/Finistere/antidote/blob/master/benchmark.ipynb>`_,
-      `test utilities <https://github.com/Finistere/antidote/blob/master/benchmark_test_utils.ipynb>`_
-
-*\*with the compiled version, in Cython. Pre-built wheels for Linux. See further down for more details.*
-
-.. image:: docs/_static/img/comparison_benchmark.png
-    :alt: Comparison benchmark image
+Features are built with a strong focus on **maintainability**, **simplicity** and **ease of use** in mind. Everything is statically typed (mypy & pyright), documented with tested examples, can be easily used in existing code and tested in isolation.
 
 
-
+************
 Installation
-============
+************
+
 
 To install Antidote, simply run this command:
 
@@ -81,439 +40,275 @@ To install Antidote, simply run this command:
     pip install antidote
 
 
+
+*************
+Help & Issues
+*************
+
+
+Feel free to open an `issue <https://github.com/Finistere/antidote/issues>`_ or a `discussion <https://github.com/Finistere/antidote/discussions>`_ on `Github <https://github.com/Finistere/antidote>`_ for questions, issues, proposals, etc. !
+
+
+
+*************
 Documentation
-=============
+*************
 
-Beginner friendly tutorial, recipes, the reference and a FAQ can be found in the
-`documentation <https://antidote.readthedocs.io/en/latest>`_.
 
-Here are some links:
+Tutorial, reference and more can be found in the `documentation <https://antidote.readthedocs.io/en/latest>`_. Some quick links:
 
-- `Why dependency injection ? <https://antidote.readthedocs.io/en/latest/faq.html#why-dependency-injection>`_
-- `Why use a dependency injection framework ? <https://antidote.readthedocs.io/en/latest/faq.html#why-use-a-dependency-injection-framework>`_
-- `Why choose Antidote ? <https://antidote.readthedocs.io/en/latest/faq.html#why-choose-antidote>`_ (comparing to other libraries, among which is `dependency_injector <https://python-dependency-injector.ets-labs.org/index.html>`_)
-- `Getting Started <https://antidote.readthedocs.io/en/latest/tutorial.html#getting-started>`_
+- `Guide <https://antidote.readthedocs.io/en/latest/guide/index.html>`_
+- `Reference <https://antidote.readthedocs.io/en/latest/reference/index.html>`_
 - `Changelog <https://antidote.readthedocs.io/en/latest/changelog.html>`_
 
 
-Issues / Questions
-==================
 
-Feel free to open an issue on Github for questions or issues !
+********
+Overview
+********
 
 
-Hands-on quick start
-====================
+Accessing dependencies
+======================
 
-Showcase of the most important features of Antidote with short and concise examples.
-Checkout the `Getting started`_ for a full beginner friendly tutorial.
-
-Injection
----------
+Antidote works with a :code:`Catalog` which is a sort of collection of dependencies. Multiple ones can co-exist, but :code:`world` is used by default. The most common form of a dependency is an instance of a given class
 
 .. code-block:: python
 
-    from antidote import inject, injectable
+    from antidote import injectable
 
     @injectable
-    class Database:
+    class Service:
         pass
 
+    world[Service]  # retrieve the instance
+    world.get(Service, default='something')  # similar to a dict
+
+By default, :code:`@injectable` defines a singleton but alternative lifetimes (how long the :code:`world` keeps value alive in its cache) exists such as :code:`transient` where nothing is cached at all. Dependencies can also be injected into a function/method with :code:`@inject`. With both, Mypy, Pyright and PyCharm will infer the correct types.
+
+.. code-block:: python
+
+    from antidote import inject
+
+    @inject  #                      ⯆ Infers the dependency from the type hint
+    def f(service: Service = inject.me()) -> Service:
+        return service
+
+    f()  # service injected
+    f(Service())  # useful for testing: no injection, argument is used
+
+:code:`@inject` supports a variety of ways to bind arguments to their dependencies if any. This binding is *always* explicit. for example:
+
+.. code-block:: python
+
+    from antidote import InjectMe
+
+    # recommended with inject.me() for best static-typing experience
     @inject
-    def f(db: Database = inject.me()):
-        return db
-
-    assert isinstance(f(), Database)  # works !
-
-Simple, right ? And you can still use it like a normal function, typically when testing it:
-
-.. code-block:: python
-
-    f(Database())
-
-The actual dependency is inferred by the type hints and it also supports optional dependencies:
-
-.. code-block:: python
-
-    from typing import Optional
-
-    class Dummy:
-        pass
-
-    # When the type_hint is optional and a marker like `inject.me()` is used, None will be
-    # provided if the dependency does not exists.
-    @inject
-    def f(dummy: Optional[Dummy] = inject.me()):
-        return dummy
-
-    assert f() is None
-
-There are several other alternatives to specify dependencies, however they don't work as well with
-static typing. You can also retrieve dependencies by hand with :code:`world.get`:
-
-.. code-block:: python
-
-    from antidote import world
-
-    # Retrieve dependencies by hand, in tests typically
-    world.get(Database)
-    world.get[Database](Database)  # with type hint, enforced when possible
-
-
-Injectable
-----------
-
-Any class marked as `@injectable` can be provided by Antidote. It can be a singleton or not.
-Scopes and a factory method are also supported. Every method is injected by default, relying on
-annotated type hints and markers such as :code:`inject.me()`:
-
-.. code-block:: python
-
-    from antidote import injectable, inject
-
-    @injectable(singleton=False)
-    class QueryBuilder:
-        # methods are also injected by default
-        def __init__(self, db: Database = inject.me()):
-            self._db = db
-
-    @inject
-    def load_data(builder: QueryBuilder = inject.me()):
-        pass
-
-    load_data()  # yeah !
-
-
-Constants
----------
-
-Constants can be provided lazily by Antidote:
-
-.. code-block:: python
-
-    from antidote import inject, const
-
-    class Config:
-        DB_HOST = const('localhost')
-        DB_PORT = const(5432)
-
-    @inject
-    def ping_db(db_host: str = Config.DB_HOST):
-        pass
-
-    ping_db()  # nice !
-
-Constants really shines when they aren't hard-coded:
-
-.. code-block:: python
-
-    from typing import Optional
-
-    class Config:
-        # Retrieve constant from environment variables
-        DB_HOST = const.env()  # using the constant name
-        # or with an explicit name, default value, and forced conversion to int
-        # (and other selected types)
-        DB_PORT = const.env[int]("DATABASE_PORT", default=5432)
-
-    import os
-    os.environ['DB_HOST'] = 'localhost'
-    os.environ['DATABASE_PORT'] = '5432'
-
-    @inject
-    def check_connection(db_host: str = Config.DB_HOST,
-                         db_port: int = Config.DB_PORT):
-        pass
-
-    check_connection()  # perfect !
-
-Note that on the injection site, nothing changed! And obviously you can create your own logic:
-
-.. code-block:: python
-
-    from antidote import const
-
-    @const.provider
-    def static(name: str, arg: Optional[str]) -> str:
-        return arg
-
-    class Config:
-        DB_HOST = static.const('localhost')
-
-Stateful configuration is also possible:
-
-.. code-block:: python
-
-    from antidote import injectable, const
-
-    @injectable
-    class Config:
-        def __init__(self):
-            self.data = {'host': 'localhost'}
-
-        @const.provider
-        def get(self, name: str, arg: Optional[str]) -> str:
-            return self.data[arg]
-
-        DB_HOST = get.const('host')
-
-
-
-Lazy
-----
-
-Lazy functions can be used in multiple cases:
-
-- to load external classes:
-
-.. code-block:: python
-
-    from antidote import lazy, inject
-
-    class Redis:
-        pass
-
-    @lazy  # singleton by default
-    def load_redis() -> Redis:
-        return Redis()
-
-    @inject
-    def task(redis = load_redis()):
+    def f2(service = inject[Service]):
         ...
 
-- as a factory:
-
-.. code-block:: python
-
-    from antidote import lazy, inject
-
-    class User:
-        pass
-
-    @lazy(singleton=False)
-    def current_user(db: Database = inject.me()) -> User:
-        return User()
+    @inject(kwargs={'service': Service})
+    def f3(service):
+        ...
 
     @inject
-    def is_admin(user: User = current_user()):
-        pass
+    def f4(service: InjectMe[Service]):
+        ...
 
-- or even to parameterize dependencies:
-
-.. code-block:: python
-
-    from dataclasses import dataclass
-    from antidote import lazy, inject
-
-    @dataclass
-    class Template:
-        path: str
-
-    @lazy
-    def load_template(path: str) -> Template:
-        return Template(path=path)
-
-    @inject
-    def registration(template: Template = load_template('registration.html')):
-        pass
-
-
-
-Interface/Implementation
-------------------------
-
-Antidote also works with interfaces which can have one or multiple implementations which
-can be overridden:
+Classes can also be fully wired, all methods injected, easily with :code:`@wire`. It is also possible to
+inject the first argument, commonly named :code:`self`, of a method with an instance of a class:
 
 .. code-block:: python
-
-    from antidote import implements, inject, interface, world
-
-
-    @interface
-    class Task:
-        pass
-
-
-    @implements(Task)
-    class Custom(Task):
-        pass
-
-
-    world.get(Task)
-
-
-    @inject
-    def f(task: Task = inject.me()) -> Task:
-        return task
-
-
-
-Implementations support qualifiers out of the box:
-
-.. code-block:: python
-
-    import enum
-
-
-    class Hook(enum.Enum):
-        START = enum.auto()
-        STOP = enum.auto()
-
-
-    @interface
-    class Task:
-        pass
-
-
-    @implements(Task).when(qualified_by=Hook.START)
-    class StartX(Task):
-        pass
-
-
-    @implements(Task).when(qualified_by=Hook.STOP)
-    class StopX(Task):
-        pass
-
-
-    assert world.get[Task].single(qualified_by=Hook.START) == world.get(StartX)
-    assert world.get[Task].all(qualified_by=Hook.START) == [world.get(StartX)]
-
-
-    @inject
-    def get_single_task(task: Task = inject.me(qualified_by=Hook.START)) -> Task:
-        return task
-
-
-    @inject
-    def get_all_task(tasks: list[Task] = inject.me(qualified_by=Hook.START)) -> list[Task]:
-        return tasks
-
-
-
-Testing and Debugging
----------------------
-
-:code:`inject` always allows you to pass your own argument to override the injection:
-
-.. code-block:: python
-
-    from antidote import injectable, inject
 
     @injectable
-    class Database:
-        pass
+    class Dummy:
+        @inject.method
+        def method(self) -> 'Dummy':
+            return self
 
-    @inject
-    def f(db: Database = inject.me()):
-        pass
+    # behaves like a class method
+    assert Dummy.method() is world[Dummy]
 
-    f()
-    f(Database())  # test with specific arguments in unit tests
+    # useful for testing: when accessed trough an instance, no injection
+    dummy = Dummy()
+    assert dummy.method() is dummy
 
-You can also fully isolate your tests from each other and override any dependency within
-that context:
+
+
+Defining dependencies
+======================
+
+Antidote provides out of the box 4 kinds of dependencies:
+
+-   :code:`@injectable` classes for which an instance is provided.
+
+    .. code-block:: python
+
+        from antidote import injectable
+
+        #           ⯆ optional: would just call Service() otherwise.
+        @injectable(factory_method='load')
+        class Service:
+            @classmethod
+            def load(cls) -> 'Service':
+                return cls()
+
+        world[Service]
+
+
+-   :code:`const` for defining simple constants.
+
+    .. code-block:: python
+
+        from antidote import const
+
+        # Used as namespace
+        class Conf:
+            TMP_DIR = const('/tmp')
+
+            # From environment variables, lazily retrieved
+            LOCATION = const.env("PWD")
+            USER = const.env()  # uses the name of the variable
+            PORT = const.env(convert=int)  # convert the environment variable to a given type
+            UNKNOWN = const.env(default='unknown')
+
+        world[Conf.TMP_DIR]
+
+        @inject
+        def f(tmp_dir: str = inject[Conf.TMP_DIR]):
+            ...
+
+-   :code:`@lazy` function calls (taking into account arguments) used for (stateful-)factories, parameterized dependencies, complex constants, etc.
+
+    .. code-block:: python
+
+        from dataclasses import dataclass
+
+        from antidote import lazy
+
+        @dataclass
+        class Template:
+            name: str
+
+        # the wrapped template function is only executed when accessed through world/@inject
+        @lazy
+        def template(name: str) -> Template:
+            return Template(name=name)
+
+        # By default a singleton, so it always returns the same instance of Template
+        world[template(name="main")]
+
+        @inject
+        def f(main_template: Template = inject[template(name="main")]):
+            ...
+
+    :code:`@lazy` will automatically apply :code:`@inject` and can also be a value, property or even a method similarly to :code:`@inject.method`.
+
+-   :code:`@interface` for a function, class or even :code:`@lazy` function call for which one or multiple implementations can be provided.
+
+    .. code-block:: python
+
+        from antidote import interface, implements
+
+        @interface
+        class Task:
+            pass
+
+        @implements(Task)
+        class CustomTask(Task):
+            pass
+
+        world[Task]  # instance of CustomTask
+
+    The interface does not need to be a class. It can also be a :code:`Protocol`, a function or a :code:`@lazy` function call!
+
+    .. code-block:: python
+
+        @interface
+        def callback(event: str) -> bool:
+            ...
+
+        @implements(callback)
+        def on_event(event: str) -> bool:
+            # do stuff
+            return True
+
+        # returns the on_event function
+        assert world[callback] is on_event
+
+    :code:`@implements` will enforce as much as possible that the interface is correctly implemented. Multiple implementations can also be retrieved. Conditions, filters on metadata and weighting implementation are all supported to allow full customization of which implementation should be retrieved in which use case.
+
+Each of those have several knobs to adapt them to your needs which are presented in the documentation.
+
+
+Testing & Debugging
+===================
+
+Injected functions can typically be tested by passing arguments explicitly but it's not always enough. Antidote provides test context which full isolate themselves and allow overriding any dependencies:
 
 .. code-block:: python
 
-    from antidote import world
+    original = world[Service]
+    with world.test.clone() as overrides:
+        # dependency value is different, but it's still a singleton Service instance
+        assert world[Service] is not original
 
-    # Clone current world to isolate it from the rest
-    with world.test.clone():
-        x = object()
-        # Override the Database
-        world.test.override.singleton(Database, x)
-        f()  # will have `x` injected for the Database
+        # override examples
+        overrides[Service] = 'x'
+        assert world[Service] == 'x'
 
-        @world.test.override.factory(Database)
-        def override_database():
-            class DatabaseMock:
-                pass
+        del overrides[Service]
+        assert world.get(Service) is None
 
-            return DatabaseMock()
-
-        f()  # will have `DatabaseMock()` injected for the Database
-
-If you ever need to debug your dependency injections, Antidote also provides a tool to
-have a quick summary of what is actually going on:
-
-.. code-block:: python
-
-    def function_with_complex_dependencies():
-        pass
-
-    world.debug(function_with_complex_dependencies)
-    # would output something like this:
-    """
-    function_with_complex_dependencies
-    └──<∅> IMDBMovieDB
-        └── ImdbAPI
-            └── load_imdb
-                ├── Config.IMDB_API_KEY
-                ├── Config.IMDB_PORT
-                └── Config.IMDB_HOST
-
-    Singletons have no scope markers.
-    <∅> = no scope (new instance each time)
-    <name> = custom scope
-    """
+        @overrides.factory(Service)
+        def build_service() -> object:
+            return 'z'
 
 
-Hooked ? Check out the `documentation <https://antidote.readthedocs.io/en/latest>`_ !
-There are still features not presented here !
+        # Test context can be nested and it wouldn't impact the current test context
+        with world.test.clone() as nested_overrides:
+            ...
+
+    # Outside the test context, nothing changed.
+    assert world[Service] is original
 
 
-Compiled
-========
+Antidote also provides introspection capabilities with :code:`world.debug`  which returns a nicely formatted tree to show what Antidote actually sees without executing anything like the following:
 
-The compiled implementation is roughly 10x faster than the Python one and strictly follows the
-same API than the pure Python implementation. Pre-compiled wheels are available only for Linux currently.
-You can check whether you're using the compiled version or not with:
+.. code-block:: text
 
-.. code-block:: python
+    🟉 <lazy> f()
+    └── ∅ Service
+        └── Service.__init__
+            └── 🟉 <const> Conf.HOST
 
-    from antidote import is_compiled
-    
-    f"Is Antidote compiled ? {is_compiled()}"
-
-You can force the compilation of antidote yourself when installing:
-
-.. code-block:: bash
-
-    ANTIDOTE_COMPILED=true pip install antidote
-    
-On the contrary, you can force the pure Python version with:
-
-.. code-block:: bash
-
-    pip install --no-binary antidote
-
-.. note::
-
-    The compiled version is not tested against PyPy. The compiled version relies currently on Cython,
-    but it is not part of the public API. Relying on it in your own Cython code is at your risk.
+     ∅ = transient
+     ↻ = bound
+     🟉 = singleton
 
 
+Going Further
+=============
+
+- Scopes are supported. Defining a :code:`ScopeGlobalVar` and using it as dependency will force any dependents to be updated whenever it changes (a request for example).
+- Multiple catalogs can be used which allow you to expose only a subset of your API (dependencies) to your consumer within a catalog.
+- You can easily define your kind of dependencies with proper typing from both :code:`world` and :code:`inject`. :code:`@injectable`, :code:`@lazy`, :code:`inject.me()` etc.. all rely on Antidote's core (:code:`Provider`, :code:`Dependency`, etc.) which is part of public API.
+
+Check out the `Guide <https://antidote.readthedocs.io/en/latest/guide/index.html>`_ which goes more in depth or the `Reference <https://antidote.readthedocs.io/en/latest/reference/index.html>`_ for specific features.
+
+*****************
 How to Contribute
-=================
+*****************
 
-1. Check for open issues or open a fresh issue to start a discussion around a
-   feature or a bug.
-2. Fork the repo on GitHub. Run the tests to confirm they all pass on your
-   machine. If you cannot find why it fails, open an issue.
+
+1. Check for open issues or open a fresh issue to start a discussion around a feature or a bug.
+2. Fork the repo on GitHub. Run the tests to confirm they all pass on your  machine. If you cannot find why it fails, open an issue.
 3. Start making your changes to the master branch.
-4. Writes tests which shows that your code is working as intended. (This also
-   means 100% coverage.)
-5. Send a pull request.
+4. Send a pull request.
 
 *Be sure to merge the latest from "upstream" before making a pull request!*
 
-If you have any issue during development or just want some feedback, don't hesitate
-to open a pull request and ask for help !
+If you have any issue during development or just want some feedback, don't hesitate to open a pull request and ask for help ! You're also more than welcome to open a discussion or an issue on any topic!
 
-Pull requests **will not** be accepted if:
-
-- public classes/functions have not docstrings documenting their behavior with examples.
-- tests do not cover all of code changes (100% coverage) in the pure python.
-
-If you face issues with the Cython part of Antidote, I may implement it myself.
+But, no code changes will be merged if they do not pass mypy, pyright, don't have 100% test coverage or documentation with tested examples if relevant

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import itertools
+import threading
+import weakref
 from contextlib import contextmanager, ExitStack
 from dataclasses import dataclass
 from typing import (
@@ -11,7 +13,6 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
-    Optional,
     overload,
     Type,
     TYPE_CHECKING,
@@ -19,16 +20,15 @@ from typing import (
     Union,
 )
 
-from typing_extensions import final, TypeAlias
+from typing_extensions import final, Protocol, TypeAlias
 
 from .._internal import API, auto_detect_origin_frame, Default, Singleton
-from .._internal.typing import Function
 from ..core.exceptions import DoubleInjectionError, DuplicateProviderError, FrozenCatalogError
-from ._get import DependencyAccessorImpl
-from ._internal_catalog import InternalCatalog
-from ._override import OverridableInternalCatalog, Overrides, SimplifiedScopeValue
-from .data import dependencyOf, TestEnv, TestEnvKind
-from .provider import Provider
+from ._debug import debug_str
+from ._raw import create_public_private, current_catalog_onion, is_catalog_onion
+from ._test import Factory, TestContext, TestContextIdImpl
+from .data import DependencyDebug, dependencyOf, TestContextId, TestContextKind
+from .provider import Provider, ProviderCatalog
 
 if TYPE_CHECKING:
     from . import (
@@ -39,145 +39,230 @@ if TYPE_CHECKING:
         CatalogOverrides,
         CatalogProvidersMapping,
         PublicCatalog,
-        TestCatalogBuilder,
+        TestContextBuilder,
     )
 
     Include: TypeAlias = Iterable[Union[Callable[[Catalog], object], PublicCatalog, Type[Provider]]]
 
-P = TypeVar("P", bound=Provider)
+AnyProvider = TypeVar("AnyProvider", bound=Provider)
 T = TypeVar("T")
 In = TypeVar("In", contravariant=True)
 Out = TypeVar("Out", covariant=True)
 Initial = TypeVar("Initial")
 Result = TypeVar("Result")
-OverridableCatalogBuilder: TypeAlias = Callable[
-    [InternalCatalog, Optional[Overrides]], OverridableInternalCatalog
-]
+
+
+@API.private
+class CatalogOnion(Protocol):
+    @property
+    def private(self) -> CatalogOnion | None:
+        ...
+
+    @property
+    def layer(self) -> CatalogOnionLayer:
+        ...
+
+    def new_provider_catalog(self) -> ProviderCatalog:
+        ...
+
+    def add_layer(
+        self,
+        *,
+        keep_values: bool,
+        keep_scope_vars: bool,
+        public_test_context: TestContext,
+        private_test_context: TestContext,
+        exit_stack: ExitStack,
+    ) -> None:
+        ...
+
+
+@API.private
+class CatalogOnionLayer(Protocol):
+    frozen: bool
+    providers: tuple[Provider, ...]
+
+    @property
+    def id(self) -> CatalogId:
+        ...
+
+    @property
+    def parent(self) -> CatalogOnionLayer | None:
+        ...
+
+    @property
+    def onion(self) -> CatalogOnion:
+        ...
+
+    @property
+    def test_context(self) -> TestContext | None:
+        ...
+
+    @property
+    def children(self) -> tuple[CatalogOnion, ...]:
+        ...
+
+    def add_child(self, child: CatalogOnion) -> None:
+        ...
+
+    def maybe_debug(self, dependency: object) -> DependencyDebug | None:
+        ...
+
+    def __contains__(self, dependency: object) -> bool:
+        ...
+
+    def get(self, dependency: object, default: object) -> object:
+        ...
+
+    def register_scope_var(
+        self,
+        dependency: object,
+        *,
+        default: object = Default.sentinel,
+    ) -> None:
+        ...
+
+    def update_scope_var(self, dependency: object, value: object) -> object:
+        ...
+
+
+@API.private
+class CatalogSetupCallback(Protocol):
+    def __call__(self, previous: CatalogOnionLayer, current: CatalogOnionLayer) -> None:
+        ...
+
 
 _unique_ids = itertools.count()
 
 
 @API.private
-class ReadOnlyCatalogImpl(DependencyAccessorImpl):
-    __slots__ = (
-        "__id",
-        "__source",
-    )
-    __id: CatalogId | None
-    __source: Function[[], InternalCatalog]
+@final
+@dataclass(frozen=True, eq=False)
+class AppCatalogProxy(Singleton):
+    __slots__ = ()
 
-    def __init__(
-        self,
-        *,
-        source: InternalCatalog | Callable[[], InternalCatalog],
-        catalog_id: CatalogId | None = None,
-    ) -> None:
-        object.__setattr__(self, f"_{ReadOnlyCatalogImpl.__name__}__id", catalog_id)
-
-        if isinstance(source, InternalCatalog):
-            object.__setattr__(self, f"_{ReadOnlyCatalogImpl.__name__}__source", lambda: source)
-
-            def loader(dependency: dependencyOf[object]) -> object:
-                return source.get(dependency.wrapped, dependency.default)  # type: ignore
-
-        else:
-            object.__setattr__(self, f"_{ReadOnlyCatalogImpl.__name__}__source", source)
-
-            def loader(dependency: dependencyOf[object]) -> object:
-                return source().get(dependency.wrapped, dependency.default)  # type: ignore
-
-        super().__init__(loader=loader)
+    @property
+    def __layer(self) -> CatalogOnionLayer:
+        return current_catalog_onion.get().layer
 
     @property
     def id(self) -> CatalogId:
-        if self.__id is not None:
-            return self.__id
-        return self.__source().id
+        return self.__layer.id
 
     def __str__(self) -> str:
-        return str(self.__source())
+        return str(self.__layer)
 
     def __repr__(self) -> str:
-        return f"Catalog@{self.__source()!r}"
-
-    # public & private freeze together, so it works whether the source is private or not.
-    @property
-    def is_frozen(self) -> bool:
-        return self.__source().is_frozen
+        return f"AppProxy@{self.__layer!r}"
 
     def __contains__(self, __dependency: object) -> bool:
-        return self.__source().can_provide(dependencyOf(__dependency).wrapped)
+        return dependencyOf(__dependency).wrapped in self.__layer
+
+    def get(self, __dependency: Any, default: Any = None) -> Any:
+        d = dependencyOf[Any](__dependency, default=default)
+        return self.__layer.get(d.wrapped, d.default)
+
+    def __getitem__(self, __dependency: Any) -> Any:
+        d = dependencyOf[Any](__dependency)
+        return self.__layer.get(d.wrapped, d.default)
 
     def debug(self, __obj: object, *, depth: int = -1) -> str:
-        from ._debug import tree_debug_info
+        from ._debug import debug_str
 
-        return tree_debug_info(self.__source(), __obj, depth)
+        return debug_str(onion=current_catalog_onion.get(), origin=__obj, max_depth=depth)
+
+    @property
+    def is_frozen(self) -> bool:
+        return self.__layer.frozen
 
     def raise_if_frozen(self) -> None:
-        if self.__source().is_frozen:
+        if self.__layer.frozen:
             raise FrozenCatalogError(self)
 
 
 @API.private
 @final
 @dataclass(frozen=True, eq=False, repr=False)
-class AppCatalog(ReadOnlyCatalogImpl, Singleton):
-    def __init__(self) -> None:
-        from ._wrapper import current_catalog_context
-
-        super().__init__(source=current_catalog_context.get)
-
-
-@API.private
-@final
-@dataclass(frozen=True, eq=False, repr=False)
-class CatalogImpl(ReadOnlyCatalogImpl):
-    __slots__ = ("internal", "__private", "__parent", "test")
-    internal: InternalCatalog
+class CatalogImpl:
+    __slots__ = ("__weakref__", "test", "onion", "__private", "__lock")
+    test: TestContextBuilder
+    onion: CatalogOnion
     __private: CatalogImpl | None
-    __parent: CatalogImpl | None
-    test: TestCatalogBuilder
+    __lock: threading.RLock
+
+    @staticmethod
+    def next_id() -> int:
+        return next(_unique_ids)
 
     @classmethod
-    def create_public(cls, *, name: str, origin: str) -> PublicCatalog:
-        unique_id = next(_unique_ids)
-        public = InternalCatalog.create_public(
-            public_name=f"{name}#{unique_id}@{origin}",
-            private_name=f"{name}#private-{unique_id}@{origin}",
+    def create_public(cls, *, name: str) -> PublicCatalog:
+        lock = threading.RLock()
+        public, private = create_public_private(
+            public_name=name,
+            private_name=f"{name}#private",
         )
-        return CatalogImpl(catalog=public, private=CatalogImpl(catalog=public.private))
+        return CatalogImpl(onion=public, private=CatalogImpl(onion=private, lock=lock), lock=lock)
+
+    def __init__(
+        self,
+        *,
+        onion: CatalogOnion,
+        lock: threading.RLock,
+        private: CatalogImpl | None = None,
+    ) -> None:
+        object.__setattr__(self, "onion", onion)
+        object.__setattr__(self, "test", TestContextBuilderImpl(weakref.ref(self)))
+        object.__setattr__(self, f"_{type(self).__name__}__private", private)
+        object.__setattr__(self, f"_{type(self).__name__}__lock", lock)
+
+    def __repr__(self) -> str:
+        return f"Proxy@{self.onion.layer!r}"
 
     @property
-    def private(self) -> Catalog:
-        if self.__private is not None:
-            return self.__private
-        return self
+    def id(self) -> CatalogId:
+        return self.onion.layer.id
+
+    @property
+    def private(self) -> CatalogImpl:
+        return self.__private or self
+
+    def __contains__(self, __dependency: object) -> bool:
+        return dependencyOf(__dependency).wrapped in self.onion.layer
+
+    def get(self, __dependency: Any, default: Any = None) -> Any:
+        d = dependencyOf[Any](__dependency, default=default)
+        return self.onion.layer.get(d.wrapped, d.default)
+
+    def __getitem__(self, __dependency: Any) -> Any:
+        d = dependencyOf[Any](__dependency)
+        return self.onion.layer.get(d.wrapped, d.default)
+
+    def debug(self, __obj: object, *, depth: int = -1) -> str:
+        return debug_str(onion=self.onion, origin=__obj, max_depth=depth)
 
     @property
     def providers(self) -> CatalogProvidersMapping:
         from . import CatalogProvidersMapping
 
-        return CatalogProvidersMapping({type(p): p for p in self.internal.providers})
+        return CatalogProvidersMapping({type(p): p for p in self.onion.layer.providers})
 
-    def __init__(self, *, catalog: InternalCatalog, private: CatalogImpl | None = None) -> None:
-        super().__init__(source=catalog)
-        object.__setattr__(self, "internal", catalog)
-        object.__setattr__(self, f"_{type(self).__name__}__private", private)
-        object.__setattr__(self, f"_{type(self).__name__}__parent", None)
-        if private is not None:
-            object.__setattr__(
-                self,
-                "test",
-                TestCatalogBuilderImpl(self.internal),
-            )
+    @property
+    def is_frozen(self) -> bool:
+        return self.onion.layer.frozen
+
+    def raise_if_frozen(self) -> None:
+        if self.onion.layer.frozen:
+            raise FrozenCatalogError(self)
 
     def freeze(self) -> None:
-        if self.__private is None:
-            raise AttributeError("freeze() is not accessible in a private catalog.")
-        self.internal.freeze()
+        if self.__private is None:  # private
+            raise RuntimeError("Cannot be called on private Catalog")
+        self.raise_if_frozen()
+        with self.__lock:
+            _recursive_freeze(self.onion)
 
     @overload
-    def include(self, __obj: Type[P]) -> Type[P]:
+    def include(self, __obj: Type[AnyProvider]) -> Type[AnyProvider]:
         ...
 
     @overload
@@ -185,44 +270,103 @@ class CatalogImpl(ReadOnlyCatalogImpl):
         ...
 
     def include(self, __obj: Any) -> Any:
-        if isinstance(__obj, CatalogImpl):
-            if __obj.private is __obj:
-                raise ValueError("Cannot include a private Catalog")
-            # Setting atomically the parent of the child, ensuring there can be only one.
-            __obj.internal.parent = self.internal
-            self.internal.add_child(__obj.internal)
-        elif isinstance(__obj, type) and issubclass(__obj, Provider):
-            self.internal.add_provider(
-                __obj.create(
-                    catalog=ReadOnlyCatalogImpl(source=self.internal.private, catalog_id=self.id)
+        with self.__lock:
+            self.raise_if_frozen()
+            if isinstance(__obj, CatalogImpl):
+                __obj = __obj.onion
+
+            if is_catalog_onion(__obj):
+                child_onion: CatalogOnion = __obj
+                if child_onion.private is None:
+                    raise ValueError(f"Cannot include private Catalog {__obj!r}")
+                if child_onion.layer.parent is not None:
+                    raise ValueError(
+                        f"{child_onion.layer!r} is already included in {child_onion.layer.parent!r}"
+                    )
+                self.onion.layer.add_child(child_onion)
+            elif isinstance(__obj, type) and issubclass(__obj, Provider):
+                provider_class: Type[Provider] = __obj
+                if any(provider_class == type(p) for p in self.onion.layer.providers):
+                    raise DuplicateProviderError(
+                        catalog=self.onion.layer, provider_class=provider_class
+                    )
+                self.onion.layer.providers += (
+                    provider_class.create(catalog=self.onion.new_provider_catalog()),
                 )
-            )
-            if self.__private is not None:
-                try:
-                    self.__private.include(__obj)
-                except DuplicateProviderError:
-                    pass
-            return __obj
-        elif callable(__obj):
-            __obj(self)  # type: ignore
-        else:
-            raise TypeError(
-                f"Expected a catalog, a function a Provider subclass, " f"not a {type(__obj)!r}"
-            )
+                if self.__private is not None:
+                    try:
+                        self.__private.include(provider_class)
+                    except DuplicateProviderError:
+                        pass
+                return provider_class
+            elif callable(__obj):
+                func = cast(Callable[[CatalogImpl], None], __obj)
+                func(self)
+            else:
+                raise TypeError(
+                    f"Expected a catalog, a function a Provider subclass, " f"not a {type(__obj)!r}"
+                )
+            return None
+
+
+def _setup_override(
+    *,
+    onion: CatalogOnion,
+    setup_callback: CatalogSetupCallback,
+    frozen: bool | None,
+    keep_values: bool,
+    keep_scope_vars: bool,
+    test_context_id: TestContextId,
+    exit_stack: ExitStack,
+) -> None:
+    private_onion = onion.private
+    assert private_onion is not None
+
+    public_previous = onion.layer
+    private_previous = private_onion.layer
+
+    onion.add_layer(
+        keep_values=keep_values,
+        keep_scope_vars=keep_scope_vars,
+        public_test_context=TestContext.clone(
+            public_previous.test_context, test_context_id, keep_values
+        ),
+        private_test_context=TestContext.clone(
+            private_previous.test_context, test_context_id, keep_values
+        ),
+        exit_stack=exit_stack,
+    )
+    setup_callback(public_previous, onion.layer)
+    setup_callback(private_previous, private_onion.layer)
+    onion.layer.frozen = public_previous.frozen if frozen is None else frozen
+    private_onion.layer.frozen = private_previous.frozen if frozen is None else frozen
+
+
+def _recursive_freeze(onion: CatalogOnion) -> None:
+    onion.layer.frozen = True
+    private = onion.private
+    if private is not None:
+        _recursive_freeze(private)
+
+    for child in onion.layer.children:
+        _recursive_freeze(child)
+
+
+OnionToLayerWeakRefs: TypeAlias = "dict[CatalogOnion, weakref.ReferenceType[CatalogOnionLayer]]"
 
 
 @API.private
 @final
 @dataclass(frozen=True, eq=False)
-class TestCatalogBuilderImpl:
-    __slots__ = ("__internal",)
-    __internal: InternalCatalog
+class TestContextBuilderImpl:
+    __slots__ = ("__catalog_ref",)
+    __catalog_ref: weakref.ReferenceType[CatalogImpl]
 
     def copy(self, *, frozen: bool = True) -> ContextManager[CatalogOverrides]:
-        return self.__context(strategy=TestEnvKind.COPY, frozen=frozen)
+        return self.__context(TestContextKind.COPY, frozen=frozen)
 
     def clone(self, *, frozen: bool = True) -> ContextManager[CatalogOverrides]:
-        return self.__context(strategy=TestEnvKind.CLONE, frozen=frozen)
+        return self.__context(TestContextKind.CLONE, frozen=frozen)
 
     def new(
         self, *, include: Include | Default = Default.sentinel
@@ -231,153 +375,133 @@ class TestCatalogBuilderImpl:
             from ..lib import antidote_lib
 
             include = [antidote_lib]
-        return self.__context(strategy=TestEnvKind.NEW, include=include)
+        return self.__context(TestContextKind.NEW, include=include)
 
     def empty(self) -> ContextManager[CatalogOverrides]:
-        return self.__context(strategy=TestEnvKind.EMPTY)
+        return self.__context(TestContextKind.EMPTY)
 
     @contextmanager
     def __context(
         self,
+        kind: TestContextKind,
         *,
-        strategy: TestEnvKind,
         frozen: bool | None = None,
-        include: Include | None = None,
+        include: Include = (),
     ) -> Iterator[CatalogOverrides]:
+        # Helping MyPy
+        catalog: CatalogImpl = self.__catalog_ref()  # type: ignore
+        assert catalog is not None
+        onion = catalog.onion
+        assert onion.private is not None, "Cannot be called on private Catalog"
+
         origin = auto_detect_origin_frame(depth=3)
-        catalog_to_overrides: dict[InternalCatalog, Overrides] = dict()
-        with ExitStack() as stack:
-            builder = self.__create_builder(
-                origin=origin,
-                context_stack=stack,
-                catalog_to_overrides=catalog_to_overrides,
-                kind=strategy,
-                include=include,
+        keep_scope_vars = kind is TestContextKind.COPY or kind is TestContextKind.CLONE
+        keep_values = kind is TestContextKind.COPY
+        test_context_id = TestContextIdImpl(kind, f"{next(_unique_ids)}@{origin}")
+        onion_to_layer_ref: OnionToLayerWeakRefs = {}
+
+        exit_stack = ExitStack()
+        try:
+            if kind is TestContextKind.EMPTY:
+                assert not include
+
+                def callback(previous: CatalogOnionLayer, current: CatalogOnionLayer) -> None:
+                    pass
+
+            elif kind is TestContextKind.NEW:
+
+                def callback(previous: CatalogOnionLayer, current: CatalogOnionLayer) -> None:
+                    # Only applied on public layer
+                    if current is catalog.onion.layer:
+                        for e in include:
+                            catalog.include(e)
+
+            else:
+                assert not include
+
+                def callback(previous: CatalogOnionLayer, current: CatalogOnionLayer) -> None:
+                    current.providers = tuple(
+                        provider.unsafe_copy() for provider in previous.providers
+                    )
+
+                    for child_onion in previous.children:
+                        assert child_onion.private is not None
+                        _setup_override(
+                            onion=child_onion,
+                            setup_callback=callback,
+                            frozen=frozen,
+                            keep_scope_vars=keep_scope_vars,
+                            keep_values=keep_values,
+                            test_context_id=test_context_id,
+                            exit_stack=exit_stack,
+                        )
+                        onion_to_layer_ref[child_onion] = weakref.ref(child_onion.layer)
+                        onion_to_layer_ref[child_onion.private] = weakref.ref(
+                            child_onion.private.layer
+                        )
+                        current.add_child(child_onion)
+
+            _setup_override(
+                onion=onion,
+                setup_callback=callback,
+                frozen=frozen,
+                keep_scope_vars=keep_scope_vars,
+                keep_values=keep_values,
+                test_context_id=test_context_id,
+                exit_stack=exit_stack,
             )
-
-            with self.__internal.override_with(builder, frozen=frozen) as (
-                public_overrides,
-                private_overrides,
-            ):
-                catalog_to_overrides[self.__internal] = public_overrides
-                catalog_to_overrides[self.__internal.private] = private_overrides
-                yield CatalogOverridesImpl(
-                    catalog_to_overrides=catalog_to_overrides, catalog=self.__internal
-                )
-
-    @staticmethod
-    def __create_builder(
-        *,
-        origin: str,
-        context_stack: ExitStack,
-        catalog_to_overrides: dict[InternalCatalog, Overrides],
-        kind: TestEnvKind,
-        include: Include | None,
-    ) -> OverridableCatalogBuilder:
-        env: TestEnv = TestEnvImpl(kind=kind, suffix=f"{next(_unique_ids)}@{origin}")
-
-        if kind is TestEnvKind.EMPTY:
-            assert include is None
-
-            def build_empty(
-                original: InternalCatalog, prev_overrides: Overrides | None
-            ) -> OverridableInternalCatalog:
-                return OverridableInternalCatalog(
-                    internal=original.build_twin(id=original.id.within_env(env)),
-                    overrides=Overrides(),
-                )
-
-            return build_empty
-
-        elif kind is TestEnvKind.NEW:
-            assert include is not None
-
-            def build_new(
-                original: InternalCatalog, prev_overrides: Overrides | None
-            ) -> OverridableInternalCatalog:
-                internal = original.build_twin(id=original.id.within_env(env))
-                catalog = CatalogImpl(catalog=internal)
-                for e in include or tuple():  # for mypy
-                    catalog.include(e)
-                return OverridableInternalCatalog(
-                    internal=internal,
-                    overrides=Overrides(),
-                )
-
-            return build_new
-        else:
-            assert include is None
-            copy = kind is TestEnvKind.COPY
-
-        def build(
-            original: InternalCatalog, prev_overrides: Overrides | None
-        ) -> OverridableInternalCatalog:
-            catalog = OverridableInternalCatalog(
-                internal=original.build_twin(
-                    id=original.id.within_env(env), keep_values=copy, keep_scope_vars=True
-                ),
-                overrides=(
-                    prev_overrides.clone(copy=copy) if prev_overrides is not None else Overrides()
-                ),
-            )
-            for provider in original.providers:
-                catalog.internal.add_provider(provider.unsafe_copy())
-
-            for child in original.children:
-                public_overrides, private_overrides = context_stack.enter_context(
-                    child.override_with(build)
-                )
-                catalog_to_overrides[child] = public_overrides
-                catalog_to_overrides[child.private] = private_overrides
-                catalog.internal.add_child(child)
-
-            return catalog
-
-        return build
+            public_ref = weakref.ref(onion.layer)
+            onion_to_layer_ref[onion] = public_ref
+            onion_to_layer_ref[onion.private] = weakref.ref(onion.private.layer)
+            yield CatalogOverrideImpl(catalog, public_ref, onion_to_layer_ref)
+        finally:
+            exit_stack.close()
 
 
 @API.private
 @final
-@dataclass(frozen=True)
-class TestEnvImpl:
-    kind: TestEnvKind
-    suffix: str
-
-    def __str__(self) -> str:
-        return f"{self.kind.name}{self.suffix}"
-
-
-@API.private
 @dataclass(frozen=True, eq=False)
 class CatalogOverrideImpl:
-    __slots__ = ("__internal", "__overrides")
-    __internal: InternalCatalog
-    __overrides: Overrides
+    __slots__ = (
+        "__catalog",
+        "__layer_ref",
+        "__onion_to_layer_ref",
+    )
+    __catalog: CatalogImpl
+    __layer_ref: weakref.ReferenceType[CatalogOnionLayer]
+    __onion_to_layer_ref: OnionToLayerWeakRefs | None
 
-    @contextmanager
-    def __safe_overrides(self) -> Iterator[Overrides]:
-        with self.__overrides.lock:
-            if self.__overrides.frozen_by is not None:
-                raise RuntimeError(
-                    f"Cannot change overrides, "
-                    f"they're overridden by new context of "
-                    f"{self.__overrides.frozen_by}"
-                )
-            yield self.__overrides
+    def of(self, catalog: Catalog) -> CatalogOverride:
+        assert self.__onion_to_layer_ref is not None, "Current instance is not a CatalogOverrides"
+        if not isinstance(catalog, CatalogImpl):
+            raise TypeError(f"catalog must be a Catalog, not a {type(catalog)!r}")
+        try:
+            layer_ref = self.__onion_to_layer_ref[catalog.onion]
+        except KeyError:
+            raise KeyError(f"{catalog!r} has no test context (anymore)!")
+        return CatalogOverrideImpl(catalog, layer_ref, None)
+
+    @property
+    def __test_context(self) -> TestContext:
+        layer = self.__layer_ref()
+        if layer is None:
+            raise RuntimeError("Invalid test context")
+        if self.__catalog.onion.layer is not layer:
+            raise RuntimeError("Current test context is not the latest one.")
+        test_context = layer.test_context
+        assert test_context is not None
+        return test_context
 
     def __setitem__(self, __dependency: object, __value: object) -> None:
-        with self.__safe_overrides() as overrides:
-            if __dependency in overrides.tombstones:
-                overrides.tombstones.remove(__dependency)
-            overrides.singletons[__dependency] = __value
+        tc = self.__test_context
+        tc.tombstones.discard(__dependency)
+        tc.singletons[__dependency] = __value
 
     def __delitem__(self, __dependency: object) -> None:
-        with self.__safe_overrides() as overrides:
-            overrides.tombstones.add(__dependency)
-            if __dependency in overrides.singletons:
-                del overrides.singletons[__dependency]
-            if __dependency in overrides.factories:
-                del overrides.factories[__dependency]
+        tc = self.__test_context
+        tc.tombstones.add(__dependency)
+        tc.singletons.pop(__dependency, None)
+        tc.factories.pop(__dependency, None)
 
     @overload
     def update(self, _: Mapping[Any, object] | Iterable[tuple[object, object]]) -> None:
@@ -394,58 +518,29 @@ class CatalogOverrideImpl:
                 "or keyword arguments."
             )
         if args:
-            __dependencies: dict[Any, object] = dict(cast(Any, args[0]))
+            __dependencies: Any = dict(cast(Any, args[0]))
         else:
             __dependencies = kwargs
 
-        with self.__safe_overrides() as overrides:
-            overrides.singletons.update(__dependencies)
-            overrides.tombstones.difference_update(__dependencies.keys())
+        tc = self.__test_context
+        tc.singletons.update(__dependencies)
+        tc.tombstones.difference_update(__dependencies.keys())
 
     def factory(
         self, __dependency: object, *, singleton: bool = False
     ) -> Callable[[AnyNoArgsCallable], AnyNoArgsCallable]:
         def decorate(func: AnyNoArgsCallable) -> AnyNoArgsCallable:
-            from ._inject import InjectorImpl
-
-            inject = InjectorImpl()
+            from ._objects import inject
 
             try:
-                func = inject(func, catalog=self.__internal)
+                func = inject(func, app_catalog=self.__catalog)
             except DoubleInjectionError:
-                inject.rewire(func, catalog=self.__internal)
+                inject.rewire(func, app_catalog=self.__catalog)
 
-            with self.__safe_overrides() as overrides:
-                if __dependency in overrides.tombstones:
-                    overrides.tombstones.remove(__dependency)
-                overrides.factories[__dependency] = SimplifiedScopeValue(
-                    wrapped=func, singleton=singleton
-                )
+            tc = self.__test_context
+            tc.tombstones.discard(__dependency)
+            tc.singletons.pop(__dependency, None)
+            tc.factories[__dependency] = Factory(wrapped=func, singleton=singleton)
             return func
 
         return decorate
-
-
-@API.private
-@final
-@dataclass(frozen=True, eq=False)
-class CatalogOverridesImpl(CatalogOverrideImpl):
-    __slots__ = ("__catalog_to_overrides",)
-    __catalog_to_overrides: dict[InternalCatalog, Overrides]
-
-    def __init__(
-        self, *, catalog_to_overrides: dict[InternalCatalog, Overrides], catalog: InternalCatalog
-    ) -> None:
-        super().__init__(catalog, catalog_to_overrides[catalog])
-        object.__setattr__(
-            self, f"_{type(self).__name__}__catalog_to_overrides", catalog_to_overrides
-        )
-
-    def of(self, catalog: Catalog) -> CatalogOverride:
-        if not isinstance(catalog, CatalogImpl):
-            raise TypeError(f"catalog must be a Catalog, not a {type(catalog)!r}")
-        try:
-            overrides = self.__catalog_to_overrides[catalog.internal]
-        except KeyError:
-            raise KeyError(f"{catalog!r} wasn't overridden in this test environment!")
-        return CatalogOverrideImpl(catalog.internal, overrides)

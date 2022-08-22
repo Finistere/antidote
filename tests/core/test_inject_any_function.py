@@ -6,7 +6,7 @@ from typing import Any, Callable, cast, Tuple
 import pytest
 from typing_extensions import Protocol, TypeAlias
 
-from antidote.core import DependencyNotFoundError, DoubleInjectionError, inject, world
+from antidote import DependencyNotFoundError, DoubleInjectionError, inject, world
 from tests.utils import Obj
 
 

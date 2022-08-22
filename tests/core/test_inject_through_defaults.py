@@ -3,7 +3,7 @@ from typing import Iterator, Optional, Union
 
 import pytest
 
-from antidote.core import (
+from antidote import (
     CannotInferDependencyError,
     DependencyNotFoundError,
     dependencyOf,

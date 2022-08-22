@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import pytest
 
-from antidote import new_catalog, ScopeVar, world
-from antidote.core import FrozenCatalogError, PublicCatalog
-from antidote.core.exceptions import (
-    DependencyDefinitionError,
+from antidote import (
     DependencyNotFoundError,
+    FrozenCatalogError,
+    new_catalog,
+    PublicCatalog,
+    ScopeGlobalVar,
     UndefinedScopeVarError,
+    world,
 )
+from antidote.core import DependencyDefinitionError
 from tests.core.dummy_providers import DummyFactoryProvider
 from tests.utils import Box, expected_debug, Obj
 
@@ -18,7 +21,7 @@ y = Obj()
 
 
 def test_scope_var(catalog: PublicCatalog) -> None:
-    dummy = ScopeVar(default="Hello", catalog=catalog)
+    dummy = ScopeGlobalVar(default="Hello", catalog=catalog)
     assert catalog[dummy] == "Hello"
 
     token = dummy.set("catalog")
@@ -31,7 +34,7 @@ def test_scope_var(catalog: PublicCatalog) -> None:
 
 
 def test_name_repr(catalog: PublicCatalog) -> None:
-    dummy = ScopeVar[object](catalog=catalog)
+    dummy = ScopeGlobalVar[object](catalog=catalog)
     assert "dummy" in dummy.name
     assert "tests.core.test_scope" in dummy.name
     assert "dummy" in repr(dummy)
@@ -40,14 +43,14 @@ def test_name_repr(catalog: PublicCatalog) -> None:
     assert "dummy" in catalog.debug(dummy)
     assert "tests.core.test_scope" in repr(dummy)
 
-    named = ScopeVar[object](name="John", catalog=catalog)
+    named = ScopeGlobalVar[object](name="John", catalog=catalog)
     assert "John" == named.name
     assert "John" in repr(named)
     assert "John" in catalog.debug(named)
 
     class Namespace:
-        dummy = ScopeVar[object](catalog=catalog)
-        named = ScopeVar[object](name="Wick", catalog=catalog)
+        dummy = ScopeGlobalVar[object](catalog=catalog)
+        named = ScopeGlobalVar[object](name="Wick", catalog=catalog)
 
     expected_name = "tests.core.test_scope.test_name_repr.<locals>.Namespace.dummy"
     assert Namespace.dummy.name == expected_name
@@ -60,11 +63,11 @@ def test_name_repr(catalog: PublicCatalog) -> None:
     assert "Wick" in catalog.debug(Namespace.named)
 
     with pytest.raises(ValueError, match="name"):
-        ScopeVar(name="?!@#")
+        ScopeGlobalVar(name="?!@#")
 
 
 def test_no_default(catalog: PublicCatalog) -> None:
-    dummy = ScopeVar[object](catalog=catalog)
+    dummy = ScopeGlobalVar[object](catalog=catalog)
 
     with pytest.raises(UndefinedScopeVarError, match="dummy"):
         _ = catalog[dummy]
@@ -79,8 +82,8 @@ def test_no_default(catalog: PublicCatalog) -> None:
 
 def test_catalog() -> None:
     catalog = new_catalog(include=[])
-    dummy = ScopeVar[object](catalog=catalog)
-    world_dummy = ScopeVar[object]()
+    dummy = ScopeGlobalVar[object](catalog=catalog)
+    world_dummy = ScopeGlobalVar[object]()
 
     assert dummy in catalog
     assert dummy not in world
@@ -88,16 +91,16 @@ def test_catalog() -> None:
     assert world_dummy in world
 
     with pytest.raises(TypeError, match="catalog"):
-        ScopeVar[object](catalog=object())  # type: ignore
+        ScopeGlobalVar[object](catalog=object())  # type: ignore
 
 
 def test_debug(catalog: PublicCatalog) -> None:
     class Namespace:
-        dummy = ScopeVar[object](catalog=catalog)
+        dummy = ScopeGlobalVar[object](catalog=catalog)
 
     assert catalog.debug(Namespace.dummy) == expected_debug(
         """
-    <scope-var> tests.core.test_scope.test_debug.<locals>.Namespace.dummy
+    <scope-global-var> tests.core.test_scope.test_debug.<locals>.Namespace.dummy
     """
     )
 
@@ -105,12 +108,12 @@ def test_debug(catalog: PublicCatalog) -> None:
 def test_frozen(catalog: PublicCatalog) -> None:
     catalog.freeze()
     with pytest.raises(FrozenCatalogError):
-        ScopeVar[object](catalog=catalog)
+        ScopeGlobalVar[object](catalog=catalog)
 
 
 def test_test_env(catalog: PublicCatalog) -> None:
-    dummy = ScopeVar[Box[str]](catalog=catalog)
-    dummy2 = ScopeVar[object](default=x, catalog=catalog)
+    dummy = ScopeGlobalVar[Box[str]](catalog=catalog)
+    dummy2 = ScopeGlobalVar[object](default=x, catalog=catalog)
 
     original = Box("Hello")
     dummy.set(original)
@@ -163,7 +166,7 @@ def test_test_env(catalog: PublicCatalog) -> None:
 def test_singleton_cannot_depend_on_state_var(catalog: PublicCatalog) -> None:
     catalog.include(DummyFactoryProvider)
     provider = catalog.providers[DummyFactoryProvider]
-    dummy = ScopeVar(default="Hello", catalog=catalog)
+    dummy = ScopeGlobalVar(default="Hello", catalog=catalog)
 
     provider.add(x, factory=lambda c: c[dummy], lifetime="singleton")
 

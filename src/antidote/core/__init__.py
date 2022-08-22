@@ -21,16 +21,18 @@ from typing import (
 from typing_extensions import Concatenate, final, Literal, ParamSpec, Protocol, TypeAlias
 
 from .._internal import API, Default
+from .._internal.typing import F, T
 from ._objects import app_catalog, inject, world
-from .annotation import Inject
+from .annotation import InjectMe
 from .data import (
     CatalogId,
+    DebugInfoPrefix,
     Dependency,
     DependencyDebug,
     dependencyOf,
     LifeTime,
-    Missing,
     ParameterDependency,
+    TestContextKind,
 )
 from .exceptions import (
     AntidoteError,
@@ -39,68 +41,69 @@ from .exceptions import (
     DependencyNotFoundError,
     DoubleInjectionError,
     DuplicateDependencyError,
+    DuplicateProviderError,
     FrozenCatalogError,
     MissingProviderError,
+    UndefinedScopeVarError,
 )
-from .provider import ProvidedDependency, Provider
-from .scope import ScopeVar, ScopeVarToken
-from .utils import is_catalog, is_compiled, new_catalog
+from .provider import ProvidedDependency, Provider, ProviderCatalog
+from .scope import Missing, ScopeGlobalVar, ScopeVarToken
+from .utils import is_catalog, is_compiled, is_readonly_catalog, new_catalog
 from .wiring import Methods, wire, Wiring
 
 if TYPE_CHECKING:
-    from ..lib.interface import instanceOf, PredicateConstraint
+    from ..lib.interface_ext import instanceOf, PredicateConstraint
 
 __all__ = [
-    "LifeTime",
+    "AntidoteError",
+    "CannotInferDependencyError",
     "Catalog",
-    "TestCatalogBuilder",
+    "CatalogId",
     "CatalogOverride",
-    "Provider",
+    "DebugInfoPrefix",
     "Dependency",
     "DependencyDebug",
-    "is_compiled",
-    "dependencyOf",
-    "inject",
-    "world",
-    "app_catalog",
-    "Inject",
-    "Injector",
-    "wire",
-    "Methods",
-    "ReadOnlyCatalog",
-    "ParameterDependency",
-    "Wiring",
-    "Provider",
-    "new_catalog",
-    "is_catalog",
-    "LifetimeType",
-    "TypeHintsLocals",
-    "Catalog",
-    "ProvidedDependency",
-    "CatalogId",
-    "AntidoteError",
+    "is_readonly_catalog",
     "DependencyDefinitionError",
     "DependencyNotFoundError",
-    "DuplicateDependencyError",
-    "FrozenCatalogError",
     "DoubleInjectionError",
-    "CannotInferDependencyError",
-    "MissingProviderError",
-    "ScopeVar",
-    "ScopeVarToken",
+    "DuplicateDependencyError",
+    "DuplicateProviderError",
+    "FrozenCatalogError",
+    "Inject",
+    "InjectMe",
+    "LifeTime",
+    "LifetimeType",
+    "Methods",
     "Missing",
+    "MissingProviderError",
+    "ParameterDependency",
+    "ProvidedDependency",
+    "Provider",
+    "ProviderCatalog",
+    "PublicCatalog",
+    "ReadOnlyCatalog",
+    "ScopeGlobalVar",
+    "ScopeVarToken",
+    "TestContextBuilder",
+    "TestContextKind",
+    "TypeHintsLocals",
+    "UndefinedScopeVarError",
+    "Wiring",
+    "app_catalog",
+    "dependencyOf",
+    "inject",
+    "is_catalog",
+    "is_compiled",
+    "new_catalog",
+    "wire",
+    "world",
 ]
 
-T = TypeVar("T")
 U = TypeVar("U")
-F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")
 AnyProvider = TypeVar("AnyProvider", bound=Provider)
 AnyNoArgsCallable = TypeVar("AnyNoArgsCallable", bound=Callable[[], object])
-Initial = TypeVar("Initial")
-Result = TypeVar("Result")
-In = TypeVar("In", contravariant=True)
-Out = TypeVar("Out", covariant=True)
 
 ##########
 # PUBLIC #
@@ -110,7 +113,7 @@ LifetimeType: TypeAlias = Union[Literal["singleton", "scoped", "transient"], Lif
 TypeHintsLocals: TypeAlias = Union[Mapping[str, object], Literal["auto"], Default, None]
 
 
-@API.private
+@API.private  # Protocol itself is private, methods are public
 class DependencyAccessor(Protocol):
     @overload
     def get(
@@ -142,13 +145,14 @@ class DependencyAccessor(Protocol):
         ...
 
     @overload
-    def get(self, __dependency: Callable[P, Dependency[T]], default: U) -> Callable[P, T] | U:
+    def get(self, __dependency: Callable[P, T], default: U) -> Callable[P, T] | U:
         ...
 
     @overload
     def get(self, __dependency: object, default: object) -> object:
         ...
 
+    @API.public
     def get(
         self,
         __dependency: Any,
@@ -169,8 +173,8 @@ class DependencyAccessor(Protocol):
             ...     UNKNOWN = 1
             >>> world.get(Conf.HOST)
             'localhost'
-            >>> world.get(Conf.UNKNOWN)
-            None
+            >>> world.get(Conf.UNKNOWN) is None
+            True
             >>> world.get(Conf.UNKNOWN, default='something')
             'something'
             >>> @inject
@@ -179,26 +183,30 @@ class DependencyAccessor(Protocol):
             ...       something: object = inject.get(Conf.UNKNOWN, default='something')) -> object:
             ...     return host, unknown, something
             >>> f()
-            ('localhost', None, 'something)
+            ('localhost', None, 'something')
         """
         ...
 
+    # for @interface & @lazy & custom
     @overload
     def __getitem__(self, __dependency: Dependency[T] | Type[instanceOf[T]]) -> T:
         ...
 
+    # for @injectable / @interface class
     @overload
     def __getitem__(self, __dependency: Type[T]) -> T:
         ...
 
+    # for @interface function
     @overload
-    def __getitem__(self, __dependency: Callable[P, Dependency[T]]) -> Callable[P, T]:
+    def __getitem__(self, __dependency: Callable[P, T]) -> Callable[P, T]:
         ...
 
     @overload
     def __getitem__(self, __dependency: object) -> object:
         ...
 
+    @API.public
     def __getitem__(self, __dependency: Any) -> object:
         """
         Return the value for the dependency. Raises a :py:exc:`.DependencyNotFoundError`
@@ -214,18 +222,20 @@ class DependencyAccessor(Protocol):
             ...     UNKNOWN = 1
             >>> world[Conf.HOST]
             'localhost'
-            >>> world.get(Conf.UNKNOWN)
-            DependencyNotFoundError
+            >>> world.get(Conf.UNKNOWN) is None
+            True
             >>> @inject
             ... def f(host: str = inject[Conf.HOST]) -> str:
             ...     return host
             >>> f()
-            ('localhost', None, 'something)
+            'localhost'
             >>> @inject
             ... def g(unknown: object = inject[Conf.UNKNOWN]) -> object:
             ...     return unknown
             >>> g()
-            DependencyNotFoundError
+            Traceback (most recent call last):
+              File "<stdin>", line 1, in ?
+            DependencyNotFoundError: ...
         """
         ...
 
@@ -249,14 +259,6 @@ class ReadOnlyCatalog(DependencyAccessor, Protocol):
         """
         ...
 
-    @property
-    def is_frozen(self) -> bool:
-        """
-        Returns :py:obj:`True` if the catalog is frozen, else :py:obj:`False`. A frozen catalog
-        cannot be changed anymore, all new dependency registrations will fail.
-        """
-        ...
-
     def debug(self, __obj: object, *, depth: int = -1) -> str:
         """
         If the object is a dependency that can be provided, a tree representation of all of its
@@ -267,7 +269,7 @@ class ReadOnlyCatalog(DependencyAccessor, Protocol):
         The tree is created idendepently from the values, so no singleton or bound
         dependencies will be instantiated.
 
-        .. doctest:: world_debug
+        .. doctest:: readonly_catalog_debug
 
             >>> from antidote import world, const, injectable, inject
             >>> class Conf:
@@ -279,11 +281,11 @@ class ReadOnlyCatalog(DependencyAccessor, Protocol):
             >>> print(world.debug(Dummy))
             🟉 Dummy
             └── Dummy.__init__
-                └── 🟉 Conf.HOST
+                └── 🟉 <const> 'localhost'
             <BLANKLINE>
-             🟉 = singleton
-             ∅ = instance
-             ↻ = bound
+            ∅ = transient
+            ↻ = bound
+            🟉 = singleton
             <BLANKLINE>
 
         Args:
@@ -293,12 +295,18 @@ class ReadOnlyCatalog(DependencyAccessor, Protocol):
         """
         ...
 
+    @property
+    def is_frozen(self) -> bool:
+        """
+        Returns :py:obj:`True` if the catalog is frozen, else :py:obj:`False`. A frozen catalog
+        cannot be changed anymore, all new dependency registrations will fail.
+        """
+        ...
+
     def raise_if_frozen(self) -> None:
         """
-        Ensure that no other :py:class:`.Provider` neither any child catalog already
-        provides the specified dependency. Underneath it simply iterates over all
-        :py:class:`.Provider` checking with :py:meth:`~.Provider.can_provide`. If the dependency is
-        found, a :py:exc:`.DuplicateDependencyError` is raised.
+        Raises an :py:exc:`.FrozenCatalogError` if the catalog is frozen. This is used to prevent
+        any new registrations and have a more predictable catalog once frozen.
         """
         ...
 
@@ -310,6 +318,8 @@ _P = TypeVar("_P", bound="Provider")
 @API.public
 class Catalog(ReadOnlyCatalog, DependencyAccessor, Protocol):
     """
+    Subclass of :py:class:`.ReadOnlyCatalog` for dependency access.
+
     A catalog is a collection of dependencies that can be provided. It ensures that singletons
     and bound dependencies are created in a thread-safe manner. But the actual instantiation
     is handled by one of its :py:class:`.Provider`.
@@ -449,92 +459,17 @@ class CatalogProvidersMapping(Mapping[Type[Provider], Provider]):
 
 @API.public
 class PublicCatalog(Catalog, Protocol):
+    """
+    Subclass of :py:class:`.ReadOnlyCatalog` for dependency access and :py:class:`.Catalog` for
+    dependency registration.
+
+    Can be created with :py:func:`.new_catalog`.
+    """
+
     @property
-    def test(self) -> TestCatalogBuilder:
+    def test(self) -> TestContextBuilder:
         """
-        Used to create test environments with proper isolation and the possibility to create or
-        override dependencies easily:
-
-        .. doctest:: core_public_catalog_test
-
-            >>> from antidote import world
-            >>> with world.test.new() as overrides:
-            ...     overrides['hello'] = 'world'
-            ...     world['hello']
-            'world'
-
-        Within the context manager (:code:`with` block), :code:`world` will behave like a different
-        Catalog and changes will not be propagated back. Four different test environment exist:
-
-        - :py:meth:`~.TestCatalogBuilder.empty`: the catalog will be totally empty.
-        - :py:meth:`~.TestCatalogBuilder.new`: the catalog will keep all of its
-          :py:class:`.Provider`s and child catalog. But those will be empty as if no dependency was
-          ever registered.
-        - :py:meth:`~.TestCatalogBuilder.clone`: All of the :py:class:`.Provider`, child catalog and
-          dependency registration are kept. However, the catalog does not keep any of the dependency
-          values (singletons, ...) as if it was never used. By default, the catalog will be frozen.
-        - :py:meth:`~.TestCatalogBuilder.copy`: Same strategy than
-          :py:meth:`~.TestCatalogBuilder.clone` except all existing dependencies are kept. Be
-          careful with this test environment, dependencies values are not copied. The actual
-          singletons values are exposed.
-
-        It is also possible to nest the different test enviroments allowing to set up an environment
-        and re-use it for different tests.
-
-        .. doctest:: core_public_catalog_test
-
-            >>> from antidote import world
-            >>> with world.test.new() as overrides:
-            ...     overrides['hello'] = 'world'
-            ...     with world.test.copy() as nested_overrides:
-            ...         print(world['hello'])
-            ...         nested_overrides['hello'] = "new world"
-            ...         print(world['hello'])
-            ...     print(world['hello'])
-            'world'
-            'new world'
-            'world'
-
-        Each test environment exposes a :py:class:`.CatalogOverride` can create/override
-        dependencies:
-
-        .. doctest:: core_public_catalog_test
-
-            >>> from antidote import world
-            >>> with world.test.new() as overrides:
-            ...     # create/override a singleton
-            ...     overrides['hello'] = 'world'
-            ...     # replace previous one
-            ...     overrides['hello'] = 'new world'
-            ...     # delete a dependency
-            ...     del overrides['hello']
-            ...     # create/override multiple dependencies at once
-            ...     overrides.update({'my': 'world'})
-            ...     # or use a factory which by default creates a non-singleton:
-            ...     @overrides.factory('env')
-            ...     def build() -> str:
-            ...         return "test"
-
-        When using a test environment on a catalog, it will also be applied on all children,
-        recursively. It's also possible to override dependencies only within a specific catalog:
-
-        .. doctest:: core_public_catalog_test
-
-            >>> from antidote import world, new_catalog
-            >>> catalog = new_catalog(name='child')
-            >>> world.include(catalog)
-            >>> with world.test.new() as overrides:
-            ...     # overrides.of(catalog) also supports del, update() and factory()
-            ...     overrides.of(catalog)['hello'] = 'child'
-            ...     print(catalog['child'])
-            ...     # It's also possible to modify the private catalog
-            ...     overrides.of(world.private)['hello'] = 'private'
-            ...     print(world.private['hello'])
-            child
-            private
-            >>> 'hello' in catalog
-            False
-
+        See :py:class:`.TestContextBuilder`.
         """
         ...
 
@@ -561,9 +496,91 @@ class PublicCatalog(Catalog, Protocol):
 
 
 @API.public
-class TestCatalogBuilder(Protocol):
+class TestContextBuilder(Protocol):
     """
-    See :py:meth:`.PublicCatalog.test` for its usage.
+    Used to create test environments with proper isolation and the possibility to create or
+    override dependencies easily:
+
+    .. doctest:: core_public_catalog_test
+
+        >>> from antidote import world
+        >>> with world.test.new() as overrides:
+        ...     overrides['hello'] = 'world'
+        ...     world['hello']
+        'world'
+
+    Within the context manager (:code:`with` block), :code:`world` will behave like a different
+    Catalog and changes will not be propagated back. Four different test environment exist:
+
+    - :py:meth:`~.TestCatalogBuilder.empty`: the catalog will be totally empty.
+    - :py:meth:`~.TestCatalogBuilder.new`: the catalog will keep all of its
+      :py:class:`.Provider` and child catalog. But those will be empty as if no dependency was
+      ever registered.
+    - :py:meth:`~.TestCatalogBuilder.clone`: All of the :py:class:`.Provider`, child catalog and
+      dependency registration are kept. However, the catalog does not keep any of the dependency
+      values (singletons, ...) as if it was never used. By default, the catalog will be frozen.
+    - :py:meth:`~.TestCatalogBuilder.copy`: Same strategy than
+      :py:meth:`~.TestCatalogBuilder.clone` except all existing dependencies are kept. Be
+      careful with this test environment, dependencies values are not copied. The actual
+      singletons values are exposed.
+
+    It is also possible to nest the different test enviroments allowing to set up an environment
+    and re-use it for different tests.
+
+    .. doctest:: core_public_catalog_test
+
+        >>> from antidote import world
+        >>> with world.test.new() as overrides:
+        ...     overrides['hello'] = 'world'
+        ...     with world.test.copy() as nested_overrides:
+        ...         print(world['hello'])
+        ...         nested_overrides['hello'] = "new world"
+        ...         print(world['hello'])
+        ...     print(world['hello'])
+        world
+        new world
+        world
+
+    Each test environment exposes a :py:class:`.CatalogOverride` can create/override
+    dependencies:
+
+    .. doctest:: core_public_catalog_test
+
+        >>> from antidote import world
+        >>> with world.test.new() as overrides:
+        ...     # create/override a singleton
+        ...     overrides['hello'] = 'world'
+        ...     # replace previous one
+        ...     overrides['hello'] = 'new world'
+        ...     # delete a dependency
+        ...     del overrides['hello']
+        ...     # create/override multiple dependencies at once
+        ...     overrides.update({'my': 'world'})
+        ...     # or use a factory which by default creates a non-singleton:
+        ...     @overrides.factory('env')
+        ...     def build() -> str:
+        ...         return "test"
+
+    When using a test environment on a catalog, it will also be applied on all children,
+    recursively. It's also possible to override dependencies only within a specific catalog:
+
+    .. doctest:: core_public_catalog_test
+
+        >>> from antidote import world, new_catalog
+        >>> catalog = new_catalog(name='child')
+        >>> world.include(catalog)
+        >>> with world.test.clone() as overrides:
+        ...     # overrides.of(catalog) also supports del, update() and factory()
+        ...     overrides.of(catalog)['hello'] = 'child'
+        ...     print(catalog['hello'])
+        ...     # It's also possible to modify the private catalog
+        ...     overrides.of(world.private)['hello'] = 'private'
+        ...     print(world.private['hello'])
+        child
+        private
+        >>> 'hello' in catalog
+        False
+
     """
 
     def copy(self, *, frozen: bool = True) -> ContextManager[CatalogOverrides]:
@@ -630,7 +647,7 @@ class TestCatalogBuilder(Protocol):
 
     def clone(self, *, frozen: bool = True) -> ContextManager[CatalogOverrides]:
         """
-        Creates a test enviroment keeping a copy of all child catalogs, :py:class:`.Provider`s and
+        Creates a test enviroment keeping a copy of all child catalogs, :py:class:`.Provider` and
         reigstered dependencies, state ones included. Existing dependency values are not copied.
         Unscoped dependencies will be reset to their initial value if any. By default, the catalog
         will be frozen. However, child catalogs will keep their previous state, staying unfrozen
@@ -714,7 +731,7 @@ class TestCatalogBuilder(Protocol):
 
         .. doctest:: world_test_new
 
-            >>> from antidote import world, injectable, antidote_injectable
+            >>> from antidote import world, injectable, antidote_lib_injectable
             >>> @injectable
             ... class Service:
             ...     pass
@@ -730,7 +747,7 @@ class TestCatalogBuilder(Protocol):
             ...
             MissingProviderError
             >>> with world.test.empty():
-            ...     world.include(antidote_injectable)
+            ...     world.include(antidote_lib_injectable)
             ...     @injectable
             ...     class MyService:
             ...         pass
@@ -762,9 +779,9 @@ class CatalogOverride(Protocol):
             ...     world['hello']
             'world'
             >>> with world.test.new() as overrides:
-            ...     overrides[Service] = None
+            ...     overrides[Service] = 'something'
             ...     world[Service]
-            None
+            'something'
 
         """
         ...
@@ -873,10 +890,10 @@ class CatalogOverrides(CatalogOverride, Protocol):
             >>> from antidote import world, new_catalog
             >>> catalog = new_catalog(name='child')
             >>> world.include(catalog)
-            >>> with world.test.new() as overrides:
+            >>> with world.test.clone() as overrides:
             ...     # overrides.of(catalog) also supports del, update() and factory()
             ...     overrides.of(catalog)['hello'] = 'child'
-            ...     print(catalog['child'])
+            ...     print(catalog['hello'])
             ...     # It's also possible to modify the private catalog
             ...     overrides.of(world.private)['hello'] = 'private'
             ...     print(world.private['hello'])
@@ -890,7 +907,11 @@ class CatalogOverrides(CatalogOverride, Protocol):
 
 
 @API.public
-class Injector(DependencyAccessor, Protocol):
+class Inject(DependencyAccessor, Protocol):
+    """
+    Use the singleton :py:obj:`.inject`.
+    """
+
     @staticmethod
     def me(
         *constraints: PredicateConstraint[Any],
@@ -963,7 +984,7 @@ class Injector(DependencyAccessor, Protocol):
         self,
         __func: Callable[..., object] | staticmethod[Any] | classmethod[Any],
         *,
-        catalog: ReadOnlyCatalog,
+        app_catalog: ReadOnlyCatalog,
         method: bool | Default = Default.sentinel,
     ) -> None:
         """
@@ -971,21 +992,24 @@ class Injector(DependencyAccessor, Protocol):
 
         .. doctest:: core_inject_rewire
 
-            >>> from antidote import inject, app_catalog, new_catalog, world
-            >>> @inject({'x': 'dependency'})
-            ... def f(x: object) -> object:
+            >>> from antidote import inject, app_catalog, new_catalog, world, injectable
+            >>> @injectable
+            ... class Service:
+            ...     pass
+            >>> @inject
+            ... def f(x: Service = inject.me()) -> Service:
             ...     return x
-            >>> @inject({'x': 'dependency'}, catalog=world)
-            ... def g(x: object) -> object:
+            >>> @inject(app_catalog=world)
+            ... def g(x: Service = inject.me()) -> Service:
             ...     return x
             >>> catalog = new_catalog()
             >>> # f() will now retrieve dependencies from `catalog`
-            ... inject.rewire(f, catalog=catalog)
+            ... inject.rewire(f, app_catalog=catalog)
             >>> # f() will now retrieve dependencies from `app_catalog`, which was the default
             ... # behavior
-            ... inject.rewire(f, catalog=app_catalog)
+            ... inject.rewire(f, app_catalog=app_catalog)
             >>> # has no impact as the catalog was explicitly hardwired
-            ... inject.rewire(g, catalog=catalog)
+            ... inject.rewire(g, app_catalog=catalog)
         """
         ...
 
@@ -993,12 +1017,13 @@ class Injector(DependencyAccessor, Protocol):
     def __call__(
         self,
         *,
+        args: Sequence[object] | None = ...,
         kwargs: Mapping[str, object] | None = ...,
         fallback: Mapping[str, object] | None = ...,
         ignore_type_hints: bool = ...,
         ignore_defaults: bool = ...,
         type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = ...,
     ) -> Callable[[F], F]:
         ...
 
@@ -1007,12 +1032,13 @@ class Injector(DependencyAccessor, Protocol):
         self,
         __arg: staticmethod[F],
         *,
+        args: Sequence[object] | None = ...,
         kwargs: Mapping[str, object] | None = ...,
         fallback: Mapping[str, object] | None = ...,
         ignore_type_hints: bool = ...,
         ignore_defaults: bool = ...,
         type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = ...,
     ) -> staticmethod[F]:
         ...
 
@@ -1021,12 +1047,13 @@ class Injector(DependencyAccessor, Protocol):
         self,
         __arg: classmethod[F],
         *,
+        args: Sequence[object] | None = ...,
         kwargs: Mapping[str, object] | None = ...,
         fallback: Mapping[str, object] | None = ...,
         ignore_type_hints: bool = ...,
         ignore_defaults: bool = ...,
         type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = ...,
     ) -> classmethod[F]:
         ...
 
@@ -1035,63 +1062,40 @@ class Injector(DependencyAccessor, Protocol):
         self,
         __arg: F,
         *,
+        args: Sequence[object] | None = ...,
         kwargs: Mapping[str, object] | None = ...,
         fallback: Mapping[str, object] | None = ...,
         ignore_type_hints: bool = ...,
         ignore_defaults: bool = ...,
         type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = ...,
     ) -> F:
-        ...
-
-    @overload
-    def __call__(
-        self,
-        __arg: Sequence[object | None],
-        *,
-        fallback: Mapping[str, object] | None = ...,
-        ignore_type_hints: bool = ...,
-        ignore_defaults: bool = ...,
-        type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
-    ) -> Callable[[F], F]:
-        ...
-
-    @overload
-    def __call__(
-        self,
-        __arg: Mapping[str, object],
-        *,
-        fallback: Mapping[str, object] | None = ...,
-        ignore_type_hints: bool = ...,
-        ignore_defaults: bool = ...,
-        type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
-    ) -> Callable[[F], F]:
         ...
 
     def __call__(
         self,
         __arg: Any = None,
         *,
+        args: Sequence[object] | None = None,
         kwargs: Mapping[str, object] | None = None,
         fallback: Mapping[str, object] | None = None,
         ignore_type_hints: bool = False,
         ignore_defaults: bool = False,
         type_hints_locals: TypeHintsLocals = Default.sentinel,
-        catalog: ReadOnlyCatalog | None = None,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = None,
     ) -> Any:
         """
         Wrap a function to inject dependencies when executed. Dependencies can be tight to arguments
         in multiple ways. The priority is defined as follows:
 
-        1. :code:`kwargs`: argument name to dependencies.
-        2. Defaults :code:`inject.me`... / Annotated type hints (PEP-593)
+        1. :code:`args` and :code:`kwargs`: argument name to dependencies.
+        2. Defaults (ex: :py:meth:`~.Inject.me`) or PEP-593 Annotated type hints
+           (ex: :py:obj:`.InjectMe`)
         3. :code:`fallback`: argument name to dependencies.
 
         .. doctest:: core_inject
 
-            >>> from antidote import inject, injectable, Inject
+            >>> from antidote import inject, injectable, InjectMe
             >>> @injectable
             ... class A:
             ...     pass
@@ -1104,7 +1108,7 @@ class Injector(DependencyAccessor, Protocol):
             >>> f1() is world[A]
             True
             >>> @inject
-            ... def f2(a: Inject[A]):  # PEP-593 annotation
+            ... def f2(a: InjectMe[A]):  # PEP-593 annotation
             ...     return a
             >>> f2() is world[A]
             True
@@ -1117,23 +1121,6 @@ class Injector(DependencyAccessor, Protocol):
             ... def f4(a):
             ...     return a
             >>> f4() is world[A]
-            True
-
-        As shortcuts, one can also directly provide a mapping or an iterable of dependencies which
-        are mapping to the arguments through their position. :py:obj:`None` serves as a placeholder
-        in the latter case to ignore arguments.
-
-        .. doctest:: core_inject
-
-            >>> @inject(dict(b=B))
-            ... def f5(a = 0, b = 0):
-            ...     return a, b
-            >>> f5() == (0, world[B])
-            True
-            >>> @inject([None, B])
-            ... def f6(a = 0, b = 0):
-            ...     return a, b
-            >>> f6() == (0, world[B])
             True
 
         The decorator can be applied on any kind of function:
@@ -1158,6 +1145,11 @@ class Injector(DependencyAccessor, Protocol):
             ... async def f(a: A = inject.me()) -> A:
             ...     return a
 
+        .. note::
+
+            To inject the first argument of a method, commonly :code:`self`, see
+            :py:meth:`~.Inject.method`.
+
         Args:
             __arg: **/positional-only/** Callable to be wrapped, which may also be a static or
                 class method. If used as a decorator, it can be a sequence of dependencies or a
@@ -1178,8 +1170,16 @@ class Injector(DependencyAccessor, Protocol):
                 :py:data:`.config` value of :py:attr:`~.Config.auto_detect_type_hints_locals`. If
                 :py:obj:`True` the default value is equivalent to specifying :code:`'auto'`,
                 otherwise to :py:obj:`None`.
-            catalog: :py:class:`.Catalog` from which the dependencies should be retrieved. Defaults
-                to :py:obj:`.app_catalog`.
+            app_catalog: Defines the :py:obj:`.app_catalog` to be used by the current injection
+                and nested ones. If unspecified, the catalog used depends on the context. Usually
+                it will be :py:obj:`.app_catalog` defined by a upstream :py:obj:`.inject`. If never
+                never specified, it's py:obj:`.world`. However, dependencies such as
+                :py:func:`.injectable` use :py:meth:`.Inject.rewire` to force the use of the catalog
+                in which the dependency is registered. If explicitely specified, it cannot be
+                changed afterwards and can be either a :py:class:`.Catalog` or
+                :py:obj:`.app_catalog`. The latter forcing the use of the current
+                :py:obj:`.app_catalog` could otherwise be rewired by :py:func:`.injectable` and
+                alike.
 
         """
         ...
@@ -1188,12 +1188,13 @@ class Injector(DependencyAccessor, Protocol):
     def method(
         self,
         *,
+        args: Sequence[object] | None = ...,
         kwargs: Mapping[str, object] | None = ...,
         fallback: Mapping[str, object] | None = ...,
         ignore_type_hints: bool = ...,
         ignore_defaults: bool = ...,
         type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = ...,
     ) -> Callable[[Callable[Concatenate[Any, P], T]], InjectedMethod[P, T]]:
         ...
 
@@ -1202,55 +1203,100 @@ class Injector(DependencyAccessor, Protocol):
         self,
         __arg: Callable[Concatenate[Any, P], T],
         *,
+        args: Sequence[object] | None = ...,
         kwargs: Mapping[str, object] | None = ...,
         fallback: Mapping[str, object] | None = ...,
         ignore_type_hints: bool = ...,
         ignore_defaults: bool = ...,
         type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = ...,
     ) -> InjectedMethod[P, T]:
-        ...
-
-    @overload
-    def method(
-        self,
-        __arg: Sequence[object | None],
-        *,
-        fallback: Mapping[str, object] | None = ...,
-        ignore_type_hints: bool = ...,
-        ignore_defaults: bool = ...,
-        type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
-    ) -> Callable[[Callable[Concatenate[Any, P], T]], InjectedMethod[P, T]]:
-        ...
-
-    @overload
-    def method(
-        self,
-        __arg: Mapping[str, object],
-        *,
-        fallback: Mapping[str, object] | None = ...,
-        ignore_type_hints: bool = ...,
-        ignore_defaults: bool = ...,
-        type_hints_locals: TypeHintsLocals = ...,
-        catalog: ReadOnlyCatalog | None = ...,
-    ) -> Callable[[Callable[Concatenate[Any, P], T]], InjectedMethod[P, T]]:
         ...
 
     def method(
         self,
         __arg: Any = None,
         *,
+        args: Sequence[object] | None = None,
         kwargs: Mapping[str, object] | None = None,
         fallback: Mapping[str, object] | None = None,
         ignore_type_hints: bool = False,
         ignore_defaults: bool = False,
         type_hints_locals: TypeHintsLocals = Default.sentinel,
-        catalog: ReadOnlyCatalog | None = None,
+        app_catalog: API.Experimental[ReadOnlyCatalog | None] = None,
     ) -> Any:
+        """
+        Specialized version of :py:obj:`.inject` for methods to also inject the first argument,
+        commonly named :code:`self`. More precisely, the dependency for :code:`self` is defined
+        to be the class itself and so the dependency value associated with it will be injected when
+        not provided. So when called through the class :code:`self` will be injected but not when
+        called through an instance.
+
+        .. doctest:: core_inject_method
+
+            >>> from antidote import inject, injectable, world
+            >>> @injectable
+            ... class Dummy:
+            ...     @inject.method
+            ...     def get_self(self) -> 'Dummy':
+            ...         return self
+            >>> Dummy.get_self() is world[Dummy]
+            True
+            >>> dummy = Dummy()
+            >>> dummy.get_self() is dummy
+            True
+
+        The class will not be defined as a dependency magically:
+
+        .. doctest:: core_inject_method
+
+            >>> class Unknown:
+            ...     @inject.method
+            ...     def get_self(self) -> 'Unknown':
+            ...         return self
+            >>> Unknown.get_self()
+            Traceback (most recent call last):
+              File "<stdin>", line 1, in ?
+            DependencyNotFoundError: ...
+
+        For information on all other features, see :py:obj:`.inject`.
+
+        Args:
+            __arg: **/positional-only/** Callable to be wrapped, which may also be a static or
+                class method. If used as a decorator, it can be a sequence of dependencies or a
+                mapping of argument names to their respective dependencies. For the former,
+                dependencies are associated with the arguments through their position :py:obj:`None`
+                can be used as a placeholder to ignore certain arguments.
+            kwargs: Mapping of argument names to dependencies. This has the highest priority.
+            fallback: Mapping of argument names to dependencies. This has the lowest priority.
+            ignore_type_hints: If :py:obj:`True`, neither type hints nor :code:`type_hints_locals`
+                will not be used at all. Defaults to :py:obj:`False`.
+            ignore_defaults: If :py:obj:`True`, default values such as :code:`inject.me()` are
+                ignored. Defaults to :py:obj:`False`.
+            type_hints_locals: Local variables to use for :py:func:`typing.get_type_hints`. They
+                can be explicitly defined by passing a dictionary or automatically detected with
+                :py:mod:`inspect` and frame manipulation by specifying :code:`'auto'`. Specifying
+                :py:obj:`None` will deactivate the use of locals. When :code:`ignore_type_hints` is
+                :py:obj:`True`, this features cannot be used. The default behavior depends on the
+                :py:data:`.config` value of :py:attr:`~.Config.auto_detect_type_hints_locals`. If
+                :py:obj:`True` the default value is equivalent to specifying :code:`'auto'`,
+                otherwise to :py:obj:`None`.
+            app_catalog: Defines the :py:obj:`.app_catalog` to be used by the current injection
+                and nested ones. If unspecified, the catalog used depends on the context. Usually
+                it will be :py:obj:`.app_catalog` defined by a upstream :py:obj:`.inject`. If never
+                never specified, it's py:obj:`.world`. However, dependencies such as
+                :py:func:`.injectable` use :py:meth:`.Inject.rewire` to force the use of the catalog
+                in which the dependency is registered. If explicitely specified, it cannot be
+                changed afterwards and can be either a :py:class:`.Catalog` or
+                :py:obj:`.app_catalog`. The latter forcing the use of the current
+                :py:obj:`.app_catalog` could otherwise be rewired by :py:func:`.injectable` and
+                alike.
+
+        """
         ...
 
 
+@API.public
 class InjectedMethod(Protocol[P, T]):
     @property
     def __wrapped__(self) -> Callable[Concatenate[Any, P], T]:

@@ -3,15 +3,21 @@ from __future__ import annotations
 
 import pytest
 
-from antidote import inject, injectable, Wiring, world
-from antidote.core import Inject, PublicCatalog
-from antidote.core.exceptions import DuplicateDependencyError
-from antidote.lib.injectable import antidote_injectable
+from antidote import (
+    antidote_lib_injectable,
+    DuplicateDependencyError,
+    inject,
+    injectable,
+    InjectMe,
+    PublicCatalog,
+    Wiring,
+    world,
+)
 
 
 @pytest.fixture(autouse=True)
 def setup_world() -> None:
-    world.include(antidote_injectable)
+    world.include(antidote_lib_injectable)
 
 
 def test_simple() -> None:
@@ -104,7 +110,7 @@ def test_no_wiring() -> None:
         def __init__(self, x: Dummy = inject.me()) -> None:
             self.dummy = x
 
-        def method(self, x: Inject[Dummy]) -> Dummy:
+        def method(self, x: InjectMe[Dummy]) -> Dummy:
             ...
 
     service: MyService = world[MyService]
@@ -201,7 +207,7 @@ def test_duplicate_declaration() -> None:
 
 
 def test_catalog(catalog: PublicCatalog) -> None:
-    catalog.include(antidote_injectable)
+    catalog.include(antidote_lib_injectable)
 
     @injectable(catalog=catalog)
     class Dummy:
@@ -215,7 +221,7 @@ def test_catalog(catalog: PublicCatalog) -> None:
 
 
 def test_private_accessible(catalog: PublicCatalog) -> None:
-    catalog.include(antidote_injectable)
+    catalog.include(antidote_lib_injectable)
 
     @injectable(catalog=catalog.private)
     class Private:

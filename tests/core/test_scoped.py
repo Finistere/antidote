@@ -5,13 +5,8 @@ from typing import TypeVar
 
 import pytest
 
-from antidote import inject, LifeTime, ScopeVar
-from antidote.core import (
-    DependencyDefinitionError,
-    ProvidedDependency,
-    PublicCatalog,
-    ReadOnlyCatalog,
-)
+from antidote import inject, LifeTime, PublicCatalog, ScopeGlobalVar
+from antidote.core import DependencyDefinitionError, ProvidedDependency, ProviderCatalog
 from tests.core.dummy_providers import DummyFactoryProvider
 from tests.utils import Box, Obj
 
@@ -27,10 +22,10 @@ def provider(catalog: PublicCatalog) -> DummyFactoryProvider:
 
 
 def test_single_scope_var(catalog: PublicCatalog, provider: DummyFactoryProvider) -> None:
-    a = ScopeVar(default="a", catalog=catalog)
+    a = ScopeGlobalVar(default="a", catalog=catalog)
 
     @provider.add_raw()
-    def dummy(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dummy(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(
             value=Box(catalog[a]), lifetime=LifeTime.SCOPED, callback=lambda: Box(catalog[a])
         )
@@ -49,12 +44,12 @@ def test_single_scope_var(catalog: PublicCatalog, provider: DummyFactoryProvider
 
 
 def test_multiple_scope_var(catalog: PublicCatalog, provider: DummyFactoryProvider) -> None:
-    a = ScopeVar(default="a", catalog=catalog)
-    b = ScopeVar(default="b", catalog=catalog)
-    c = ScopeVar(default="c", catalog=catalog)
+    a = ScopeGlobalVar(default="a", catalog=catalog)
+    b = ScopeGlobalVar(default="b", catalog=catalog)
+    c = ScopeGlobalVar(default="c", catalog=catalog)
 
     @provider.add_raw()
-    def dependency_ab(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dependency_ab(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(
             value=Box((catalog[a], catalog[b])),
             lifetime=LifeTime.SCOPED,
@@ -62,7 +57,7 @@ def test_multiple_scope_var(catalog: PublicCatalog, provider: DummyFactoryProvid
         )
 
     @provider.add_raw()
-    def dependency_ac(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dependency_ac(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(
             value=Box((catalog[a], catalog[c])),
             lifetime=LifeTime.SCOPED,
@@ -92,16 +87,16 @@ def test_multiple_scope_var(catalog: PublicCatalog, provider: DummyFactoryProvid
 def test_singleton_cannot_depend_on_scoped(
     catalog: PublicCatalog, provider: DummyFactoryProvider
 ) -> None:
-    a = ScopeVar(default="a", catalog=catalog)
+    a = ScopeGlobalVar(default="a", catalog=catalog)
 
     @provider.add_raw()
-    def dummy(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dummy(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(
             value=Box(catalog[a]), lifetime=LifeTime.SCOPED, callback=lambda: Box(catalog[a])
         )
 
     class Injected:
-        @inject(catalog=catalog)
+        @inject(app_catalog=catalog)
         def __init__(self, d: object = inject[dummy]) -> None:
             ...
 
@@ -121,7 +116,7 @@ def test_singleton_cannot_depend_on_scoped(
         _ = catalog[InitRetrieval]
 
     @provider.add_raw()
-    def indirect(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def indirect(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(
             value=Box(catalog[dummy]),
             lifetime=LifeTime.TRANSIENT,
@@ -129,7 +124,7 @@ def test_singleton_cannot_depend_on_scoped(
         )
 
     class IndirectInjected:
-        @inject(catalog=catalog)
+        @inject(app_catalog=catalog)
         def __init__(self, d: object = inject[indirect]) -> None:
             ...
 
@@ -150,11 +145,11 @@ def test_singleton_cannot_depend_on_scoped(
 
 
 def test_can_change_state_tokens(catalog: PublicCatalog, provider: DummyFactoryProvider) -> None:
-    a = ScopeVar(default="a", catalog=catalog)
-    b = ScopeVar(default="b", catalog=catalog)
+    a = ScopeGlobalVar(default="a", catalog=catalog)
+    b = ScopeGlobalVar(default="b", catalog=catalog)
 
     @provider.add_raw()
-    def dummy(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dummy(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         counter = itertools.count()
 
         def callback() -> object:
@@ -192,7 +187,7 @@ def test_scoped_must_depend_on_scope_vars(
     catalog: PublicCatalog, provider: DummyFactoryProvider
 ) -> None:
     @provider.add_raw()
-    def dummy(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dummy(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(value=object(), lifetime=LifeTime.SCOPED, callback=object)
 
     with pytest.raises(DependencyDefinitionError, match="(?i)no scope vars"):
@@ -200,10 +195,10 @@ def test_scoped_must_depend_on_scope_vars(
 
 
 def test_test_env(catalog: PublicCatalog, provider: DummyFactoryProvider) -> None:
-    var = ScopeVar(default="default", catalog=catalog)
+    var = ScopeGlobalVar(default="default", catalog=catalog)
 
     @provider.add_raw()
-    def dummy(catalog: ReadOnlyCatalog, out: ProvidedDependency) -> None:
+    def dummy(catalog: ProviderCatalog, out: ProvidedDependency) -> None:
         out.set_value(
             value=Box(catalog[var]), lifetime=LifeTime.SCOPED, callback=lambda: Box(catalog[var])
         )

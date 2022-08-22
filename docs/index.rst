@@ -5,16 +5,12 @@
 
 .. highlight:: python
 
-
 .. include:: _build/README.rst
 
 .. toctree::
    :hidden:
 
-   tutorial
-   recipes
-   how_to
-   extend
-   reference
+   guide/index.rst
+   reference/index.rst
    faq
    changelog

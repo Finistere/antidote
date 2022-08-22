@@ -4,81 +4,132 @@ from typing_extensions import Protocol
 
 from ._internal import API, ConfigImpl
 from .core import (
+    AntidoteError,
     app_catalog,
+    CannotInferDependencyError,
     Catalog,
     Dependency,
     DependencyNotFoundError,
     dependencyOf,
+    DoubleInjectionError,
     DuplicateDependencyError,
-    Inject,
+    FrozenCatalogError,
     inject,
+    InjectMe,
     is_catalog,
     is_compiled,
+    is_readonly_catalog,
     LifeTime,
+    LifetimeType,
     Methods,
+    Missing,
+    MissingProviderError,
     new_catalog,
+    ParameterDependency,
     PublicCatalog,
+    ReadOnlyCatalog,
     scope,
-    ScopeVar,
+    ScopeGlobalVar,
     ScopeVarToken,
+    TypeHintsLocals,
+    UndefinedScopeVarError,
     wire,
     Wiring,
     world,
 )
 from .lib import antidote_lib
-from .lib.injectable import antidote_injectable, injectable
-from .lib.interface import (
-    antidote_interface,
+from .lib.injectable_ext import antidote_lib_injectable, injectable
+from .lib.interface_ext import (
+    AmbiguousImplementationChoiceError,
+    antidote_lib_interface,
+    HeterogeneousWeightError,
+    ImplementationWeight,
     implements,
     instanceOf,
     interface,
     is_interface,
-    overridable,
+    MergeablePredicate,
+    MergeablePredicateConstraint,
+    NeutralWeight,
     Predicate,
+    PredicateConstraint,
     QualifiedBy,
+    SingleImplementationNotFoundError,
 )
-from .lib.lazy import antidote_lazy, const, is_const_factory, is_lazy, lazy
+from .lib.lazy_ext import (
+    antidote_lib_lazy,
+    const,
+    is_lazy,
+    lazy,
+    LazyFunction,
+    LazyMethod,
+    LazyProperty,
+    LazyValue,
+)
 
 __all__ = [
-    "Inject",
-    "dependencyOf",
-    "instanceOf",
-    "Predicate",
-    "QualifiedBy",
-    "Methods",
-    "Wiring",
-    "DependencyNotFoundError",
-    "DuplicateDependencyError",
-    "__version__",
-    "const",
-    "config",
-    "LifeTime",
+    "AmbiguousImplementationChoiceError",
+    "AntidoteError",
+    "CannotInferDependencyError",
     "Catalog",
+    "Dependency",
+    "DependencyNotFoundError",
+    "DoubleInjectionError",
+    "DuplicateDependencyError",
+    "FrozenCatalogError",
+    "HeterogeneousWeightError",
+    "ImplementationWeight",
+    "InjectMe",
+    "LazyFunction",
+    "LazyMethod",
+    "LazyProperty",
+    "LazyValue",
+    "LifeTime",
+    "LifetimeType",
+    "MergeablePredicate",
+    "MergeablePredicateConstraint",
+    "Methods",
+    "Missing",
+    "MissingProviderError",
+    "NeutralWeight",
+    "ParameterDependency",
+    "Predicate",
+    "PredicateConstraint",
     "PublicCatalog",
+    "QualifiedBy",
+    "ReadOnlyCatalog",
+    "ScopeGlobalVar",
+    "ScopeVarToken",
+    "SingleImplementationNotFoundError",
+    "TypeHintsLocals",
+    "UndefinedScopeVarError",
+    "Wiring",
+    "__version__",
+    "antidote_lib",
+    "app_catalog",
+    "config",
+    "const",
+    "dependencyOf",
+    "antidote_lib_injectable",
+    "antidote_lib_interface",
+    "antidote_lib_lazy",
     "implements",
     "inject",
-    "antidote_lib",
     "injectable",
+    "instanceOf",
     "interface",
-    "is_compiled",
-    "lazy",
-    "wire",
-    "overridable",
-    "world",
-    "new_catalog",
-    "antidote_interface",
-    "antidote_injectable",
-    "antidote_lazy",
-    "app_catalog",
-    "Dependency",
-    "scope",
-    "ScopeVar",
     "is_catalog",
-    "is_lazy",
-    "is_const_factory",
+    "is_compiled",
     "is_interface",
-    "ScopeVarToken",
+    "is_lazy",
+    "is_readonly_catalog",
+    "lazy",
+    "new_catalog",
+    "scope",
+    "wire",
+    "world",
 ]
+
 
 try:
     from ._internal.scm_version import version as __version__
@@ -87,10 +138,7 @@ except ImportError:  # pragma: no cover
 
 world.include(antidote_lib)
 
-config: Config = ConfigImpl()
-config.__doc__ = """
-Singleton instance of :py:class:`.Config`.
-"""
+config: Config = ConfigImpl()  # pyright: ignore
 
 
 @API.public
@@ -103,11 +151,11 @@ class Config(Protocol):
 
     auto_detect_type_hints_locals: bool
     """
-    Whether :py:func:`.inject`, :py:func:`.injectable`, :py:class:`.implements` and
-    :py:func:`.wire` should rely on inspection to determine automatically the locals
-    for :py:func:`typing.get_type_hints` when relying on type hints. Deactivated by default.
-    This behavior can always be overridden by specifying :code:`type_hints_locals` argument
-    explicitly, either to :py:obj:`None` for deactivation or to :code:`'auto'` for activation.
+    Whether :py:obj:`.inject` and all other decorators should rely on inspection to determine
+    automatically the locals for :py:func:`typing.get_type_hints` when relying on type hints.
+    Deactivated by default. This behavior can always be overridden by specifying
+    :code:`type_hints_locals` argument explicitly, either to :py:obj:`None` for deactivation or
+    to :code:`'auto'` for activation.
 
     It's mostly interesting during tests. The following example wouldn't work with
     string annotations:

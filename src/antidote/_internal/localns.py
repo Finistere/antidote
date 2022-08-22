@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 from typing import Mapping, Optional, TYPE_CHECKING
 
+from .config import config
 from .utils import Default
 
 if TYPE_CHECKING:
@@ -14,9 +15,7 @@ def retrieve_or_validate_injection_locals(
 ) -> Optional[Mapping[str, object]]:
 
     if type_hints_locals is Default.sentinel:
-        from .config import ConfigImpl
-
-        type_hints_locals = "auto" if ConfigImpl().auto_detect_type_hints_locals else None
+        type_hints_locals = "auto" if config.auto_detect_type_hints_locals else None
 
     if type_hints_locals == "auto":
         frame = inspect.currentframe()

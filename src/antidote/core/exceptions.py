@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-from typing import Type, TYPE_CHECKING
-
 from .._internal import API, debug_repr
-
-if TYPE_CHECKING:
-    from . import Provider, ReadOnlyCatalog
-    from ._internal_catalog import InternalCatalog
 
 __all__ = [
     "AntidoteError",
@@ -69,7 +63,7 @@ class DependencyNotFoundError(AntidoteError, KeyError):
     """
 
     @API.private
-    def __init__(self, dependency: object, *, catalog: ReadOnlyCatalog | InternalCatalog) -> None:
+    def __init__(self, dependency: object, *, catalog: object) -> None:
         super().__init__(f"{catalog} cannot provide {dependency!r}")
 
 
@@ -91,7 +85,7 @@ class DuplicateProviderError(AntidoteError):
     """
 
     @API.private
-    def __init__(self, *, catalog: InternalCatalog, provider_class: Type[Provider]) -> None:
+    def __init__(self, *, catalog: object, provider_class: type) -> None:
         super().__init__(f"{catalog} already has the provider: {provider_class.__name__}")
 
 
@@ -102,7 +96,7 @@ class FrozenCatalogError(AntidoteError):
     """
 
     @API.private
-    def __init__(self, catalog: ReadOnlyCatalog | InternalCatalog) -> None:
+    def __init__(self, catalog: object) -> None:
         super().__init__(f"{catalog} is already frozen.")
 
 
@@ -115,6 +109,6 @@ class UndefinedScopeVarError(AntidoteError, RuntimeError):
     @API.private
     def __init__(self, dependency: object) -> None:
         super().__init__(
-            f"ScopeVar {dependency!r} does not have any value associated."
+            f"ScopeGlobalVar {dependency!r} does not have any value associated."
             f"Use set() to define it first."
         )

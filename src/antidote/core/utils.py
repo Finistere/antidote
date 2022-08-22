@@ -18,10 +18,12 @@ def is_compiled() -> bool:
     """
     Whether current Antidote implementations is the compiled (Cython) version or not
     """
-    return False
+    from ._raw import compiled
+
+    return compiled
 
 
-@API.experimental
+@API.public
 def new_catalog(
     *,
     name: str | Default = Default.sentinel,
@@ -33,16 +35,15 @@ def new_catalog(
     better differentiate it from others. It's possible to provide an iterable of functions or
     public catalogs to :py:class:`~.Catalog.include`.
     """
-    from .._internal import auto_detect_origin_frame
     from ._catalog import CatalogImpl
 
     if isinstance(name, Default):
-        name, origin = auto_detect_var_name().rsplit("@", 1)
+        name = auto_detect_var_name()
     else:
         enforce_valid_name(name)
-        origin = auto_detect_origin_frame()
+    name += f"#{CatalogImpl.next_id()}"
 
-    catalog = CatalogImpl.create_public(name=name, origin=origin)
+    catalog = CatalogImpl.create_public(name=name)
     if isinstance(include, Default):
         from ..lib import antidote_lib
 
@@ -68,6 +69,6 @@ def is_readonly_catalog(catalog: object) -> TypeGuard[ReadOnlyCatalog]:
     """
     Returns whether the specified object is a :py:class:`.ReadOnlyCatalog` or not.
     """
-    from ._catalog import AppCatalog, ReadOnlyCatalogImpl
+    from ._catalog import AppCatalogProxy, CatalogImpl
 
-    return isinstance(catalog, (AppCatalog, ReadOnlyCatalogImpl))
+    return isinstance(catalog, (AppCatalogProxy, CatalogImpl))

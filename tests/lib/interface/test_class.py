@@ -8,19 +8,23 @@ import pytest
 from typing_extensions import Protocol, runtime_checkable
 
 from antidote import (
+    AmbiguousImplementationChoiceError,
+    antidote_lib_injectable,
+    antidote_lib_interface,
+    DependencyNotFoundError,
+    DuplicateDependencyError,
+    FrozenCatalogError,
     implements,
     inject,
     injectable,
     instanceOf,
     interface,
     new_catalog,
-    overridable,
+    QualifiedBy,
+    SingleImplementationNotFoundError,
     Wiring,
     world,
 )
-from antidote.core.exceptions import DependencyNotFoundError, DuplicateDependencyError
-from antidote.lib.injectable import antidote_injectable
-from antidote.lib.interface import antidote_interface, QualifiedBy
 from tests.lib.interface.common import _, weighted
 from tests.utils import expected_debug
 
@@ -47,8 +51,8 @@ qD = Qualifier("qD")
 
 @pytest.fixture(autouse=True)
 def setup_world() -> None:
-    world.include(antidote_injectable)
-    world.include(antidote_interface)
+    world.include(antidote_lib_injectable)
+    world.include(antidote_lib_interface)
 
 
 def test_single_implementation() -> None:
@@ -128,13 +132,13 @@ def test_single_multiple_implementations_failure() -> None:
     class Dummy2(Base):
         pass
 
-    with pytest.raises(DuplicateDependencyError, match="Base"):
+    with pytest.raises(AmbiguousImplementationChoiceError, match="Base"):
         world[Base]
 
-    with pytest.raises(DuplicateDependencyError, match="Base"):
+    with pytest.raises(AmbiguousImplementationChoiceError, match="Base"):
         world[instanceOf(Base).single()]
 
-    with pytest.raises(DuplicateDependencyError, match="Base"):
+    with pytest.raises(AmbiguousImplementationChoiceError, match="Base"):
 
         @inject
         def f(x: Base = inject.me()) -> Base:
@@ -164,13 +168,13 @@ def test_qualified_implementations() -> None:
     class CD(Base):
         pass
 
-    with pytest.raises(DuplicateDependencyError, match="Base"):
+    with pytest.raises(AmbiguousImplementationChoiceError, match="Base"):
         world[instanceOf(Base)]
 
-    with pytest.raises(DuplicateDependencyError, match="Base"):
+    with pytest.raises(AmbiguousImplementationChoiceError, match="Base"):
         world[instanceOf(Base).single()]
 
-    with pytest.raises(DuplicateDependencyError, match="Base"):
+    with pytest.raises(AmbiguousImplementationChoiceError, match="Base"):
         world[Base]
 
     a = world[instanceOf(Base).single(qualified_by=qA)]
@@ -206,7 +210,7 @@ def test_qualified_implementations() -> None:
     assert f2() is a
 
     # qualified_b // impossible
-    with pytest.raises(DependencyNotFoundError):
+    with pytest.raises(SingleImplementationNotFoundError):
         world[instanceOf(Base).single(qualified_by=[qA, qB])]
 
     assert set(world[instanceOf(Base).all(qualified_by=[qA, qB])]) == set()
@@ -219,10 +223,10 @@ def test_qualified_implementations() -> None:
     assert world[instanceOf(Base).single(qualified_by_one_of=[qD])] is cd
     assert world[instanceOf(Base).all(qualified_by_one_of=[qD])] == [cd]
 
-    with pytest.raises(DuplicateDependencyError):
+    with pytest.raises(AmbiguousImplementationChoiceError):
         world[instanceOf(Base).single(qualified_by_one_of=[sqC])]
 
-    with pytest.raises(DuplicateDependencyError):
+    with pytest.raises(AmbiguousImplementationChoiceError):
         world[instanceOf(Base).single(qualified_by_one_of=[qA, qB])]
 
     assert world[instanceOf(Base).all(qualified_by_one_of=[sqC])] == [cd, c]
@@ -297,7 +301,7 @@ def test_custom_injectable() -> None:
     class Base:
         pass
 
-    @_(implements(Base).by_default)
+    @_(implements(Base).as_default)
     @injectable(lifetime="transient")
     class Default(Base):
         pass
@@ -483,13 +487,13 @@ def test_by_default() -> None:
     class Base:
         ...
 
-    @_(implements(Base).by_default)
+    @_(implements(Base).as_default)
     class Default(Base):
         ...
 
     with pytest.raises(RuntimeError, match="(?i)default dependency"):
 
-        @_(implements(Base).by_default)
+        @_(implements(Base).as_default)
         class Default2(Base):
             ...
 
@@ -510,7 +514,7 @@ def test_by_default() -> None:
 
 
 def test_overridable() -> None:
-    @overridable
+    @interface.as_default
     class Base:
         pass
 
@@ -521,7 +525,7 @@ def test_overridable() -> None:
 
     with pytest.raises(RuntimeError, match="(?i)default dependency"):
 
-        @_(implements(Base).by_default)
+        @_(implements(Base).as_default)
         class Default2(Base):
             ...
 
@@ -544,7 +548,7 @@ def test_overridable() -> None:
     assert world[instanceOf(Base).all()] == [dummy]
 
     with pytest.raises(TypeError, match="class.*function"):
-        overridable(object())  # type: ignore
+        interface.as_default(object())  # type: ignore
 
 
 def test_by_default_overriding() -> None:
@@ -552,7 +556,7 @@ def test_by_default_overriding() -> None:
     class Base:
         ...
 
-    @_(implements(Base).by_default)
+    @_(implements(Base).as_default)
     class Default(Base):
         ...
 
@@ -578,7 +582,7 @@ def test_injection_and_type_hints() -> None:
 
     with pytest.raises(NameError, match="Dep"):
 
-        @overridable(type_hints_locals=None)
+        @interface.as_default(type_hints_locals=None)
         class Failure:
             def f(self, dep: Dep = inject.me()) -> object:
                 ...
@@ -586,23 +590,23 @@ def test_injection_and_type_hints() -> None:
     injected = world.private[Dep]
     not_injected = inject.me()
 
-    @overridable
+    @interface.as_default
     class Dummy:
         def f(self, dep: Dep = inject.me()) -> object:
             return dep
 
-    @overridable
+    @interface.as_default
     class DummyCustom:
-        @inject(dict(dep=Dep))
+        @inject(kwargs=dict(dep=Dep))
         def f(self, dep: object = None) -> object:
             return dep
 
-    @overridable(wiring=None)
+    @interface.as_default(wiring=None)
     class DummyNone:
         def f(self, dep: Dep = inject.me()) -> object:
             return dep
 
-    @overridable
+    @interface.as_default
     @injectable(wiring=None)
     class DummyInjectableNone:
         def f(self, dep: Dep = inject.me()) -> object:
@@ -624,7 +628,7 @@ def test_injection_and_type_hints() -> None:
 
     @implements(DummyCustom)
     class DummyCustomImpl(DummyCustom):
-        @inject(dict(dep=Dep))
+        @inject(kwargs=dict(dep=Dep))
         def f(self, dep: object = None) -> object:
             return "impl", dep
 
@@ -655,7 +659,7 @@ def test_injection_and_type_hints() -> None:
 
     @_(implements(DummyCustom).overriding(DummyCustomImpl))
     class DummyCustomOverride(DummyCustom):
-        @inject(dict(dep=Dep))
+        @inject(kwargs=dict(dep=Dep))
         def f(self, dep: object = None) -> object:
             return "override", dep
 
@@ -686,7 +690,7 @@ def test_injection_and_type_hints() -> None:
 
     @_(implements(DummyCustom).when(weighted(12)))
     class DummyCustomWhen(DummyCustom):
-        @inject(dict(dep=Dep))
+        @inject(kwargs=dict(dep=Dep))
         def f(self, dep: object = None) -> object:
             return "when", dep
 
@@ -712,7 +716,7 @@ def test_injection_and_type_hints() -> None:
 
 
 def test_catalog() -> None:
-    catalog = new_catalog(include=[antidote_interface])
+    catalog = new_catalog(include=[antidote_lib_interface])
 
     @interface(catalog=catalog)
     class Base:
@@ -731,7 +735,7 @@ def test_catalog() -> None:
     with pytest.raises(TypeError, match="catalog"):
         implements(Base, catalog=object())  # type: ignore
 
-    @overridable(catalog=catalog)
+    @interface.as_default(catalog=catalog)
     class Base2:
         ...
 
@@ -739,7 +743,55 @@ def test_catalog() -> None:
     assert Base2 not in world
 
     with pytest.raises(TypeError, match="catalog"):
-        overridable(catalog=object())  # type: ignore
+        interface.as_default(catalog=object())  # type: ignore
+
+
+def test_frozen() -> None:
+    @interface
+    class Dummy:
+        pass
+
+    @implements(Dummy)
+    class DummyImpl(Dummy):
+        pass
+
+    world.freeze()
+
+    with pytest.raises(FrozenCatalogError):
+
+        @interface
+        class Failure:
+            pass
+
+    with pytest.raises(FrozenCatalogError):
+
+        @implements(Dummy)
+        class DummyFailure(Dummy):
+            pass
+
+    with pytest.raises(FrozenCatalogError):
+
+        @_(implements(Dummy).when(True))
+        class DummyFailure2(Dummy):
+            pass
+
+    with pytest.raises(FrozenCatalogError):
+
+        @_(implements(Dummy).when(False))
+        class DummyFailure3(Dummy):
+            pass
+
+    with pytest.raises(FrozenCatalogError):
+
+        @_(implements(Dummy).as_default)
+        class DummyFailure4(Dummy):
+            pass
+
+    with pytest.raises(FrozenCatalogError):
+
+        @_(implements(Dummy).overriding(DummyImpl))
+        class DummyFailure5(Dummy):
+            pass
 
 
 def test_test_env() -> None:
@@ -747,7 +799,7 @@ def test_test_env() -> None:
     class Dummy:
         pass
 
-    @_(implements(Dummy).by_default)
+    @_(implements(Dummy).as_default)
     class DummyDefault(Dummy):
         ...
 
@@ -769,6 +821,20 @@ def test_test_env() -> None:
         assert isinstance(result, DummyDefault)
         assert result is not original_default
 
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements(Dummy).overriding(DummyDefault))
+            class Failure(Dummy):
+                ...
+
+    assert world[Dummy] is original_default
+
+    with world.test.clone(frozen=False):
+        assert Dummy in world
+        result = world[Dummy]
+        assert isinstance(result, DummyDefault)
+        assert result is not original_default
+
         @_(implements(Dummy).overriding(DummyDefault))
         class DummyDefault2(Dummy):
             ...
@@ -778,6 +844,20 @@ def test_test_env() -> None:
     assert world[Dummy] is original_default
 
     with world.test.copy():
+        assert Dummy in world
+        result = world[Dummy]
+        assert isinstance(result, DummyDefault)
+        assert result is original_default
+
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements(Dummy).overriding(DummyDefault))
+            class Failure2(Dummy):
+                ...
+
+    assert world[Dummy] is original_default
+
+    with world.test.copy(frozen=False):
         assert Dummy in world
         result = world[Dummy]
         assert isinstance(result, DummyDefault)
@@ -813,6 +893,20 @@ def test_test_env() -> None:
         assert isinstance(result, DummyImpl)
         assert result is not original
 
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements(Dummy).overriding(DummyImpl))
+            class Failure3(Dummy):
+                ...
+
+    assert world[Dummy] is original
+
+    with world.test.clone(frozen=False):
+        assert Dummy in world
+        result = world[Dummy]
+        assert isinstance(result, DummyImpl)
+        assert result is not original
+
         @_(implements(Dummy).overriding(DummyImpl))
         class DummyImpl2(Dummy):
             ...
@@ -822,6 +916,20 @@ def test_test_env() -> None:
     assert world[Dummy] is original
 
     with world.test.copy():
+        assert Dummy in world
+        result = world[Dummy]
+        assert isinstance(result, DummyImpl)
+        assert result is original
+
+        with pytest.raises(FrozenCatalogError):
+
+            @_(implements(Dummy).overriding(DummyImpl))
+            class Failure4(Dummy):
+                ...
+
+    assert world[Dummy] is original
+
+    with world.test.copy(frozen=False):
         assert Dummy in world
         result = world[Dummy]
         assert isinstance(result, DummyImpl)
@@ -895,7 +1003,7 @@ def test_unexpected_wiring() -> None:
 
     with pytest.raises(RuntimeError, match="already exists.*wiring"):
 
-        @overridable(wiring=Wiring())
+        @interface.as_default(wiring=Wiring())
         @injectable
         class Dummy2:
             pass
@@ -910,4 +1018,4 @@ def test_duplicate_interface() -> None:
         interface(Base)
 
     with pytest.raises(DuplicateDependencyError, match="Base"):
-        overridable(Base)
+        interface.as_default(Base)

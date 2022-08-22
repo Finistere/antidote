@@ -9,13 +9,13 @@ from typing import Callable, cast, Dict, Iterator, List, Optional, Sequence, Tup
 
 import pytest
 
-from antidote.core import (
+from antidote import (
     app_catalog,
     CannotInferDependencyError,
     DependencyNotFoundError,
     DoubleInjectionError,
     inject,
-    Inject,
+    InjectMe,
     new_catalog,
     PublicCatalog,
     world,
@@ -53,44 +53,37 @@ def test_no_dependencies() -> None:
     assert inject(g) is g
 
 
-def test_args_sequence() -> None:
+def test_args() -> None:
     # simple case
     def f(a: object = default, b: object = default) -> Tuple[object, object]:
         return a, b
 
-    assert inject([dep_x, dep_y])(f)() == (x, y)
-    assert inject([None, dep_y])(f)() == (default, y)
-    assert inject([dep_x])(f)() == (x, default)
-
-    # kwargs-only
-    def g(*, a: object = default, b: object = default) -> Tuple[object, object]:
-        return a, b
-
-    assert inject([dep_x])(g)() == (x, default)
-    assert inject([None, dep_y])(g)() == (default, y)
+    assert inject(args=[dep_x, dep_y])(f)() == (x, y)
+    assert inject(args=[None, dep_y])(f)() == (default, y)
+    assert inject(args=[dep_x])(f)() == (x, default)
 
     # has_self
     class H:
-        @inject([dep_x])
+        @inject(args=[dep_x])
         def method(self, a: object = default) -> None:
             assert isinstance(self, H)
             assert a is x
 
-        @inject([dep_x])
+        @inject(args=[dep_x])
         @classmethod
         def cls_method_after(cls, a: object = default) -> None:
             assert issubclass(cls, H)
             assert a is x
 
         @classmethod
-        @inject([dep_x])
+        @inject(args=[dep_x])
         def cls_method_before(cls, a: object = default) -> None:
             assert issubclass(cls, H)
             assert a is x
 
         # before will not work as the function will be treated as a method, expecting a self
         # parameter.
-        @inject([dep_x])
+        @inject(args=[dep_x])
         @staticmethod
         def static_method_after(a: object = default) -> None:
             assert a is x
@@ -106,35 +99,18 @@ def test_args_sequence() -> None:
     H.cls_method_after()
     H.static_method_after()
 
-    with pytest.raises(ValueError, match="More dependencies.*arguments"):
+    with pytest.raises(TypeError, match="too many positional arguments"):
 
-        @inject([dep_x])
+        @inject(args=[dep_x])
         def ff() -> None:
             ...
 
-    @inject([dep_x])
+    @inject(args=[dep_x])
     def f2(a: object) -> object:
         ...
 
     with world.test.empty(), pytest.raises(DependencyNotFoundError):
         f2()  # type: ignore
-
-
-def test_args_mapping() -> None:
-    @inject(dict(a=dep_x))
-    def f(a: object) -> object:
-        return a
-
-    assert f() is x  # type: ignore
-
-    with pytest.raises(ValueError, match="argument.*hello"):
-
-        @inject(dict(hello=dep_x))
-        def g(a: object) -> object:
-            ...
-
-    with world.test.empty(), pytest.raises(DependencyNotFoundError):
-        f()  # type: ignore
 
 
 def test_kwargs() -> None:
@@ -146,7 +122,7 @@ def test_kwargs() -> None:
     with world.test.empty(), pytest.raises(DependencyNotFoundError):
         f()  # type: ignore
 
-    with pytest.raises(ValueError, match="argument.*hello"):
+    with pytest.raises(TypeError, match="hello"):
 
         @inject(kwargs=dict(hello=dep_x))
         def g(a: object) -> object:
@@ -160,14 +136,8 @@ def test_kwargs() -> None:
 
 
 def test_invalid_args_type() -> None:
-    with pytest.raises(TypeError, match="(?i)first argument and kwargs"):
-        inject([object()], kwargs=dict())  # type: ignore
-
-    with pytest.raises(TypeError, match="(?i)first argument and kwargs"):
-        inject(dict(), kwargs=dict())  # type: ignore
-
     with pytest.raises(TypeError, match="str"):
-        inject("test")
+        inject(args="test")
 
     with pytest.raises(TypeError, match="function"):
         inject(object())  # type: ignore
@@ -240,7 +210,7 @@ def test_invalid_inject() -> None:
 
 
 def test_follow_wrapped() -> None:
-    @inject(dict(a=dep_x))
+    @inject(kwargs=dict(a=dep_x))
     def f(a: object = object()) -> object:
         return a
 
@@ -270,7 +240,7 @@ def test_invalid_type_hints(type_hint: object) -> None:
         with pytest.raises(CannotInferDependencyError, match=re.escape(repr(type_hint))):
 
             @inject
-            def f(x: Inject[type_hint]) -> None:  # type: ignore
+            def f(x: InjectMe[type_hint]) -> None:  # type: ignore
                 ...
 
         with pytest.raises(CannotInferDependencyError, match=re.escape(repr(type_hint))):
@@ -284,15 +254,15 @@ def test_ignore_star_arguments() -> None:
     def f(*args: object, a: object = None) -> Tuple[Tuple[object, ...], object]:
         return args, a
 
-    assert inject([dep_x])(f)() == (tuple(), x)
+    assert inject(kwargs={"a": dep_x})(f)(y) == ((y,), x)
 
-    with pytest.raises(ValueError, match="args"):
-        inject(dict(args=dep_x))(f)
+    with pytest.raises(TypeError, match="args"):
+        inject(kwargs=dict(args=dep_x))(f)
 
 
 def test_injection_ordering() -> None:
     def f(
-        a: Inject[Union[A, None]] = None,
+        a: InjectMe[Union[A, None]] = None,
         b: object = inject[dep_x],
         c: object = None,
     ) -> Tuple[object, object, object]:
@@ -304,13 +274,13 @@ def test_injection_ordering() -> None:
     xyz = dict(a=dep_x, b=dep_y, c=dep_z)
     yzx = dict(a=dep_y, b=dep_z, c=dep_x)
 
-    assert inject(xyz)(f)() == (x, y, z)
-    assert inject([dep_x, dep_y, dep_z])(f)() == (x, y, z)
+    assert inject(kwargs=xyz)(f)() == (x, y, z)
+    assert inject(args=[dep_x, dep_y, dep_z])(f)() == (x, y, z)
     assert inject(f, kwargs=xyz)() == (x, y, z)
 
     # kwargs overrides fallback
-    assert inject(xyz, fallback=yzx)(f)() == (x, y, z)
-    assert inject([dep_x, dep_y, dep_z], fallback=yzx)(f)() == (x, y, z)
+    assert inject(kwargs=xyz, fallback=yzx)(f)() == (x, y, z)
+    assert inject(args=[dep_x, dep_y, dep_z], fallback=yzx)(f)() == (x, y, z)
     assert inject(f, kwargs=xyz, fallback=yzx)() == (x, y, z)
 
     # annotations & default override fallback
@@ -330,7 +300,7 @@ def test_inject_catalog(catalog: PublicCatalog) -> None:
     catalog2 = new_catalog(include=[])
 
     with pytest.raises(TypeError):
-        inject(catalog=object())  # type: ignore
+        inject(app_catalog=object())  # type: ignore
 
     with catalog.test.empty() as catalog_overrides, catalog2.test.empty() as catalog2_overrides, world.test.empty() as overrides:
         overrides[A] = A()
@@ -341,8 +311,8 @@ def test_inject_catalog(catalog: PublicCatalog) -> None:
             return a
 
         f_unspecified = inject(f)
-        f_app = inject(f, catalog=app_catalog)
-        f_catalog = inject(f, catalog=catalog)
+        f_app = inject(f, app_catalog=app_catalog)
+        f_catalog = inject(f, app_catalog=catalog)
 
         # Use current catalog by default
         assert f_unspecified() is world[A]
@@ -362,15 +332,15 @@ def test_inject_catalog(catalog: PublicCatalog) -> None:
         def g_unspecified_catalog(a: A = inject.me()) -> A:
             return f_catalog()
 
-        @inject(catalog=catalog2)
+        @inject(app_catalog=catalog2)
         def g_catalog2_unspecified(a: A = inject.me()) -> A:
             return f_unspecified()
 
-        @inject(catalog=catalog2)
+        @inject(app_catalog=catalog2)
         def g_catalog2_none(a: A = inject.me()) -> A:
             return f_app()
 
-        @inject(catalog=catalog2)
+        @inject(app_catalog=catalog2)
         def g_catalog2_catalog(a: A = inject.me()) -> A:
             return f_catalog()
 
@@ -389,13 +359,13 @@ def test_inject_rewire(catalog: PublicCatalog) -> None:
         return a
 
     # Nothing should happen
-    inject.rewire(f, catalog=catalog)
+    inject.rewire(f, app_catalog=catalog)
 
     with pytest.raises(TypeError, match="catalog"):
-        inject.rewire(f, catalog=object())  # type: ignore
+        inject.rewire(f, app_catalog=object())  # type: ignore
 
     with pytest.raises(TypeError, match="function"):
-        inject.rewire(object(), catalog=catalog)  # type: ignore
+        inject.rewire(object(), app_catalog=catalog)  # type: ignore
 
     with catalog.test.empty() as catalog_overrides, catalog2.test.empty() as catalog2_overrides, world.test.empty() as overrides:
         overrides[A] = A()
@@ -403,8 +373,8 @@ def test_inject_rewire(catalog: PublicCatalog) -> None:
         catalog2_overrides[A] = A()
 
         f_unspecified = inject(f)
-        f_app = inject(f, catalog=app_catalog)
-        f_catalog = inject(f, catalog=catalog)
+        f_app = inject(f, app_catalog=app_catalog)
+        f_catalog = inject(f, app_catalog=catalog)
 
         class Dummy:
             @inject
@@ -421,12 +391,12 @@ def test_inject_rewire(catalog: PublicCatalog) -> None:
             def m(cls, a: A = inject.me()) -> A:
                 return a
 
-        inject.rewire(f_unspecified, catalog=catalog2)
-        inject.rewire(f_app, catalog=catalog2)
-        inject.rewire(f_catalog, catalog=catalog2)
-        inject.rewire(Dummy.__dict__["sm"], catalog=catalog2)
-        inject.rewire(Dummy.__dict__["cm"], catalog=catalog2)
-        inject.rewire(Dummy.__dict__["m"], catalog=catalog2)
+        inject.rewire(f_unspecified, app_catalog=catalog2)
+        inject.rewire(f_app, app_catalog=catalog2)
+        inject.rewire(f_catalog, app_catalog=catalog2)
+        inject.rewire(Dummy.__dict__["sm"], app_catalog=catalog2)
+        inject.rewire(Dummy.__dict__["cm"], app_catalog=catalog2)
+        inject.rewire(Dummy.__dict__["m"], app_catalog=catalog2)
 
         assert isinstance(Dummy.__dict__["sm"], staticmethod)
         assert isinstance(Dummy.__dict__["cm"], classmethod)
@@ -438,12 +408,12 @@ def test_inject_rewire(catalog: PublicCatalog) -> None:
         assert Dummy.cm() is catalog2[A]
         assert Dummy().m() is catalog2[A]
 
-        inject.rewire(f_unspecified, catalog=app_catalog)
-        inject.rewire(f_app, catalog=app_catalog)
-        inject.rewire(f_catalog, catalog=app_catalog)
-        inject.rewire(Dummy.__dict__["sm"], catalog=app_catalog)  # pyright: ignore
-        inject.rewire(Dummy.__dict__["cm"], catalog=app_catalog)  # pyright: ignore
-        inject.rewire(Dummy.__dict__["m"], catalog=app_catalog)
+        inject.rewire(f_unspecified, app_catalog=app_catalog)
+        inject.rewire(f_app, app_catalog=app_catalog)
+        inject.rewire(f_catalog, app_catalog=app_catalog)
+        inject.rewire(Dummy.__dict__["sm"], app_catalog=app_catalog)  # pyright: ignore
+        inject.rewire(Dummy.__dict__["cm"], app_catalog=app_catalog)  # pyright: ignore
+        inject.rewire(Dummy.__dict__["m"], app_catalog=app_catalog)
 
         assert f_unspecified() is world[A]
         assert f_app() is world[A]
@@ -452,7 +422,7 @@ def test_inject_rewire(catalog: PublicCatalog) -> None:
         assert Dummy.cm() is world[A]
         assert Dummy().m() is world[A]
 
-        @inject(catalog=catalog2)
+        @inject(app_catalog=catalog2)
         def contextualized(func: Callable[[], A], a: A = inject.me()) -> A:
             return func()
 
@@ -468,7 +438,7 @@ def test_star_args() -> None:
     with world.test.empty() as overrides:
         overrides[x] = x
 
-        @inject(dict(a=x), ignore_type_hints=True)
+        @inject(kwargs=dict(a=x), ignore_type_hints=True)
         def f1(
             *args: object, a: object = None, **kwargs: object
         ) -> tuple[tuple[object, ...], object, dict[str, object]]:
@@ -480,7 +450,7 @@ def test_star_args() -> None:
         assert f1(1, b=2) == ((1,), x, dict(b=2))
         assert f1(a=3) == ((), 3, {})
 
-        @inject(dict(a=x), ignore_type_hints=True)
+        @inject(kwargs=dict(a=x), ignore_type_hints=True)
         def f2(
             a: object = None, *args: object, **kwargs: object
         ) -> tuple[tuple[object, ...], object, dict[str, object]]:
