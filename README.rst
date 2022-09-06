@@ -21,11 +21,15 @@ Antidote
   :target: http://antidote.readthedocs.io/en/latest/?badge=latest
 
 
-Antidote is a dependency injection micro-framework for Python 3.7+.
+Antidote is a dependency injection micro-framework for Python 3.7+, featuring:
 
-It is built on the idea of having a **declarative**, **explicit** and **decentralized** definitions of dependencies at the type / function / variable definition which can be easily tracked down.
+- Strong focus on typing and putting type hints to work
+- Scalable from small/simple usage to very right "framework frameworks"
 
-Features are built with a strong focus on **maintainability**, **simplicity** and **ease of use** in mind. Everything is statically typed (mypy & pyright), documented with tested examples, can be easily used in existing code and tested in isolation.
+It is built on the idea of having a **declarative**, **explicit** and **decentralized** definition of dependencies at the type / function / variable definition.
+These definitions can be easily tracked down, including by static tooling and startup-time analysis.
+
+Features are built with a strong focus on **maintainability**, **simplicity** and **ease of use** in mind. Everything is statically typed (mypy & pyright), documented with tested examples, and can be easily used in existing code and tested in isolation.
 
 
 ************
@@ -71,7 +75,7 @@ Overview
 Accessing dependencies
 ======================
 
-Antidote works with a :code:`Catalog` which is a sort of collection of dependencies. Multiple ones can co-exist, but :code:`world` is used by default. The most common form of a dependency is an instance of a given class
+Antidote works with a :code:`Catalog` which is a sort of "collection" of dependencies. Multiple collections can co-exist, but :code:`world` is used by default. The most common form of a dependency is an instance of a given class:
 
 .. code-block:: python
 
@@ -84,7 +88,9 @@ Antidote works with a :code:`Catalog` which is a sort of collection of dependenc
     world[Service]  # retrieve the instance
     world.get(Service, default='something')  # similar to a dict
 
-By default, :code:`@injectable` defines a singleton but alternative lifetimes (how long the :code:`world` keeps value alive in its cache) exists such as :code:`transient` where nothing is cached at all. Dependencies can also be injected into a function/method with :code:`@inject`. With both, Mypy, Pyright and PyCharm will infer the correct types.
+By default, :code:`@injectable` defines a singleton. However, alternative lifetimes (how long the :code:`world` keeps value alive in its cache) can exist, such as :code:`transient`, where nothing is cached at all.
+
+Dependencies can also be injected into a function/method with :code:`@inject`. For both kinds of callables, Mypy, Pyright and PyCharm will infer the correct types.
 
 .. code-block:: python
 
@@ -97,7 +103,7 @@ By default, :code:`@injectable` defines a singleton but alternative lifetimes (h
     f()  # service injected
     f(Service())  # useful for testing: no injection, argument is used
 
-:code:`@inject` supports a variety of ways to bind arguments to their dependencies if any. This binding is *always* explicit. for example:
+:code:`@inject` supports a variety of ways to bind arguments to their dependencies (if any.) This binding is *always* explicit:
 
 .. code-block:: python
 
@@ -116,7 +122,7 @@ By default, :code:`@injectable` defines a singleton but alternative lifetimes (h
     def f4(service: InjectMe[Service]):
         ...
 
-Classes can also be fully wired, all methods injected, easily with :code:`@wire`. It is also possible to
+Classes can also be fully wired, with all methods injected, by using :code:`@wire`. It is also possible to
 inject the first argument, commonly named :code:`self`, of a method with an instance of a class:
 
 .. code-block:: python
@@ -139,7 +145,7 @@ inject the first argument, commonly named :code:`self`, of a method with an inst
 Defining dependencies
 ======================
 
-Antidote provides out of the box 4 kinds of dependencies:
+Antidote comes out-of-the-box with 4 kinds of dependencies:
 
 -   :code:`@injectable` classes for which an instance is provided.
 
@@ -205,7 +211,7 @@ Antidote provides out of the box 4 kinds of dependencies:
 
     :code:`@lazy` will automatically apply :code:`@inject` and can also be a value, property or even a method similarly to :code:`@inject.method`.
 
--   :code:`@interface` for a function, class or even :code:`@lazy` function call for which one or multiple implementations can be provided.
+-   :code:`@interface` for which one or multiple implementations can be provided.
 
     .. code-block:: python
 
@@ -239,13 +245,13 @@ Antidote provides out of the box 4 kinds of dependencies:
 
     :code:`@implements` will enforce as much as possible that the interface is correctly implemented. Multiple implementations can also be retrieved. Conditions, filters on metadata and weighting implementation are all supported to allow full customization of which implementation should be retrieved in which use case.
 
-Each of those have several knobs to adapt them to your needs which are presented in the documentation.
+Each of those have several knobs to adapt them to your needs which are covered in the documentation.
 
 
 Testing & Debugging
 ===================
 
-Injected functions can typically be tested by passing arguments explicitly but it's not always enough. Antidote provides test context which full isolate themselves and allow overriding any dependencies:
+Injected functions can typically be tested by passing arguments explicitly but it's not always enough. Antidote provides a test context for full test isolation. The test context allows overriding any dependencies:
 
 .. code-block:: python
 
@@ -274,7 +280,7 @@ Injected functions can typically be tested by passing arguments explicitly but i
     assert world[Service] is original
 
 
-Antidote also provides introspection capabilities with :code:`world.debug`  which returns a nicely formatted tree to show what Antidote actually sees without executing anything like the following:
+Antidote also provides introspection capabilities with :code:`world.debug`  which returns a nicely-formatted tree to show what Antidote actually sees, without actually executing anything:
 
 .. code-block:: text
 
@@ -291,9 +297,9 @@ Antidote also provides introspection capabilities with :code:`world.debug`  whic
 Going Further
 =============
 
-- Scopes are supported. Defining a :code:`ScopeGlobalVar` and using it as dependency will force any dependents to be updated whenever it changes (a request for example).
-- Multiple catalogs can be used which allow you to expose only a subset of your API (dependencies) to your consumer within a catalog.
-- You can easily define your kind of dependencies with proper typing from both :code:`world` and :code:`inject`. :code:`@injectable`, :code:`@lazy`, :code:`inject.me()` etc.. all rely on Antidote's core (:code:`Provider`, :code:`Dependency`, etc.) which is part of public API.
+- Scopes are supported. Defining a :code:`ScopeGlobalVar` and using it as a dependency will force any dependents to be updated whenever it changes (a request for example).
+- Multiple catalogs can be used which lets you expose only a subset of your API (dependencies) to your consumer within a catalog.
+- You can easily define your kind of dependencies with proper typing from both :code:`world` and :code:`inject`. :code:`@injectable`, :code:`@lazy`, :code:`inject.me()` etc.. all rely on Antidote's core (:code:`Provider`, :code:`Dependency`, etc.) which is part of the public API.
 
 Check out the `Guide <https://antidote.readthedocs.io/en/latest/guide/index.html>`_ which goes more in depth or the `Reference <https://antidote.readthedocs.io/en/latest/reference/index.html>`_ for specific features.
 
@@ -311,4 +317,4 @@ How to Contribute
 
 If you have any issue during development or just want some feedback, don't hesitate to open a pull request and ask for help ! You're also more than welcome to open a discussion or an issue on any topic!
 
-But, no code changes will be merged if they do not pass mypy, pyright, don't have 100% test coverage or documentation with tested examples if relevant
+But, no code changes will be merged if they do not pass mypy, pyright, don't have 100% test coverage or documentation with tested examples (if relevant.)
